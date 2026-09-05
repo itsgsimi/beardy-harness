@@ -83,6 +83,7 @@ export {
 export { copyComposition, deleteComposition, readComposition, writableRoot } from './authoring.ts'
 export { agentPresetProjectionDefinition } from './session.ts'
 export type { AgentPreset, Config, PresetRoot, PresetTrust } from './preset.ts'
+export { default as PresetInclude } from './include.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

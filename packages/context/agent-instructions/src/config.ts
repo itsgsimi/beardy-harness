@@ -11,15 +11,18 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 const DEFAULT_PROJECT_ROOT_MARKERS = ['.git'] as const
 const DEFAULT_INSTRUCTION_FILE_CANDIDATES = ['AGENTS.md', 'CLAUDE.md'] as const
 const DEFAULT_LOCAL_INSTRUCTION_FILE_CANDIDATES = ['AGENTS.local.md', 'CLAUDE.local.md'] as const
+const DEFAULT_USER_GLOBAL_INSTRUCTION_CANDIDATES = ['AGENTS.md'] as const
 const DEFAULT_MAX_SOURCE_BYTES = 1_048_576
 const RESERVED_PATH_SEGMENTS = new Set(['', '.', '..'])
 
 /** User-facing workspace instruction loader configuration. */
 export interface Config {
-  /** Harness home containing the fixed user-global `AGENTS.md`; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** Harness home containing user-global instruction files; defaults to `$DSH_HOME` or `~/.dsh`. */
   dshHome?: string
   /** Directory entries that identify the project root while walking upward from the session cwd. */
   projectRootMarkers?: string[]
+  /** Ordered instruction files read from the Harness home before project files. */
+  userGlobalInstructionCandidates?: string[]
   /** UTF-8 byte cap for one rendered baseline or dynamic batch; non-positive or non-finite disables loading. */
   maxBytes: number
   /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
@@ -39,6 +42,7 @@ export interface Config {
 export const Config: z<Config> = z.object({
   dshHome: z.string(),
   projectRootMarkers: z.array(z.string()).default([...DEFAULT_PROJECT_ROOT_MARKERS]),
+  userGlobalInstructionCandidates: z.array(z.string()).default([...DEFAULT_USER_GLOBAL_INSTRUCTION_CANDIDATES]),
   maxBytes: z.number().required(),
   maxSourceBytes: z.number().step(1).min(1).default(DEFAULT_MAX_SOURCE_BYTES),
   instructionFileCandidates: z.array(z.string()).default([...DEFAULT_INSTRUCTION_FILE_CANDIDATES]),
@@ -49,6 +53,7 @@ export const Config: z<Config> = z.object({
 export interface ResolvedDiscoveryConfig {
   dshHome: string
   projectRootMarkers: string[]
+  userGlobalInstructionCandidates: string[]
   instructionFileCandidates: string[]
   localInstructionFileCandidates: string[]
 }
@@ -74,6 +79,7 @@ export function workspaceBaselineIdentity(
   return JSON.stringify({
     projectRoot: relative(cwd, projectRoot),
     projectRootMarkers: config.projectRootMarkers,
+    userGlobalInstructionCandidates: config.userGlobalInstructionCandidates,
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes,
     instructionFileCandidates: config.instructionFileCandidates,
@@ -100,11 +106,15 @@ export function resolveConfig(config: Config): ResolvedConfig {
  * @returns normalized home, root markers, and instruction candidates.
  */
 export function resolveDiscoveryConfig(
-  config: Pick<Config, 'dshHome' | 'projectRootMarkers' | 'instructionFileCandidates' | 'localInstructionFileCandidates'>,
+  config: Pick<Config, 'dshHome' | 'projectRootMarkers' | 'userGlobalInstructionCandidates' | 'instructionFileCandidates' | 'localInstructionFileCandidates'>,
 ): ResolvedDiscoveryConfig {
   return {
     dshHome: resolveDshHome(config.dshHome),
     projectRootMarkers: config.projectRootMarkers ?? [...DEFAULT_PROJECT_ROOT_MARKERS],
+    userGlobalInstructionCandidates: resolveInstructionFileCandidates(
+      config.userGlobalInstructionCandidates,
+      DEFAULT_USER_GLOBAL_INSTRUCTION_CANDIDATES,
+    ),
     instructionFileCandidates: resolveInstructionFileCandidates(
       config.instructionFileCandidates,
       DEFAULT_INSTRUCTION_FILE_CANDIDATES,

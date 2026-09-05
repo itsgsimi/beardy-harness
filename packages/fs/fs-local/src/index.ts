@@ -7,6 +7,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { constants as bufferConstants } from 'node:buffer'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
+import { mkdir, unlink } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import z from '@deepseek-ai/schemastery'
 import { FileSystem, FsError, FsVersion } from '@deepseek-ai/dsh-fs'
@@ -170,6 +171,27 @@ export class LocalFileSystem extends FileSystem {
       ...(entry.version !== undefined ? { version: entry.version } : {}),
       ...(entry.size !== undefined ? { size: entry.size } : {}),
     }))
+  }
+
+  override async makeDirectory(target: FsTarget, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new FsError('mkdir aborted', 'FS_ABORTED')
+    await mkdir(target.targetKey, { recursive: true })
+    if (signal?.aborted) throw new FsError('mkdir aborted', 'FS_ABORTED')
+  }
+
+  override async removeFile(target: FsTarget, signal?: AbortSignal): Promise<void> {
+    return this.withLock(target.targetKey, async () => {
+      if (signal?.aborted) throw new FsError('remove aborted', 'FS_ABORTED')
+      const existing = await probe(target.targetKey)
+      if (!existing) throw new FsError(`cannot remove "${target.displayPath}": not found`, 'FS_NOT_FOUND')
+      if (existing.type !== 'file') throw new FsError(`cannot remove "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
+      try {
+        await unlink(target.targetKey)
+      } catch (error: unknown) {
+        throw new FsError(`cannot remove "${target.displayPath}": ${error instanceof Error ? error.message : String(error)}`, 'FS_IO_ERROR', { cause: error })
+      }
+      if (signal?.aborted) throw new FsError('remove aborted', 'FS_ABORTED')
+    })
   }
 
   override async writeText(

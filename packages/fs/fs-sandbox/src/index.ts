@@ -108,6 +108,24 @@ export class SandboxedFileSystem extends LocalFileSystem {
     return super.editText(await this.checkedTarget(target, sandboxPolicy), edit, expected, signal)
   }
 
+  /** Fence directory creation with the per-call sandbox policy. */
+  override async makeDirectory(
+    target: FsTarget,
+    signal?: AbortSignal,
+    sandboxPolicy?: SandboxExecutionPolicy,
+  ): Promise<void> {
+    return super.makeDirectory(await this.checkedTarget(target, sandboxPolicy), signal)
+  }
+
+  /** Fence regular-file removal with the per-call sandbox policy. */
+  override async removeFile(
+    target: FsTarget,
+    signal?: AbortSignal,
+    sandboxPolicy?: SandboxExecutionPolicy,
+  ): Promise<void> {
+    return super.removeFile(await this.checkedTarget(target, sandboxPolicy), signal)
+  }
+
   /**
    * Enforce the per-call policy against `target` and return the EXACT target the
    * mutation must use, so the checked identity is the mutated one (no

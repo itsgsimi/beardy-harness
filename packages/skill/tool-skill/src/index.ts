@@ -10,6 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-fs'
 import { SessionSeq, type UserMessage } from '@deepseek-ai/dsh-session'
 import {
   escapeText,
@@ -20,6 +21,7 @@ import {
   type SkillInvocationSource,
   type SkillSummary,
 } from '@deepseek-ai/dsh-skill'
+import { applySkillManageTool } from './manage.ts'
 
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills']
@@ -61,11 +63,14 @@ function catalogSourceEntries(
 export interface Config {
   /** Maximum normalized description length rendered in the session catalog; minimum 3. */
   catalogDescriptionMaxLength?: number
+  /** Whether to expose the workspace-local skill_manage mutation tool. */
+  enableSkillManagement?: boolean
 }
 
 /** Validate and default the model-facing skill catalog configuration. */
 export const Config: z<Config> = z.object({
   catalogDescriptionMaxLength: z.number().default(DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH),
+  enableSkillManagement: z.boolean().default(false),
 })
 
 /**
@@ -159,6 +164,12 @@ export function apply(ctx: Context, config: Config = {}): void {
     },
   })
   ctx.tools.register(skillTool)
+
+  if (config.enableSkillManagement === true) {
+    ctx.inject(['fs'], (fsCtx) => {
+      applySkillManageTool(fsCtx, fsCtx.fs)
+    })
+  }
 
   // User-explicit skill invocation: a claimed user message whose first line
   // starts with `/<name>` naming a user-invocable skill is a deterministic

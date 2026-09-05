@@ -38,6 +38,10 @@
       "types": "./lib/typert.remote-client.d.ts",
       "default": "./lib/typert.remote-client.js"
     },
+    "./include": {
+      "types": "./lib/types/include.d.ts",
+      "default": "./lib/types/include.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },

@@ -8,7 +8,9 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import {
   CordisDynamicPackageId, CordisDynamicPluginId,
 } from '@deepseek-ai/dsh-cordis-host-runner'
-import type { DynamicCordisReference } from '@deepseek-ai/dsh-cordis-host-runner'
+import type {
+  DynamicCordisReference, HostCordisInspectProviderRegistration,
+} from '@deepseek-ai/dsh-cordis-host-runner'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
@@ -30,6 +32,51 @@ function requireAgent(exec: ToolExecution): Agent {
   return exec.agent
 }
 
+interface SharedProvider {
+  count: number
+  dispose: () => void
+}
+
+const sharedProviders = new WeakMap<object, Map<string, SharedProvider>>()
+
+/** Share the process-global inspect providers across every session carrying this tool. */
+function registerSharedProvider(
+  ctx: Context,
+  provider: HostCordisInspectProviderRegistration,
+): () => void {
+  const root = ctx.root
+  let providers = sharedProviders.get(root)
+  if (providers === undefined) {
+    providers = new Map()
+    sharedProviders.set(root, providers)
+  }
+  const id = provider.manifest.id
+  const current = providers.get(id)
+  if (current !== undefined) {
+    current.count++
+    return () => {
+      releaseSharedProvider(root, id, current)
+    }
+  }
+  const record: SharedProvider = {
+    count: 1,
+    dispose: ctx.cordisInspect.register(provider),
+  }
+  providers.set(id, record)
+  return () => {
+    releaseSharedProvider(root, id, record)
+  }
+}
+
+/** Remove one session's claim and unload the provider after the last one ends. */
+function releaseSharedProvider(root: object, id: string, record: SharedProvider): void {
+  record.count--
+  if (record.count > 0) return
+  record.dispose()
+  const providers = sharedProviders.get(root)
+  if (providers?.get(id) === record) providers.delete(id)
+}
+
 /** Register the Cordis tools and explicit `@pluginId` context injection. */
 export function apply(ctx: Context): void {
   ctx.systemPrompt.section({
@@ -38,7 +85,10 @@ export function apply(ctx: Context): void {
     text: CORDIS_SYSTEM_PROMPT,
   })
   for (const provider of hostInspectProviders(ctx)) {
-    ctx.effect(() => ctx.cordisInspect.register(provider), `tool-cordis: inspect ${provider.manifest.id}`)
+    ctx.effect(
+      () => registerSharedProvider(ctx, provider),
+      `tool-cordis: inspect ${provider.manifest.id}`,
+    )
   }
 
   ctx.tools.register(defineTool({

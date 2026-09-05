@@ -419,6 +419,31 @@ export class E2BFileSystem extends FileSystem {
     }
   }
 
+  override async makeDirectory(target: FsTarget, signal?: AbortSignal): Promise<void> {
+    assertNotAborted(signal, 'mkdir')
+    try {
+      const sandbox = await this.ctx.e2b.getSandbox()
+      await sandbox.files.makeDir(String(target.targetKey), signalOpts(signal))
+      assertNotAborted(signal, 'mkdir')
+    } catch (error: unknown) {
+      throw mapError(error, 'mkdir', target.displayPath, signal)
+    }
+  }
+
+  override async removeFile(target: FsTarget, signal?: AbortSignal): Promise<void> {
+    return this.withLock(String(target.targetKey), async () => {
+      const info = await this.requireRegular(target, signal)
+      void info
+      try {
+        const sandbox = await this.ctx.e2b.getSandbox()
+        await sandbox.files.remove(String(target.targetKey), signalOpts(signal))
+        assertNotAborted(signal, 'remove')
+      } catch (error: unknown) {
+        throw mapError(error, 'remove', target.displayPath, signal)
+      }
+    })
+  }
+
   override async writeText(
     target: FsTarget,
     content: string,

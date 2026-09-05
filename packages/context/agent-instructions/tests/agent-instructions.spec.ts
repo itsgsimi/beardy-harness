@@ -166,6 +166,9 @@ class RecordingFileSystem extends FileSystem {
     return []
   }
 
+  override async makeDirectory(_target: FsTarget): Promise<void> {}
+  override async removeFile(_target: FsTarget): Promise<void> {}
+
   override async writeText(_target: FsTarget, _content: string, _expected?: FsWriteIntent): Promise<FsWriteOutcome> {
     return { operation: 'update', version: FsVersion('unused'), before: '', after: _content }
   }
@@ -366,6 +369,30 @@ describe('workspace context instruction discovery', () => {
         join('packages', 'app', 'AGENTS.md'),
       ])
       expect(files.map(file => file.absolutePath)).toContain(join(root, 'CLAUDE.md'))
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('loads configured user-global candidates in order', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(home, 'AGENTS.md'), 'global rules')
+      await write(join(home, 'SOUL.md'), 'personality rules')
+
+      const files = await discoverBaselineInstructionFiles({
+        cwd: root,
+        dshHome: home,
+        userGlobalInstructionCandidates: ['AGENTS.md', 'SOUL.md'],
+      })
+
+      expect(files.map(file => file.displayPath)).toEqual([
+        '$DSH_HOME/AGENTS.md',
+        '$DSH_HOME/SOUL.md',
+      ])
     } finally {
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })

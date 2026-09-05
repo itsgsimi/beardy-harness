@@ -41,7 +41,7 @@ const MINIMAL_BASH_DESCRIPTION = `Run commands in a bash shell
 /**
  * Boot the shipped Web composition, minus the rows that would bind a port,
  * touch the network, or write outside the test. Everything that decides an
- * agent's capabilities is the real thing, including both shipped presets.
+ * agent's capabilities is the real thing, including every shipped preset.
  */
 async function bootWeb(
   settingsFile: string,
@@ -221,10 +221,10 @@ describe('the shipped Web composition', () => {
     }
   })
 
-  it('supplies both shipped presets, and only those, from the system root', async () => {
+  it('supplies every shipped preset, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['cordis', 'minimal', 'ptc', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['beardy', 'cordis', 'minimal', 'ptc', 'standard'])
     expect(listed.every(preset => preset.trust === 'system')).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
   })
@@ -247,6 +247,39 @@ describe('the shipped Web composition', () => {
         'workflow', 'write',
       ])
       expect(ctx.commands.find(handle.agent, 'goal')).toBeDefined()
+    } finally {
+      await handle.dispose()
+    }
+  })
+
+  it('composes Beardy from the creator roster with its own persona', async () => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('preset-beardy'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'beardy').then(() => undefined),
+    })
+    try {
+      const creator = await ctx.agents.create({
+        sessionId: SessionId('preset-beardy-creator'),
+        setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'cordis').then(() => undefined),
+      })
+      try {
+        expect(toolNames(ctx, handle.agent)).toEqual(expect.arrayContaining([
+          ...toolNames(ctx, creator.agent),
+        ]))
+        expect(toolNames(ctx, handle.agent)).toEqual(expect.arrayContaining([
+          'cordis_inspect_list', 'cordis_inspect_query', 'cordis_inspect_self',
+          'cordis_define', 'cordis_run', 'cordis_stop', 'cordis_undefine',
+        ]))
+        expect((await ctx.skills.list({ scope: handle.agent })).map(skill => skill.name))
+          .toContain('editing-cordis-compositions')
+      } finally {
+        await creator.dispose()
+      }
+
+      const persona = (await ctx.systemPrompt.assemble({ scope: handle.agent })).sections
+        .find(section => section.name === 'deployment:persona')?.text
+      expect(persona).toContain('You are Beardy')
+      expect(persona).toContain('warmly pragmatic')
     } finally {
       await handle.dispose()
     }
@@ -495,6 +528,15 @@ describe('the shipped Web composition', () => {
     // settle rather than when `dispose()` resolves, and the Loader exposes no
     // flush to await. A regression writes synchronously inside that listener,
     // so any wait past settlement fails; a longer one only slows the test.
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(await readFile(path, 'utf8')).toBe(before)
+
+    const beardy = await ctx.agents.create({
+      sessionId: SessionId('preset-readonly-beardy'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'beardy').then(() => undefined),
+    })
+    await beardy.dispose()
     await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(await readFile(path, 'utf8')).toBe(before)
@@ -960,7 +1002,7 @@ describe('a composition that configures its own preset roots', () => {
     ])
 
     const listed = await rootsCtx.agentPresets.list()
-    expect(listed.map(preset => preset.id).sort()).toEqual(['cordis', 'minimal', 'ptc', 'standard', 'team-spec'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['beardy', 'cordis', 'minimal', 'ptc', 'standard', 'team-spec'])
     expect(listed.every(preset => preset.broken === undefined)).toBe(true)
     // The shipped root comes first: a configured directory claiming a shipped
     // id is shadowed, never the other way around.

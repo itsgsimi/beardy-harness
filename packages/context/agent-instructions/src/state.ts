@@ -26,7 +26,6 @@ import {
   instructionScopeKey,
   renderInstructionChanges,
   USER_GLOBAL_DIRECTORY,
-  USER_GLOBAL_FILE,
   type ChangeRenderItem,
   type AgentInstructionChange,
 } from './render.ts'
@@ -275,7 +274,9 @@ export async function reconcileInstructionContext(
   const addProjectScopes = (target: Set<string>, dir: string): void => {
     addDirScopes(target, relativeScope(projectRoot, dir))
   }
-  baselineScopes.add(candidateScopeKey(USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE))
+  for (const candidate of resolved.userGlobalInstructionCandidates) {
+    baselineScopes.add(candidateScopeKey(USER_GLOBAL_DIRECTORY, candidate))
+  }
   for (const dir of ancestorChain(projectRoot, cwd)) addProjectScopes(baselineScopes, dir)
   if (options.includeBaselineScopes) {
     for (const scope of baselineScopes) scopes.add(scope)
@@ -291,7 +292,11 @@ export async function reconcileInstructionContext(
   for (const scope of effective.keys()) {
     if (!options.includeBaselineScopes && baselineScopes.has(scope)) continue
     const { directory } = decodeScopeKey(scope)
-    if (directory === USER_GLOBAL_DIRECTORY) scopes.add(candidateScopeKey(USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE))
+    if (directory === USER_GLOBAL_DIRECTORY) {
+      for (const candidate of resolved.userGlobalInstructionCandidates) {
+        scopes.add(candidateScopeKey(USER_GLOBAL_DIRECTORY, candidate))
+      }
+    }
     else addDirScopes(scopes, directory)
   }
   for (const touchedPath of options.touchedPaths) {

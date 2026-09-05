@@ -139,6 +139,11 @@ class TestFileSystem extends FileSystem {
     return result
   }
 
+  override async makeDirectory(_target: FsTarget): Promise<void> {}
+  override async removeFile(target: FsTarget): Promise<void> {
+    await import('node:fs/promises').then(fs => fs.unlink(target.displayPath))
+  }
+
   override async writeText(target: FsTarget, content: string): Promise<FsWriteOutcome> {
     await mkdir(dirname(target.displayPath), { recursive: true })
     await writeFile(target.displayPath, content)

@@ -86,14 +86,13 @@ function sectionText(file: LoadedInstructionFile): string {
   return `Instructions from: ${file.displayPath}\n\n${file.content}`
 }
 
-/** Directory component that identifies the single user-global instruction scope. */
+/** Directory component that identifies the user-global instruction scope. */
 export const USER_GLOBAL_DIRECTORY = 'user-global'
 
 /**
- * File name of the single user-global instruction file under `$DSH_HOME`.
- * Discovery (`$DSH_HOME/<name>`) and reconciliation (the user-global scope key's
- * candidate component) both key on this name, so it lives in one place: were the
- * two to disagree, the user-global instruction would load but never reconcile.
+ * Default user-global instruction file under `$DSH_HOME`.
+ * Kept as a public compatibility constant for callers that address the default
+ * candidate directly; configured candidates use their own scope-key component.
  */
 export const USER_GLOBAL_FILE = 'AGENTS.md'
 
@@ -103,7 +102,7 @@ export const USER_GLOBAL_FILE = 'AGENTS.md'
  * @returns `user-global`, `.`, or the containing project-relative directory.
  */
 export function scopeForDisplayPath(displayPath: string): string {
-  if (displayPath === '~/.dsh/AGENTS.md' || displayPath === '$DSH_HOME/AGENTS.md') return USER_GLOBAL_DIRECTORY
+  if (displayPath.startsWith('~/.dsh/') || displayPath.startsWith('$DSH_HOME/')) return USER_GLOBAL_DIRECTORY
   return dirname(displayPath)
 }
 

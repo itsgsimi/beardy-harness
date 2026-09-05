@@ -17,7 +17,6 @@ import {
   renderWorkspaceInstructionSet,
   type RenderedWorkspaceContext,
   USER_GLOBAL_DIRECTORY,
-  USER_GLOBAL_FILE,
 } from './render.ts'
 
 /** An instruction candidate identified by absolute and model-facing paths. */
@@ -50,6 +49,7 @@ interface DiscoverOptions {
   cwd: string
   dshHome?: string
   projectRootMarkers?: string[]
+  userGlobalInstructionCandidates?: string[]
   instructionFileCandidates?: string[]
   localInstructionFileCandidates?: string[]
   projectRoot?: string
@@ -282,22 +282,26 @@ async function discoverInstructionFiles(
     files.push(file)
   }
 
-  const userGlobal = join(config.dshHome, USER_GLOBAL_FILE)
-  const userGlobalProbe = await statFile(userGlobal, fileSystem, options.signal)
-  switch (userGlobalProbe.kind) {
-    case 'present':
-      addFile({
-        absolutePath: userGlobal,
-        displayPath: userGlobalDisplayPath(config.dshHome),
-        ...userGlobalProbe.info,
-      })
-      break
-    case 'absent':
-    case 'unavailable':
-      break
-    /* v8 ignore next 2 -- StatFileProbe is closed; this arm only makes adding a kind a compile error. */
-    default:
-      assertNever(userGlobalProbe, 'StatFileProbe')
+  // User-global candidates are separate from project candidates: they are
+  // rooted at the configured Harness home and use the shared user-global scope.
+  for (const candidate of config.userGlobalInstructionCandidates) {
+    const userGlobal = join(config.dshHome, candidate)
+    const userGlobalProbe = await statFile(userGlobal, fileSystem, options.signal)
+    switch (userGlobalProbe.kind) {
+      case 'present':
+        addFile({
+          absolutePath: userGlobal,
+          displayPath: userGlobalDisplayPath(config.dshHome, candidate),
+          ...userGlobalProbe.info,
+        })
+        break
+      case 'absent':
+      case 'unavailable':
+        break
+      /* v8 ignore next 2 -- StatFileProbe is closed; this arm only makes adding a kind a compile error. */
+      default:
+        assertNever(userGlobalProbe, 'StatFileProbe')
+    }
   }
 
   const cwd = resolve(options.cwd)
@@ -493,7 +497,9 @@ export async function probeScopeInstruction(
   if (info?.type !== 'file') return { kind: 'absent' }
   const file: ProbedInstructionFile = {
     absolutePath,
-    displayPath: directory === USER_GLOBAL_DIRECTORY ? userGlobalDisplayPath(resolved.dshHome) : relativeDisplay(projectRoot, absolutePath),
+    displayPath: directory === USER_GLOBAL_DIRECTORY
+      ? userGlobalDisplayPath(resolved.dshHome, candidateName)
+      : relativeDisplay(projectRoot, absolutePath),
     target,
     version: info.version,
     ...info.size === undefined ? {} : { size: info.size },
@@ -525,6 +531,6 @@ export async function readScopeInstruction(
   }
 }
 
-function userGlobalDisplayPath(dshHome: string): string {
-  return `${dshHomeDisplay(dshHome)}/AGENTS.md`
+function userGlobalDisplayPath(dshHome: string, candidateName: string): string {
+  return `${dshHomeDisplay(dshHome)}/${candidateName}`
 }

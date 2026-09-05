@@ -1,0 +1,47 @@
+# The Beardy bundle patch: a persistent, history-aware agent profile over
+# dsh-base and dsh-web-app. Later profile and home patches may replace these
+# rows in the normal profile-layer order.
+
+# The scoped Beardy preset owns identity and personality. A host-level persona
+# would be shadowed by the standard preset's scoped persona.
+- id: agent-presets
+  config:
+    default: beardy
+
+# Beardy keeps a durable derived search index for cross-session recall. The
+# index is separate from session persistence and opens on the first search.
+- id: session-query-sqlite
+  config:
+    path: !!js dshHomePath('session-search.sqlite')
+    openAt: first-search
+
+- insert:
+    - id: tool-session-query
+      name: '@deepseek-ai/dsh-tool-session-query'
+      config:
+        maxSearchResults: 100
+        searchTimeoutMs: 30000
+
+# Beardy uses the local SearXNG JSON API for search, so no DeepSeek search
+# credential is needed. Set SEARXNG_BASE_URL to use another instance; the
+# default matches the local container documented by the SearXNG provider.
+- id: web
+  config:
+    searchProvider: searxng
+    fetchProvider: http
+
+- id: web-search-deepseek
+  disabled: true
+
+- insert:
+    - id: web-search-searxng
+      name: '@deepseek-ai/dsh-web-search-searxng'
+      config:
+        baseURL: !!js process.env.SEARXNG_BASE_URL ?? 'http://127.0.0.1:8080'
+
+# The base profile keeps fetching off; Beardy's research profile enables it.
+- id: tool-web
+  disabled: false
+  config:
+    fetch: true
+    searchTimeoutMs: 60000

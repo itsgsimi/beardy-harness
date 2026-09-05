@@ -22,6 +22,7 @@ import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { AgentPreset } from './preset.ts'
 import { classifyRowSpecifier } from './specifier.ts'
+import { setPresetHarnessBase } from './include.ts'
 
 /** What one mounted subtree publishes about itself for the audit to read. */
 interface MountedTree {
@@ -100,6 +101,7 @@ class PresetTree extends Include {
     /* v8 ignore next -- Node always supplies the internal module loader; the branch keeps a
        hypothetical embedder from losing the row's name in a resolution error. */
     if (internal === undefined) return super.import(row.specifier, getOuterStack)
+    setPresetHarnessBase(this.ctx, base)
     return internal.import(row.specifier, base, {})
   }
 

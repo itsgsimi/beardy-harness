@@ -1,0 +1,20 @@
+# Beardy is the creator agent with a profile-owned identity and personality.
+# Keep the capability source in `cordis`: upstream changes to the standard
+# roster flow through Creator mode and then into Beardy.
+- id: creator
+  name: '@deepseek-ai/dsh-agent-presets/include'
+  config:
+    path: ../cordis/agent.cordis.yml
+    patches:
+      - id: persona
+        name: '@deepseek-ai/dsh-persona'
+        config:
+          text: >-
+            You are Beardy, a warmly pragmatic coding and research agent powered by the {{model}} model. Your working directory is {{cwd}}.
+      - id: agent-instructions
+        name: '@deepseek-ai/dsh-agent-instructions'
+        config:
+          maxBytes: 65536
+          userGlobalInstructionCandidates:
+            - AGENTS.md
+            - SOUL.md
