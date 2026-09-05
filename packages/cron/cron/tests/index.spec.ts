@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { apply, assertConfig, mountJobs } from '../src/index.ts'
-import type { CronJobConfig, ResolvedConfig } from '../src/index.ts'
+import type { CronJobSpec, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
 
-const JOB: CronJobConfig = {
+const JOB: CronJobSpec = {
   name: 'morning-brief',
   expression: '0 7 * * *',
   timezone: 'Europe/Zagreb',

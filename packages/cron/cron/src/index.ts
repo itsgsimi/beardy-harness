@@ -13,6 +13,7 @@ import { createJobRunner } from './launch.ts'
 import type { JobRunner } from './launch.ts'
 import { assertSchedule, cronerScheduler } from './schedule.ts'
 import type { Scheduler } from './schedule.ts'
+import type { CronJobSpec } from './types.ts'
 export * from './launch.ts'
 export * from './schedule.ts'
 export type * from './types.ts'
@@ -36,27 +37,7 @@ export const DEFAULT_CRON_TURN_TIMEOUT_MS = 600_000
 /** Runs whose Sessions stay mounted per job list before the oldest is released. */
 export const DEFAULT_CRON_MAX_LIVE_RUNS = 20
 
-/** One configured job. Every field is deployment-owned; a model cannot add or edit jobs. */
-export interface CronJobConfig {
-  /** Unique name, used in logs, titles, and run provenance. */
-  readonly name: string
-  /** Cron expression, 5 or 6 fields as croner accepts them. */
-  readonly expression: string
-  /** IANA timezone the expression is evaluated in. */
-  readonly timezone: string
-  /** Prompt handed to the agent on every fire. */
-  readonly prompt: string
-  /** Agent preset mounted into the run's Session. */
-  readonly agentPreset: string
-  /** Permission preset applied to the run's Session. */
-  readonly permissionPreset: string
-  /** Absolute workspace path the run works in. */
-  readonly workspacePath: string
-  /** Session title; defaults to the job name and fire time. */
-  readonly title?: string
-}
-
-export const Config: z<{ jobs: CronJobConfig[]; turnTimeoutMs: number; maxLiveRuns: number }> = z.object({
+export const Config: z<{ jobs: CronJobSpec[]; turnTimeoutMs: number; maxLiveRuns: number }> = z.object({
   jobs: z.array(z.object({
     name: z.string().required(),
     expression: z.string().required(),
@@ -74,7 +55,7 @@ export const Config: z<{ jobs: CronJobConfig[]; turnTimeoutMs: number; maxLiveRu
 /** Complete configuration after schemastery applies every field default. */
 export interface ResolvedConfig {
   /** Jobs to mount at load; an empty list mounts nothing. */
-  readonly jobs: CronJobConfig[]
+  readonly jobs: CronJobSpec[]
   /** Longest wait for one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted per process before the oldest are released. */
