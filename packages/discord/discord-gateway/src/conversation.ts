@@ -180,6 +180,16 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     return { sessionId, handle }
   }
 
+  /** Dispose one conversation's Agent, reporting rather than propagating a teardown failure. */
+  async function disposeConversation(conversation: Conversation): Promise<void> {
+    try {
+      await conversation.handle.dispose()
+    } catch (error: unknown) {
+      ctx.logger.warn(`discord-gateway: disposal of Session ${conversation.sessionId} failed: `
+        + errorChain(error))
+    }
+  }
+
   /** Hand one message to the Session, wait for the answer, and post it to the channel. */
   async function runTurn(conversation: Conversation, message: DiscordInboundMessage): Promise<void> {
     const agent = conversation.handle.agent
@@ -198,7 +208,13 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }))
     if (!await settlesInTime(agent.whenIdle(), settings.turnTimeoutMs, wait, signal)) {
       ctx.logger.warn(`discord-gateway: turn for channel ${message.channelId} did not settle within `
-        + `${String(settings.turnTimeoutMs)}ms; its answer is not posted`)
+        + `${String(settings.turnTimeoutMs)}ms; its answer is not posted and the conversation is released`)
+      // The turn must not outlive the router's wait: an undisposed Agent keeps working while the
+      // tail chain moves on, so the next message would follow up on a half-cancelled Session.
+      // Turns on one channel are serialized by the tail chain, so this channel's entry is still
+      // this conversation; disposal after a concurrent router.dispose() is a memoized no-op.
+      conversations.delete(message.channelId)
+      await disposeConversation(conversation)
       return
     }
     const reply = lastAssistantText(agent.session.ownEvents(), firstSeq)
@@ -234,14 +250,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       const live = [...conversations.values()]
       conversations.clear()
       tails.clear()
-      for (const conversation of live) {
-        try {
-          await conversation.handle.dispose()
-        } catch (error: unknown) {
-          ctx.logger.warn(`discord-gateway: disposal of Session ${conversation.sessionId} failed: `
-            + errorChain(error))
-        }
-      }
+      for (const conversation of live) await disposeConversation(conversation)
     },
   }
 }

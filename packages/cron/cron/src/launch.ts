@@ -1,7 +1,8 @@
 /**
  * Running one fired job as an unattended Agent Session: the prompt arrives with cron provenance, the
  * turn runs to completion without a human in front of it, and the Session stays mounted so the run
- * remains readable afterwards.
+ * remains readable afterwards. A run that outlives its bound is cancelled and released instead of
+ * staying mounted.
  * @module @deepseek-ai/dsh-cron/launch
  */
 
@@ -157,7 +158,15 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         },
       }))
       if (!await settlesInTime(agent.whenIdle(), deps.turnTimeoutMs, wait, signal)) {
-        ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(deps.turnTimeoutMs)}ms`)
+        ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(deps.turnTimeoutMs)}ms; `
+          + 'the run is cancelled and its session released')
+        // The turn must not outlive the scheduler's wait: an undisposed Agent keeps consuming
+        // tools and tokens while the next fire sees the job as free and stacks a second Session.
+        const index = mounted.indexOf(session)
+        if (index !== -1) {
+          mounted.splice(index, 1)
+          await disposeHandle(ctx, session)
+        }
         return 'timed-out'
       }
       const answer = lastAssistantText(agent.session.ownEvents(), firstSeq)

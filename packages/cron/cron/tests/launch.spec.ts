@@ -159,10 +159,12 @@ describe('job runner', () => {
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
   })
 
-  it('reports a run that outlives its bound', async () => {
+  it('reports a run that outlives its bound, cancelling and releasing its session', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
     expect(await h.runner.run(JOB, FIRED_AT)).toBe('timed-out')
     expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    expect(h.runner.live()).toBe(0)
     h.releaseIdle()
   })
 

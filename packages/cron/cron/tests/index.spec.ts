@@ -158,6 +158,36 @@ describe('mountJobs', () => {
     await mounted.dispose()
   })
 
+  it('opens a fresh session for the fire after a timed-out run', async () => {
+    let creates = 0
+    const { ctx, logger } = contextStub({
+      agents: {
+        create: async () => {
+          creates += 1
+          return {
+            agent: {
+              session: { seq: 0, ownEvents: () => [] },
+              followup: () => {},
+              whenIdle: () => new Promise<void>(() => {}),
+            },
+            dispose: vi.fn(async () => {}),
+          }
+        },
+      },
+    })
+    const fake = fakeScheduler()
+    const mounted = mountJobs(ctx, config({ turnTimeoutMs: 5 }), fake.scheduler)
+    fake.fire()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(mounted.runner.live()).toBe(0)
+    fake.fire()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(creates).toBe(2)
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('this fire is skipped'))
+    await mounted.dispose()
+  })
+
   it('reports a run that throws after its session was mounted', async () => {
     const { ctx, logger } = contextStub({
       agents: {

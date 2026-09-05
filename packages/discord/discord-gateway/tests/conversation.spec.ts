@@ -252,13 +252,26 @@ describe('conversation router', () => {
     expect(h.calls).not.toContain('post')
   })
 
-  it('warns and posts nothing when a turn outlives its bound', async () => {
+  it('warns and posts nothing when a turn outlives its bound, releasing the conversation', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
     h.router.handle(inbound())
     await drain()
     expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
     expect(h.posted).toEqual([])
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     h.releaseIdle()
+  })
+
+  it('opens a fresh session for the message after a timed-out turn', async () => {
+    const h = harness({ hang: true, turnTimeoutMs: 5 })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(1)
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    h.router.handle(inbound({ id: 'm2', content: 'still there?' }))
+    await drain()
+    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(2)
+    expect(h.calls).toContain('followup:still there?')
   })
 
   it('warns when the reply cannot be delivered', async () => {
