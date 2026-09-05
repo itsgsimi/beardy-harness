@@ -542,6 +542,84 @@ export interface Config {
 
 Source: [`packages/credentials/credentials-local/src/index.ts:64`](../packages/credentials/credentials-local/src/index.ts)
 
+<a id="deepseek-aidsh-cron"></a>
+
+## `@deepseek-ai/dsh-cron`
+
+Requires: `agentDefaultModel` · `agentPresets` · `agents` · `permissionPresets` · `sessionTitle` · `workspaceRegistry`
+
+```ts config-catalog
+/** Complete configuration after schemastery applies every field default. */
+export interface ResolvedConfig {
+  /** Jobs to mount at load; an empty list mounts nothing. */
+  readonly jobs: CronJobConfig[]
+  /** Longest wait for one run's answer, in milliseconds. */
+  readonly turnTimeoutMs: number
+  /** Most recent runs kept mounted per process before the oldest are released. */
+  readonly maxLiveRuns: number
+}
+
+/** One configured job. Every field is deployment-owned; a model cannot add or edit jobs. */
+export interface CronJobConfig {
+  /** Unique name, used in logs, titles, and run provenance. */
+  readonly name: string
+  /** Cron expression, 5 or 6 fields as croner accepts them. */
+  readonly expression: string
+  /** IANA timezone the expression is evaluated in. */
+  readonly timezone: string
+  /** Prompt handed to the agent on every fire. */
+  readonly prompt: string
+  /** Agent preset mounted into the run's Session. */
+  readonly agentPreset: string
+  /** Permission preset applied to the run's Session. */
+  readonly permissionPreset: string
+  /** Absolute workspace path the run works in. */
+  readonly workspacePath: string
+  /** Session title; defaults to the job name and fire time. */
+  readonly title?: string
+}
+```
+
+Source: [`packages/cron/cron/src/index.ts:75`](../packages/cron/cron/src/index.ts)
+
+<a id="deepseek-aidsh-discord-gateway"></a>
+
+## `@deepseek-ai/dsh-discord-gateway`
+
+Requires: `agentDefaultModel` · `agentPresets` · `agents` · `credentials` · `permissionPresets` · `sessionTitle` · `workspaceRegistry`
+
+```ts config-catalog
+/** Plugin configuration. Destinations, identity, and presets are never model input. */
+export interface Config {
+  /** Credential reference holding the bot token, such as `DISCORD_BOT_TOKEN`. */
+  readonly tokenEnv: string
+  /** User ids allowed to converse. Must be non-empty: an open listener is not a supported mode. */
+  readonly allowedUserIds: string[]
+  /** Guild text channels to read in addition to direct messages. Defaults to none. */
+  readonly allowedChannelIds?: string[]
+  /** Absolute workspace path every conversation runs in. */
+  readonly workspacePath: string
+  /** Agent preset mounted into each conversation Session. */
+  readonly agentPreset: string
+  /** Permission preset applied to each conversation Session. */
+  readonly permissionPreset: string
+  /** Prefix of the generated Session title. Defaults to `Discord`. */
+  readonly titlePrefix?: string
+  /** Longest inbound text handed to the agent. Defaults to 8000. */
+  readonly maxInputChars?: number
+  /** Longest wait for one answer. Defaults to 600000. */
+  readonly turnTimeoutMs?: number
+  /** First reconnect delay in milliseconds. Defaults to 1000. */
+  readonly reconnectDelayMs?: number
+  /** Cap on the doubled reconnect delay. Defaults to 30000. */
+  readonly maxReconnectDelayMs?: number
+  /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
+  readonly enabled?: boolean
+}
+```
+
+Source: [`packages/discord/discord-gateway/src/index.ts:50`](../packages/discord/discord-gateway/src/index.ts)
+
 <a id="deepseek-aidsh-e2b"></a>
 
 ## `@deepseek-ai/dsh-e2b`
@@ -2745,6 +2823,34 @@ export interface Config {
 ```
 
 Source: [`packages/shell/tool-bash-persistent/src/index.ts:435`](../packages/shell/tool-bash-persistent/src/index.ts)
+
+<a id="deepseek-aidsh-tool-discord"></a>
+
+## `@deepseek-ai/dsh-tool-discord`
+
+Requires: `tools` · `credentials`
+
+```ts config-catalog
+/** Plugin configuration; every field is required so no destination or secret is defaulted. */
+export interface Config {
+  /** Credential reference holding the bot token, such as `DISCORD_BOT_TOKEN`. */
+  readonly tokenEnv: string
+  /** Target channel id. The model cannot select another destination. */
+  readonly channelId: string
+  /** User ids a direct message may open to. Empty leaves direct messaging off. Defaults to empty. */
+  readonly dmUserIds?: string[]
+  /** Per-attempt request timeout in milliseconds. Defaults to 15000. */
+  readonly requestTimeoutMs?: number
+  /** Additional attempts after a 429 reply; zero posts once. Defaults to 2. */
+  readonly maxRetries?: number
+  /** Longest `Retry-After` delay the tool waits out, in milliseconds. Defaults to 30000. */
+  readonly maxRetryWaitMs?: number
+  /** Maximum messages one call may post. Defaults to 10. */
+  readonly maxChunksPerCall?: number
+}
+```
+
+Source: [`packages/discord/tool-discord/src/index.ts:40`](../packages/discord/tool-discord/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 

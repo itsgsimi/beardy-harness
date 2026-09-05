@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-host-cron-with-discord-delivery.md
+2026-09-05-host-cron-with-discord-delivery.md: ed20ad37cac2ac0ae9bddc6cfec9fe64fe5448c9
+2026-09-05-host-cron-with-discord-delivery.zh.md: 88c4055ca6d18c9db9ee5a4be7d8092b66cfb8b0

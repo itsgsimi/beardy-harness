@@ -41,6 +41,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
+| `@deepseek-ai/dsh-tool-discord` | `discord_send` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time, so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids, and bodies over 2000 characters post as consecutive messages. |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -2318,3 +2319,30 @@ Search the web for current information. Provide 1–4 queries in the required qu
 Source: [`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.
+
+<a id="deepseek-aidsh-tool-discord"></a>
+
+## `@deepseek-ai/dsh-tool-discord`
+
+### `discord_send`
+
+Post a message to Discord. Content is Discord Markdown. The only destination is the configured channel. No other destination exists. One message holds 2000 characters, and longer content is split across consecutive messages on paragraph, line, and word boundaries, so prefer one message under that limit. No mention pings anyone: @everyone and @here are rewritten before sending and user or role mentions are inert.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "string",
+      "description": "Discord Markdown body to post. Non-empty; leading and trailing whitespace is trimmed."
+    }
+  },
+  "required": [
+    "content"
+  ]
+}
+```
+
+Source: [`packages/discord/tool-discord/src/index.ts`](../packages/discord/tool-discord/src/index.ts)
+
+discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time, so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids, and bodies over 2000 characters post as consecutive messages.

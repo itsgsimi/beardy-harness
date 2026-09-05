@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。随发行版交付的 `beardy` profile 会自动包含它，并在 Harness home 下保存专用的会话搜索索引。Beardy 继承完整的 Creator mode 能力清单，包括 standard 编码工具与 Cordis 实时创作工具，再增加自己的身份、`$DSH_HOME/SOUL.md` 个性文件、会话搜索、SearXNG 支持的 Web 搜索与 Web 抓取。它可以在无需 DeepSeek 搜索凭证的情况下搜索早期会话与 Web，检查事件与 lineage，抓取 Web 页面，修改可访问的 Harness 源码与 preset，并临时扩展正在运行的进程。本组合包不提供个人持久记忆、自动 skill 整理、跨会话调度或消息适配器。
+Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。随发行版交付的 `beardy` profile 会自动包含它，并在 Harness home 下保存专用的会话搜索索引。Beardy 继承完整的 Creator mode 能力清单，包括 standard 编码工具与 Cordis 实时创作工具，再增加自己的身份、`$DSH_HOME/SOUL.md` 个性文件、会话搜索、SearXNG 支持的 Web 搜索与 Web 抓取。它可以在无需 DeepSeek 搜索凭证的情况下搜索早期会话与 Web，检查事件与 lineage，抓取 Web 页面，修改可访问的 Harness 源码与 preset，并临时扩展正在运行的进程。本组合包不提供个人持久记忆或自动 skill 整理。定时运行与 Discord 投递来自 `dsh-cron`、`dsh-tool-discord` 与 `dsh-discord-gateway`，当 `DISCORD_BOT_TOKEN` 凭据能解析时由 patch 挂载：一个任务在本机时间 07:00 发出晨报，允许清单用户的私信会在本机开启对话。
 
 ## 目录
 
@@ -169,7 +169,8 @@ Beardy 将 `$DSH_HOME/SOUL.md` 与 `$DSH_HOME/AGENTS.md` 一起作为持久全�
 
 - **没有个人记忆存储**——Beardy 可以搜索会话历史，但目前不会维护单独整理的用户或项目记忆。
 - **没有自动 skill 整理器**——skill 由 base 的 skill 包发现和加载；Beardy 不会自动编写或改进 skill。
-- **没有跨会话调度器**——现有的 session-local schedule 仍是唯一的定时提醒行为。
+- **任务只能来自配置**——晨报由 `dsh-cron` 配置运行，运行时没有任何机制创建或修改任务；要改时间表、信息源或目的地就得编辑 patch 并重启。
+- **一个 bot token 只能由一个进程使用**——网关会回复它看到的每一条入站私信，因此若另一个同样以该 token 挂载 `dsh-discord-gateway` 的 profile 并行运行，消息会被回复两次。
 - **没有消息网关**——该 profile 提供 Web 应用，但没有 Telegram、Discord、Slack 或类似的渠道适配器。
 - **搜索使用独立数据库**——不要把 `session-query-sqlite.path` 指向会话持久化数据库。
 - **SearXNG 是外部前置条件**——默认本地端点必须运行，并在 Beardy 使用 `web_search` 前公开 JSON 响应格式。

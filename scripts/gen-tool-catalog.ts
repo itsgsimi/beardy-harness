@@ -47,6 +47,8 @@ import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
 import CordisHostRunner from '@deepseek-ai/dsh-cordis-host-runner'
 import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolPresent from '@deepseek-ai/dsh-tool-present'
+import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
+import * as ToolDiscord from '@deepseek-ai/dsh-tool-discord'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
@@ -603,6 +605,19 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-discord',
+    dir: 'tool-discord',
+    source: 'packages/discord/tool-discord/src/index.ts',
+    requires: ['ctx.tools', 'ctx.credentials'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalCredentialProvider)
+      await ctx.plugin(ToolDiscord, { tokenEnv: 'DISCORD_BOT_TOKEN', channelId: '1234567890123456789' })
+    },
+    note:
+      'discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time, so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids, and bodies over 2000 characters post as consecutive messages.',
   },
 ]
 

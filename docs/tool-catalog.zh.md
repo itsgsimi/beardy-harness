@@ -45,6 +45,7 @@
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
+| `@deepseek-ai/dsh-tool-discord` | `discord_send` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | discord_send 把消息发到配置中指定的频道，并在调用时通过凭据引用解析 bot token，因此组合里不会出现 token。只有在 `dmUserIds` 列出用户 id 时才存在 `recipient` 参数；超过 2000 字符的正文会作为连续多条消息发出。 |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -2326,3 +2327,30 @@ todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为
 来源：[`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。
+
+<a id="deepseek-aidsh-tool-discord"></a>
+
+## `@deepseek-ai/dsh-tool-discord`
+
+### `discord_send`
+
+向 Discord 发送消息。内容使用 Discord Markdown。唯一的目的地就是配置的频道，不存在其他目的地。单条消息容纳 2000 字符，更长的内容会按段落、行、词边界拆成连续多条消息，因此尽量把内容控制在该上限之内。任何提及都不会 ping 人：@everyone 与 @here 在发送前会被改写，用户或角色提及不生效。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "string",
+      "description": "Discord Markdown body to post. Non-empty; leading and trailing whitespace is trimmed."
+    }
+  },
+  "required": [
+    "content"
+  ]
+}
+```
+
+来源：[`packages/discord/tool-discord/src/index.ts`](../packages/discord/tool-discord/src/index.ts)
+
+discord_send 把消息发到配置中指定的频道，并在调用时通过凭据引用解析 bot token，因此组合里不会出现 token。只有在 `dmUserIds` 列出用户 id 时才存在 `recipient` 参数；超过 2000 字符的正文会作为连续多条消息发出。

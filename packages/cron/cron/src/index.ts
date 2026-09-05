@@ -72,7 +72,14 @@ export const Config: z<{ jobs: CronJobConfig[]; turnTimeoutMs: number; maxLiveRu
 })
 
 /** Complete configuration after schemastery applies every field default. */
-export type ResolvedConfig = Required<{ jobs: CronJobConfig[]; turnTimeoutMs: number; maxLiveRuns: number }>
+export interface ResolvedConfig {
+  /** Jobs to mount at load; an empty list mounts nothing. */
+  readonly jobs: CronJobConfig[]
+  /** Longest wait for one run's answer, in milliseconds. */
+  readonly turnTimeoutMs: number
+  /** Most recent runs kept mounted per process before the oldest are released. */
+  readonly maxLiveRuns: number
+}
 
 /**
  * Reject a job list that could not run: duplicate names, an unparseable expression or timezone, a
