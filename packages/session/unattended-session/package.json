@@ -1,14 +1,14 @@
 {
-  "name": "@deepseek-ai/dsh-cron",
-  "description": "Global scheduler that starts unattended Agent Sessions on cron expressions and hands each job its prompt, presets, and workspace",
-  "version": "0.1.2-alpha.1",
+  "name": "@deepseek-ai/dsh-unattended-session",
+  "description": "Shared transaction that opens one unattended root Agent Session with reported rollback, plus the turn-bound and final-text helpers unattended callers wait on",
+  "version": "0.1.3-alpha.1",
   "publishConfig": {
     "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/cron/cron"
+    "directory": "packages/session/unattended-session"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -18,50 +18,33 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/invariant.js"
-    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
-    "lib/invariant.js",
     "lib/types/**/*.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
-  "dependencies": {
-    "@deepseek-ai/schemastery": "workspace:^",
-    "croner": "^10.0.1"
-  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
-    "@deepseek-ai/dsh-agent-default-model": "workspace:^",
     "@deepseek-ai/dsh-agent-presets": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-permission-presets": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-title": "workspace:^",
-    "@deepseek-ai/dsh-unattended-session": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/cordis-plugin-include": "workspace:^",
-    "@deepseek-ai/cordis-plugin-loader": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
-    "@deepseek-ai/dsh-agent-default-model": "workspace:^",
     "@deepseek-ai/dsh-agent-presets": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-permission-presets": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-title": "workspace:^",
-    "@deepseek-ai/dsh-unattended-session": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"
   }
 }

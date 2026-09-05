@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { createConversationRouter, isAdmitted, boundedContent, lastAssistantText } from '../src/conversation.ts'
+import { createConversationRouter, isAdmitted, boundedContent } from '../src/conversation.ts'
 import type { RoutingPolicy } from '../src/conversation.ts'
 import type { DiscordInboundMessage, GatewaySettings } from '../src/types.ts'
 
@@ -91,6 +91,7 @@ function harness(options: HarnessOptions = {}) {
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     agentPresets: {
       resolve: async (name: string) => { calls.push(`preset-resolve:${name}`); return { id: name } },
+      standingKeyFor: async (name: string) => { calls.push(`standing:${name}`); return {} },
       mount: async (_ctx: unknown, name: string) => { calls.push(`mount:${name}`) },
     },
     workspaceRegistry: {
@@ -183,36 +184,15 @@ describe('boundedContent', () => {
   })
 })
 
-describe('lastAssistantText', () => {
-  it('returns nothing when no assistant message followed the marker', () => {
-    expect(lastAssistantText([], 0)).toBe('')
-  })
-
-  it('keeps the last text after the marker and skips earlier events', () => {
-    const events = [
-      { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'first' }] } } },
-      { seq: 2, type: 'turn/end', data: {} },
-      { seq: 3, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'second' }] } } },
-    ] as unknown as SessionEvent[]
-    expect(lastAssistantText(events, 2)).toBe('second')
-  })
-
-  it('ignores an assistant message whose text blocks are empty', () => {
-    const events = [
-      { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '' }] } } },
-    ] as unknown as SessionEvent[]
-    expect(lastAssistantText(events, 0)).toBe('')
-  })
-})
-
 describe('conversation router', () => {
   it('opens one session per channel and posts the agent answer back', async () => {
     const h = harness({ replyText: 'Yes, main is green.' })
     h.router.handle(inbound())
     await drain()
     expect(h.calls).toEqual([
-      'preset-resolve:beardy',
       'permission-resolve:danger-full-access',
+      'preset-resolve:beardy',
+      'standing:beardy',
       'workspace:/workspace',
       'agent-create',
       'mount:beardy',

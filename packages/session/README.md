@@ -22,7 +22,7 @@ The session group keeps conversations durable, restores released log formats, an
 <a id="packages"></a>
 ## Packages
 
-The group splits into four families: durable storage (persistence seam, backends, checkpoint policy), projections, titles, and telemetry. Each package README owns its contract and configuration.
+The group splits into five families: durable storage (persistence seam, backends, checkpoint policy), projections, titles, telemetry, and the unattended-entry open transaction. Each package README owns its contract and configuration.
 
 ### Persistence
 
@@ -63,6 +63,12 @@ The group splits into four families: durable storage (persistence seam, backends
 | [`session-telemetry-otel/`](session-telemetry-otel/README.md) | Delivers telemetry through OpenTelemetry logs in `FEEDBACK_ONLY` or `DISABLED` mode | registers on `ctx.sessionTelemetry` |
 
 Only one title provider may register at a time; without one, the title service keeps its deterministic fallback. The subsystem pages below are the backend-neutral references for each family.
+
+### Unattended entry
+
+| Package | Role | ctx key |
+|---|---|---|
+| [`unattended-session/`](unattended-session/README.md) | Opens and mounts one root Session as a single rollback-safe transaction for unattended entry points | library — no ctx key |
 
 -----
 

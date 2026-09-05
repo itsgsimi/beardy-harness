@@ -6,17 +6,18 @@
  * @module @deepseek-ai/dsh-cron/launch
  */
 
+/* jscpd:ignore-start -- consumers list the same service modules for side-effect types; shared logic lives in dsh-unattended-session */
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-title'
+import { awaitTurn, lastAssistantText, openUnattendedSession, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type {} from '@deepseek-ai/dsh-workspace'
+/* jscpd:ignore-end */
 import type { CronJobSpec, CronRunOutcome } from './types.ts'
 
 /** Everything a run needs from the host and the plugin's configuration. */
@@ -43,52 +44,6 @@ export interface JobRunner {
   dispose(): Promise<void>
 }
 
-/** Sleep until `ms` passes or the signal aborts. */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const onAbort = (): void => {
-      clearTimeout(timer)
-      reject(signal.reason instanceof Error ? signal.reason : new Error('cron scheduler cancelled'))
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-}
-
-/** Wait for one turn to settle within the bound, reporting false otherwise. */
-async function settlesInTime(
-  idle: Promise<void>,
-  timeoutMs: number,
-  wait: (ms: number, signal: AbortSignal) => Promise<void>,
-  signal: AbortSignal,
-): Promise<boolean> {
-  const outcome = await new Promise<'idle' | 'timeout'>((resolve) => {
-    void wait(timeoutMs, signal).then(
-      () => { resolve('timeout') },
-      () => { resolve('timeout') },
-    )
-    idle.then(() => { resolve('idle') }, () => { resolve('timeout') })
-  })
-  return outcome === 'idle'
-}
-
-/** Last assistant text committed at or after `firstSeq`. */
-function lastAssistantText(events: readonly SessionEvent[], firstSeq: number): string {
-  let text = ''
-  for (const event of events) {
-    if (event.seq < firstSeq || event.type !== 'assistant/message') continue
-    const joined = event.data.message.content
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('')
-    if (joined !== '') text = joined
-  }
-  return text
-}
-
 /** Title for one run: the configured title, or the job name and fire time. */
 export function runTitle(job: CronJobSpec, firedAt: number): string {
   return job.title ?? `${job.name} ${new Date(firedAt).toISOString()}`
@@ -102,42 +57,24 @@ export function runTitle(job: CronJobSpec, firedAt: number): string {
  */
 export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   const { ctx, signal } = deps
-  const wait = deps.wait ?? sleep
-  const mounted: { sessionId: SessionId; handle: AgentHandle }[] = []
+  const mounted: UnattendedSession[] = []
 
   /** Mount a Session for one fire, with the job's presets and workspace. */
-  async function openSession(job: CronJobSpec, firedAt: number): Promise<{ sessionId: SessionId; handle: AgentHandle }> {
-    const preset = await ctx.agentPresets.resolve(job.agentPreset)
-    ctx.permissionPresets.resolve(job.permissionPreset)
-    const workspace = await ctx.workspaceRegistry.create(job.workspacePath)
-    const sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)
+  async function openSession(job: CronJobSpec, firedAt: number): Promise<UnattendedSession> {
     const selection = ctx.agentDefaultModel.currentSelection()
-    const handle = await ctx.agents.create({
-      sessionId,
-      meta: { cwd: workspace.path, agentPreset: preset.id },
+    return await openUnattendedSession(ctx, {
+      sessionId: SessionId(`cron-${job.name}-${randomUUID()}`),
+      agentPreset: job.agentPreset,
+      permissionPreset: job.permissionPreset,
+      workspacePath: job.workspacePath,
+      title: runTitle(job, firedAt),
       agentOptions: { provider: selection.provider, model: selection.model },
-      setup: async (agentCtx) => {
-        await ctx.agentPresets.mount(agentCtx, preset.id)
-      },
-    })
-    let attached = false
-    try {
-      signal.throwIfAborted()
-      await workspace.attachSession(sessionId)
-      attached = true
-      ctx.permissionPresets.set(handle.agent.session, job.permissionPreset)
-      ctx.sessionTitle.rename(handle.agent.session, runTitle(job, firedAt))
-    } catch (error: unknown) {
-      if (attached) await workspace.detachSession(sessionId)
-      await handle.dispose()
-      throw error
-    }
-    return { sessionId, handle }
+    }, signal)
   }
 
   return {
     async run(job: CronJobSpec, firedAt: number): Promise<CronRunOutcome> {
-      let session: { sessionId: SessionId; handle: AgentHandle }
+      let session: UnattendedSession
       try {
         session = await openSession(job, firedAt)
       } catch (error: unknown) {
@@ -157,7 +94,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
           summary: boundContextSummary(`Cron job ${job.name}`),
         },
       }))
-      if (!await settlesInTime(agent.whenIdle(), deps.turnTimeoutMs, wait, signal)) {
+      if (await awaitTurn(agent, { timeoutMs: deps.turnTimeoutMs, signal, ...(deps.wait === undefined ? {} : { wait: deps.wait }) }) !== 'idle') {
         ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(deps.turnTimeoutMs)}ms; `
           + 'the run is cancelled and its session released')
         // The turn must not outlive the scheduler's wait: an undisposed Agent keeps consuming
@@ -195,7 +132,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
 }
 
 /** Dispose one run's Agent, reporting rather than propagating a teardown failure. */
-async function disposeHandle(ctx: Context, session: { sessionId: SessionId; handle: AgentHandle }): Promise<void> {
+async function disposeHandle(ctx: Context, session: UnattendedSession): Promise<void> {
   try {
     await session.handle.dispose()
   } catch (error: unknown) {

@@ -10,15 +10,12 @@
   "references": [
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/cordis" },
-    { "path": "../../../vendor/schemastery" },
     { "path": "../../core/agent" },
-    { "path": "../../core/agent-default-model" },
-    { "path": "../../preset/agent-presets" },
-    { "path": "../../interaction/permission-presets" },
-    { "path": "../../runtime-diagnostics/invariants" },
-    { "path": "../../session/session-title" },
-    { "path": "../../session/unattended-session" },
     { "path": "../../core/session" },
+    { "path": "../../interaction/permission-presets" },
+    { "path": "../../llm/llm" },
+    { "path": "../../preset/agent-presets" },
+    { "path": "../../session/session-title" },
     { "path": "../../workspace/workspace" }
   ]
 }

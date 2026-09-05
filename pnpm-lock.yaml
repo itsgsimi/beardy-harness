@@ -5339,6 +5339,9 @@ importers:
       '@deepseek-ai/dsh-session-title':
         specifier: workspace:^
         version: link:../../session/session-title
+      '@deepseek-ai/dsh-unattended-session':
+        specifier: workspace:^
+        version: link:../../session/unattended-session
       '@deepseek-ai/dsh-workspace':
         specifier: workspace:^
         version: link:../../workspace/workspace
@@ -5385,6 +5388,9 @@ importers:
       '@deepseek-ai/dsh-session-title':
         specifier: workspace:^
         version: link:../../session/session-title
+      '@deepseek-ai/dsh-unattended-session':
+        specifier: workspace:^
+        version: link:../../session/unattended-session
       '@deepseek-ai/dsh-workspace':
         specifier: workspace:^
         version: link:../../workspace/workspace
@@ -8652,6 +8658,33 @@ importers:
         specifier: workspace:^
         version: link:../session-projection
 
+  packages/session/unattended-session:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:^
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-presets':
+        specifier: workspace:^
+        version: link:../../preset/agent-presets
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-permission-presets':
+        specifier: workspace:^
+        version: link:../../interaction/permission-presets
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-title':
+        specifier: workspace:^
+        version: link:../session-title
+      '@deepseek-ai/dsh-workspace':
+        specifier: workspace:^
+        version: link:../../workspace/workspace
+
   packages/settings/settings:
     dependencies:
       '@deepseek-ai/dsh-util-values':
@@ -10770,6 +10803,9 @@ importers:
       '@deepseek-ai/dsh-session-title':
         specifier: workspace:^
         version: link:../../session/session-title
+      '@deepseek-ai/dsh-unattended-session':
+        specifier: workspace:^
+        version: link:../../session/unattended-session
       '@deepseek-ai/dsh-workspace':
         specifier: workspace:^
         version: link:../../workspace/workspace

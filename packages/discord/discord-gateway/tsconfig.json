@@ -19,6 +19,7 @@
     { "path": "../../preset/agent-presets" },
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../../session/session-title" },
+    { "path": "../../session/unattended-session" },
     { "path": "../../core/session" },
     { "path": "../../util/timeout" },
     { "path": "../../workspace/workspace" }

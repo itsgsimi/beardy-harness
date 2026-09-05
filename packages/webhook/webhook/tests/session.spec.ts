@@ -307,8 +307,8 @@ describe('webhook Session creation', () => {
   )
 
   it('preserves the original failure while reporting rollback failures', async () => {
-    const test = harness({ failAt: 'title', failDetach: true, failDispose: true })
-    await expect(create(test)).rejects.toThrow('title failed')
+    const test = harness({ failAt: 'followup', failDetach: true, failDispose: true })
+    await expect(create(test)).rejects.toThrow('followup failed')
     expect((test.ctx.logger.warn as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(2)
   })
 

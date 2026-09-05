@@ -46,6 +46,7 @@
     "@deepseek-ai/dsh-permission-presets": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-title": "workspace:^",
+    "@deepseek-ai/dsh-unattended-session": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"
   },
   "devDependencies": {
@@ -60,6 +61,7 @@
     "@deepseek-ai/dsh-permission-presets": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-title": "workspace:^",
+    "@deepseek-ai/dsh-unattended-session": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"
   }
 }

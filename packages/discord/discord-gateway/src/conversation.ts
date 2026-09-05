@@ -7,14 +7,13 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-title'
+import { awaitTurn, lastAssistantText, openUnattendedSession, sleep, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import { postChannelMessage, sendDiscordMessage } from '@deepseek-ai/dsh-tool-discord'
 import type {} from '@deepseek-ai/dsh-workspace'
 import { DISCORD_CHANNEL_TYPE_DM } from './gateway.ts'
@@ -53,12 +52,6 @@ export interface ConversationRouterDeps {
   readonly post?: ReplyPoster
 }
 
-/** One live conversation and its Agent handle. */
-interface Conversation {
-  readonly sessionId: SessionId
-  readonly handle: AgentHandle
-}
-
 /** Router that owns one conversation per Discord channel. */
 export interface ConversationRouter {
   /** Admit or ignore one gateway message, then answer it when admitted. */
@@ -78,52 +71,6 @@ export function isAdmitted(message: DiscordInboundMessage, policy: RoutingPolicy
 export function boundedContent(content: string, maxChars: number): string {
   if (content.length <= maxChars) return content
   return `${content.slice(0, maxChars)}\n[truncated by the Discord listener]`
-}
-
-/** Last assistant text committed at or after `firstSeq`, which is what the channel should see. */
-export function lastAssistantText(events: readonly SessionEvent[], firstSeq: number): string {
-  let text = ''
-  for (const event of events) {
-    if (event.seq < firstSeq || event.type !== 'assistant/message') continue
-    const joined = event.data.message.content
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('')
-    if (joined !== '') text = joined
-  }
-  return text
-}
-
-/** Wait for one turn to settle, reporting false when the configured bound expires first. */
-async function settlesInTime(
-  idle: Promise<void>,
-  timeoutMs: number,
-  wait: (ms: number, signal: AbortSignal) => Promise<void>,
-  signal: AbortSignal,
-): Promise<boolean> {
-  const outcome = await new Promise<'idle' | 'timeout'>((resolve) => {
-    void wait(timeoutMs, signal).then(
-      () => { resolve('timeout') },
-      () => { resolve('timeout') },
-    )
-    idle.then(() => { resolve('idle') }, () => { resolve('timeout') })
-  })
-  return outcome === 'idle'
-}
-
-/** Sleep until `ms` passes or the signal aborts. */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const onAbort = (): void => {
-      clearTimeout(timer)
-      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'))
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
 }
 
 /**
@@ -147,41 +94,24 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       maxChunksPerCall: REPLY_MAX_CHUNKS,
     }, token, content, replySignal)
   })
-  const conversations = new Map<string, Conversation>()
+  const conversations = new Map<string, UnattendedSession>()
   const tails = new Map<string, Promise<void>>()
 
   /** Open the Session one channel converses in, mounted with the configured presets. */
-  async function openConversation(channelId: string): Promise<Conversation> {
-    const preset = await ctx.agentPresets.resolve(settings.agentPreset)
-    ctx.permissionPresets.resolve(settings.permissionPreset)
-    const workspace = await ctx.workspaceRegistry.create(settings.workspacePath)
-    const sessionId = SessionId(`discord-${channelId}-${randomUUID()}`)
+  async function openConversation(channelId: string): Promise<UnattendedSession> {
     const selection = ctx.agentDefaultModel.currentSelection()
-    const handle = await ctx.agents.create({
-      sessionId,
-      meta: { cwd: workspace.path, agentPreset: preset.id },
+    return await openUnattendedSession(ctx, {
+      sessionId: SessionId(`discord-${channelId}-${randomUUID()}`),
+      agentPreset: settings.agentPreset,
+      permissionPreset: settings.permissionPreset,
+      workspacePath: settings.workspacePath,
+      title: `${settings.titlePrefix} ${channelId}`,
       agentOptions: { provider: selection.provider, model: selection.model },
-      setup: async (agentCtx) => {
-        await ctx.agentPresets.mount(agentCtx, preset.id)
-      },
-    })
-    let attached = false
-    try {
-      signal.throwIfAborted()
-      await workspace.attachSession(sessionId)
-      attached = true
-      ctx.permissionPresets.set(handle.agent.session, settings.permissionPreset)
-      ctx.sessionTitle.rename(handle.agent.session, `${settings.titlePrefix} ${channelId}`)
-    } catch (error: unknown) {
-      if (attached) await workspace.detachSession(sessionId)
-      await handle.dispose()
-      throw error
-    }
-    return { sessionId, handle }
+    }, signal)
   }
 
   /** Dispose one conversation's Agent, reporting rather than propagating a teardown failure. */
-  async function disposeConversation(conversation: Conversation): Promise<void> {
+  async function disposeConversation(conversation: UnattendedSession): Promise<void> {
     try {
       await conversation.handle.dispose()
     } catch (error: unknown) {
@@ -191,7 +121,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   /** Hand one message to the Session, wait for the answer, and post it to the channel. */
-  async function runTurn(conversation: Conversation, message: DiscordInboundMessage): Promise<void> {
+  async function runTurn(conversation: UnattendedSession, message: DiscordInboundMessage): Promise<void> {
     const agent = conversation.handle.agent
     const firstSeq = agent.session.seq
     agent.followup(createUserMessage({
@@ -206,7 +136,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         summary: boundContextSummary(`Discord message from ${message.authorId}`),
       },
     }))
-    if (!await settlesInTime(agent.whenIdle(), settings.turnTimeoutMs, wait, signal)) {
+    if (await awaitTurn(agent, { timeoutMs: settings.turnTimeoutMs, wait, signal }) !== 'idle') {
       ctx.logger.warn(`discord-gateway: turn for channel ${message.channelId} did not settle within `
         + `${String(settings.turnTimeoutMs)}ms; its answer is not posted and the conversation is released`)
       // The turn must not outlive the router's wait: an undisposed Agent keeps working while the

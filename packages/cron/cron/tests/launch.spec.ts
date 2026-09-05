@@ -73,6 +73,7 @@ function harness(options: HarnessOptions = {}) {
         calls.push(`preset-resolve:${name}`)
         return { id: name }
       },
+      standingKeyFor: async (name: string) => { calls.push(`standing:${name}`); return {} },
       mount: async (_ctx: unknown, name: string) => { calls.push(`mount:${name}`) },
     },
     workspaceRegistry: {
@@ -133,6 +134,7 @@ describe('job runner', () => {
     expect(outcome).toBe('answered')
     expect(h.calls).toEqual([
       'preset-resolve:beardy',
+      'standing:beardy',
       'workspace:/workspace',
       'agent-create',
       'mount:beardy',
@@ -219,7 +221,7 @@ describe('job runner', () => {
     const h = harness({ replyText: 'ok' })
     h.controller.abort(new Error('scheduler disposed'))
     expect(await h.runner.run(JOB, FIRED_AT)).toBe('failed')
-    expect(h.calls).toContain('agent-create')
-    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    expect(h.calls).toContain('preset-resolve:beardy')
+    expect(h.calls).not.toContain('agent-create')
   })
 })

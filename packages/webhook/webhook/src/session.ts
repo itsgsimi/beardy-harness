@@ -11,6 +11,7 @@ import { boundContextSummary, createUserMessage, errorChain, type LlmCallConfig 
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-title'
+import { openUnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type { WebhookRuleId } from './brand.ts'
 import type { VerifiedWebhookDelivery, WebhookSessionRequest } from './types.ts'
@@ -104,9 +105,9 @@ function installInitialModelSelection(agentCtx: Context, selection: ModelSelecti
 }
 
 /**
- * Create, attach, title, configure, and prompt one ordinary root Session.
- * Successful prompt admission ends webhook ownership of the operation; the
- * Agent remains lifecycle-owned by `ctx` and follows normal Session behavior.
+ * Create, attach, title, configure, and prompt one ordinary root Session. The open runs through
+ * the shared unattended-session transaction; successful prompt admission ends webhook ownership of
+ * the operation, and the Agent remains lifecycle-owned by `ctx` and follows normal Session behavior.
  *
  * @param ctx - untraced runtime context that owns the resulting Agent.
  * @param delivery - exact verified provider delivery used for provenance.
@@ -122,34 +123,18 @@ export async function createWebhookSession(
   signal: AbortSignal,
 ): Promise<void> {
   const resolved = resolveRequest(ctx, request)
-  ctx.permissionPresets.resolve(resolved.permissionPreset)
-  const preset = await ctx.agentPresets.resolve(resolved.agentPreset)
-  await ctx.agentPresets.standingKeyFor(preset.id)
-  signal.throwIfAborted()
-
-  const workspace = await ctx.workspaceRegistry.create(resolved.workspacePath)
-  signal.throwIfAborted()
-  const sessionId = brandString<SessionId>(`webhook-${randomUUID()}`)
-  const handle = await ctx.agents.create({
-    sessionId,
-    signal,
-    meta: { cwd: workspace.path, agentPreset: preset.id },
+  const session = await openUnattendedSession(ctx, {
+    sessionId: brandString<SessionId>(`webhook-${randomUUID()}`),
+    agentPreset: resolved.agentPreset,
+    permissionPreset: resolved.permissionPreset,
+    workspacePath: resolved.workspacePath,
+    title: resolved.title,
     agentOptions: resolved.agentOptions,
-    setup: async (agentCtx) => {
-      await ctx.agentPresets.mount(agentCtx, preset.id)
-      installInitialModelSelection(agentCtx, resolved.modelSelection)
-    },
-  })
+    setup: (agentCtx) => { installInitialModelSelection(agentCtx, resolved.modelSelection) },
+  }, signal)
 
-  let attached = false
   try {
-    signal.throwIfAborted()
-    await workspace.attachSession(sessionId)
-    attached = true
-    signal.throwIfAborted()
-    ctx.permissionPresets.set(handle.agent.session, resolved.permissionPreset)
-    ctx.sessionTitle.rename(handle.agent.session, resolved.title)
-    handle.agent.followup(createUserMessage({
+    session.handle.agent.followup(createUserMessage({
       content: [{ type: 'text', text: resolved.prompt }],
       source: {
         kind: 'webhook',
@@ -162,17 +147,15 @@ export async function createWebhookSession(
       },
     }))
   } catch (error: unknown) {
-    if (attached) {
-      try {
-        await workspace.detachSession(sessionId)
-      } catch (rollbackError: unknown) {
-        reportRollbackFailure(ctx, `Workspace detach for Session "${sessionId}"`, rollbackError)
-      }
+    try {
+      await session.workspace.detachSession(session.sessionId)
+    } catch (rollbackError: unknown) {
+      reportRollbackFailure(ctx, `Workspace detach for Session "${session.sessionId}"`, rollbackError)
     }
     try {
-      await handle.dispose()
+      await session.handle.dispose()
     } catch (rollbackError: unknown) {
-      reportRollbackFailure(ctx, `Agent disposal for Session "${sessionId}"`, rollbackError)
+      reportRollbackFailure(ctx, `Agent disposal for Session "${session.sessionId}"`, rollbackError)
     }
     throw error
   }

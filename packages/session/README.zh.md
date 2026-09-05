@@ -22,7 +22,7 @@ session 组让对话持久保存，恢复已发布的日志格式，并使已提
 <a id="packages"></a>
 ## 包
 
-本组分为四个家族：持久存储（持久化 seam、后端、检查点策略）、投影、标题与遥测。每个包 README 负责各自的约定与配置。
+本组分为五个家族：持久存储（持久化 seam、后端、检查点策略）、投影、标题、遥测，以及无人值守入口的开启事务。每个包 README 负责各自的约定与配置。
 
 ### 持久化
 
@@ -63,6 +63,12 @@ session 组让对话持久保存，恢复已发布的日志格式，并使已提
 | [`session-telemetry-otel/`](session-telemetry-otel/README.zh.md) | 通过 OpenTelemetry 日志以 `FEEDBACK_ONLY` 或 `DISABLED` 模式投递遥测 | 注册到 `ctx.sessionTelemetry` |
 
 同一时间只允许一个标题提供方注册；未注册时，标题服务保留其确定性回退。下面的子系统页面是各家族后端无关的参考资料。
+
+### 无人值守入口
+
+| 包 | 职责 | ctx key |
+|---|---|---|
+| [`unattended-session/`](unattended-session/README.zh.md) | 为无人值守入口把单个根 Session 的开启与挂载做成一次可安全回滚的事务 | 普通库——无 ctx key |
 
 -----
 

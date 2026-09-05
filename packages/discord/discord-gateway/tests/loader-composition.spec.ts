@@ -62,6 +62,7 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
       } as never)
       ctx.provide('agentPresets' as never, {
         resolve: async (name: string) => ({ id: name }),
+        standingKeyFor: async () => ({}),
         mount: async () => {},
       } as never)
       ctx.provide('permissionPresets' as never, {
