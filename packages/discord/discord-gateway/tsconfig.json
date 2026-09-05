@@ -1,0 +1,26 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    { "path": "../../../vendor/cosmokit" },
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/agent-default-model" },
+    { "path": "../../credentials/credentials" },
+    { "path": "../../discord/tool-discord" },
+    { "path": "../../interaction/permission-presets" },
+    { "path": "../../preset/agent-presets" },
+    { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../../session/session-title" },
+    { "path": "../../core/session" },
+    { "path": "../../util/timeout" },
+    { "path": "../../workspace/workspace" }
+  ]
+}
