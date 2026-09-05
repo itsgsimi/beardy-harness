@@ -37,7 +37,7 @@ function harness(options: HarnessOptions = {}) {
   const agent = {
     session: {
       get seq(): number { return events.length },
-      events,
+      ownEvents: () => events,
     },
     followup(message: { content: readonly { text?: string }[] }) {
       calls.push(`followup:${message.content[0]?.text ?? ''}`)

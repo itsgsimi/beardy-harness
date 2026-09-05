@@ -42,7 +42,7 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
           const events: Record<string, unknown>[] = []
           return {
             agent: {
-              session: { get seq(): number { return events.length }, events },
+              session: { get seq(): number { return events.length }, ownEvents: () => events },
               followup: (message: { source?: { kind?: string } }) => {
                 record.followedUp.push(message.source?.kind ?? '')
                 events.push({

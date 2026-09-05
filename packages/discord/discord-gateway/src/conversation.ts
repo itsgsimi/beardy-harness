@@ -201,7 +201,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         + `${String(settings.turnTimeoutMs)}ms; its answer is not posted`)
       return
     }
-    const reply = lastAssistantText(agent.session.events, firstSeq)
+    const reply = lastAssistantText(agent.session.ownEvents(), firstSeq)
     if (reply === '') return
     try {
       await post(reply, message.channelId, await deps.resolveToken(), signal)

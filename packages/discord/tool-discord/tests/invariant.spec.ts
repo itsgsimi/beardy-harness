@@ -20,7 +20,7 @@ describe('tool-discord invariant companion', () => {
       session.append('turn/start', { turn: 1 })
       ctx.emit('tools/change')
     }).not.toThrow()
-    expect([...session.events].map(event => event.type)).toEqual(['turn/start'])
+    expect([...session.ownEvents()].map(event => event.type)).toEqual(['turn/start'])
   })
 
   it('releases the package name when its fiber is disposed', async () => {

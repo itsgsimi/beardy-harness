@@ -73,7 +73,7 @@ function contextStub(overrides: Record<string, unknown> = {}) {
   const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() }
   const events: Record<string, unknown>[] = []
   const agent = {
-    session: { get seq(): number { return events.length }, events },
+    session: { get seq(): number { return events.length }, ownEvents: () => events },
     followup: () => {
       events.push({ seq: events.length + 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'done' }] } } })
     },
@@ -133,7 +133,7 @@ describe('mountJobs', () => {
       agents: {
         create: async () => ({
           agent: {
-            session: { get seq(): number { return events.length }, events },
+            session: { get seq(): number { return events.length }, ownEvents: () => events },
             followup: () => {},
             whenIdle: () => new Promise<void>((resolve) => { resolveIdle = resolve }),
           },
@@ -160,7 +160,7 @@ describe('mountJobs', () => {
       agents: {
         create: async () => ({
           agent: {
-            session: { seq: 0, events: [] },
+            session: { seq: 0, ownEvents: () => [] },
             followup: () => { throw new Error('inbox rejected the prompt') },
             whenIdle: async () => {},
           },

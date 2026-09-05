@@ -29,7 +29,7 @@ function fixtureDependencies(created: string[]): unknown {
           created.push(options.sessionId)
           return {
             agent: {
-              session: { get seq(): number { return events.length }, events },
+              session: { get seq(): number { return events.length }, ownEvents: () => events },
               followup: () => {
                 events.push({
                   seq: events.length + 1,

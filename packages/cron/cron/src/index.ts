@@ -128,7 +128,7 @@ export function mountJobs(ctx: Context, config: ResolvedConfig, scheduler: Sched
     signal: controller.signal,
     turnTimeoutMs: config.turnTimeoutMs,
   })
-  const inFlight = new Map<string, Promise<void>>()
+  const inFlight = new Map<string, Promise<unknown>>()
   const timers: { stop(): void }[] = []
 
   for (const job of config.jobs) {

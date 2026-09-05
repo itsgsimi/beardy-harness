@@ -174,6 +174,8 @@ async function mintAgentScope(ctx: Context, subject: string | Agent): Promise<{ 
 describe('dsh-tool-skill', () => {
   it('creates, updates, and deletes a workspace skill through skill_manage', async () => {
     const workspace = await tempDir('skill-manage')
+    // The filesystem provider scans .agents/skills only below a detected project root.
+    await mkdir(join(workspace, '.git'), { recursive: true })
     const home = await tempDir('skill-manage-home')
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)

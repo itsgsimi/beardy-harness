@@ -160,7 +160,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(deps.turnTimeoutMs)}ms`)
         return 'timed-out'
       }
-      const answer = lastAssistantText(agent.session.events, firstSeq)
+      const answer = lastAssistantText(agent.session.ownEvents(), firstSeq)
       if (answer === '') {
         ctx.logger.info(`dsh-cron: job "${job.name}" finished without a text answer`)
         return 'no-text-answer'
