@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. The shipped `beardy` profile includes it automatically and stores a dedicated session-search index under the Harness home. Beardy inherits the complete Creator mode capability roster, including the standard coding tools and live Cordis authoring tools, then adds its identity, `$DSH_HOME/SOUL.md` personality file, session search, SearXNG-backed Web search, and Web fetching. It can search prior sessions and the Web without a DeepSeek search credential, inspect events and lineage, fetch Web pages, modify accessible harness source and presets, and temporarily extend the running process. The bundle does not provide persistent personal memory or automatic skill curation. Scheduled runs and Discord delivery come from `dsh-cron`, `dsh-tool-discord`, and `dsh-discord-gateway`, which the patch mounts once a `DISCORD_BOT_TOKEN` credential resolves: one job posts a morning brief at 07:00 local time, and direct messages from allowlisted users open conversations on this Host.
+The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. The shipped `beardy` profile includes it automatically and stores a dedicated session-search index under the Harness home. Beardy inherits the complete Creator mode capability roster, including the standard coding tools and live Cordis authoring tools, then adds its identity, `$DSH_HOME/SOUL.md` personality file, session search, SearXNG-backed Web search, and Web fetching. It can search prior sessions and the Web without a DeepSeek search credential, inspect events and lineage, fetch Web pages, modify accessible harness source and presets, and temporarily extend the running process. The bundle does not provide persistent personal memory or automatic skill curation. Scheduled runs and Discord delivery come from `dsh-cron`, `dsh-tool-discord`, and `dsh-discord-gateway`; the patch gates those three rows behind a `DISCORD_BOT_TOKEN` credential and ships no cron jobs. Your own briefs, channel destination, gateway workspace, and permission preset come from your profile patch (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`); an enabled row without that configuration fails its schema check loudly rather than running on defaults.
 
 ## Table of Contents
 
@@ -169,9 +169,9 @@ The history guidance and tool schemas remain prefix-stable for a fixed bundle an
 
 - **No personal memory store** — Beardy can search session history, but it does not yet maintain a separate curated user or project memory.
 - **No automatic skill curator** — skills are discovered and loaded through the base skill packages; Beardy does not write or improve skills automatically.
-- **Scheduled jobs are configuration-only** — the morning brief runs from `dsh-cron` configuration, and nothing creates or edits a job at runtime; changing the timetable, feeds, or destination means editing a patch and restarting.
+- **Scheduled jobs are configuration-only** — jobs run from the `dsh-cron` config in your profile patch, and nothing creates or edits a job at runtime; changing the timetable, feeds, or destination means editing a patch and restarting.
 - **One process per bot token** — the gateway answers every inbound direct message it sees, so running this profile alongside another that mounts `dsh-discord-gateway` with the same token replies twice.
-- **No messaging gateway** — the profile provides the Web application but no Telegram, Discord, Slack, or similar channel adapter.
+- **No general messaging gateway** — the profile provides the Web application; Discord is its only channel adapter, and there is none for Telegram, Slack, or similar services.
 - **Search uses a separate database** — do not point `session-query-sqlite.path` at the session-persistence database.
 - **SearXNG is an external prerequisite** — the default local endpoint must be running and must expose the JSON response format before Beardy can use `web_search`.
 

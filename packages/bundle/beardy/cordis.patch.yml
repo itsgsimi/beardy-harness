@@ -46,50 +46,30 @@
     fetch: true
     searchTimeoutMs: 60000
 
-# Discord: outbound delivery, an inbound listener, and the unattended morning
-# brief. All three mount only when a bot token is present, so a checkout without
-# Discord credentials starts unchanged. The token itself lives in the environment
-# or the root .env; the composition names the reference, never the secret.
+# Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
+# only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
+# token itself lives in the environment or the root .env; the composition names the reference, never
+# the secret. Deployment choices (gateway workspacePath, permissionPreset, and the cron job list) are
+# NOT set here: a profile-layer `- id:` row replaces a row's config wholesale, so configure enabled
+# rows from your own `~/.dsh/profiles/<profile>/cordis.patch.yml`; an enabled row without that config
+# fails the schema's required-field check instead of running on someone else's defaults.
 - insert:
     - id: tool-discord
       name: '@deepseek-ai/dsh-tool-discord'
       disabled: !!js process.env.DISCORD_BOT_TOKEN === undefined
       config:
         tokenEnv: DISCORD_BOT_TOKEN
-        channelId: !!js process.env.DISCORD_CHANNEL_ID ?? process.env.DISCORD_DM_CHANNEL_ID ?? '0'
+        # Set DISCORD_CHANNEL_ID to the snowflake of the channel discord_send targets.
+        channelId: !!js process.env.DISCORD_CHANNEL_ID ?? process.env.DISCORD_DM_CHANNEL_ID
         dmUserIds: !!js (process.env.DISCORD_DM_USER_IDS || '').split(' ').filter(Boolean)
 
     - id: discord-gateway
       name: '@deepseek-ai/dsh-discord-gateway'
       disabled: !!js process.env.DISCORD_BOT_TOKEN === undefined
-      config:
-        tokenEnv: DISCORD_BOT_TOKEN
-        allowedUserIds: !!js (process.env.DISCORD_ALLOWED_USER_IDS || '').split(' ').filter(Boolean)
-        workspacePath: !!js process.cwd()
-        agentPreset: beardy
-        permissionPreset: danger-full-access
 
-    # The brief runs unattended at 07:00 local time and delivers itself with the
-    # discord_send tool the Beardy preset has. Edit the feed list or schedule here.
+    # The scheduler mounts with no jobs; define your own briefs in your profile patch.
     - id: cron
       name: '@deepseek-ai/dsh-cron'
       disabled: !!js process.env.DISCORD_BOT_TOKEN === undefined
       config:
-        jobs:
-          - name: morning-brief
-            expression: '0 7 * * *'
-            timezone: !!js Intl.DateTimeFormat().resolvedOptions().timeZone
-            agentPreset: beardy
-            permissionPreset: danger-full-access
-            workspacePath: !!js process.cwd()
-            prompt: >-
-              Prepare the morning brief for Goran and send it with discord_send.
-              Fetch these feeds with web_fetch and pick the three to five items that
-              matter most in each category: AI and technology
-              (https://hnrss.org/frontpage, https://www.theverge.com/rss/index.xml),
-              world news (https://feeds.bbci.co.uk/news/world/rss.xml),
-              science (https://www.nature.com/nature.rss). Then get the weather for
-              today and the next five days with web_fetch from
-              https://wttr.in/?format=j1. Write one Discord message under 2000
-              characters: a short headline list per category, then the forecast.
-              Plain text with line breaks, no tables.
+        jobs: []

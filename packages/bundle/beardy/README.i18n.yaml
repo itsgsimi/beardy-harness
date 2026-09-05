@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/bundle/beardy/README.md
-README.md: cc5f2d121a31d388db9a19110edc85d6e0f1dc96
-README.zh.md: d39a9fa8f731e6be62615755bf730b2b6ecbe388
+README.md: cb58ccb40b8dabc5270a5d3f894e6d73de70641b
+README.zh.md: 764953e7398ab199de6dafb4157d9c5f80bcd360
