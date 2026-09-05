@@ -110,7 +110,7 @@ describe('tool-discord real Loader composition through cordis.yml', () => {
 
   it('posts a message through the production transport', async () => {
     const ctx = await boot(VALID_CONFIG)
-    const requests: { url: string; body?: string; authorization?: string }[] = []
+    const requests: { url: string; body?: string | undefined; authorization?: string | undefined }[] = []
     vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
       requests.push({
         url: String(input),

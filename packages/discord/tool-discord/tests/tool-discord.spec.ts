@@ -66,6 +66,9 @@ function text(blocks: readonly ContentBlock[]): string {
   return blocks.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
 }
 
+/** Result shape the tool's output schema declares. */
+type SendResult = { channelId: string; chunks: number; characters: number; suppressedBroadcastMentions: number }
+
 describe('production transport delay', () => {
   it('resolves after the requested rate-limit delay', async () => {
     const started = Date.now()
@@ -101,7 +104,7 @@ describe('discord_send definition', () => {
   it('posts the composed body with the configured channel and resolved token', async () => {
     const transport = recordingTransport()
     const tool = ToolDiscord.createDiscordSendTool(contextWithToken('tok'), config(), transport)
-    const value = await tool.execute({ content: 'Morning brief: sunny.' }, exec())
+    const value = (await tool.execute({ content: 'Morning brief: sunny.' }, exec())) as SendResult
     expect(transport.posted).toEqual(['Morning brief: sunny.'])
     expect(transport.channels).toEqual([CHANNEL])
     expect(value).toEqual({ channelId: CHANNEL, chunks: 1, characters: 21, suppressedBroadcastMentions: 0 })
@@ -109,7 +112,7 @@ describe('discord_send definition', () => {
 
   it('renders the delivered count for one message', async () => {
     const tool = ToolDiscord.createDiscordSendTool(contextWithToken('tok'), config(), recordingTransport())
-    const value = await tool.execute({ content: 'hello there' }, exec())
+    const value = (await tool.execute({ content: 'hello there' }, exec())) as SendResult
     expect(text(tool.output.render({ content: 'hello there' }, value))).toBe(
       `Posted 1 Discord message to channel ${CHANNEL} (11 characters).`,
     )
@@ -119,7 +122,7 @@ describe('discord_send definition', () => {
     const transport = recordingTransport()
     const tool = ToolDiscord.createDiscordSendTool(contextWithToken('tok'), config(), transport)
     const long = `@everyone ${'y'.repeat(2_500)}`
-    const value = await tool.execute({ content: long }, exec())
+    const value = (await tool.execute({ content: long }, exec())) as SendResult
     expect(transport.posted).toEqual(['@\u200beveryone', 'y'.repeat(2_000), 'y'.repeat(500)])
     expect(text(tool.output.render({ content: long }, value))).toBe(
       `Posted 3 Discord messages to channel ${CHANNEL} (2510 characters), rewriting 1 broadcast mention(s).`,
@@ -222,7 +225,7 @@ describe('discord_send direct messaging', () => {
       config({ dmUserIds: [RECIPIENT] }),
       transport,
     )
-    const value = await tool.execute({ content: 'Work is done.', recipient: RECIPIENT }, exec())
+    const value = (await tool.execute({ content: 'Work is done.', recipient: RECIPIENT }, exec())) as SendResult
     expect(transport.opened).toEqual([RECIPIENT])
     expect(transport.channels).toEqual([`dm-${RECIPIENT}`])
     expect(value.channelId).toBe(`dm-${RECIPIENT}`)

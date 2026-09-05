@@ -83,7 +83,10 @@ function contextStub(overrides: Record<string, unknown> = {}) {
   const disposers: (() => Promise<void> | void)[] = []
   const ctx = {
     logger,
-    effect: vi.fn((setup: () => (() => Promise<void>) | undefined) => { disposers.push(setup()) }),
+    effect: vi.fn((setup: () => (() => Promise<void>) | undefined) => {
+      const dispose = setup()
+      if (dispose !== undefined) disposers.push(dispose)
+    }),
     permissionPresets: { resolve: () => ({}), set: () => {} },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     agentPresets: { resolve: async (id: string) => ({ id }), mount: async () => {} },

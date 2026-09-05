@@ -6,10 +6,10 @@ const CHANNEL = '1478276183543119914'
 
 interface CapturedRequest {
   url: string
-  method?: string
-  redirect?: RequestRedirect
+  method?: string | undefined
+  redirect?: RequestRedirect | undefined
   headers: Record<string, string>
-  body?: string
+  body?: string | undefined
 }
 
 /** Stub the global fetch with a fixed reply and capture the request it was called with. */

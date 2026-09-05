@@ -350,7 +350,7 @@ describe('connectDiscordGateway', () => {
       token: 'tok',
       socketFactory: () => socket,
       onMessage: () => {},
-      wait: (ms, signal) => new Promise<void>((resolve, reject) => {
+      wait: (_ms, signal) => new Promise<void>((resolve, reject) => {
         resolvers.push(resolve)
         signal.addEventListener('abort', () => { reject(new Error('wait cancelled')) }, { once: true })
       }),

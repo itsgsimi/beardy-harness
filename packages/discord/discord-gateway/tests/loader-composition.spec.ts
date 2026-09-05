@@ -127,7 +127,7 @@ const GATEWAY_ROWS = [
 function unloaded(ctx: Context): string[] {
   return [...ctx.loader.entries()]
     .filter(entry => entry.fiber === undefined && !entry.disabled)
-    .map(entry => String(entry.name))
+    .map(entry => entry.options.name)
 }
 
 describe('discord-gateway real Loader composition', () => {
