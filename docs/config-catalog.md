@@ -831,6 +831,31 @@ export interface Config {
 
 Source: [`packages/experimental/tool-agent-team/src/index.ts:17`](../packages/experimental/tool-agent-team/src/index.ts)
 
+<a id="deepseek-aidsh-experimental-training-export"></a>
+
+## `@deepseek-ai/dsh-experimental-training-export`
+
+Requires: `llm` · `sessions`
+
+```ts config-catalog
+/** Required, no-hidden-default plugin configuration. */
+export interface Config {
+  /** Absolute directory for every session's sidecar; created on first write. */
+  readonly root: string
+  /**
+   * Non-empty allow-list matched against `GenerateOptions.provider`. Gates
+   * only the per-turn workspace `git` reads: every provider's samples are
+   * written regardless, and the `halorun dataset` reader applies its own
+   * provider filter.
+   */
+  readonly providers: string[]
+  /** Whether this plugin's listeners are active; no default — an omitted value fails to load, not silently off. */
+  readonly enabled: boolean
+}
+```
+
+Source: [`packages/experimental/training-export/src/index.ts:26`](../packages/experimental/training-export/src/index.ts)
+
 <a id="deepseek-aidsh-file-reference-local"></a>
 
 ## `@deepseek-ai/dsh-file-reference-local`
