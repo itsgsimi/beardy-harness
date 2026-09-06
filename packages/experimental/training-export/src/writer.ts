@@ -10,23 +10,31 @@
 import { createRequire } from 'node:module'
 import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
-import { errorChain, type GenerateOptions, type MessageId } from '@deepseek-ai/dsh-llm'
+import { errorChain, type GenerateOptions, type MessageId, type ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionEventMap, SessionId } from '@deepseek-ai/dsh-session'
-// Type-only: brings `hook/result`, `approval/asked`/`approval/decided`, and
-// `compaction/start`/`compaction/end` into the merge-extensible
-// `SessionEventMap` this module switches on. Each service stays optional at
-// runtime (`ctx.get(...)`); see the message-feedback import below.
+// Type-only: brings `hook/result`, `approval/asked`/`approval/decided`,
+// `compaction/start`/`compaction/end`, and `session/title` into the
+// merge-extensible `SessionEventMap` this module switches on. Each service
+// stays optional at runtime (`ctx.get(...)`); see the message-feedback
+// import below.
 import type {} from '@deepseek-ai/dsh-hook-protocol'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-compaction'
 import type {} from '@deepseek-ai/dsh-message-feedback'
+import type {} from '@deepseek-ai/dsh-session-title'
 import { labelsPath, metaPath, samplesPath, sessionDir } from './paths.ts'
 import { hashSystem, hashTools } from './hash.ts'
 import { captureWorkspaceHead, diffTreeSnapshot } from './workspace.ts'
 import type {
   TrainingApprovalCounts, TrainingExportMeta, TrainingHookOutcome, TrainingLabelLine,
-  TrainingRatingEntry, TrainingSampleRequest, TrainingSampleResponse, TrainingWorkspaceSnapshot,
+  TrainingRatingEntry, TrainingSampleRequest, TrainingSampleResponse, TrainingToolCallOutcome,
+  TrainingWorkspaceSnapshot,
 } from './types.ts'
+
+/** UTF-8 byte length of one text block's content (the spec's `resultChars`/`assistantChars` convention). */
+function utf8Length(text: string): number {
+  return Buffer.byteLength(text, 'utf8')
+}
 
 /** Resolved, validated plugin configuration (see `Config` in `index.ts`). */
 export interface ResolvedConfig {
@@ -34,13 +42,34 @@ export interface ResolvedConfig {
   readonly providers: readonly string[]
 }
 
+/**
+ * One open turn's tracked `tool/call`, closed by a matching `tool/result` or
+ * left open (unmatched) at `turn/end`.
+ */
+interface PendingToolCallOutcome {
+  readonly callId: ToolCallId
+  readonly name: string
+  readonly callTime: number
+  resultTime: number | null
+  isError: boolean | null
+  resultChars: number
+}
+
 /** One open turn's running aggregate; closed and handed to the label writer at `turn/end`. */
 interface TurnAggregate {
   readonly turn: number
+  /** `turn/start.time`. */
+  readonly startedAt: number
   readonly sampleSeqs: number[]
   steps: number
   toolCalls: number
   toolErrors: number
+  /** One entry per `tool/call` this turn, in call order. */
+  readonly toolCallOrder: PendingToolCallOutcome[]
+  /** `seq` of the sample whose response carried a `tool-call` block, keyed by that block's `id`. */
+  readonly toolCallSeq: Map<ToolCallId, number>
+  /** Running total of `text` content-block UTF-8 length across the turn's samples. */
+  assistantChars: number
   readonly hooks: TrainingHookOutcome[]
   approvalsAsked: number
   approvalsApproved: number
@@ -61,6 +90,8 @@ export interface SessionExportState {
   /** Undefined until first resolved, by counting existing `samples.jsonl` lines. */
   nextSeq: number | undefined
   metaWritten: boolean
+  /** Latest `session/title` text seen, or `null` before one arrives; re-written into `meta.json` once seen after the first write. */
+  title: string | null
   turn: number | null
   step: number | null
   turnAgg: TurnAggregate | null
@@ -73,6 +104,7 @@ function createState(config: ResolvedConfig, session: Session): SessionExportSta
     queue: Promise.resolve(),
     nextSeq: undefined,
     metaWritten: false,
+    title: null,
     turn: null,
     step: null,
     turnAgg: null,
@@ -122,10 +154,10 @@ const HARNESS_VERSION = `dsh-${sessionPackageVersion}`
 /** This plugin's own `<npm name>/<version>` identity recorded in `meta.json`. */
 const PLUGIN_VERSION = `dsh-experimental-training-export/${pluginVersion}`
 
-/** Write `meta.json` once; a second writer (this process or a resumed one) leaves the existing file untouched. */
-async function writeMetaOnce(dir: string, session: Session): Promise<void> {
+/** Build `meta.json`'s content: immutable header-derived fields plus the session's currently known title. */
+function buildMeta(session: Session, title: string | null): TrainingExportMeta {
   const header = session.header
-  const meta: TrainingExportMeta = {
+  return {
     version: 1,
     sessionId: session.id,
     parentSessionId: header.parentSession ?? null,
@@ -134,12 +166,27 @@ async function writeMetaOnce(dir: string, session: Session): Promise<void> {
     createdAt: header.createdAt,
     harness: HARNESS_VERSION,
     plugin: PLUGIN_VERSION,
+    agentPreset: header.agentPreset ?? null,
+    title,
   }
+}
+
+/** Write `meta.json` once; a second writer (this process or a resumed one) leaves the existing file untouched. */
+async function writeMetaOnce(dir: string, session: Session, title: string | null): Promise<void> {
   try {
-    await writeFile(metaPath(dir), JSON.stringify(meta), { encoding: 'utf8', flag: 'wx' })
+    await writeFile(metaPath(dir), JSON.stringify(buildMeta(session, title)), { encoding: 'utf8', flag: 'wx' })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
   }
+}
+
+/**
+ * Re-write `meta.json` wholesale after its first write: the only field that
+ * can legitimately change post-write is `title`, when a `session/title` event
+ * lands after the first sample.
+ */
+async function rewriteMeta(dir: string, session: Session, title: string | null): Promise<void> {
+  await writeFile(metaPath(dir), JSON.stringify(buildMeta(session, title)), 'utf8')
 }
 
 /**
@@ -200,13 +247,23 @@ export function enqueueSample(
     await mkdir(state.dir, { recursive: true })
     if (!state.metaWritten) {
       state.metaWritten = true
-      await writeMetaOnce(state.dir, session)
+      await writeMetaOnce(state.dir, session, state.title)
     }
     const workspace = await resolveWorkspace(config, session, turnAgg, folded.options.provider)
     if (state.nextSeq === undefined) state.nextSeq = await countExistingLines(samplesPath(state.dir))
     const seq = state.nextSeq
     state.nextSeq = seq + 1
-    if (turnAgg !== null) turnAgg.sampleSeqs.push(seq)
+    if (turnAgg !== null) {
+      turnAgg.sampleSeqs.push(seq)
+      // Correlate this sample's tool-call blocks to its `seq` for the label's
+      // `toolCallOutcomes[].seq`, and fold its assistant text into the
+      // turn's running `assistantChars` — reasoning and tool-call arguments
+      // are deliberately not text.
+      for (const block of folded.response.content) {
+        if (block.type === 'tool-call') turnAgg.toolCallSeq.set(block.id, seq)
+        else if (block.type === 'text') turnAgg.assistantChars += utf8Length(block.text)
+      }
+    }
     const line = {
       version: 1 as const,
       kind: 'sample' as const,
@@ -238,6 +295,18 @@ async function resolveRatings(
     .map(item => ({ messageId: item.messageId, rating: item.rating, note: item.note ?? '' }))
 }
 
+/** Close the turn's tracked tool calls into the label's `toolCallOutcomes`, in call order. */
+function foldToolCallOutcomes(agg: TurnAggregate): TrainingToolCallOutcome[] {
+  return agg.toolCallOrder.map(pending => ({
+    seq: agg.toolCallSeq.get(pending.callId) ?? null,
+    callId: pending.callId,
+    name: pending.name,
+    isError: pending.isError,
+    durationMs: pending.resultTime === null ? null : pending.resultTime - pending.callTime,
+    resultChars: pending.resultChars,
+  }))
+}
+
 /**
  * Enqueue one `train/label` line at `turn/end`.
  * @param ctx - plugin context (for logging and the optional feedback service).
@@ -245,10 +314,11 @@ async function resolveRatings(
  * @param state - the session's export state.
  * @param agg - the closed turn's aggregate.
  * @param reason - the session log's `turn/end` payload.
+ * @param endedAt - the `turn/end` event's own `time`, for `durationMs`.
  */
 export function enqueueLabel(
   ctx: Context, session: Session, state: SessionExportState,
-  agg: TurnAggregate, reason: SessionEventMap['turn/end'],
+  agg: TurnAggregate, reason: SessionEventMap['turn/end'], endedAt: number,
 ): void {
   enqueue(ctx, state, session.id, async () => {
     await mkdir(state.dir, { recursive: true })
@@ -264,32 +334,40 @@ export function enqueueLabel(
       kind: 'label',
       turn: reason.turn,
       at: Date.now(),
+      startedAt: agg.startedAt,
+      durationMs: endedAt - agg.startedAt,
       completed: reason.reason.kind === 'completed',
       finishReason: reason.reason.kind,
       steps: agg.steps,
       samples: [...agg.sampleSeqs].sort((a, b) => a - b),
       toolCalls: agg.toolCalls,
       toolErrors: agg.toolErrors,
+      toolCallOutcomes: foldToolCallOutcomes(agg),
       hooks: agg.hooks,
       approvals,
       diff,
       ratings,
       compactionInTurn: agg.compactionInTurn,
+      assistantChars: agg.assistantChars,
     }
     await appendFile(labelsPath(state.dir), `${JSON.stringify(label)}\n`, 'utf8')
   })
 }
 
 /** Start tracking a new open turn; replaces any (unexpected) still-open aggregate. */
-function startTurn(state: SessionExportState, turn: number): void {
+function startTurn(state: SessionExportState, turn: number, startedAt: number): void {
   state.turn = turn
   state.step = null
   state.turnAgg = {
     turn,
+    startedAt,
     sampleSeqs: [],
     steps: 0,
     toolCalls: 0,
     toolErrors: 0,
+    toolCallOrder: [],
+    toolCallSeq: new Map(),
+    assistantChars: 0,
     hooks: [],
     approvalsAsked: 0,
     approvalsApproved: 0,
@@ -317,14 +395,14 @@ export function trackSessionEvent(
 ): void {
   switch (event.type) {
     case 'turn/start':
-      startTurn(state, event.data.turn)
+      startTurn(state, event.data.turn, event.time)
       break
     case 'turn/end': {
       const agg = state.turnAgg
       state.turn = null
       state.step = null
       state.turnAgg = null
-      if (agg !== null) enqueueLabel(ctx, session, state, agg, event.data)
+      if (agg !== null) enqueueLabel(ctx, session, state, agg, event.data, event.time)
       break
     }
     case 'step/start':
@@ -335,11 +413,39 @@ export function trackSessionEvent(
       state.step = null
       break
     case 'tool/call':
-      if (state.turnAgg !== null) state.turnAgg.toolCalls += 1
+      if (state.turnAgg !== null) {
+        state.turnAgg.toolCalls += 1
+        state.turnAgg.toolCallOrder.push({
+          callId: event.data.callId, name: event.data.name, callTime: event.time,
+          resultTime: null, isError: null, resultChars: 0,
+        })
+      }
       break
-    case 'tool/result':
-      if (state.turnAgg !== null && event.data.message.content[0].isError === true) {
-        state.turnAgg.toolErrors += 1
+    case 'tool/result': {
+      if (state.turnAgg === null) break
+      const block = event.data.message.content[0]
+      if (block.isError === true) state.turnAgg.toolErrors += 1
+      const pending = state.turnAgg.toolCallOrder.find(entry => entry.callId === block.toolCallId)
+      if (pending !== undefined) {
+        pending.resultTime = event.time
+        pending.isError = block.isError === true
+        let resultChars = 0
+        for (const resultBlock of block.content) {
+          if (resultBlock.type === 'text') resultChars += utf8Length(resultBlock.text)
+        }
+        pending.resultChars = resultChars
+      }
+      break
+    }
+    case 'session/title':
+      state.title = event.data.title
+      if (state.metaWritten) {
+        // The initial write is off the hot path already; a later title is
+        // rare (at most a few per session) and stays on the same queue.
+        enqueue(ctx, state, session.id, async () => {
+          await mkdir(state.dir, { recursive: true })
+          await rewriteMeta(state.dir, session, state.title)
+        })
       }
       break
     case 'assistant/message':

@@ -7,7 +7,7 @@
  */
 
 import type {
-  ContentBlock, FinishReason, GenerateOptions, TokenUsage,
+  ContentBlock, FinishReason, GenerateOptions, TokenUsage, ToolCallId,
 } from '@deepseek-ai/dsh-llm'
 import type { MessageFeedbackRating } from '@deepseek-ai/dsh-message-feedback'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
@@ -25,6 +25,14 @@ export interface TrainingExportMeta {
   readonly harness: string
   /** This plugin's own `<npm name>/<version>`. */
   readonly plugin: string
+  /** `SessionHeader.agentPreset`, or `null` when the session was not composed from a preset. */
+  readonly agentPreset: string | null
+  /**
+   * Latest `session/title` event's text seen for this session, or `null`
+   * before one arrives. `meta.json` is otherwise written once, at the first
+   * sample, so a title landing afterward re-writes the whole file.
+   */
+  readonly title: string | null
 }
 
 /** `GenerateOptions` as sent to the adapter, minus the two fields the spec excludes. */
@@ -110,12 +118,37 @@ export interface TrainingRatingEntry {
   readonly note: string
 }
 
+/**
+ * One `tool/call` in a turn, matched to its `tool/result` (if any) by
+ * `callId`. A call with no result by turn end carries `isError: null`,
+ * `durationMs: null`, and `resultChars: 0`.
+ */
+export interface TrainingToolCallOutcome {
+  /**
+   * `seq` of the `train/sample` whose response carried this call's
+   * `tool-call` content block, found by matching `id`; `null` when no
+   * sample matched.
+   */
+  readonly seq: number | null
+  readonly callId: ToolCallId
+  readonly name: string
+  readonly isError: boolean | null
+  /** `tool/result.time - tool/call.time`; `null` when unmatched. */
+  readonly durationMs: number | null
+  /** UTF-8 length of the concatenated `text` content blocks of the result. */
+  readonly resultChars: number
+}
+
 /** `train/label` — one line per `turn/end`. */
 export interface TrainingLabelLine {
   readonly version: 1
   readonly kind: 'label'
   readonly turn: number
   readonly at: number
+  /** `turn/start.time` for this turn. */
+  readonly startedAt: number
+  /** `turn/end.time - turn/start.time`. */
+  readonly durationMs: number
   readonly completed: boolean
   /** `turn/end.reason.kind`, verbatim. */
   readonly finishReason: string
@@ -124,9 +157,16 @@ export interface TrainingLabelLine {
   readonly samples: number[]
   readonly toolCalls: number
   readonly toolErrors: number
+  /** One entry per `tool/call` in the turn, in call order; length always equals `toolCalls`. */
+  readonly toolCallOutcomes: TrainingToolCallOutcome[]
   readonly hooks: TrainingHookOutcome[]
   readonly approvals: TrainingApprovalCounts
   readonly diff: TrainingDiffStat | null
   readonly ratings: TrainingRatingEntry[]
   readonly compactionInTurn: boolean
+  /**
+   * Total UTF-8 length of `text` content blocks (not `reasoning`, not
+   * tool-call arguments) across the turn's samples' responses.
+   */
+  readonly assistantChars: number
 }

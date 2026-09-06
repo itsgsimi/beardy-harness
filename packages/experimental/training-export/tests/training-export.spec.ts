@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -76,9 +76,24 @@ async function readLinesEventually(path: string, minLines: number, timeoutMs = 2
   }
 }
 
+/** Poll meta.json until its `title` matches — the re-write on a later `session/title` is a queued write, not a synchronous one. */
+async function readMetaEventually(path: string, wantTitle: string | null, timeoutMs = 2000): Promise<Record<string, unknown>> {
+  const start = Date.now()
+  for (;;) {
+    const meta = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
+    if (meta.title === wantTitle) return meta
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for meta.json title to become ${JSON.stringify(wantTitle)}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, 5))
+  }
+}
+
 afterEach(async () => {
   await Promise.all(contexts.splice(0).map(ctx => ctx.fiber.dispose()))
   await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
+  // Safe even when a test never faked timers: restores real ones unconditionally.
+  vi.useRealTimers()
 })
 
 describe('training-export samples', () => {
@@ -119,6 +134,46 @@ describe('training-export samples', () => {
     expect(meta.sessionId).toBe(session.id)
     expect(String(meta.harness)).toMatch(/^dsh-/)
     expect(String(meta.plugin)).toMatch(/^dsh-experimental-training-export\//)
+    expect(meta.agentPreset).toBeNull()
+    expect(meta.title).toBeNull()
+  })
+
+  it('records the session\'s agentPreset in meta.json, and re-writes it when a title arrives after the first sample', async () => {
+    const root = await tempRoot()
+    const ctx = await setup(root)
+    const session = ctx.sessions.create(
+      SessionId('sample-agent-preset-title'), { meta: { agentPreset: 'beardy-unattended' } },
+    )
+    ctx.llm.registerAdapter(['mock'], new RecordingAdapter([{ type: 'finish', reason: { kind: 'stop' } }]))
+
+    await drain(ctx.llm.stream({ provider: 'mock', model: 'mock-model', messages: [], sessionId: session.id }))
+
+    const dir = join(root, encodeSegment(session.id))
+    // meta.json is written once, at the first sample: the title is still
+    // unknown at this point, so it lands `null` alongside the preset.
+    await readLinesEventually(join(dir, 'samples.jsonl'), 1)
+    expect(JSON.parse(await readFile(join(dir, 'meta.json'), 'utf8'))).toMatchObject({
+      agentPreset: 'beardy-unattended', title: null,
+    })
+
+    session.append('session/title', { title: 'Fix the flaky test', messageSeqs: [], source: { kind: 'fallback' } })
+
+    const meta = await readMetaEventually(join(dir, 'meta.json'), 'Fix the flaky test')
+    expect(meta).toMatchObject({ agentPreset: 'beardy-unattended', title: 'Fix the flaky test' })
+  })
+
+  it('captures a session/title that arrives before the first sample directly, with no separate re-write', async () => {
+    const root = await tempRoot()
+    const ctx = await setup(root)
+    const session = ctx.sessions.create(SessionId('sample-title-before-first-sample'))
+    session.append('session/title', { title: 'Early title', messageSeqs: [], source: { kind: 'fallback' } })
+    ctx.llm.registerAdapter(['mock'], new RecordingAdapter([{ type: 'finish', reason: { kind: 'stop' } }]))
+
+    await drain(ctx.llm.stream({ provider: 'mock', model: 'mock-model', messages: [], sessionId: session.id }))
+
+    const dir = join(root, encodeSegment(session.id))
+    await readLinesEventually(join(dir, 'samples.jsonl'), 1)
+    expect(JSON.parse(await readFile(join(dir, 'meta.json'), 'utf8'))).toMatchObject({ title: 'Early title' })
   })
 
   it('still writes a sample carrying the error when the downstream chain throws', async () => {
@@ -452,6 +507,26 @@ describe('training-export labels', () => {
     expect(label.samples).toHaveLength(1)
   })
 
+  it('ignores a tool/result whose callId matches no call tracked this turn', async () => {
+    const root = await tempRoot()
+    const ctx = await setup(root)
+    const session = ctx.sessions.create(SessionId('label-orphan-tool-result'))
+
+    session.append('turn/start', { turn: 1 })
+    // No matching `tool/call` this turn — a stray or cross-turn result. The
+    // existing `toolErrors` counter still increments (unchanged prior
+    // behaviour), but there is no pending call to attach an outcome to.
+    session.append('tool/result', {
+      turn: 1, step: 1,
+      message: createToolResultMessage({ callId: ToolCallId('never-called'), content: [{ type: 'text', text: 'stray' }], isError: true }),
+    }, { surfaceOp: 'append' })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+
+    const dir = join(root, encodeSegment(session.id))
+    const [label] = await readLinesEventually(join(dir, 'labels.jsonl'), 1) as [Record<string, unknown>]
+    expect(label).toMatchObject({ toolCalls: 0, toolErrors: 1, toolCallOutcomes: [] })
+  })
+
   it('counts a failed tool result as a tool error', async () => {
     const root = await tempRoot()
     const ctx = await setup(root)
@@ -469,6 +544,99 @@ describe('training-export labels', () => {
     const dir = join(root, encodeSegment(session.id))
     const [label] = await readLinesEventually(join(dir, 'labels.jsonl'), 1) as [Record<string, unknown>]
     expect(label).toMatchObject({ completed: false, finishReason: 'error', toolCalls: 1, toolErrors: 1 })
+  })
+
+  it('computes tool-call outcomes, assistant text length, and turn timing', async () => {
+    const root = await tempRoot()
+    const ctx = await setup(root)
+    const session = ctx.sessions.create(SessionId('label-tool-outcomes'))
+    // callA/callC's blocks both live in sample 1's response, so both resolve a
+    // `seq`; callB's lives in sample 2's; callD's lives in neither, so its
+    // `seq` stays null even though it gets a normal, matched result.
+    const callA = ToolCallId('call-a')
+    const callB = ToolCallId('call-b')
+    const callC = ToolCallId('call-c')
+    const callD = ToolCallId('call-d')
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1000)
+    session.append('turn/start', { turn: 1 })
+
+    ctx.llm.registerAdapter(['mock-a'], new RecordingAdapter([
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'thinking' } },
+      { type: 'block-end', index: 1, block: { type: 'text', text: 'Hello ' } },
+      { type: 'block-end', index: 2, block: { type: 'tool-call', id: callA, name: 'bash', arguments: '{}' } },
+      { type: 'block-end', index: 3, block: { type: 'tool-call', id: callC, name: 'write', arguments: '{}' } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ]))
+    await drain(ctx.llm.stream({ provider: 'mock-a', model: 'mock-model', messages: [], sessionId: session.id }))
+
+    ctx.llm.registerAdapter(['mock-b'], new RecordingAdapter([
+      { type: 'block-end', index: 0, block: { type: 'text', text: 'World' } },
+      { type: 'block-end', index: 1, block: { type: 'tool-call', id: callB, name: 'edit', arguments: '{}' } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ]))
+    await drain(ctx.llm.stream({ provider: 'mock-b', model: 'mock-model', messages: [], sessionId: session.id }))
+
+    const dir = join(root, encodeSegment(session.id))
+
+    vi.setSystemTime(1500)
+    session.append('tool/call', { turn: 1, step: 1, callId: callA, name: 'bash', arguments: '{}' })
+    vi.setSystemTime(1800)
+    session.append('tool/result', {
+      turn: 1, step: 1,
+      // A non-`text` block alongside the text one: `resultChars` only counts
+      // the latter (still 9), exercising both sides of that filter.
+      message: createToolResultMessage({
+        callId: callA,
+        content: [{ type: 'text', text: 'ok output' }, { type: 'reasoning', text: 'not counted' }],
+        isError: false,
+      }),
+    }, { surfaceOp: 'append' })
+
+    // callB never gets a `tool/result`: unmatched by turn end.
+    vi.setSystemTime(2000)
+    session.append('tool/call', { turn: 1, step: 2, callId: callB, name: 'edit', arguments: '{}' })
+
+    vi.setSystemTime(2200)
+    session.append('tool/call', { turn: 1, step: 1, callId: callC, name: 'write', arguments: '{}' })
+    vi.setSystemTime(2400)
+    session.append('tool/result', {
+      turn: 1, step: 1,
+      message: createToolResultMessage({ callId: callC, content: [{ type: 'text', text: 'boom' }], isError: true }),
+    }, { surfaceOp: 'append' })
+
+    vi.setSystemTime(2600)
+    session.append('tool/call', { turn: 1, step: 2, callId: callD, name: 'ghost', arguments: '{}' })
+    vi.setSystemTime(2700)
+    session.append('tool/result', {
+      turn: 1, step: 2,
+      message: createToolResultMessage({ callId: callD, content: [{ type: 'text', text: 'fine' }], isError: false }),
+    }, { surfaceOp: 'append' })
+
+    vi.setSystemTime(3000)
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    // Real timers before polling: `readLinesEventually`'s own timeout tracking needs a moving `Date.now()`.
+    vi.useRealTimers()
+
+    const [sampleA, sampleB] = await readLinesEventually(join(dir, 'samples.jsonl'), 2) as [
+      { seq: number }, { seq: number },
+    ]
+    const [label] = await readLinesEventually(join(dir, 'labels.jsonl'), 1) as [Record<string, unknown>]
+    expect(label.startedAt).toBe(1000)
+    expect(label.durationMs).toBe(2000)
+    expect(label.assistantChars).toBe(11) // 'Hello ' (6) + 'World' (5); reasoning and tool-call args excluded.
+    expect(label.toolCalls).toBe(4)
+    expect(label.toolErrors).toBe(1)
+    expect(label.toolCallOutcomes).toEqual([
+      { seq: sampleA.seq, callId: callA, name: 'bash', isError: false, durationMs: 300, resultChars: 9 },
+      { seq: sampleB.seq, callId: callB, name: 'edit', isError: null, durationMs: null, resultChars: 0 },
+      { seq: sampleA.seq, callId: callC, name: 'write', isError: true, durationMs: 200, resultChars: 4 },
+      { seq: null, callId: callD, name: 'ghost', isError: false, durationMs: 100, resultChars: 4 },
+    ])
+    expect((label.toolCallOutcomes as unknown[]).length).toBe(label.toolCalls)
+    expect((label.toolCallOutcomes as { isError: boolean | null }[]).filter(outcome => outcome.isError === true))
+      .toHaveLength(label.toolErrors as number)
   })
 
   it('computes the diff against the workspace head captured for the turn', async () => {
@@ -516,7 +684,7 @@ describe('training-export labels', () => {
     const assistant = createAssistantMessage({
       content: [{ type: 'text', text: 'done' }], source: { provider: 'mock', model: 'mock-model' },
     })
-    session.append('assistant/message', { turn: 1, step: 1, message: assistant }, { surfaceOp: 'append' })
+    session.append('assistant/message', { turn: 1, step: 1, message: assistant, stream: [] }, { surfaceOp: 'append' })
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
 
     const dir = join(root, encodeSegment(session.id))
@@ -570,7 +738,7 @@ describe('training-export labels', () => {
       const assistant = createAssistantMessage({
         content: [{ type: 'text', text: 'stray' }], source: { provider: 'mock', model: 'mock-model' },
       })
-      session.append('assistant/message', { turn: 0, step: 0, message: assistant }, { surfaceOp: 'append' })
+      session.append('assistant/message', { turn: 0, step: 0, message: assistant, stream: [] }, { surfaceOp: 'append' })
       // No matching `turn/start` ever fired, so this must not write a label either.
       session.append('turn/end', { turn: 0, reason: { kind: 'completed' } })
     }).not.toThrow()
