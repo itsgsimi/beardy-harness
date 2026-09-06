@@ -30,6 +30,9 @@ export const SETTINGS: GatewaySettings = {
   inboundDebounceMs: 0,
   guildRequireMention: false,
   typingIndicator: false,
+  approvalTimeoutMs: 60_000,
+  questionTimeoutMs: 60_000,
+  answerers: ['reaction', 'text'],
 }
 
 /** A DM channel with no mentions; tests override what they exercise. */
@@ -94,6 +97,18 @@ export interface HarnessOptions {
   readonly manualWait?: boolean
   /** Result the fake command registry answers for a registered command name. */
   readonly commandOutcome?: { kind: 'success' | 'error'; text?: string }
+  /** Approval wait used by the router; short values let expiry tests run quickly. */
+  readonly approvalTimeoutMs?: number
+  /** Question wait used by the router. */
+  readonly questionTimeoutMs?: number
+  /** Message id the prompt seam reports for every delivered prompt. */
+  readonly promptId?: string
+  /** Fail the prompt-delivery seam. */
+  readonly failPrompt?: boolean
+  /** Leave out the prompt seam so the router's Discord transport runs for prompts. */
+  readonly useDefaultPrompt?: boolean
+  /** Reply forms the router accepts; defaults to both. */
+  readonly answerers?: readonly ('reaction' | 'text')[]
 }
 
 /** Context carrying the services the router touches, recording every call it makes. */
@@ -101,7 +116,7 @@ export function harness(options: HarnessOptions = {}) {
   const calls: string[] = []
   const warnings: string[] = []
   const events: SessionEvent[] = []
-  const statusHandlers: ((payload: { agent: unknown; status: string }) => void)[] = []
+  const eventHandlers = new Map<string, ((payload: Record<string, unknown>, next: () => Promise<never>) => unknown)[]>()
   const registeredCommands = new Map<string, { name: string; description: string; handler: (invocation: { agent: unknown }) => unknown }>()
   let idleResolve: () => void = () => {}
   const agent = {
@@ -144,9 +159,11 @@ export function harness(options: HarnessOptions = {}) {
   const ctx = {
     logger: { info: vi.fn(), warn: (message: string) => { warnings.push(message) }, error: vi.fn(), debug: vi.fn() },
     effect: (fn: () => (() => unknown) | undefined) => fn(),
-    on: (_event: string, handler: (payload: { agent: unknown; status: string }) => void) => {
-      statusHandlers.push(handler)
-      return () => { statusHandlers.splice(statusHandlers.indexOf(handler), 1) }
+    on: (event: string, handler: (payload: Record<string, unknown>, next: () => Promise<never>) => unknown) => {
+      const list = eventHandlers.get(event) ?? []
+      list.push(handler)
+      eventHandlers.set(event, list)
+      return () => { list.splice(list.indexOf(handler), 1) }
     },
     permissionPresets: {
       resolve: (name: string) => { calls.push(`permission-resolve:${name}`); return {} },
@@ -229,6 +246,7 @@ export function harness(options: HarnessOptions = {}) {
   }
 
   const posted: { content: string; channelId: string; token: string }[] = []
+  const prompts: { content: string; channelId: string }[] = []
   const typed: string[] = []
   const waitResolvers: (() => void)[] = []
   const controller = new AbortController()
@@ -242,6 +260,9 @@ export function harness(options: HarnessOptions = {}) {
       ...(options.conversationMaxAgeMs === undefined ? {} : { conversationMaxAgeMs: options.conversationMaxAgeMs }),
       ...(options.inboundDebounceMs === undefined ? {} : { inboundDebounceMs: options.inboundDebounceMs }),
       ...(options.typingIndicator === undefined ? {} : { typingIndicator: options.typingIndicator }),
+      ...(options.approvalTimeoutMs === undefined ? {} : { approvalTimeoutMs: options.approvalTimeoutMs }),
+      ...(options.questionTimeoutMs === undefined ? {} : { questionTimeoutMs: options.questionTimeoutMs }),
+      ...(options.answerers === undefined ? {} : { answerers: options.answerers }),
     },
     policy: {
       allowedUserIds: new Set([USER]),
@@ -266,6 +287,14 @@ export function harness(options: HarnessOptions = {}) {
         posted.push({ content, channelId, token })
       },
     }),
+    ...(options.useDefaultPrompt === true ? {} : {
+      prompt: async (content: string, channelId: string) => {
+        calls.push('prompt')
+        if (options.failPrompt) throw new Error('prompt refused')
+        prompts.push({ content, channelId })
+        return options.promptId ?? 'prompt-1'
+      },
+    }),
     ...(options.slowType === true ? {
       type: (_channelId: string, _token: string, signal: AbortSignal) => new Promise<never>((_resolve, reject) => {
         calls.push('type')
@@ -280,12 +309,19 @@ export function harness(options: HarnessOptions = {}) {
     }),
   })
   return {
-    router, calls, posted, typed, events, agent, handle, controller, table, registeredCommands, warnings,
+    router, calls, posted, prompts, typed, events, agent, handle, controller, table, registeredCommands, warnings,
     waitResolvers,
     ctx: ctx as unknown as Context,
     releaseIdle: () => { idleResolve() },
     emitStatus: (liveAgent: unknown, status: string) => {
-      for (const handler of [...statusHandlers]) handler({ agent: liveAgent, status })
+      for (const handler of [...(eventHandlers.get('agent/status') ?? [])]) {
+        handler({ agent: liveAgent, status }, async () => undefined as never)
+      }
+    },
+    emitWaterfall: (event: string, payload: Record<string, unknown>, next?: () => Promise<never>) => {
+      const handler = (eventHandlers.get(event) ?? []).slice(-1)[0]
+      if (handler === undefined) throw new Error(`no listener registered for ${event}`)
+      return handler(payload, next ?? (async () => 'delegated' as never))
     },
   }
 }

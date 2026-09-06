@@ -27,6 +27,9 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     inboundDebounceMs: 3_000,
     guildRequireMention: true,
     typingIndicator: true,
+    approvalTimeoutMs: 60_000,
+    questionTimeoutMs: 60_000,
+    answerers: ['reaction', 'text'],
     enabled: true,
     ...overrides,
   }
@@ -72,6 +75,12 @@ describe('assertConfig', () => {
       .toThrow('idleReleaseMs must be shorter than conversationMaxAgeMs')
   })
 
+  it('rejects an empty or unknown answerers list', () => {
+    expect(() => { assertConfig(config({ answerers: [] })) }).toThrow(/answerers must name at least one/)
+    expect(() => { assertConfig(config({ answerers: ['reaction', 'buttons'] })) })
+      .toThrow(/must each be "reaction" or "text", got "buttons"/)
+  })
+
   it('accepts a zero debounce window, which answers every message at once', () => {
     expect(() => { assertConfig(config({ inboundDebounceMs: 0 })) }).not.toThrow()
   })
@@ -97,7 +106,8 @@ function contextStub(options: { token?: string; unknownPreset?: boolean } = {}) 
 }
 
 const handled = vi.fn()
-const ROUTER = { handle: handled, dispose: vi.fn() } as unknown as ConversationRouter
+const reacted = vi.fn()
+const ROUTER = { handle: handled, handleReaction: reacted, dispose: vi.fn() } as unknown as ConversationRouter
 
 describe('startListener', () => {
   it('connects with the resolved token and routes gateway events', async () => {
@@ -115,6 +125,7 @@ describe('startListener', () => {
       for (const status of statuses) options.onStatus?.(status)
       options.onReady?.('bot-user-1')
       options.onMessage(message)
+      options.onReaction?.({ userId: USER, channelId: CHANNEL, messageId: 'm1', emojiName: '✅' })
     }
     const onReady = vi.fn()
     await startListener(ctx, config(), ROUTER, new AbortController().signal, connect, onReady)
@@ -122,6 +133,7 @@ describe('startListener', () => {
     expect(captured?.intents).toBeGreaterThan(0)
     expect(captured?.reconnectDelayMs).toBe(1_000)
     expect(handled).toHaveBeenCalledTimes(1)
+    expect(reacted).toHaveBeenCalledWith({ userId: USER, channelId: CHANNEL, messageId: 'm1', emojiName: '✅' })
     expect(onReady).toHaveBeenCalledWith('bot-user-1')
     expect(logger.info).toHaveBeenCalledWith('discord-gateway: connected; messages from allowed users start conversations')
     expect(logger.warn).toHaveBeenCalledWith('discord-gateway: socket closed; reconnecting')

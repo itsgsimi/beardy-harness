@@ -14,20 +14,24 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
+import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { parseCommand } from '@deepseek-ai/dsh-commands'
 import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
+import type { AskUserQuestionAnswer, AskUserQuestionAnswerItem, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions'
+import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 import type {} from '@deepseek-ai/dsh-session-title'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { awaitTurn, lastAssistantText, openUnattendedSession, resumeUnattendedSession, sleep } from '@deepseek-ai/dsh-unattended-session'
 import { postChannelMessage, postTyping, sendDiscordMessage } from '@deepseek-ai/dsh-tool-discord'
 import type {} from '@deepseek-ai/dsh-workspace'
+import { approvalOutcomeForLine, approvalOutcomeForReaction, buildApprovalPrompt, buildQuestionPrompt, parseQuestionAnswer } from './answerers.ts'
 import type { ConversationRecord } from './domain.ts'
 import { DISCORD_CHANNEL_TYPE_DM } from './gateway.ts'
 import { registerGatewayCommands } from './commands.ts'
-import type { DiscordInboundMessage, GatewaySettings } from './types.ts'
+import type { DiscordInboundMessage, DiscordInboundReaction, GatewaySettings } from './types.ts'
 
 /** Delivery bounds borrowed from the Discord delivery package rather than restated as new tunables. */
 const REPLY_REQUEST_TIMEOUT_MS = 15_000
@@ -56,6 +60,9 @@ export type ReplyPoster = (content: string, channelId: string, token: string, si
 /** Delivery seam for the typing indicator. */
 export type TypingPoster = (channelId: string, token: string, signal: AbortSignal) => Promise<void>
 
+/** Delivery seam for an approval or question prompt; resolves the created message's id. */
+export type PromptPoster = (content: string, channelId: string, token: string, signal: AbortSignal) => Promise<string>
+
 /** Everything the router needs from the host and the deployment. */
 export interface ConversationRouterDeps {
   /** Context that owns the created Agents, so disposal follows the fiber. */
@@ -74,6 +81,8 @@ export interface ConversationRouterDeps {
   readonly post?: ReplyPoster
   /** Typing-indicator seam. Defaults to the Discord REST poster. */
   readonly type?: TypingPoster
+  /** Prompt-delivery seam. Defaults to a single Discord REST post whose reply carries the id. */
+  readonly prompt?: PromptPoster
 }
 
 /** One channel's live Agent and the bookkeeping proactive delivery needs. */
@@ -96,10 +105,36 @@ interface PendingBatch {
   cancel: () => void
 }
 
+/** One approval awaiting a reaction or yes/no in the channel that owns the conversation. */
+interface PendingApproval {
+  readonly kind: 'approval'
+  readonly channelId: string
+  /** Id of the prompt message whose reactions answer this request; empty when delivery omitted it. */
+  readonly promptMessageId: string
+  readonly answerLine: (line: string) => void
+  readonly settle: (outcome: ApprovalOutcome) => void
+  readonly cancel: () => void
+}
+
+/** One question request awaiting numbered or free-text answers, asked one question at a time. */
+interface PendingQuestion {
+  readonly kind: 'question'
+  readonly channelId: string
+  readonly questions: readonly AskUserQuestionItem[]
+  nextIndex: number
+  readonly answered: AskUserQuestionAnswerItem[]
+  readonly answerLine: (line: string) => void
+  readonly cancel: () => void
+}
+
+type PendingRequest = PendingApproval | PendingQuestion
+
 /** Router that owns one durable conversation per Discord channel. */
 export interface ConversationRouter {
   /** Admit or ignore one gateway message, then answer it when admitted. */
   handle(message: DiscordInboundMessage): void
+  /** Match one reaction against the channel's pending approval prompt. */
+  handleReaction(reaction: DiscordInboundReaction): void
   /** Dispose every live Agent and forget its channel; durable records stay. */
   dispose(): Promise<void>
 }
@@ -143,7 +178,23 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }, token, content, replySignal)
   })
   const type: TypingPoster = deps.type ?? ((channelId, token, typingSignal) => postTyping(channelId, token, typingSignal))
+  const prompt: PromptPoster = deps.prompt ?? (async (content, channelId, token, promptSignal) => {
+    const reply = await postChannelMessage({ channelId, token, content }, promptSignal)
+    if (reply.status < 200 || reply.status >= 300) {
+      throw new Error(`discord-gateway: prompt to channel ${channelId} rejected with status ${String(reply.status)}`)
+    }
+    try {
+      const created: unknown = JSON.parse(reply.body)
+      return typeof created === 'object' && created !== null && typeof (created as { id?: unknown }).id === 'string'
+        ? (created as { id: string }).id
+        : ''
+    } catch {
+      // A body that is not JSON still means the prompt was created; reactions simply cannot match it.
+      return ''
+    }
+  })
   const conversations = new Map<string, LiveConversation>()
+  const pendings = new Map<string, PendingRequest>()
   const tails = new Map<string, Promise<void>>()
   const batches = new Map<string, PendingBatch>()
 
@@ -166,6 +217,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
   /** Release one channel's live Agent; with `deleteRecord`, its durable record goes too. */
   async function releaseConversation(channelId: string, deleteRecord: boolean): Promise<void> {
+    pendings.get(channelId)?.cancel()
     const live = conversations.get(channelId)
     if (live !== undefined) {
       conversations.delete(channelId)
@@ -199,6 +251,15 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     })
   }
 
+  /** The waiting-request line of `/status`, naming what the channel's next answer means. */
+  function pendingNote(channelId: string): string {
+    const pending = pendings.get(channelId)
+    if (pending?.kind === 'approval') return 'Approval waiting for your answer.'
+    if (pending?.kind === 'question') return 'Question waiting for your answer.'
+    const live = conversations.get(channelId)
+    return live?.inboundActive === true ? 'Turn in progress.' : 'Idle.'
+  }
+
   /** The commands this listener owns, closed over one channel. */
   function commandOps(channelId: string) {
     return {
@@ -215,14 +276,20 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           `Agent preset: ${record.agentPreset}`,
           `Permission preset: ${settings.permissionPreset}`,
           live === undefined ? 'State: released (resumes on your next message)' : 'State: live',
-          live?.inboundActive === true ? 'Turn in progress.' : 'Idle.',
+          pendingNote(channelId),
         ].join('\n')
       },
       stopTurn: (): string => {
+        const pending = pendings.get(channelId)
+        if (pending !== undefined) pending.cancel()
         const live = conversations.get(channelId)
-        if (live === undefined || !live.inboundActive) return 'Nothing is running in this conversation.'
+        if (live === undefined || !live.inboundActive) {
+          return pending !== undefined ? 'Cancelled the waiting request.' : 'Nothing is running in this conversation.'
+        }
         live.handle.agent.cancel({ kind: 'user' })
-        return 'Cancelled the running turn.'
+        return pending !== undefined
+          ? 'Cancelled the waiting request and the running turn.'
+          : 'Cancelled the running turn.'
       },
     }
   }
@@ -309,6 +376,139 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       }
     }
     return await createConversation(channelId)
+  }
+
+  /**
+   * Ask one channel for an approval and wait for a reaction, a yes/no reply, or expiry. Only one
+   * request waits per channel: a newer request cancels the older one, because a text answer cannot
+   * name which prompt it belongs to.
+   */
+  async function askApproval(conversation: LiveConversation, req: ApprovalRequest): Promise<ApprovalOutcome> {
+    const channelId = conversation.channelId
+    pendings.get(channelId)?.cancel()
+    let promptMessageId = ''
+    try {
+      const text = buildApprovalPrompt(req.toolName, req.reason, settings.answerers, settings.approvalTimeoutMs)
+      promptMessageId = await prompt(text, channelId, await deps.resolveToken(), signal)
+    } catch (error: unknown) {
+      ctx.logger.warn(`discord-gateway: approval prompt for channel ${channelId} failed: ${errorChain(error)}`)
+      return 'unavailable'
+    }
+    return await new Promise<ApprovalOutcome>((resolve) => {
+      const controller = new AbortController()
+      let settled = false
+      // A replacement request always settles this one first, so a live request is the map's owner.
+      const settle = (outcome: ApprovalOutcome): void => {
+        if (settled) return
+        settled = true
+        pendings.delete(channelId)
+        controller.abort()
+        resolve(outcome)
+      }
+      const entry: PendingApproval = {
+        kind: 'approval',
+        channelId,
+        promptMessageId,
+        answerLine: (line: string): void => {
+          const outcome = approvalOutcomeForLine(line)
+          if (outcome !== undefined) settle(outcome)
+        },
+        settle,
+        cancel: () => { settle('cancelled') },
+      }
+      pendings.set(channelId, entry)
+      req.signal?.addEventListener('abort', () => { settle('cancelled') }, { once: true })
+      signal.addEventListener('abort', () => { settle('cancelled') }, { once: true })
+      wait(settings.approvalTimeoutMs, controller.signal).then(() => {
+        settle('cancelled')
+        void postReply(channelId, 'The approval request expired; the action was not taken.')
+      }, () => {
+        // An answer, an abort, or disposal ended the wait; each of them settles and reports itself.
+      })
+    })
+  }
+
+  /** Ask one channel a question request's questions in order, each answered before the next is asked. */
+  async function askQuestions(
+    conversation: LiveConversation,
+    request: { questions: readonly AskUserQuestionItem[]; signal?: AbortSignal },
+  ): Promise<AskUserQuestionAnswer> {
+    const channelId = conversation.channelId
+    pendings.get(channelId)?.cancel()
+    return await new Promise<AskUserQuestionAnswer>((resolve, reject) => {
+      const controller = new AbortController()
+      let settled = false
+      // A replacement request always settles this one first, so a live request is the map's owner.
+      const finish = (): void => {
+        settled = true
+        pendings.delete(channelId)
+        controller.abort()
+      }
+      const fail = (error: UserQuestionError): void => {
+        if (settled) return
+        finish()
+        reject(error)
+      }
+      const ask = (index: number): void => {
+        void (async () => {
+          try {
+            await prompt(
+              // The asker rejects empty question lists before dispatch, so the index is always in range.
+              // oxlint-disable-next-line typescript/no-non-null-assertion -- guaranteed by that precondition.
+              buildQuestionPrompt(entry.questions[index]!, index, entry.questions.length),
+              channelId,
+              await deps.resolveToken(),
+              signal,
+            )
+          } catch (error: unknown) {
+            ctx.logger.warn(`discord-gateway: question prompt for channel ${channelId} failed: `
+              + errorChain(error))
+            fail(new UserQuestionError('the Discord listener could not deliver the question', 'ASK_UNAVAILABLE'))
+          }
+        })()
+      }
+      const entry: PendingQuestion = {
+        kind: 'question',
+        channelId,
+        questions: request.questions,
+        nextIndex: 0,
+        answered: [],
+        answerLine: (line: string): void => {
+          // The map entry is removed at settlement, so only a live request can be reached here.
+          // oxlint-disable-next-line typescript/no-non-null-assertion -- the asker rejects empty question lists.
+          const item = parseQuestionAnswer(entry.questions[entry.nextIndex]!, line)
+          if (item === undefined) return
+          entry.answered.push(item)
+          entry.nextIndex += 1
+          if (entry.nextIndex >= entry.questions.length) {
+            finish()
+            resolve({ answers: entry.answered })
+            return
+          }
+          ask(entry.nextIndex)
+        },
+        cancel: (): void => {
+          fail(new UserQuestionError('the Discord listener cancelled the question', 'ASK_ABORTED'))
+        },
+      }
+      pendings.set(channelId, entry)
+      request.signal?.addEventListener('abort', () => {
+        fail(new UserQuestionError('the asking operation was cancelled before an answer', 'ASK_ABORTED'))
+      }, { once: true })
+      signal.addEventListener('abort', () => {
+        fail(new UserQuestionError('the Discord listener stopped before an answer', 'ASK_ABORTED'))
+      }, { once: true })
+      wait(settings.questionTimeoutMs, controller.signal).then(() => {
+        fail(new UserQuestionError(
+          `the Discord user did not answer within ${String(settings.questionTimeoutMs)}ms`,
+          'ASK_TIMEOUT',
+        ))
+        void postReply(channelId, 'The question expired without an answer.')
+      }, () => {
+        // An answer, an abort, or disposal ended the wait; each of them settles and reports itself.
+      })
+      ask(0)
+    })
   }
 
   /** Repeat the typing indicator until the returned controller aborts. Best-effort by design. */
@@ -471,11 +671,34 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     void postReply(conversation.channelId, text)
   }), 'discord-gateway proactive delivery')
 
+  // Answer-side registrations for the interaction waterfalls. The router claims a request only when
+  // it owns the asking Agent, so Web-UI-owned agents keep their own answerers and vice versa.
+  ctx.effect(() => ctx.on('approval/request', (req, next) => {
+    const conversation = findLive(req.agent)
+    if (conversation === undefined) return next()
+    return askApproval(conversation, req)
+  }), 'discord-gateway approval answerer')
+
+  ctx.effect(() => ctx.on('user-questions/request', (request, next) => {
+    if (request.agent === undefined) return next()
+    const conversation = findLive(request.agent)
+    if (conversation === undefined) return next()
+    return askQuestions(conversation, request)
+  }), 'discord-gateway question answerer')
+
   return {
     handle(message: DiscordInboundMessage): void {
       if (!isAdmitted(message, deps.policy)) return
       if (message.content.trim() === '') return
       const line = message.content.trim()
+      if (parseCommand(line) === undefined) {
+        // While a request waits, the next text in this channel is its answer, not a new turn.
+        const pending = pendings.get(message.channelId)
+        if (pending !== undefined) {
+          if (settings.answerers.includes('text')) pending.answerLine(line)
+          return
+        }
+      }
       if (parseCommand(line) !== undefined) {
         flushBatch(message.channelId)
         // Commands run immediately rather than on the channel's serial tail: `/stop` must be able
@@ -509,10 +732,22 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       })
     },
 
+    handleReaction(reaction: DiscordInboundReaction): void {
+      if (!settings.answerers.includes('reaction')) return
+      if (!deps.policy.allowedUserIds.has(reaction.userId)) return
+      const pending = pendings.get(reaction.channelId)
+      if (pending === undefined || pending.kind !== 'approval') return
+      if (reaction.messageId !== pending.promptMessageId) return
+      const outcome = approvalOutcomeForReaction(reaction.emojiName)
+      if (outcome !== undefined) pending.settle(outcome)
+    },
+
     async dispose(): Promise<void> {
       const live = [...conversations.values()]
       conversations.clear()
       tails.clear()
+      for (const pending of pendings.values()) pending.cancel()
+      pendings.clear()
       for (const batch of batches.values()) batch.cancel()
       batches.clear()
       for (const conversation of live) {

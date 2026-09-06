@@ -625,12 +625,18 @@ export interface Config {
   readonly guildRequireMention?: boolean
   /** Send the typing indicator while an inbound turn runs. Defaults to true. */
   readonly typingIndicator?: boolean
+  /** Longest wait for an approval answer in milliseconds. Defaults to 600000. */
+  readonly approvalTimeoutMs?: number
+  /** Longest wait for one question's answer in milliseconds. Defaults to 600000. */
+  readonly questionTimeoutMs?: number
+  /** Reply forms that answer approvals and questions: `reaction`, `text`. Defaults to both. */
+  readonly answerers?: string[]
   /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
   readonly enabled?: boolean
 }
 ```
 
-Source: [`packages/discord/discord-gateway/src/index.ts:64`](../packages/discord/discord-gateway/src/index.ts)
+Source: [`packages/discord/discord-gateway/src/index.ts:70`](../packages/discord/discord-gateway/src/index.ts)
 
 <a id="deepseek-aidsh-e2b"></a>
 

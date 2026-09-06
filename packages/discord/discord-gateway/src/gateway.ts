@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-discord-gateway/gateway
  */
 
-import type { DiscordInboundMessage, GatewayStatus } from './types.ts'
+import type { DiscordInboundMessage, DiscordInboundReaction, GatewayStatus } from './types.ts'
 
 /** Gateway websocket endpoint for API v10 with JSON payloads. A published protocol constant. */
 export const DISCORD_GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json'
@@ -13,8 +13,11 @@ export const DISCORD_GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json
 /** Direct-message channel type, as Discord reports it on a message. */
 export const DISCORD_CHANNEL_TYPE_DM = 1
 
-/** Intents the listener needs: guild and direct messages. Both are unprivileged. */
-export const DISCORD_GATEWAY_INTENTS = 0x200 | 0x1000
+/**
+ * Intents the listener needs: guild and direct messages, plus guild and direct message reactions
+ * for approval and question answers. All four are unprivileged.
+ */
+export const DISCORD_GATEWAY_INTENTS = 0x200 | 0x400 | 0x1000 | 0x2000
 
 /** Gateway opcodes this client sends or handles. */
 export const DiscordGatewayOpcode = {
@@ -57,6 +60,8 @@ export interface DiscordGatewayOptions {
   readonly onMessage: (message: DiscordInboundMessage) => void
   /** Called with the bot's own user id from each `READY` dispatch; guild mention checks need it. */
   readonly onReady?: (applicationId: string) => void
+  /** Called for every `MESSAGE_REACTION_ADD` dispatch, before any allowlist filtering. */
+  readonly onReaction?: (reaction: DiscordInboundReaction) => void
   /** Connection state changes, for logs and diagnostics. */
   readonly onStatus?: (status: GatewayStatus) => void
   /** Delay seam used by heartbeats and reconnect backoff. */
@@ -172,6 +177,24 @@ export function parseMessageCreate(payload: unknown): DiscordInboundMessage | un
   return message.id === '' || message.channelId === '' || message.authorId === '' ? undefined : message
 }
 
+/** One `MESSAGE_REACTION_ADD` dispatch reduced to what an answerer matches on. */
+export function parseMessageReaction(payload: unknown): DiscordInboundReaction | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const record = payload as Record<string, unknown>
+  const emoji = record['emoji']
+  const reaction: DiscordInboundReaction = {
+    userId: textField(record, 'user_id'),
+    channelId: textField(record, 'channel_id'),
+    messageId: textField(record, 'message_id'),
+    emojiName: typeof emoji === 'object' && emoji !== null
+      ? textField(emoji as Record<string, unknown>, 'name')
+      : '',
+  }
+  return reaction.userId === '' || reaction.channelId === '' || reaction.messageId === ''
+    ? undefined
+    : reaction
+}
+
 /** One live connection and the state its handlers share. */
 interface Connection {
   readonly socket: GatewaySocket
@@ -265,6 +288,11 @@ async function runConnection(
         if (frame.t === 'MESSAGE_CREATE') {
           const message = parseMessageCreate(frame.d)
           if (message !== undefined) options.onMessage(message)
+          return
+        }
+        if (frame.t === 'MESSAGE_REACTION_ADD') {
+          const reaction = parseMessageReaction(frame.d)
+          if (reaction !== undefined) options.onReaction?.(reaction)
         }
         return
       case DiscordGatewayOpcode.reconnect:

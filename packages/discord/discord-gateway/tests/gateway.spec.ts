@@ -5,9 +5,10 @@ import {
   DiscordGatewayOpcode,
   connectDiscordGateway,
   parseMessageCreate,
+  parseMessageReaction,
 } from '../src/gateway.ts'
 import type { GatewaySocket, GatewaySocketEvent } from '../src/gateway.ts'
-import type { DiscordInboundMessage, GatewayStatus } from '../src/types.ts'
+import type { DiscordInboundMessage, DiscordInboundReaction, GatewayStatus } from '../src/types.ts'
 
 /** Socket the client drives, with the test deciding what the gateway says. */
 class FakeSocket implements GatewaySocket {
@@ -62,6 +63,7 @@ async function withGateway(
     readonly reconnectDelayMs?: number
     readonly onMessage?: (message: DiscordInboundMessage) => void
     readonly onReady?: (applicationId: string) => void
+    readonly onReaction?: (reaction: DiscordInboundReaction) => void
   } = {},
 ): Promise<void> {
   const sockets: FakeSocket[] = []
@@ -77,6 +79,7 @@ async function withGateway(
     onMessage: options.onMessage ?? (() => {}),
     onStatus: status => statuses.push(status),
     ...(options.onReady === undefined ? {} : { onReady: options.onReady }),
+    ...(options.onReaction === undefined ? {} : { onReaction: options.onReaction }),
     reconnectDelayMs: options.reconnectDelayMs ?? 5,
     maxReconnectDelayMs: 5,
   }, controller.signal)
@@ -117,6 +120,19 @@ describe('parseMessageCreate', () => {
     })
     expect(message?.mentionedUserIds).toEqual(['bot1', 'user2'])
     expect(message?.replyToAuthorId).toBe('bot1')
+  })
+
+  it('parses a reaction dispatch into its four routing fields', () => {
+    const reaction = parseMessageReaction({
+      user_id: 'u1', channel_id: 'c1', message_id: 'm1', emoji: { name: '✅' },
+    })
+    expect(reaction).toEqual({ userId: 'u1', channelId: 'c1', messageId: 'm1', emojiName: '✅' })
+  })
+
+  it('discards reactions missing an id or carrying a malformed emoji', () => {
+    expect(parseMessageReaction(undefined)).toBeUndefined()
+    expect(parseMessageReaction({ channel_id: 'c1', message_id: 'm1', emoji: { name: 'x' } })).toBeUndefined()
+    expect(parseMessageReaction({ user_id: 'u1', channel_id: 'c1', message_id: 'm1' })?.emojiName).toBe('')
   })
 
   it('reads no reply author when the referenced message carries none', () => {
@@ -222,6 +238,18 @@ describe('connectDiscordGateway', () => {
     expect(readyIds).toEqual(['bot-1'])
   })
 
+  it('hands every MESSAGE_REACTION_ADD dispatch to the reaction callback', async () => {
+    const reactions: DiscordInboundReaction[] = []
+    await withGateway(async (sockets) => {
+      sockets[0]!.frame({
+        op: DiscordGatewayOpcode.dispatch, t: 'MESSAGE_REACTION_ADD', s: 8,
+        d: { user_id: 'u1', channel_id: 'c1', message_id: 'm1', emoji: { name: '✅' } },
+      })
+      await tick()
+    }, { onReaction: reaction => reactions.push(reaction) })
+    expect(reactions).toEqual([{ userId: 'u1', channelId: 'c1', messageId: 'm1', emojiName: '✅' }])
+  })
+
   it('ignores dispatch events the listener does not consume', async () => {
     const messages: DiscordInboundMessage[] = []
     await withGateway(async (sockets, statuses) => {
@@ -236,6 +264,7 @@ describe('connectDiscordGateway', () => {
     const messages: DiscordInboundMessage[] = []
     await withGateway(async (sockets) => {
       sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'MESSAGE_CREATE', s: 7, d: {} })
+      sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'MESSAGE_REACTION_ADD', s: 8, d: {} })
       await tick()
     }, { onMessage: message => messages.push(message) })
     expect(messages).toEqual([])

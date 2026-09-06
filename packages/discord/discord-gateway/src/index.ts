@@ -60,6 +60,12 @@ export const DEFAULT_DISCORD_CONVERSATION_MAX_AGE_MS = 86_400_000
 /** Default window in which one channel's messages join into one turn. */
 export const DEFAULT_DISCORD_INBOUND_DEBOUNCE_MS = 3_000
 
+/** Default wait for an approval answer before the request reports cancelled. */
+export const DEFAULT_DISCORD_APPROVAL_TIMEOUT_MS = 600_000
+
+/** Default wait for one question's answer before the request rejects unanswered. */
+export const DEFAULT_DISCORD_QUESTION_TIMEOUT_MS = 600_000
+
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
 export interface Config {
   /** Credential reference holding the bot token, such as `DISCORD_BOT_TOKEN`. */
@@ -94,6 +100,12 @@ export interface Config {
   readonly guildRequireMention?: boolean
   /** Send the typing indicator while an inbound turn runs. Defaults to true. */
   readonly typingIndicator?: boolean
+  /** Longest wait for an approval answer in milliseconds. Defaults to 600000. */
+  readonly approvalTimeoutMs?: number
+  /** Longest wait for one question's answer in milliseconds. Defaults to 600000. */
+  readonly questionTimeoutMs?: number
+  /** Reply forms that answer approvals and questions: `reaction`, `text`. Defaults to both. */
+  readonly answerers?: string[]
   /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
   readonly enabled?: boolean
 }
@@ -115,6 +127,9 @@ export const Config: z<Config> = z.object({
   inboundDebounceMs: z.number().min(0).default(DEFAULT_DISCORD_INBOUND_DEBOUNCE_MS),
   guildRequireMention: z.boolean().default(true),
   typingIndicator: z.boolean().default(true),
+  approvalTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_APPROVAL_TIMEOUT_MS),
+  questionTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_QUESTION_TIMEOUT_MS),
+  answerers: z.array(z.string()).default(['reaction', 'text']),
   enabled: z.boolean().default(true),
 })
 
@@ -149,6 +164,14 @@ export function assertConfig(config: ResolvedConfig): void {
   if (config.reconnectDelayMs > config.maxReconnectDelayMs) {
     throw new Error('discord-gateway: reconnectDelayMs must not exceed maxReconnectDelayMs')
   }
+  if (config.answerers.length === 0) {
+    throw new Error('discord-gateway: answerers must name at least one reply form; prompts nobody can answer only expire')
+  }
+  for (const form of config.answerers) {
+    if (form !== 'reaction' && form !== 'text') {
+      throw new Error(`discord-gateway: answerers entries must each be "reaction" or "text", got "${form}"`)
+    }
+  }
   if (config.idleReleaseMs >= config.conversationMaxAgeMs) {
     throw new Error('discord-gateway: idleReleaseMs must be shorter than conversationMaxAgeMs, '
       + 'otherwise no conversation is ever resumed as an idle one before it expires')
@@ -173,6 +196,9 @@ export function toSettings(
       inboundDebounceMs: config.inboundDebounceMs,
       guildRequireMention: config.guildRequireMention,
       typingIndicator: config.typingIndicator,
+      approvalTimeoutMs: config.approvalTimeoutMs,
+      questionTimeoutMs: config.questionTimeoutMs,
+      answerers: config.answerers as GatewaySettings['answerers'],
     },
     policy: {
       allowedUserIds: new Set(config.allowedUserIds),
@@ -232,6 +258,7 @@ export async function startListener(
       token: credential,
       intents: DISCORD_GATEWAY_INTENTS,
       onMessage: (message) => { router.handle(message) },
+      onReaction: (reaction) => { router.handleReaction(reaction) },
       ...(onReady === undefined ? {} : { onReady }),
       onStatus: (status) => {
         if (status.kind === 'ready') {

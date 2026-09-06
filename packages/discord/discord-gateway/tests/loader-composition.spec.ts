@@ -318,6 +318,9 @@ describe('discord-gateway real Loader composition', () => {
       inboundDebounceMs: 3_000,
       guildRequireMention: true,
       typingIndicator: true,
+      approvalTimeoutMs: 60_000,
+      questionTimeoutMs: 60_000,
+      answerers: ['reaction', 'text'],
       enabled: true,
     }, () => '')
     expect(settings.agentPreset).toBe('beardy')

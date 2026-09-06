@@ -46,6 +46,21 @@ export interface DiscordInboundMessage {
   readonly replyToAuthorId: string
 }
 
+/** One reaction the Gateway dispatched, reduced to the fields an answerer matches on. */
+export interface DiscordInboundReaction {
+  /** User who added the reaction. */
+  readonly userId: string
+  /** Channel holding the reacted message. */
+  readonly channelId: string
+  /** Message the reaction was added to. */
+  readonly messageId: string
+  /** Unicode character or name of the emoji, as Discord reports it. */
+  readonly emojiName: string
+}
+
+/** Reply forms a pending approval or question accepts from an allowlisted user. */
+export type DiscordAnswerForm = 'reaction' | 'text'
+
 /** Validated plugin settings the conversation router reads, detached from schemastery types. */
 export interface GatewaySettings {
   /** Workspace every routed conversation runs in. */
@@ -70,6 +85,12 @@ export interface GatewaySettings {
   readonly guildRequireMention: boolean
   /** Send `POST /channels/{id}/typing` while an inbound turn runs. */
   readonly typingIndicator: boolean
+  /** Longest wait for a ✅/❌ or yes/no answer to an approval before it reports cancelled. */
+  readonly approvalTimeoutMs: number
+  /** Longest wait for one question's answer before the request rejects unanswered. */
+  readonly questionTimeoutMs: number
+  /** Reply forms that answer a pending approval or question; both by default. */
+  readonly answerers: readonly DiscordAnswerForm[]
 }
 
 /** Connection state reported to diagnostics. */
