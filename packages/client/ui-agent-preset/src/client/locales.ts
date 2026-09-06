@@ -6,6 +6,8 @@ export type AgentPresetSettingsKey =
   | 'nav' | 'sectionIntro' | 'builtIn' | 'setDefault' | 'view'
   | 'presetStandardName' | 'presetStandardDescription'
   | 'presetBeardyName' | 'presetBeardyDescription'
+  | 'presetBeardyUnattendedName' | 'presetBeardyUnattendedDescription'
+  | 'presetBeardyDiscordName' | 'presetBeardyDiscordDescription'
   | 'presetPtcName' | 'presetPtcDescription'
   | 'presetMinimalName' | 'presetMinimalDescription'
   | 'presetCordisName' | 'presetCordisDescription'
@@ -38,6 +40,12 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   presetBeardyName: 'Beardy mode',
   presetBeardyDescription:
     'Full Standard mode capabilities with Beardy\'s persistent personality and history-aware session search.',
+  presetBeardyUnattendedName: 'Beardy unattended',
+  presetBeardyUnattendedDescription:
+    'Beardy for unattended runs: delivers through discord_send, keeps authoring tools off, and refuses memory writes without an approval answerer.',
+  presetBeardyDiscordName: 'Beardy Discord',
+  presetBeardyDiscordDescription:
+    'Beardy for Discord conversations: short plain-text replies with the full standard toolset, memory writes staged for approval.',
   presetPtcName: 'PTC mode',
   presetPtcDescription:
     'Full coding agent without the workflow tool; other tools are exposed through the PTC mode SDK so the model can combine multi-step operations in one TypeScript program.',
@@ -101,6 +109,10 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   presetStandardDescription: '功能完整的编码 Agent，支持文件编辑、Shell、文件与网页检索、Skills、计划、目标、子代理和工作流。',
   presetBeardyName: 'Beardy 模式',
   presetBeardyDescription: '具备标准模式全部能力，并加入 Beardy 的持久个性与具备历史感知能力的会话检索。',
+  presetBeardyUnattendedName: 'Beardy 无人值守',
+  presetBeardyUnattendedDescription: '面向无人值守运行的 Beardy：通过 discord_send 投递结果，关闭创作类工具，没有审批 answerer 时拒绝记忆写入。',
+  presetBeardyDiscordName: 'Beardy Discord',
+  presetBeardyDiscordDescription: '面向 Discord 对话的 Beardy：简短纯文本回复，保留完整标准工具集，记忆写入交审批处理。',
   presetPtcName: 'PTC 模式',
   presetPtcDescription: '功能完整的编码 Agent，但默认不提供 workflow 工具；其他工具通过 PTC 模式 SDK 呈现，让模型用一个 TypeScript 程序组合多步操作。',
   presetMinimalName: '极简模式',

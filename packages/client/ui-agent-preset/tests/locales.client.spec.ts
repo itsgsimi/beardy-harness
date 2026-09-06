@@ -1,4 +1,4 @@
-/** Web-localized copy for the five shipped presets and file copy for every other row. */
+/** Web-localized copy for the seven shipped presets and file copy for every other row. */
 
 import { describe, expect, it } from 'vitest'
 import { en, presetDisplayText, zh } from '../src/client/locales.ts'
@@ -9,6 +9,8 @@ describe('preset display copy', () => {
   it.each([
     ['standard', 'presetStandardName', 'presetStandardDescription'],
     ['beardy', 'presetBeardyName', 'presetBeardyDescription'],
+    ['beardy-unattended', 'presetBeardyUnattendedName', 'presetBeardyUnattendedDescription'],
+    ['beardy-discord', 'presetBeardyDiscordName', 'presetBeardyDiscordDescription'],
     ['ptc', 'presetPtcName', 'presetPtcDescription'],
     ['minimal', 'presetMinimalName', 'presetMinimalDescription'],
     ['cordis', 'presetCordisName', 'presetCordisDescription'],

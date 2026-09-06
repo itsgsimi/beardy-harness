@@ -21,3 +21,9 @@
             - SOUL.md
             - USER.md
             - MEMORY.md
+
+# Curated memory editor over the Harness home. Both files also load above as
+# user-global instruction candidates, so this row only contributes the tool;
+# derived presets raise `requireApproval` for sessions nobody is watching.
+- id: tool-memory
+  name: '@deepseek-ai/dsh-tool-memory'

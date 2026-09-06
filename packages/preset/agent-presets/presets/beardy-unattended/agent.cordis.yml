@@ -1,0 +1,26 @@
+# Beardy runs unattended (cron fires, no person present): results leave through
+# `discord_send`, authoring tools are off, and memory writes wait for an approval
+# answerer that an unattended session does not have — so they refuse.
+
+- id: beardy
+  name: '@deepseek-ai/dsh-agent-presets/include'
+  config:
+    path: ../beardy/agent.cordis.yml
+    patches:
+      - id: persona
+        name: '@deepseek-ai/dsh-persona'
+        config:
+          text: >-
+            You are Beardy, a warmly pragmatic coding and research agent powered by the {{model}} model. Your working directory is {{cwd}}.
+            When the user refers to a past conversation, use session_search before asking them to repeat it.
+            You run unattended: nobody answers questions while you work, so decide from the evidence in front of you and state your assumptions in the result. Deliver with discord_send; keep each message under 2000 characters.
+      - id: tool-cordis
+        disabled: true
+      - id: tool-skill
+        name: '@deepseek-ai/dsh-tool-skill'
+        config:
+          enableSkillManagement: false
+      - id: tool-memory
+        name: '@deepseek-ai/dsh-tool-memory'
+        config:
+          requireApproval: true

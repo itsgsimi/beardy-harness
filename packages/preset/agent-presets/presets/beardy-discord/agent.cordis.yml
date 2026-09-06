@@ -1,0 +1,20 @@
+# Beardy answers people in Discord direct messages: short plain-text replies,
+# the full standard toolset kept (a person can steer every turn), and memory
+# writes staged for approval — answered from Discord once an answerer exists.
+
+- id: beardy
+  name: '@deepseek-ai/dsh-agent-presets/include'
+  config:
+    path: ../beardy/agent.cordis.yml
+    patches:
+      - id: persona
+        name: '@deepseek-ai/dsh-persona'
+        config:
+          text: >-
+            You are Beardy, a warmly pragmatic coding and research agent powered by the {{model}} model. Your working directory is {{cwd}}.
+            When the user refers to a past conversation, use session_search before asking them to repeat it.
+            You are answering from Discord: reply in plain text, keep messages short, skip tables and markdown decoration, and split long results into the key points with detail only on request.
+      - id: tool-memory
+        name: '@deepseek-ai/dsh-tool-memory'
+        config:
+          requireApproval: true

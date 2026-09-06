@@ -22,10 +22,13 @@
         maxSearchResults: 100
         searchTimeoutMs: 30000
 
-    # Curated memory: USER.md and MEMORY.md under the Harness home, delivered to
-    # later sessions through the preset's user-global instruction candidates.
-    - id: tool-memory
-      name: '@deepseek-ai/dsh-tool-memory'
+    # A clock for conversations that span days: "this morning" and elapsed-time
+    # readings resolve against the browser's zone when a turn carries one, and
+    # the process zone otherwise. Durable injections are throttled to hourly.
+    - id: time-context
+      name: '@deepseek-ai/dsh-time-context'
+      config:
+        refreshIntervalMs: 3600000
 
 # Beardy uses the local SearXNG JSON API for search, so no DeepSeek search
 # credential is needed. Set SEARXNG_BASE_URL to use another instance; the
@@ -54,19 +57,17 @@
 # Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
 # only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
 # token itself lives in the environment or the root .env; the composition names the reference, never
-# the secret. Deployment choices (gateway workspacePath, permissionPreset, and the cron job list) are
-# NOT set here: a profile-layer `- id:` row replaces a row's config wholesale, so configure enabled
-# rows from your own `~/.dsh/profiles/<profile>/cordis.patch.yml`; an enabled row without that config
-# fails the schema's required-field check instead of running on someone else's defaults.
+# the secret. Destination and authority data (tool-discord `channelId`/`dmUserIds`, gateway
+# `allowedUserIds`/`workspacePath`/`permissionPreset`, cron's `jobs`) are deployment values and are
+# NOT set here: a profile-layer `- id:` row replaces a row's config wholesale, so supply them from
+# your own `~/.dsh/profiles/<profile>/cordis.patch.yml`. An enabled row without them fails the
+# schema's required-field check naming the missing field instead of running on someone else's values.
 - insert:
     - id: tool-discord
       name: '@deepseek-ai/dsh-tool-discord'
       disabled: !!js process.env.DISCORD_BOT_TOKEN === undefined
       config:
         tokenEnv: DISCORD_BOT_TOKEN
-        # Set DISCORD_CHANNEL_ID to the snowflake of the channel discord_send targets.
-        channelId: !!js process.env.DISCORD_CHANNEL_ID ?? process.env.DISCORD_DM_CHANNEL_ID
-        dmUserIds: !!js (process.env.DISCORD_DM_USER_IDS || '').split(' ').filter(Boolean)
 
     - id: discord-gateway
       name: '@deepseek-ai/dsh-discord-gateway'

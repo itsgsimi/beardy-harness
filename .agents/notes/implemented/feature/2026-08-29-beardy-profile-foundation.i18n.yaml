@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-beardy-profile-foundation.md
-2026-08-29-beardy-profile-foundation.md: ff7de8c6a6d27c32d5ba17ca32ef8cf873180c1c
-2026-08-29-beardy-profile-foundation.zh.md: e5718bf638896f001bfec22c6c5229c15c9f85e1
+2026-08-29-beardy-profile-foundation.md: b35fe5037384f387231d25903404bec86e3c1dde
+2026-08-29-beardy-profile-foundation.zh.md: 572ced947e1ae575e8fd543f59f20c066b7ba871

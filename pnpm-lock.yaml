@@ -1603,9 +1603,15 @@ importers:
       '@deepseek-ai/dsh-session-query-sqlite':
         specifier: workspace:^
         version: link:../../session-query/session-query-sqlite
+      '@deepseek-ai/dsh-time-context':
+        specifier: workspace:^
+        version: link:../../context/time-context
       '@deepseek-ai/dsh-tool-discord':
         specifier: workspace:^
         version: link:../../discord/tool-discord
+      '@deepseek-ai/dsh-tool-memory':
+        specifier: workspace:^
+        version: link:../../memory/tool-memory
       '@deepseek-ai/dsh-tool-session-query':
         specifier: workspace:^
         version: link:../../session-query/tool-session-query
@@ -1616,9 +1622,21 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:^
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:^
+        version: link:../../../vendor/loader
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.3.1
 
   packages/bundle/headless:
     dependencies:
@@ -11391,6 +11409,9 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: workspace:^
         version: link:../../packages/jobs/tool-jobs
+      '@deepseek-ai/dsh-tool-memory':
+        specifier: workspace:^
+        version: link:../../packages/memory/tool-memory
       '@deepseek-ai/dsh-tool-present':
         specifier: workspace:^
         version: link:../../packages/fs/tool-present

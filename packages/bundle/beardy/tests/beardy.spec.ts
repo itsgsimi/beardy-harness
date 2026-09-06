@@ -71,8 +71,8 @@ describe('dsh-beardy bundle', () => {
     const presetPath = resolve(root, '../../preset/agent-presets/presets/beardy/agent.cordis.yml')
     const parsed: unknown = yaml.load(readFileSync(presetPath, 'utf8'), { schema: entryListSchema })
     expect(Array.isArray(parsed)).toBe(true)
-    if (!Array.isArray(parsed) || parsed.length !== 1 || !isRecord(parsed[0])) {
-      throw new TypeError('Beardy preset must contain one entry')
+    if (!Array.isArray(parsed) || !isRecord(parsed[0])) {
+      throw new TypeError('Beardy preset must contain an entry list')
     }
     const entry = parsed[0]
     expect(entry.id).toBe('creator')
@@ -84,5 +84,15 @@ describe('dsh-beardy bundle', () => {
       isRecord(value) && typeof value.id === 'string' ? [value.id] : [],
     )
     expect(patchIds).toEqual(expect.arrayContaining(['persona', 'agent-instructions']))
+    // The agent-instructions patch loads the curated memory files as user-global
+    // instruction candidates, and a sibling row mounts their editor.
+    const instructions = entry.config.patches.find(value => isRecord(value) && value.id === 'agent-instructions')
+    if (!isRecord(instructions) || !isRecord(instructions.config)) throw new TypeError('agent-instructions patch config')
+    expect(instructions.config.userGlobalInstructionCandidates)
+      .toEqual(['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'])
+    const rows = parsed.filter(isRecord)
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'tool-memory', name: '@deepseek-ai/dsh-tool-memory' }),
+    ]))
   })
 })

@@ -30,6 +30,6 @@ DeepSeek Harness 已经提供了构建类似 Hermes 的编码与研究 agent 所
 
 ## 后果
 
-用户可以使用 `dsh --profile beardy` 启动随附 agent，也可以把组合包添加到其他 profile。Beardy 保留 standard agent 的工具与提示词能力，可以检查并临时扩展正在运行的 Cordis，可以搜索持久化的会话历史与配置的 SearXNG 实例并抓取 Web 页面，同时所有面向模型的输入仍由现有且会记录日志的能力产生。持久化的 Harness 或用户 preset 修改仍使用 shell 与 filesystem 工具，并遵循组装创作 skill 的归属规则。`$DSH_HOME/SOUL.md` 为 Beardy 会话提供可编辑的个性指引，不改变其他 profile。该 profile 目前不提供独立的个人记忆存储、自动 skill 整理器、跨会话调度器或消息网关；这些仍是独立能力，而不是隐式的 Beardy 行为。
+用户可以使用 `dsh --profile beardy` 启动随附 agent，也可以把组合包添加到其他 profile。Beardy 保留 standard agent 的工具与提示词能力，可以检查并临时扩展正在运行的 Cordis，可以搜索持久化的会话历史与配置的 SearXNG 实例并抓取 Web 页面，同时所有面向模型的输入仍由现有且会记录日志的能力产生。持久化的 Harness 或用户 preset 修改仍使用 shell 与 filesystem 工具，并遵循组装创作 skill 的归属规则。`$DSH_HOME/SOUL.md` 为 Beardy 会话提供可编辑的个性指引，不改变其他 profile。策展的个人记忆经由 [`dsh-tool-memory`](../../../../packages/memory/tool-memory/README.zh.md) 到位，按 token 门控的调度与 Discord 投递则由 [Beardy 组装分层](2026-09-05-beardy-composition-layers.zh.md) 中的 preset 家族组装而成；自动 skill curator 仍是独立能力，而不是隐式的 Beardy 行为。
 
 专用搜索索引是持久化的派生状态，不得指向会话持久化数据库。SearXNG 是 Web 搜索的外部前置条件：其端点必须公开 `GET /search?format=json`，Beardy 默认使用 `http://127.0.0.1:8080`。全局 Soul 文件使用正常的持久 workspace-instruction 路径，并低于更高优先级指令。由于 Creator mode 继承 standard 清单且 Beardy 继承 Creator mode，未来合并 Harness 更新时可以先更新底层组合包，只在行 id 或配置发生变化时调整明确的 Beardy 覆盖项。
