@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { createJobRunner, runTitle } from '../src/launch.ts'
-import type { CronJobSpec } from '../src/types.ts'
+import { CONTINUITY_WITHOUT_NOTES, CONTINUITY_WITH_NOTES, createJobRunner, runPrompt, runTitle } from '../src/launch.ts'
+import type { ScheduledJobSpec } from '../src/types.ts'
 
 const FIRED_AT = Date.parse('2026-09-04T05:00:00.000Z')
 
-const JOB: CronJobSpec = {
+const JOB: ScheduledJobSpec = {
   name: 'morning-brief',
   expression: '0 7 * * *',
   timezone: 'Europe/Zagreb',
@@ -14,6 +14,7 @@ const JOB: CronJobSpec = {
   agentPreset: 'beardy',
   permissionPreset: 'danger-full-access',
   workspacePath: '/workspace',
+  notes: '',
 }
 
 interface HarnessOptions {
@@ -127,11 +128,31 @@ describe('runTitle', () => {
   })
 })
 
+describe('run prompt', () => {
+  it('asks for notes to be recorded when the job has none yet', () => {
+    expect(runPrompt(JOB)).toBe(`${JOB.prompt}\n\n${CONTINUITY_WITHOUT_NOTES('morning-brief')}`)
+  })
+
+  it('carries earlier notes under the continuity instruction', () => {
+    const text = runPrompt({ ...JOB, notes: 'Reported items A and B on Monday.' })
+    expect(text).toContain(CONTINUITY_WITH_NOTES)
+    expect(text).toContain('Notes from earlier runs:\nReported items A and B on Monday.')
+  })
+})
+
 describe('job runner', () => {
+  it('hands over the notes with the prompt when the job carries them', async () => {
+    const h = harness({ replyText: 'ok' })
+    await h.runner.run({ ...JOB, notes: 'Second run.' }, FIRED_AT)
+    expect(h.calls).toContain(`followup:${runPrompt({ ...JOB, notes: 'Second run.' })}`)
+  })
+
   it('starts a session, hands over the prompt with cron provenance, and reports the answer', async () => {
     const h = harness({ replyText: 'Brief posted.' })
-    const outcome = await h.runner.run(JOB, FIRED_AT)
-    expect(outcome).toBe('answered')
+    const result = await h.runner.run(JOB, FIRED_AT)
+    expect(result.outcome).toBe('answered')
+    expect(result.text).toBe('Brief posted.')
+    expect(result.sessionId).toContain('cron-morning-brief-')
     expect(h.calls).toEqual([
       'preset-resolve:beardy',
       'standing:beardy',
@@ -141,7 +162,7 @@ describe('job runner', () => {
       'attach',
       'permission-set:danger-full-access',
       `title:morning-brief ${new Date(FIRED_AT).toISOString()}`,
-      'followup:Summarize the feeds and today’s weather.',
+      `followup:${runPrompt(JOB)}`,
     ])
     expect(h.runner.live()).toBe(1)
   })
@@ -149,21 +170,21 @@ describe('job runner', () => {
   it('reports a run whose session could not be mounted', async () => {
     for (const failStart of ['workspace', 'attach'] as const) {
       const h = harness({ replyText: 'x', failStart })
-      expect(await h.runner.run(JOB, FIRED_AT)).toBe('failed')
+      expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
       expect(h.ctx.logger.error).toHaveBeenCalledWith(expect.stringContaining('could not start a session'))
     }
   })
 
   it('rolls back a session that fails after being attached', async () => {
     const h = harness({ replyText: 'x', failStart: 'title' })
-    expect(await h.runner.run(JOB, FIRED_AT)).toBe('failed')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
     expect(h.calls).toContain('detach')
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
   })
 
   it('reports a run that outlives its bound, cancelling and releasing its session', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
-    expect(await h.runner.run(JOB, FIRED_AT)).toBe('timed-out')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('timed-out')
     expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     expect(h.runner.live()).toBe(0)
@@ -172,12 +193,12 @@ describe('job runner', () => {
 
   it('reports a bound whose delay seam rejected as a timeout', async () => {
     const h = harness({ replyText: 'late', rejectWait: true })
-    expect(await h.runner.run(JOB, FIRED_AT)).toBe('timed-out')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('timed-out')
   })
 
   it('reports a turn that fails outright as a timeout', async () => {
     const h = harness({ replyText: 'late', rejectIdle: true })
-    expect(await h.runner.run(JOB, FIRED_AT)).toBe('timed-out')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('timed-out')
   })
 
   it('cancels a waiting run when the scheduler is cancelled without an error reason', async () => {
@@ -185,13 +206,13 @@ describe('job runner', () => {
     const running = h.runner.run(JOB, FIRED_AT)
     await new Promise(resolve => setTimeout(resolve, 2))
     h.controller.abort('scheduler gone')
-    expect(await running).toBe('timed-out')
+    expect((await running).outcome).toBe('timed-out')
     h.releaseIdle()
   })
 
   it('reports a run that ends without text', async () => {
     const h = harness({ replyText: '' })
-    expect(await h.runner.run(JOB, FIRED_AT)).toBe('no-text-answer')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('no-text-answer')
     expect(h.ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('without a text answer'))
   })
 
@@ -220,7 +241,7 @@ describe('job runner', () => {
   it('refuses to mount a session for a cancelled scheduler', async () => {
     const h = harness({ replyText: 'ok' })
     h.controller.abort(new Error('scheduler disposed'))
-    expect(await h.runner.run(JOB, FIRED_AT)).toBe('failed')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
     expect(h.calls).toContain('preset-resolve:beardy')
     expect(h.calls).not.toContain('agent-create')
   })

@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import type { CronRunOutcome } from '@deepseek-ai/dsh-cron'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
@@ -32,6 +33,13 @@ import type { ConversationRecord } from './domain.ts'
 import { DISCORD_CHANNEL_TYPE_DM } from './gateway.ts'
 import { registerGatewayCommands } from './commands.ts'
 import type { DiscordInboundMessage, DiscordInboundReaction, GatewaySettings } from './types.ts'
+
+/** What one settled scheduled run announces on the `cron/run-finished` event. */
+interface FinishedCronRun {
+  readonly outcome: CronRunOutcome
+  readonly text: string
+  readonly reportOutcome: boolean
+}
 
 /** Delivery bounds borrowed from the Discord delivery package rather than restated as new tunables. */
 const REPLY_REQUEST_TIMEOUT_MS = 15_000
@@ -135,6 +143,8 @@ export interface ConversationRouter {
   handle(message: DiscordInboundMessage): void
   /** Match one reaction against the channel's pending approval prompt. */
   handleReaction(reaction: DiscordInboundReaction): void
+  /** Post finished-run text to a channel; delivery failures are logged, never thrown. */
+  deliver(channelId: string, content: string): Promise<void>
   /** Dispose every live Agent and forget its channel; durable records stay. */
   dispose(): Promise<void>
 }
@@ -742,6 +752,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       if (outcome !== undefined) pending.settle(outcome)
     },
 
+    deliver(channelId: string, content: string): Promise<void> {
+      return postReply(channelId, content)
+    },
     async dispose(): Promise<void> {
       const live = [...conversations.values()]
       conversations.clear()
@@ -760,4 +773,32 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       }
     },
   }
+}
+
+/** Words delivered when a scheduled run has no text of its own and the operator wants to know. */
+const CRON_OUTCOME_LINES: Partial<Record<CronRunOutcome, string>> = {
+  'no-text-answer': 'The scheduled run finished without a text answer.',
+  'timed-out': 'The scheduled run timed out.',
+  failed: 'The scheduled run could not start.',
+}
+
+/** The text one finished cron run delivers; undefined means this run says nothing. */
+export function cronDeliveryContent(run: FinishedCronRun): string | undefined {
+  if (run.text !== '') return run.text
+  if (!run.reportOutcome) return undefined
+  return CRON_OUTCOME_LINES[run.outcome]
+}
+
+/**
+ * Listen for finished cron runs on this host and deliver each one to its channel. Runs without a
+ * delivery target, or with nothing worth posting, pass by silently.
+ * @param ctx - registrant context carrying the event bus.
+ * @param router - conversation router whose {@link ConversationRouter.deliver} posts to channels.
+ */
+export function attachCronDelivery(ctx: Context, router: ConversationRouter): void {
+  ctx.on('cron/run-finished', (payload) => {
+    if (payload.deliverChannelId === undefined) return
+    const content = cronDeliveryContent(payload)
+    if (content !== undefined) void router.deliver(payload.deliverChannelId, content)
+  })
 }

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import * as Cron from '../../../cron/cron/src/index.ts'
 import * as DiscordGateway from '../src/index.ts'
 
 const USER = '138391763999129600'
@@ -26,6 +27,7 @@ afterEach(async () => {
 interface FixtureAgentRecord {
   readonly created: string[]
   readonly followedUp: string[]
+  readonly tools: { name: string; execute?: (args: unknown, exec: unknown) => Promise<unknown> }[]
 }
 
 /** Services the listener creates Sessions through, provided as inert stubs. */
@@ -115,6 +117,12 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
           detachSession: async () => {},
         }),
       } as never)
+      ctx.provide('tools' as never, {
+        register: (tool: { name: string; execute?: (args: unknown, exec: unknown) => Promise<unknown> }) => {
+          record.tools.push(tool)
+          return () => {}
+        },
+      } as never)
     },
   }
 }
@@ -123,7 +131,7 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
 async function boot(
   lines: readonly string[],
   token?: string,
-  record: FixtureAgentRecord = { created: [], followedUp: [] },
+  record: FixtureAgentRecord = { created: [], followedUp: [], tools: [] },
 ): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-discord-gateway-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -136,6 +144,7 @@ async function boot(
   const modules = new Map<string, unknown>([
     ['fixture-dependencies', fixtureDependencies(token, record)],
     ['@deepseek-ai/dsh-discord-gateway', DiscordGateway],
+    ['@deepseek-ai/dsh-cron', Cron],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -223,7 +232,7 @@ describe('discord-gateway real Loader composition', () => {
   })
 
   it('answers a direct message end to end over a stubbed gateway', { timeout: 60_000 }, async () => {
-    const record: FixtureAgentRecord = { created: [], followedUp: [] }
+    const record: FixtureAgentRecord = { created: [], followedUp: [], tools: [] }
     const posts: string[] = []
     class StubSocket {
       static instance: StubSocket | undefined
@@ -295,6 +304,52 @@ describe('discord-gateway real Loader composition', () => {
       }
       expect(record.created).toHaveLength(2)
       expect(unloaded(ctx)).toEqual([])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('delivers a finished cron run to its Discord channel end to end', { timeout: 60_000 }, async () => {
+    const record: FixtureAgentRecord = { created: [], followedUp: [], tools: [] }
+    const posts: string[] = []
+    class QuietSocket {
+      send(_data: string): void {}
+      close(): void {}
+      addEventListener(): void {}
+      removeEventListener(): void {}
+    }
+    vi.stubGlobal('WebSocket', QuietSocket)
+    vi.stubGlobal('fetch', async (_input: string | URL, init?: { body?: string }) => {
+      posts.push(init?.body ?? '')
+      return new Response(JSON.stringify({ id: 'm9' }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      })
+    })
+    try {
+      const ctx = await boot([
+        ...GATEWAY_ROWS,
+        `    allowedUserIds: ['${USER}']`,
+        "- name: '@deepseek-ai/dsh-cron'",
+        '  config:',
+        '    jobs:',
+        '      - name: brief',
+        "        expression: '0 7 * * *'",
+        "        timezone: 'Europe/Zagreb'",
+        "        prompt: 'Write the morning brief.'",
+        '        agentPreset: beardy',
+        '        permissionPreset: workspace-write',
+        `        workspacePath: ${process.cwd()}`,
+        `        deliverChannel: '${CHANNEL}'`,
+      ], 'fixture-token', record)
+      expect(unloaded(ctx)).toEqual([])
+      const run = record.tools.find(tool => tool.name === 'cron_manage')?.execute
+      expect(run).toBeTypeOf('function')
+      await run?.({ action: 'run_now', name: 'brief' }, { callId: 'c1', signal: new AbortController().signal })
+      for (let round = 0; round < 40 && posts.length === 0; round += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+      }
+      expect(record.created).toHaveLength(1)
+      expect(posts.some(body => body.includes('Morning brief is ready.'))).toBe(true)
     } finally {
       vi.unstubAllGlobals()
     }

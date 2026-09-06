@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { apply, assertConfig, mountJobs } from '../src/index.ts'
+import { apply, assertConfig, createSchedulerHost, mountJobs } from '../src/index.ts'
 import type { CronJobSpec, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
 
@@ -15,7 +15,21 @@ const JOB: CronJobSpec = {
 }
 
 function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
-  return { jobs: [JOB], turnTimeoutMs: 600_000, maxLiveRuns: 20, ...overrides }
+  return {
+    jobs: [JOB],
+    turnTimeoutMs: 600_000,
+    maxLiveRuns: 20,
+    allowedAgentPresets: ['beardy'],
+    allowedPermissionPresets: ['workspace-write'],
+    allowedWorkspaceRoots: ['/srv'],
+    maxStoredJobs: 5,
+    minIntervalMs: 60_000,
+    notesMaxChars: 400,
+    keepRunHistory: 3,
+    requireApproval: false,
+    deliverOutcomes: true,
+    ...overrides,
+  }
 }
 
 describe('assertConfig', () => {
@@ -48,13 +62,13 @@ describe('assertConfig', () => {
   })
 })
 
-/** Scheduler seam that hands the test the fire callback and counts stops. */
+/** Scheduler seam that hands the test the fire callbacks per job and counts stops. */
 function fakeScheduler() {
-  let callback: ((firedAt: number) => void) | undefined
+  const ticks = new Map<string, (firedAt: number) => void>()
   let stopped = 0
   let next: number | undefined = Date.parse('2026-09-05T05:00:00.000Z')
-  const scheduler: Scheduler = (_job, onTick) => {
-    callback = onTick
+  const scheduler: Scheduler = (job, onTick) => {
+    ticks.set(job.expression, onTick)
     return {
       stop: () => { stopped += 1 },
       nextRunAt: () => next,
@@ -62,9 +76,28 @@ function fakeScheduler() {
   }
   return {
     scheduler,
-    fire: () => { callback?.(Date.parse('2026-09-04T05:00:00.000Z')) },
+    fire: (expression = '0 7 * * *') => { ticks.get(expression)?.(Date.parse('2026-09-04T05:00:00.000Z')) },
+    tickCount: () => ticks.size,
     stoppedCount: () => stopped,
     withoutNextRun: () => { next = undefined },
+  }
+}
+
+/** In-memory KvTable stand-in over a plain map. */
+function fakeTable<T>(backing = new Map<string, T>()) {
+  return {
+    rows: backing,
+    get: (key: string) => backing.get(key),
+    entries: () => backing.entries(),
+    keys: () => backing.keys(),
+    size: backing.size,
+    put: async (key: string, value: T) => { backing.set(key, value) },
+    delete: async (key: string) => backing.delete(key),
+    update: async (key: string, fn: (current: T) => T) => {
+      const next = fn(backing.get(key) as T)
+      backing.set(key, next)
+      return next
+    },
   }
 }
 
@@ -81,8 +114,31 @@ function contextStub(overrides: Record<string, unknown> = {}) {
   }
   const handle = { agent, dispose: vi.fn(async () => {}) }
   const disposers: (() => Promise<void> | void)[] = []
+  const tables = new Map<string, ReturnType<typeof fakeTable>>()
+  const emitted: { event: string; payload: unknown }[] = []
+  const tools: { name: string }[] = []
+  const commands: { name: string; handler?: unknown }[] = []
+  const listeners: { event: string; handler: (payload: never) => void }[] = []
+  let domainClosed = false
   const ctx = {
     logger,
+    emit: (event: string, payload: unknown) => { emitted.push({ event, payload }) },
+    on: (event: string, handler: (payload: never) => void) => {
+      listeners.push({ event, handler })
+      return () => {}
+    },
+    tools: { register: (tool: { name: string }) => { tools.push(tool); return () => {} } },
+    commands: { register: (command: { name: string; handler?: unknown }) => { commands.push(command); return () => {} } },
+    storageDomain: {
+      open: async () => ({
+        table: (name: string) => {
+          let table = tables.get(name)
+          if (table === undefined) { table = fakeTable(); tables.set(name, table) }
+          return table
+        },
+        close: async () => { domainClosed = true },
+      }),
+    },
     effect: vi.fn((setup: () => (() => Promise<void>) | undefined) => {
       const dispose = setup()
       if (dispose !== undefined) disposers.push(dispose)
@@ -96,7 +152,14 @@ function contextStub(overrides: Record<string, unknown> = {}) {
     agents: { create: async () => handle },
     sessionTitle: { rename: () => {} },
   }
-  return { ctx: { ...ctx, ...overrides } as unknown as Context, logger, handle, disposers }
+  const emitTo = (event: string, payload: unknown): void => {
+    for (const listener of listeners) if (listener.event === event) listener.handler(payload as never)
+  }
+  return {
+    ctx: { ...ctx, ...overrides } as unknown as Context,
+    logger, handle, disposers, emitted, tools, commands, tables, emitTo,
+    domainClosed: () => domainClosed,
+  }
 }
 
 describe('mountJobs', () => {
@@ -223,24 +286,126 @@ describe('mountJobs', () => {
   })
 })
 
-describe('apply', () => {
-  it('mounts without scheduling anything when no jobs are configured', () => {
+/** A stored job row as the durable table holds it. */
+function storedRow(name: string, expression: string): Record<string, unknown> {
+  return {
+    name, expression, timezone: 'Europe/Zagreb', prompt: 'Check PRs.',
+    agentPreset: 'beardy', permissionPreset: 'workspace-write', workspacePath: '/srv/x',
+    enabled: true, deliver: { kind: 'none' }, createdAt: 1,
+  }
+}
+
+const settle = (ms = 10): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
+
+describe('createSchedulerHost', () => {
+  it('fires an armed job on trigger and ignores names that are not armed', async () => {
     const { ctx, logger } = contextStub()
-    apply(ctx, config({ jobs: [] }))
-    expect(logger.info).toHaveBeenCalledWith('dsh-cron: mounted with no jobs')
-    expect(ctx.effect).not.toHaveBeenCalled()
+    const fake = fakeScheduler()
+    const host = createSchedulerHost(ctx, { turnTimeoutMs: 60_000, maxLiveRuns: 5 }, fake.scheduler)
+    expect(host.trigger('morning-brief')).toBe(false)
+    host.sync([{ ...JOB, notes: '' }])
+    expect(host.trigger('morning-brief')).toBe(true)
+    await settle()
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('finished in session cron-morning-brief-'))
+    await host.dispose()
   })
 
-  it('registers a disposer that stops every scheduled job', async () => {
-    const { ctx, disposers } = contextStub()
-    apply(ctx, config())
+  it('re-arms timers on sync while the runner keeps mounted runs', async () => {
+    const { ctx } = contextStub()
+    const fake = fakeScheduler()
+    const host = createSchedulerHost(ctx, { turnTimeoutMs: 60_000, maxLiveRuns: 5 }, fake.scheduler)
+    host.sync([{ ...JOB, notes: '' }])
+    fake.fire()
+    await settle()
+    expect(host.runner.live()).toBe(1)
+    host.sync([])
+    expect(fake.stoppedCount()).toBe(1)
+    expect(host.trigger('morning-brief')).toBe(false)
+    await host.dispose()
+  })
+})
+
+describe('apply', () => {
+  it('mounts management surfaces even when no jobs are configured', async () => {
+    const { ctx, logger, tools, commands } = contextStub()
+    await apply(ctx, config({ jobs: [] }), fakeScheduler().scheduler)
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('no configured jobs'))
+    expect(tools.map(tool => tool.name)).toEqual(['cron_manage'])
+    expect(commands.map(command => command.name)).toEqual(['cron'])
+  })
+
+  it('schedules configured jobs and records settled runs with an event', async () => {
+    const { ctx, logger, emitted, tables } = contextStub()
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('scheduled "morning-brief"'))
+    fake.fire()
+    await settle()
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0]).toMatchObject({
+      event: 'cron/run-finished',
+      payload: { jobName: 'morning-brief', outcome: 'answered', text: 'done', reportOutcome: true },
+    })
+    const state = tables.get('state')?.rows.get('morning-brief') as { lastRuns: unknown[] } | undefined
+    expect(state?.lastRuns).toHaveLength(1)
+  })
+
+  it('carries the configured delivery channel into the finished-run event', async () => {
+    const { ctx, emitted } = contextStub()
+    const fake = fakeScheduler()
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'channel-9' }] }), fake.scheduler)
+    fake.fire()
+    await settle()
+    expect(emitted[0]?.payload).toMatchObject({ deliverChannelId: 'channel-9' })
+  })
+
+  it('re-plans timers when a stored job lands in the domain', async () => {
+    const { ctx, tables, emitTo } = contextStub()
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    expect(fake.tickCount()).toBe(1)
+    tables.get('jobs')?.rows.set('pr-check', storedRow('pr-check', '0 9 * * 1'))
+    emitTo('domain/changed', { domain: 'cron_jobs', table: 'jobs', key: 'pr-check', operation: 'put' })
+    expect(fake.tickCount()).toBe(2)
+  })
+
+  it('leaves timers alone for changes in other tables or domains', async () => {
+    const { ctx, emitTo } = contextStub()
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    emitTo('domain/changed', { domain: 'cron_jobs', table: 'state', key: 'morning-brief', operation: 'put' })
+    emitTo('domain/changed', { domain: 'discord-gateway', table: 'conversations', key: 'c', operation: 'put' })
+    expect(fake.tickCount()).toBe(1)
+  })
+
+  it('registers a disposer that stops every scheduled job and closes the domain', async () => {
+    const { ctx, disposers, domainClosed } = contextStub()
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
     expect(ctx.effect).toHaveBeenCalledTimes(1)
     for (const dispose of disposers) await dispose?.()
+    expect(fake.stoppedCount()).toBe(1)
+    expect(domainClosed()).toBe(true)
   })
 
-  it('refuses an unusable job list before scheduling anything', () => {
+  it('runs an armed configured job through the registered /cron command', async () => {
+    const { ctx, logger, commands } = contextStub()
+    await apply(ctx, config(), fakeScheduler().scheduler)
+    const handler = commands[0]?.handler as (invocation: { rawInput: string }) => Promise<{ kind: string }>
+    expect((await handler({ rawInput: 'run morning-brief' })).kind).toBe('success')
+    await settle()
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('finished in session cron-morning-brief-'))
+  })
+
+  it('refuses an unusable job list before scheduling anything', async () => {
     const { ctx } = contextStub()
-    expect(() => { apply(ctx, config({ jobs: [{ ...JOB, workspacePath: 'relative' }] })) })
-      .toThrow('needs an absolute workspacePath')
+    await expect(apply(ctx, config({ jobs: [{ ...JOB, workspacePath: 'relative' }] })))
+      .rejects.toThrow('needs an absolute workspacePath')
+  })
+
+  it('refuses a relative allowed workspace root', async () => {
+    const { ctx } = contextStub()
+    await expect(apply(ctx, config({ allowedWorkspaceRoots: ['srv'] })))
+      .rejects.toThrow('allowedWorkspaceRoots entries must be absolute')
   })
 })

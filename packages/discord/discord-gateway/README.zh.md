@@ -29,6 +29,7 @@ kind: "package-reference"
 - **服务器频道门槛。** 服务器频道必须出现在 `allowedChannelIds` 中；在 `guildRequireMention: true`（默认）下，只有提及 bot 或回复其消息的消息会被回应。允许用户的私信总是会被回应。
 - **斜杠命令。** `/new` 释放当前对话，让下一条消息开启全新会话；`/status` 报告会话 id、预设、存活或已释放状态、以及是有轮次在运行还是有请求在等待回答；`/stop` 取消正在运行的轮次以及任何在等待的请求。其他斜杠命令经普通命令注册表交给存活的 agent 执行（`/compact` 之类）；没有存活对话时收到的命令只给出指引，不会擅自开启会话。
 - **主动投递。** 网关未发起的轮次——例如 `dsh-schedule` 提醒——会在 agent 转入空闲时把其最终 assistant 文本发到频道，于是承诺过的跟进能送达提出者。
+- **cron 运行投递。** `@deepseek-ai/dsh-cron` 完成的定时运行携带一个投递渠道；网关把该运行的最终文本发到那里，若运行没有产出文本且 cron 的 `deliverOutcomes` 要求告知，则发一行结果说明。没有投递渠道的运行不受打扰。
 - **审批与提问。** 当某个工具调用需要许可、或 agent 提出问题时，提示会发到频道：点 ✅ 表情回应表示本次放行、点 ❌ 表示拒绝，或回复 `yes` / `no`；问题用选项编号回答（多选为逗号分隔的列表），也可用自由文本。`answerers` 决定哪些作答形式有效（`reaction`、`text`），请求在 `approvalTimeoutMs` / `questionTimeoutMs` 之后过期，并在频道里发出通知。每个频道同一时间只有一个请求在等待：较新的请求会取消较旧的。
 
 <a id="model-experience"></a>
@@ -71,7 +72,7 @@ kind: "package-reference"
 - **仅支持文本与审批表情回应** —— 附件与 embed 会被忽略；入站的表情回应只在某频道有审批在等待时才有意义，过长的入站文本在 `maxInputChars` 处截断，而不是拆成多轮。
 - **Discord 中没有收到确认或失败通知** —— 正在输入提示覆盖运行中的轮次，但网关在消息到达时不发送确认，轮次超时或失败时也不发频道消息；这些结果只出现在 Host 日志里。
 - **空闲时的命令回答没有日志** —— 在没有存活对话时回答的 `/new`、`/status`、`/stop` 直接由持久状态作答，没有 agent 记录它们，因此这些交互永远不会进入任何会话日志。
-- **主动投递是尽力而为的文本** —— 若某个已收尾轮次的投递失败，该文本会被丢弃而不是重试，且只有最终 assistant 文本会外发；中间叙述留在会话内。
+- **主动投递是尽力而为的文本** —— 若某个已收尾轮次或某次 cron 运行投递失败，该文本会被丢弃而不是重试，且只有最终 assistant 文本会外发；中间叙述留在会话内。
 - **问题需要文本回答** —— 选项编号是从聊天文本解析的，因此在 `answerers: [reaction]` 下，审批仍可用表情回应作答，而问题只能过期。
 - **提示消息 id 是尽力而为的** —— 只有当提示的帖子返回了其消息 id，表情回应才会被接受；若 Discord 的响应没有带 id，该审批只能用文本回复作答。
 
@@ -82,7 +83,7 @@ kind: "package-reference"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-`gateway.ts` 负责 websocket 生命周期（identify、heartbeat、resume、重连退避），通过 `onStatus` 报告状态，并把每次 `READY` 中 bot 自身的用户 id 交给路由器用于提及判断。`conversation.ts` 经由 `openUnattendedSession` 与 `resumeUnattendedSession` 负责会话的开启/恢复/释放、经由 tail promise 的按频道串行执行、防抖、投递，以及把已收尾的主动轮次送达频道的 `agent/status` 空闲监听器；`turn-stopping` 在最终 assistant 文本落日志之前触发，这正是投递改挂空闲转换的原因。斜杠命令绕过串行尾链，以便 `/stop` 能触达运行中的轮次；`commands.ts` 把 `/new`、`/status`、`/stop` 注册进每个会话 Agent 的作用域，没有存活 agent 时由路由器凭持久状态作答。`answerers.ts` 存放审批与提问的提示文本及回复解析；`conversation.ts` 用一个 pendings 映射为每个频道保管一个在等待的请求，同时由消息文本与 `MESSAGE_REACTION_ADD` 事件喂入，且表情回应只有指向该提示帖子返回的消息 id 时才会敲定审批。`domain.ts` 声明 storage-domain 记录（`discord_gateway`）。出站帖子复用 `@deepseek-ai/dsh-tool-discord` 的 `sendDiscordMessage`，因此 2000 字符分条与提及改写只存在于一处。测试用假 socket、假 agent 与内存表驱动这两半；没有任何测试会真的连接 Discord。
+`gateway.ts` 负责 websocket 生命周期（identify、heartbeat、resume、重连退避），通过 `onStatus` 报告状态，并把每次 `READY` 中 bot 自身的用户 id 交给路由器用于提及判断。`conversation.ts` 经由 `openUnattendedSession` 与 `resumeUnattendedSession` 负责会话的开启/恢复/释放、经由 tail promise 的按频道串行执行、防抖、投递，以及把已收尾的主动轮次送达频道的 `agent/status` 空闲监听器；`turn-stopping` 在最终 assistant 文本落日志之前触发，这正是投递改挂空闲转换的原因。斜杠命令绕过串行尾链，以便 `/stop` 能触达运行中的轮次；`commands.ts` 把 `/new`、`/status`、`/stop` 注册进每个会话 Agent 的作用域，没有存活 agent 时由路由器凭持久状态作答。`answerers.ts` 存放审批与提问的提示文本及回复解析；`conversation.ts` 用一个 pendings 映射为每个频道保管一个在等待的请求，同时由消息文本与 `MESSAGE_REACTION_ADD` 事件喂入，且表情回应只有指向该提示帖子返回的消息 id 时才会敲定审批。`attachCronDelivery` 监听 `cron/run-finished`，并复用回复帖子路径完成投递渠道的发送。`domain.ts` 声明 storage-domain 记录（`discord_gateway`）。出站帖子复用 `@deepseek-ai/dsh-tool-discord` 的 `sendDiscordMessage`，因此 2000 字符分条与提及改写只存在于一处。测试用假 socket、假 agent 与内存表驱动这两半；没有任何测试会真的连接 Discord。
 
 </details>
 

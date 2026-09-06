@@ -10,7 +10,7 @@ import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
-import { createConversationRouter } from './conversation.ts'
+import { attachCronDelivery, createConversationRouter } from './conversation.ts'
 import type { ConversationRouter, RoutingPolicy } from './conversation.ts'
 import { discordGatewayDomainSpec } from './domain.ts'
 import { connectDiscordGateway, DISCORD_GATEWAY_INTENTS } from './gateway.ts'
@@ -302,6 +302,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     table: domain.table('conversations'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
   })
+  attachCronDelivery(ctx, router)
 
   ctx.effect(() => {
     void startListener(

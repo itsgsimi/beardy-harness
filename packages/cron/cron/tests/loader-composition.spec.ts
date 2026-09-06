@@ -18,15 +18,23 @@ afterEach(async () => {
   root = undefined
 })
 
+/** What the fixture services record while the composition runs. */
+interface FixtureRecord {
+  created: string[]
+  tools: string[]
+  commands: string[]
+  storedJobs: Map<string, Record<string, unknown>>
+}
+
 /** Services a scheduled run mounts through; the session factory records whether it was used. */
-function fixtureDependencies(created: string[]): unknown {
+function fixtureDependencies(record: FixtureRecord): unknown {
   const events: Record<string, unknown>[] = []
   return {
     name: 'fixture-dependencies',
     apply(ctx: Context) {
       ctx.provide('agents' as never, {
         create: async (options: { sessionId: string }) => {
-          created.push(options.sessionId)
+          record.created.push(options.sessionId)
           return {
             agent: {
               session: { get seq(): number { return events.length }, ownEvents: () => events },
@@ -57,12 +65,41 @@ function fixtureDependencies(created: string[]): unknown {
           path, attachSession: async () => {}, detachSession: async () => {},
         }),
       } as never)
+      ctx.provide('tools' as never, {
+        register: (tool: { name: string }) => { record.tools.push(tool.name); return () => {} },
+      } as never)
+      ctx.provide('commands' as never, {
+        register: (command: { name: string }) => { record.commands.push(command.name); return () => {} },
+      } as never)
+      const state = new Map<string, Record<string, unknown>>()
+      const tableFor = (name: string): Map<string, Record<string, unknown>> =>
+        name === 'jobs' ? record.storedJobs : state
+      ctx.provide('storageDomain' as never, {
+        open: async () => ({
+          name: 'cron_jobs',
+          table: (name: string) => {
+            const rows = tableFor(name)
+            return {
+              get: (key: string) => rows.get(key),
+              entries: () => rows.entries(),
+              keys: () => rows.keys(),
+              size: rows.size,
+              put: async (key: string, value: Record<string, unknown>) => { rows.set(key, value) },
+              delete: async (key: string) => rows.delete(key),
+            }
+          },
+          close: async () => {},
+        }),
+      } as never)
     },
   }
 }
 
 /** Boot a composition that mounts the real scheduler over the stub services. */
-async function boot(lines: readonly string[]): Promise<Context> {
+async function boot(
+  lines: readonly string[],
+  storedJobs: Record<string, unknown>[] = [],
+): Promise<{ ctx: Context; record: FixtureRecord }> {
   root = await mkdtemp(join(tmpdir(), 'dsh-cron-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, ['- name: fixture-dependencies', ...lines, ''].join('\n'))
@@ -71,9 +108,10 @@ async function boot(lines: readonly string[]): Promise<Context> {
   context.baseUrl = pathToFileURL(root).href + '/'
   await context.plugin(Loader)
   context.loader.builtins.include = Include
-  const created: string[] = []
+  const record: FixtureRecord = { created: [], tools: [], commands: [], storedJobs: new Map() }
+  for (const job of storedJobs) record.storedJobs.set(String(job.name), job)
   const modules = new Map<string, unknown>([
-    ['fixture-dependencies', fixtureDependencies(created)],
+    ['fixture-dependencies', fixtureDependencies(record)],
     ['@deepseek-ai/dsh-cron', Cron],
   ])
   context.loader.internal = {
@@ -88,7 +126,7 @@ async function boot(lines: readonly string[]): Promise<Context> {
     config: { path: pathToFileURL(configPath).href },
   })
   await context.loader.await()
-  return context
+  return { ctx: context, record }
 }
 
 /** One job row; only the schedule and identity vary between cases. */
@@ -116,12 +154,14 @@ function unloaded(ctx: Context): string[] {
 
 describe('dsh-cron real Loader composition', () => {
   it('mounts with an empty job list and starts nothing', { timeout: 60_000 }, async () => {
-    const ctx = await boot(["- name: '@deepseek-ai/dsh-cron'", '  config:', '    jobs: []'])
+    const { ctx, record } = await boot(["- name: '@deepseek-ai/dsh-cron'", '  config:', '    jobs: []'])
     expect(unloaded(ctx)).toEqual([])
+    expect(record.tools).toEqual(['cron_manage'])
+    expect(record.commands).toEqual(['cron'])
   })
 
   it('schedules a configured job without starting a session before its time', { timeout: 60_000 }, async () => {
-    const ctx = await boot(jobRows('morning-brief', '0 7 * * *'))
+    const { ctx } = await boot(jobRows('morning-brief', '0 7 * * *'))
     expect(unloaded(ctx)).toEqual([])
     await new Promise(resolve => setTimeout(resolve, 20))
   })
@@ -150,5 +190,22 @@ describe('dsh-cron real Loader composition', () => {
 
   it('refuses a schedule it cannot parse', { timeout: 60_000 }, async () => {
     await expect(boot(jobRows('broken', 'every morning'))).rejects.toThrow('unusable schedule')
+  })
+
+  it('refuses a stored job colliding with a configured name', { timeout: 60_000 }, async () => {
+    await expect(boot(jobRows('morning-brief', '0 7 * * *'), [{
+      name: 'morning-brief', expression: '0 9 * * 1', timezone: 'Europe/Zagreb', prompt: 'Check PRs.',
+      agentPreset: 'beardy', permissionPreset: 'workspace-write', workspacePath: '/srv/x',
+      enabled: true, deliver: { kind: 'none' }, createdAt: 1,
+    }])).rejects.toThrow('collides')
+  })
+
+  it('schedules a stored job that survived the restart', { timeout: 60_000 }, async () => {
+    const { ctx } = await boot(["- name: '@deepseek-ai/dsh-cron'", '  config:', '    jobs: []'], [{
+      name: 'pr-check', expression: '0 9 * * 1', timezone: 'Europe/Zagreb', prompt: 'Check PRs.',
+      agentPreset: 'beardy', permissionPreset: 'workspace-write', workspacePath: '/srv/x',
+      enabled: true, deliver: { kind: 'none' }, createdAt: 1,
+    }])
+    expect(unloaded(ctx)).toEqual([])
   })
 })

@@ -18,7 +18,7 @@ import type {} from '@deepseek-ai/dsh-session-title'
 import { awaitTurn, lastAssistantText, openUnattendedSession, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 /* jscpd:ignore-end */
-import type { CronJobSpec, CronRunOutcome } from './types.ts'
+import type { CronJobSpec, CronRunResult, ScheduledJobSpec } from './types.ts'
 
 /** Everything a run needs from the host and the plugin's configuration. */
 export interface JobRunnerDeps {
@@ -32,10 +32,32 @@ export interface JobRunnerDeps {
   readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>
 }
 
+/** Continuity instruction appended to every run prompt so notes carry between fires. */
+export const CONTINUITY_WITH_NOTES =
+  'Your notes from earlier runs follow. Do not repeat what was already reported; continue from there. '
+  + 'Update the notes with the cron_manage tool, action "note", before you finish.'
+
+/** Continuity instruction for a first run, which has no notes to continue from. */
+export const CONTINUITY_WITHOUT_NOTES = (jobName: string): string =>
+  `Before you finish, record what the next run of "${jobName}" should know with the cron_manage tool, action "note".`
+
+/** Compose the full prompt text for one fire: job prompt, continuity instruction, and notes. */
+export function runPrompt(job: ScheduledJobSpec): string {
+  if (job.notes === '') return `${job.prompt}
+
+${CONTINUITY_WITHOUT_NOTES(job.name)}`
+  return `${job.prompt}
+
+${CONTINUITY_WITH_NOTES}
+
+Notes from earlier runs:
+${job.notes}`
+}
+
 /** Runner that starts jobs and keeps their Sessions mounted. */
 export interface JobRunner {
-  /** Run one fire of one job and report how it ended. */
-  run(job: CronJobSpec, firedAt: number): Promise<CronRunOutcome>
+  /** Run one fire of one job and report how it ended, with its session and final text. */
+  run(job: ScheduledJobSpec, firedAt: number): Promise<CronRunResult>
   /** Runs whose Sessions are still mounted. */
   live(): number
   /** Dispose the oldest runs until at most `max` remain mounted. */
@@ -73,19 +95,19 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   }
 
   return {
-    async run(job: CronJobSpec, firedAt: number): Promise<CronRunOutcome> {
+    async run(job: ScheduledJobSpec, firedAt: number): Promise<CronRunResult> {
       let session: UnattendedSession
       try {
         session = await openSession(job, firedAt)
       } catch (error: unknown) {
         ctx.logger.error(`dsh-cron: job "${job.name}" could not start a session: ${errorChain(error)}`)
-        return 'failed'
+        return { outcome: 'failed', sessionId: '', text: '' }
       }
       mounted.push(session)
       const agent = session.handle.agent
       const firstSeq = agent.session.seq
       agent.followup(createUserMessage({
-        content: [{ type: 'text', text: job.prompt }],
+        content: [{ type: 'text', text: runPrompt(job) }],
         source: {
           kind: 'cron',
           jobName: job.name,
@@ -104,15 +126,15 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
           mounted.splice(index, 1)
           await disposeHandle(ctx, session)
         }
-        return 'timed-out'
+        return { outcome: 'timed-out', sessionId: session.sessionId, text: '' }
       }
       const answer = lastAssistantText(agent.session.ownEvents(), firstSeq)
       if (answer === '') {
         ctx.logger.info(`dsh-cron: job "${job.name}" finished without a text answer`)
-        return 'no-text-answer'
+        return { outcome: 'no-text-answer', sessionId: session.sessionId, text: '' }
       }
       ctx.logger.info(`dsh-cron: job "${job.name}" finished in session ${session.sessionId}`)
-      return 'answered'
+      return { outcome: 'answered', sessionId: session.sessionId, text: answer }
     },
 
     live(): number {

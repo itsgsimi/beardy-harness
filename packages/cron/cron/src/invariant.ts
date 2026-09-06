@@ -15,9 +15,10 @@ export const name = 'cron-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: this package appends no event of its own and owns no durable record. Each fire
- * reaches a Session as an ordinary `user/message` carrying cron provenance, which the core session log
- * already validates; timer state exists only while the process runs.
+ * No runtime invariant: the durable job records are zod-validated on load and every mutation lands in
+ * the storage domain before it becomes visible, so no independent observation can diverge from them.
+ * Each fire reaches a Session as an ordinary `user/message` carrying cron provenance, which the core
+ * session log already validates; timer state exists only while the process runs.
  */
 const install: InvariantInstaller = () => {}
 

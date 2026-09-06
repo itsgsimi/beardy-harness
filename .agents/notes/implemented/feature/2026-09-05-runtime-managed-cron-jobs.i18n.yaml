@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-runtime-managed-cron-jobs.md
+2026-09-05-runtime-managed-cron-jobs.md: b506e0b31696dac0d885fe2f0099ab892c9c3cfe
+2026-09-05-runtime-managed-cron-jobs.zh.md: 7884a53e479a8ae28f73bf5f5cf944e3462be9d4

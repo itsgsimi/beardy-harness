@@ -311,6 +311,11 @@ export function harness(options: HarnessOptions = {}) {
   return {
     router, calls, posted, prompts, typed, events, agent, handle, controller, table, registeredCommands, warnings,
     waitResolvers,
+    emitEvent: (event: string, payload: Record<string, unknown>) => {
+      for (const handler of [...(eventHandlers.get(event) ?? [])]) {
+        handler(payload, () => Promise.reject(new Error('next called on a plain event')))
+      }
+    },
     ctx: ctx as unknown as Context,
     releaseIdle: () => { idleResolve() },
     emitStatus: (liveAgent: unknown, status: string) => {
