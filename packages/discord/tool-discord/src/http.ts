@@ -213,3 +213,17 @@ export const openDirectMessageChannel: DiscordDmChannelOpener = async (request, 
   }
   return channelId
 }
+
+/**
+ * Tell Discord the bot is typing in one channel. The indicator expires on Discord's side after
+ * about ten seconds, so a long-running turn repeats this call rather than sending one.
+ *
+ * @param channelId - channel to show the typing indicator in.
+ * @param token - bot token resolved for this operation only.
+ * @param signal - cancellation for this single attempt.
+ * @returns resolution once the request completes; the reply status is not inspected, because a
+ * missed indicator must never fail the turn it decorates.
+ */
+export async function postTyping(channelId: string, token: string, signal: AbortSignal): Promise<void> {
+  await postBounded(`/channels/${channelId}/typing`, token, {}, signal)
+}

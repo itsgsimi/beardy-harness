@@ -1,174 +1,57 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { createConversationRouter, isAdmitted, boundedContent } from '../src/conversation.ts'
-import type { RoutingPolicy } from '../src/conversation.ts'
-import type { DiscordInboundMessage, GatewaySettings } from '../src/types.ts'
-
-const USER = '138391763999129600'
-const CHANNEL = '1472404859679670455'
-const GUILD_CHANNEL = '1478276183543119914'
-
-const POLICY: RoutingPolicy = { allowedUserIds: new Set([USER]), allowedChannelIds: new Set([GUILD_CHANNEL]) }
-
-const SETTINGS: GatewaySettings = {
-  workspacePath: '/workspace',
-  agentPreset: 'beardy',
-  permissionPreset: 'danger-full-access',
-  titlePrefix: 'Discord',
-  maxInputChars: 400,
-  turnTimeoutMs: 1_000,
-}
-
-function inbound(overrides: Partial<DiscordInboundMessage> = {}): DiscordInboundMessage {
-  return {
-    id: 'm1',
-    channelId: CHANNEL,
-    guildId: '',
-    authorId: USER,
-    bot: false,
-    channelType: 1,
-    content: 'is the build green?',
-    ...overrides,
-  }
-}
-
-interface HarnessOptions {
-  /** Per-turn bound for this router; short so an unsettled turn is observable. */
-  readonly turnTimeoutMs?: number
-  /** Never resolve whenIdle, simulating a turn that outlives its bound. */
-  readonly hang?: boolean
-  readonly failAttach?: boolean
-  readonly failPost?: boolean
-  readonly failToken?: boolean
-  /** Assistant text the turn commits; empty means the agent answered with no text. */
-  readonly replyText?: string
-  /** Reject whenIdle, as a turn that fails outright does. */
-  readonly rejectIdle?: boolean
-  /** Reject the delay seam instead of waiting on the router's own sleep. */
-  readonly rejectWait?: boolean
-  /** Leave out the post seam so the router's Discord transport runs. */
-  readonly useDefaultPost?: boolean
-  /** Fail the title step, after the session is already attached. */
-  readonly failTitle?: boolean
-}
-
-/** Context carrying the services the router touches, recording every call it makes. */
-function harness(options: HarnessOptions = {}) {
-  const calls: string[] = []
-  const events: SessionEvent[] = []
-  let idleResolve: () => void = () => {}
-  const agent = {
-    session: {
-      get seq(): number { return events.length },
-      ownEvents: () => events,
-    },
-    followup(message: { content: readonly { text?: string }[] }) {
-      calls.push(`followup:${message.content[0]?.text ?? ''}`)
-      if (options.replyText !== undefined) {
-        events.push({
-          seq: events.length + 1,
-          type: 'assistant/message',
-          data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: options.replyText }] } },
-        } as unknown as SessionEvent)
-      }
-    },
-    whenIdle: () => {
-      if (options.rejectIdle) return Promise.reject(new Error('turn failed'))
-      return new Promise<void>((resolve) => {
-        if (!options.hang) resolve()
-        else idleResolve = resolve
-      })
-    },
-  }
-  const handle = { agent, dispose: vi.fn(async () => { calls.push('dispose') }) }
-  const ctx = {
-    logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
-    permissionPresets: {
-      resolve: (name: string) => { calls.push(`permission-resolve:${name}`); return {} },
-      set: (_session: unknown, name: string) => { calls.push(`permission-set:${name}`) },
-    },
-    agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
-    agentPresets: {
-      resolve: async (name: string) => { calls.push(`preset-resolve:${name}`); return { id: name } },
-      standingKeyFor: async (name: string) => { calls.push(`standing:${name}`); return {} },
-      mount: async (_ctx: unknown, name: string) => { calls.push(`mount:${name}`) },
-    },
-    workspaceRegistry: {
-      create: async (path: string) => {
-        calls.push(`workspace:${path}`)
-        return {
-          path,
-          attachSession: async () => {
-            calls.push('attach')
-            if (options.failAttach) throw new Error('attach failed')
-          },
-          detachSession: async () => { calls.push('detach') },
-        }
-      },
-    },
-    agents: {
-      create: async (options: { setup?: (agentCtx: unknown) => Promise<void> }) => {
-        calls.push('agent-create')
-        await options.setup?.({ on: () => () => {} })
-        return handle
-      },
-    },
-    sessionTitle: {
-      rename: (_session: unknown, title: string) => {
-        calls.push(`title:${title}`)
-        if (options.failTitle) throw new Error('title failed')
-      },
-    },
-  }
-  const posted: { content: string; channelId: string; token: string }[] = []
-  const controller = new AbortController()
-  const router = createConversationRouter({
-    ctx: ctx as unknown as Context,
-    signal: controller.signal,
-    settings: { ...SETTINGS, turnTimeoutMs: options.turnTimeoutMs ?? SETTINGS.turnTimeoutMs },
-    policy: POLICY,
-    resolveToken: async () => {
-      if (options.failToken) throw new Error('no token')
-      return 'tok'
-    },
-    ...(options.rejectWait === true ? { wait: () => Promise.reject(new Error('listener gone')) } : {}),
-    ...(options.useDefaultPost ? {} : {
-      post: async (content: string, channelId: string, token: string) => {
-        calls.push('post')
-        if (options.failPost) throw new Error('post failed')
-        posted.push({ content, channelId, token })
-      },
-    }),
-  })
-  return {
-    router, calls, posted, events, agent, handle, controller, ctx: ctx as unknown as Context,
-    releaseIdle: () => { idleResolve() },
-  }
-}
-
-/** Let queued turns run to completion. */
-async function drain(times = 6): Promise<void> {
-  for (let index = 0; index < times; index += 1) await new Promise(resolve => setTimeout(resolve, 2))
-}
+import { isAdmitted, boundedContent } from '../src/conversation.ts'
+import { BOT_USER, CHANNEL, GUILD_CHANNEL, USER, drain, harness, inbound, record } from './support.ts'
 
 describe('isAdmitted', () => {
+  const policy = (overrides: Partial<Parameters<typeof isAdmitted>[1]> = {}) => ({
+    allowedUserIds: new Set([USER]),
+    allowedChannelIds: new Set([GUILD_CHANNEL]),
+    guildRequireMention: false,
+    botUserId: () => BOT_USER,
+    ...overrides,
+  })
+
   it('answers an allowed user in a direct message', () => {
-    expect(isAdmitted(inbound(), POLICY)).toBe(true)
+    expect(isAdmitted(inbound(), policy())).toBe(true)
   })
 
   it('ignores bots, including its own account', () => {
-    expect(isAdmitted(inbound({ bot: true }), POLICY)).toBe(false)
+    expect(isAdmitted(inbound({ bot: true }), policy())).toBe(false)
   })
 
   it('ignores a user the deployment did not allow', () => {
-    expect(isAdmitted(inbound({ authorId: '999999999999999999' }), POLICY)).toBe(false)
+    expect(isAdmitted(inbound({ authorId: '999999999999999999' }), policy())).toBe(false)
   })
 
   it('reads an allowed guild channel and ignores any other', () => {
     const guild = { guildId: 'g1', channelType: 0 }
-    expect(isAdmitted(inbound({ ...guild, channelId: GUILD_CHANNEL }), POLICY)).toBe(true)
-    expect(isAdmitted(inbound({ ...guild, channelId: '111111111111111111' }), POLICY)).toBe(false)
+    expect(isAdmitted(inbound({ ...guild, channelId: GUILD_CHANNEL }), policy())).toBe(true)
+    expect(isAdmitted(inbound({ ...guild, channelId: '111111111111111111' }), policy())).toBe(false)
+  })
+
+  it('ignores an unaddressed guild message when mentions are required', () => {
+    const guild = { guildId: 'g1', channelType: 0, channelId: GUILD_CHANNEL }
+    const mentionPolicy = policy({ guildRequireMention: true })
+    expect(isAdmitted(inbound(guild), mentionPolicy)).toBe(false)
+  })
+
+  it('admits a guild message that mentions or replies to the bot', () => {
+    const guild = { guildId: 'g1', channelType: 0, channelId: GUILD_CHANNEL }
+    const mentionPolicy = policy({ guildRequireMention: true })
+    expect(isAdmitted(inbound({ ...guild, mentionedUserIds: [BOT_USER] }), mentionPolicy)).toBe(true)
+    expect(isAdmitted(inbound({ ...guild, replyToAuthorId: BOT_USER }), mentionPolicy)).toBe(true)
+  })
+
+  it('admits no guild message while the bot id is still unknown', () => {
+    const guild = { guildId: 'g1', channelType: 0, channelId: GUILD_CHANNEL }
+    expect(isAdmitted(inbound({ ...guild, mentionedUserIds: [BOT_USER] }), policy({
+      guildRequireMention: true,
+      botUserId: () => '',
+    }))).toBe(false)
+  })
+
+  it('answers direct messages even when mentions are required', () => {
+    expect(isAdmitted(inbound(), policy({ guildRequireMention: true }))).toBe(true)
   })
 })
 
@@ -185,7 +68,7 @@ describe('boundedContent', () => {
 })
 
 describe('conversation router', () => {
-  it('opens one session per channel and posts the agent answer back', async () => {
+  it('opens one session per channel, records it, and posts the agent answer back', async () => {
     const h = harness({ replyText: 'Yes, main is green.' })
     h.router.handle(inbound())
     await drain()
@@ -196,13 +79,21 @@ describe('conversation router', () => {
       'workspace:/workspace',
       'agent-create',
       'mount:beardy',
+      'cmd:new',
+      'cmd:status',
+      'cmd:stop',
       'attach',
       'permission-set:danger-full-access',
       'title:Discord 1472404859679670455',
+      `put:${CHANNEL}`,
       'followup:is the build green?',
       'post',
+      `put:${CHANNEL}`,
     ])
     expect(h.posted).toEqual([{ content: 'Yes, main is green.', channelId: CHANNEL, token: 'tok' }])
+    const stored = h.table.records.get(CHANNEL)
+    expect(stored?.sessionId).toMatch(/^discord-1472404859679670455-/)
+    expect(stored?.agentPreset).toBe('beardy')
 
     h.router.handle(inbound({ id: 'm2', content: 'and the tests?' }))
     await drain()
@@ -232,25 +123,25 @@ describe('conversation router', () => {
     expect(h.calls).not.toContain('post')
   })
 
-  it('warns and posts nothing when a turn outlives its bound, releasing the conversation', async () => {
+  it('warns and posts nothing when a turn outlives its bound, releasing the live handle', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
     h.router.handle(inbound())
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
     expect(h.posted).toEqual([])
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     h.releaseIdle()
   })
 
-  it('opens a fresh session for the message after a timed-out turn', async () => {
+  it('resumes the recorded session for the message after a timed-out turn', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
     h.router.handle(inbound())
     await drain()
-    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(1)
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     h.router.handle(inbound({ id: 'm2', content: 'still there?' }))
     await drain()
-    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(2)
+    expect(h.calls.some(call => call.startsWith('agent-resume:'))).toBe(true)
+    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(1)
     expect(h.calls).toContain('followup:still there?')
   })
 
@@ -258,14 +149,14 @@ describe('conversation router', () => {
     const h = harness({ replyText: 'answer', failPost: true })
     h.router.handle(inbound())
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('reply to channel'))
+    expect(h.warnings.some(message => message.includes('reply to channel'))).toBe(true)
   })
 
   it('warns when the credential is gone by reply time', async () => {
     const h = harness({ replyText: 'answer', failToken: true })
     h.router.handle(inbound())
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('reply to channel'))
+    expect(h.warnings.some(message => message.includes('reply to channel'))).toBe(true)
   })
 
   it('rolls back a session whose workspace attach failed and reports the message failure', async () => {
@@ -274,7 +165,7 @@ describe('conversation router', () => {
     await drain()
     expect(h.calls).not.toContain('detach')
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('message m1 failed'))
+    expect(h.warnings.some(message => message.includes('message m1 failed'))).toBe(true)
   })
 
   it('disposes every live conversation and forgets its channels', async () => {
@@ -287,11 +178,21 @@ describe('conversation router', () => {
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves a release timer armed by a disposed router inert', async () => {
+    const h = harness({ replyText: 'answer', idleReleaseMs: 5 })
+    h.router.handle(inbound())
+    await new Promise(resolve => setTimeout(resolve, 2))
+    await h.router.dispose()
+    const before = h.handle.dispose.mock.calls.length
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(h.handle.dispose.mock.calls.length).toBe(before)
+  })
+
   it('treats a rejected delay seam as a turn that did not settle', async () => {
     const h = harness({ replyText: 'late', rejectWait: true })
     h.router.handle(inbound())
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
     expect(h.posted).toEqual([])
   })
 
@@ -299,7 +200,7 @@ describe('conversation router', () => {
     const h = harness({ replyText: 'late', rejectIdle: true })
     h.router.handle(inbound())
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
   })
 
   it('stops waiting when the listener is cancelled while a turn runs', async () => {
@@ -308,7 +209,7 @@ describe('conversation router', () => {
     await new Promise(resolve => setTimeout(resolve, 2))
     h.controller.abort(new Error('listener disposed'))
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
   })
 
   it('reports a cancellation whose reason is not an error object', async () => {
@@ -317,7 +218,7 @@ describe('conversation router', () => {
     await new Promise(resolve => setTimeout(resolve, 2))
     h.controller.abort('listener gone')
     await drain()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('did not settle within'))
+    expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
   })
 
   it('rolls back a session that fails after it was attached', async () => {
@@ -326,7 +227,7 @@ describe('conversation router', () => {
     await drain()
     expect(h.calls).toContain('detach')
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('message m1 failed'))
+    expect(h.warnings.some(message => message.includes('message m1 failed'))).toBe(true)
   })
 
   it('posts the answer through the Discord transport when no seam is given', async () => {
@@ -361,6 +262,76 @@ describe('conversation router', () => {
     await drain()
     h.handle.dispose.mockRejectedValueOnce(new Error('dispose failed'))
     await h.router.dispose()
-    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('disposal of Session'))
+    expect(h.warnings.some(message => message.includes('disposal of Session'))).toBe(true)
+  })
+
+  it('shows the typing indicator while a turn runs when enabled', async () => {
+    const h = harness({ replyText: 'later', hang: true, typingIndicator: true, turnTimeoutMs: 5_000 })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.typed).toEqual([CHANNEL])
+    h.releaseIdle()
+    await drain()
+    expect(h.posted).toHaveLength(1)
+  })
+
+  it('sends no typing indicator while disabled', async () => {
+    const h = harness({ replyText: 'fast', typingIndicator: false })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.typed).toEqual([])
+  })
+
+  it('stops the typing loop when the indicator itself fails', async () => {
+    const h = harness({ replyText: 'x', hang: true, typingIndicator: true, failType: true, turnTimeoutMs: 5_000 })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.warnings.some(message => message.includes('typing indicator'))).toBe(true)
+    h.releaseIdle()
+  })
+
+  it('abandons the typing loop when the credential is gone', async () => {
+    const h = harness({ replyText: 'x', hang: true, typingIndicator: true, failToken: true, turnTimeoutMs: 5_000 })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.typed).toEqual([])
+    h.releaseIdle()
+  })
+
+  it('reports a disposal that fails while /new releases the conversation', async () => {
+    const h = harness({ replyText: 'answer' })
+    h.router.handle(inbound())
+    await drain()
+    h.handle.dispose.mockRejectedValueOnce(new Error('dispose failed'))
+    h.router.handle(inbound({ id: 'm2', content: '/new' }))
+    await drain()
+    expect(h.warnings.some(message => message.includes('disposal of Session'))).toBe(true)
+    expect(h.table.records.get(CHANNEL)).toBeUndefined()
+  })
+
+  it('treats an aborted typing request as the turn ending, not a failure', async () => {
+    const h = harness({ replyText: 'x', hang: true, typingIndicator: true, slowType: true, turnTimeoutMs: 5_000 })
+    h.router.handle(inbound())
+    await drain()
+    h.releaseIdle()
+    await drain()
+    expect(h.warnings.some(message => message.includes('typing indicator'))).toBe(false)
+    expect(h.posted).toHaveLength(1)
+  })
+
+  it('keeps serving a second channel independently of the first', async () => {
+    const h = harness({ replyText: 'both' })
+    h.router.handle(inbound({ channelId: CHANNEL }))
+    h.router.handle(inbound({ channelId: GUILD_CHANNEL, id: 'm2' }))
+    await drain()
+    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(2)
+    expect(h.posted.map(entry => entry.channelId)).toEqual([CHANNEL, GUILD_CHANNEL])
+  })
+
+  it('ignores the durable record of a different channel', async () => {
+    const h = harness({ replyText: 'fresh', initialRecord: record({ channelId: '999999999999999999' }) })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(1)
   })
 })

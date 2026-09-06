@@ -1,8 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
-import { openUnattendedSession } from '../src/open.ts'
-import type { UnattendedSessionSpec } from '../src/open.ts'
+import { openUnattendedSession, resumeUnattendedSession } from '../src/open.ts'
+import type { ResumeUnattendedSessionSpec, UnattendedSessionSpec } from '../src/open.ts'
 
 type FailStep =
   | 'permission-resolve' | 'preset-resolve' | 'standing' | 'workspace'
@@ -13,6 +13,8 @@ interface HarnessOptions {
   readonly failDetach?: boolean
   readonly failDispose?: boolean
   readonly abortAt?: 'workspace' | 'agent'
+  /** Reject the resume call with the missing-log error, as a deleted Session does. */
+  readonly resumeMissing?: boolean
 }
 
 /** Context fake recording every step the open transaction takes, failing where asked. */
@@ -76,6 +78,15 @@ function harness(options: HarnessOptions = {}) {
         calls.push('agent-create')
         if (options.failAt === 'agent') throw new Error('agent failed')
         const result = await createOptions.setup?.({ on: () => () => {} })
+        if (result !== undefined) calls.push('setup-commit')
+        if (options.abortAt === 'agent') controller.abort(new Error('abort after agent'))
+        return handle
+      },
+      resume: async (resumeOptions: { resumeSessionId: string; setup?: (agentCtx: unknown) => Promise<unknown> }) => {
+        calls.push(`agent-resume:${resumeOptions.resumeSessionId}`)
+        if (options.failAt === 'agent') throw new Error('agent failed')
+        if (options.resumeMissing) throw new Error('session log is gone')
+        const result = await resumeOptions.setup?.({ on: () => () => {} })
         if (result !== undefined) calls.push('setup-commit')
         if (options.abortAt === 'agent') controller.abort(new Error('abort after agent'))
         return handle
@@ -157,5 +168,78 @@ describe('openUnattendedSession', () => {
     const h = harness({ abortAt })
     await expect(openUnattendedSession(h.ctx, SPEC, h.controller.signal)).rejects.toThrow(/abort after/)
     if (abortAt === 'agent') expect(h.calls).toContain('dispose')
+  })
+})
+
+const RESUME_SPEC: ResumeUnattendedSessionSpec = {
+  sessionId: SessionId('discord-c1-1'),
+  agentPreset: 'beardy',
+  permissionPreset: 'workspace-write',
+  workspacePath: '/workspace',
+  agentOptions: { provider: 'p', model: 'm' },
+}
+
+describe('resumeUnattendedSession', () => {
+  it('resolves, mounts onto the resumed Agent, and attaches without titling', async () => {
+    const h = harness()
+    const session = await resumeUnattendedSession(h.ctx, RESUME_SPEC, h.controller.signal)
+    expect(h.calls).toEqual([
+      'permission-resolve:workspace-write',
+      'preset-resolve:beardy',
+      'standing:beardy',
+      'workspace:/workspace',
+      'agent-resume:discord-c1-1',
+      'mount:beardy',
+      'attach',
+      'permission-set:workspace-write',
+    ])
+    expect(session.sessionId).toBe(RESUME_SPEC.sessionId)
+    expect(session.workspace.path).toBe('/workspace')
+  })
+
+  it('composes the caller setup after the preset mount and forwards its commit', async () => {
+    const h = harness()
+    await resumeUnattendedSession(h.ctx, {
+      ...RESUME_SPEC,
+      setup: () => ({ commit: () => {} }),
+    }, h.controller.signal)
+    expect(h.calls).toEqual(expect.arrayContaining(['mount:beardy', 'setup-commit']))
+    expect(h.calls.indexOf('mount:beardy')).toBeLessThan(h.calls.indexOf('setup-commit'))
+  })
+
+  it('propagates a missing-log failure without rolling anything back', async () => {
+    const h = harness({ resumeMissing: true })
+    await expect(resumeUnattendedSession(h.ctx, RESUME_SPEC, h.controller.signal))
+      .rejects.toThrow('session log is gone')
+    expect(h.calls).not.toContain('attach')
+    expect(h.calls).not.toContain('dispose')
+  })
+
+  it.each(['workspace', 'attach'] as const)('contains a %s failure', async (failAt) => {
+    const h = harness({ failAt })
+    await expect(resumeUnattendedSession(h.ctx, RESUME_SPEC, h.controller.signal)).rejects.toThrow()
+    if (failAt === 'attach') expect(h.calls).toContain('dispose')
+    expect(h.calls).not.toContain('detach')
+  })
+
+  it('detaches and disposes after a permission-set failure', async () => {
+    const h = harness({ failAt: 'permission-set' })
+    await expect(resumeUnattendedSession(h.ctx, RESUME_SPEC, h.controller.signal)).rejects.toThrow()
+    expect(h.calls).toContain('detach')
+    expect(h.calls).toContain('dispose')
+  })
+
+  it('preserves the original failure while reporting rollback failures', async () => {
+    const h = harness({ failAt: 'permission-set', failDetach: true, failDispose: true })
+    await expect(resumeUnattendedSession(h.ctx, RESUME_SPEC, h.controller.signal))
+      .rejects.toThrow('permission set failed')
+    expect(h.ctx.logger.warn).toHaveBeenCalledTimes(2)
+  })
+
+  it('honors cancellation after the resumed Agent settles', async () => {
+    const h = harness({ abortAt: 'agent' })
+    await expect(resumeUnattendedSession(h.ctx, RESUME_SPEC, h.controller.signal))
+      .rejects.toThrow(/abort after agent/)
+    expect(h.calls).toContain('dispose')
   })
 })

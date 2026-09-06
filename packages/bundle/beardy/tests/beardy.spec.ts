@@ -86,7 +86,8 @@ describe('dsh-beardy bundle', () => {
     expect(patchIds).toEqual(expect.arrayContaining(['persona', 'agent-instructions']))
     // The agent-instructions patch loads the curated memory files as user-global
     // instruction candidates, and a sibling row mounts their editor.
-    const instructions = entry.config.patches.find(value => isRecord(value) && value.id === 'agent-instructions')
+    const patches: readonly unknown[] = entry.config.patches as readonly unknown[]
+    const instructions = patches.find(value => isRecord(value) && value.id === 'agent-instructions')
     if (!isRecord(instructions) || !isRecord(instructions.config)) throw new TypeError('agent-instructions patch config')
     expect(instructions.config.userGlobalInstructionCandidates)
       .toEqual(['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'])

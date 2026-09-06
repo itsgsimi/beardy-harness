@@ -110,8 +110,8 @@ describe('applyOperation', () => {
 
 describe('assertWithinCap', () => {
   it('accepts text at the cap and rejects one character over', () => {
-    expect(() => assertWithinCap('- ok\n', 5, 'USER.md')).not.toThrow()
-    expect(() => assertWithinCap('- over\n', 5, 'USER.md'))
+    expect(() => { assertWithinCap('- ok\n', 5, 'USER.md') }).not.toThrow()
+    expect(() => { assertWithinCap('- over\n', 5, 'USER.md') })
       .toThrow('USER.md would be 7 characters, over its 5-character cap')
   })
 })

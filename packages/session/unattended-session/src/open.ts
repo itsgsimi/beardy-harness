@@ -108,3 +108,82 @@ export async function openUnattendedSession(
   }
   return { sessionId: spec.sessionId, handle, workspace }
 }
+
+/** One resumed unattended Session, specified by the durable identity its ingress already holds. */
+export interface ResumeUnattendedSessionSpec {
+  /** Durable id of the persisted Session to load and continue. */
+  readonly sessionId: SessionId
+  /** Agent preset to resolve and mount onto the resumed Session. */
+  readonly agentPreset: string
+  /** Permission preset validated at resolution and then applied to the Session. */
+  readonly permissionPreset: string
+  /** Fully qualified workspace directory that owns the Session. */
+  readonly workspacePath: string
+  /** Provider and model handed to Agent resume; resolved by the caller from its own selection. */
+  readonly agentOptions: {
+    readonly provider: string
+    readonly model: string
+    readonly maxTokens?: number
+  }
+  /** Extra setup composed inside the Agent scope after the preset mounts. */
+  readonly setup?: AgentSetup
+}
+
+/**
+ * Resume one persisted unattended root Session in the same order {@link openUnattendedSession}
+ * creates it, substituting `ctx.agents.resume` for creation and leaving the stored title alone.
+ * A missing durable log rejects with `SessionPersistenceNotFoundError`; every other failure keeps
+ * its own cause. A failure after Agent resume disposes it (detaching first when the attach had
+ * succeeded), reporting each rollback failure while the original error propagates.
+ *
+ * @param ctx - runtime context that owns the resulting Agent, so disposal follows the fiber.
+ * @param spec - persisted id, preset, permission, workspace, model options, and optional extra setup.
+ * @param signal - cancellation of the operation resuming this Session.
+ * @returns the resumed Session's id, Agent handle, and attached Workspace.
+ */
+export async function resumeUnattendedSession(
+  ctx: Context,
+  spec: ResumeUnattendedSessionSpec,
+  signal: AbortSignal,
+): Promise<UnattendedSession> {
+  ctx.permissionPresets.resolve(spec.permissionPreset)
+  const preset = await ctx.agentPresets.resolve(spec.agentPreset)
+  await ctx.agentPresets.standingKeyFor(preset.id)
+  signal.throwIfAborted()
+
+  const workspace = await ctx.workspaceRegistry.create(spec.workspacePath)
+  signal.throwIfAborted()
+  const handle = await ctx.agents.resume({
+    resumeSessionId: spec.sessionId,
+    agentOptions: spec.agentOptions,
+    signal,
+    setup: async (agentCtx) => {
+      await ctx.agentPresets.mount(agentCtx, preset.id)
+      return spec.setup?.(agentCtx)
+    },
+  })
+
+  let attached = false
+  try {
+    signal.throwIfAborted()
+    await workspace.attachSession(spec.sessionId)
+    attached = true
+    signal.throwIfAborted()
+    ctx.permissionPresets.set(handle.agent.session, spec.permissionPreset)
+  } catch (error: unknown) {
+    if (attached) {
+      try {
+        await workspace.detachSession(spec.sessionId)
+      } catch (rollbackError: unknown) {
+        reportRollbackFailure(ctx, `Workspace detach for Session "${spec.sessionId}"`, rollbackError)
+      }
+    }
+    try {
+      await handle.dispose()
+    } catch (rollbackError: unknown) {
+      reportRollbackFailure(ctx, `Agent disposal for Session "${spec.sessionId}"`, rollbackError)
+    }
+    throw error
+  }
+  return { sessionId: spec.sessionId, handle, workspace }
+}

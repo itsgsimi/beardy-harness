@@ -12,11 +12,14 @@ import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import { createConversationRouter } from './conversation.ts'
 import type { ConversationRouter, RoutingPolicy } from './conversation.ts'
+import { discordGatewayDomainSpec } from './domain.ts'
 import { connectDiscordGateway, DISCORD_GATEWAY_INTENTS } from './gateway.ts'
 import type { DiscordGatewayOptions, GatewaySocketFactory } from './gateway.ts'
 import type { GatewaySettings } from './types.ts'
 
 export * from './conversation.ts'
+export * from './commands.ts'
+export * from './domain.ts'
 export * from './gateway.ts'
 export type * from './types.ts'
 
@@ -28,9 +31,11 @@ export const inject = [
   'agentDefaultModel',
   'agentPresets',
   'agents',
+  'commands',
   'credentials',
   'permissionPresets',
   'sessionTitle',
+  'storageDomain',
   'workspaceRegistry',
 ]
 
@@ -45,6 +50,15 @@ export const DEFAULT_DISCORD_RECONNECT_DELAY_MS = 1_000
 
 /** Default cap on the doubled reconnect delay. */
 export const DEFAULT_DISCORD_MAX_RECONNECT_DELAY_MS = 30_000
+
+/** Default silence after which the live Agent handle is released; the durable record stays. */
+export const DEFAULT_DISCORD_IDLE_RELEASE_MS = 900_000
+
+/** Default silence after which the next message starts a fresh Session. */
+export const DEFAULT_DISCORD_CONVERSATION_MAX_AGE_MS = 86_400_000
+
+/** Default window in which one channel's messages join into one turn. */
+export const DEFAULT_DISCORD_INBOUND_DEBOUNCE_MS = 3_000
 
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
 export interface Config {
@@ -70,6 +84,16 @@ export interface Config {
   readonly reconnectDelayMs?: number
   /** Cap on the doubled reconnect delay. Defaults to 30000. */
   readonly maxReconnectDelayMs?: number
+  /** Silence after which the live Agent handle is released; the record stays and the next message resumes. Defaults to 900000. */
+  readonly idleReleaseMs?: number
+  /** Silence after which the next message starts a fresh Session and replaces the record. Defaults to 86400000. */
+  readonly conversationMaxAgeMs?: number
+  /** Window in which one channel's messages join into a single turn; `0` answers each message. Defaults to 3000. */
+  readonly inboundDebounceMs?: number
+  /** Answer guild-channel messages only when the bot is mentioned or replied to. Defaults to true. */
+  readonly guildRequireMention?: boolean
+  /** Send the typing indicator while an inbound turn runs. Defaults to true. */
+  readonly typingIndicator?: boolean
   /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
   readonly enabled?: boolean
 }
@@ -86,6 +110,11 @@ export const Config: z<Config> = z.object({
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_TURN_TIMEOUT_MS),
   reconnectDelayMs: z.number().min(1).default(DEFAULT_DISCORD_RECONNECT_DELAY_MS),
   maxReconnectDelayMs: z.number().min(1).default(DEFAULT_DISCORD_MAX_RECONNECT_DELAY_MS),
+  idleReleaseMs: z.number().min(1_000).default(DEFAULT_DISCORD_IDLE_RELEASE_MS),
+  conversationMaxAgeMs: z.number().min(1_000).default(DEFAULT_DISCORD_CONVERSATION_MAX_AGE_MS),
+  inboundDebounceMs: z.number().min(0).default(DEFAULT_DISCORD_INBOUND_DEBOUNCE_MS),
+  guildRequireMention: z.boolean().default(true),
+  typingIndicator: z.boolean().default(true),
   enabled: z.boolean().default(true),
 })
 
@@ -111,6 +140,8 @@ export function assertConfig(config: ResolvedConfig): void {
     throw new Error(`discord-gateway: workspacePath must be absolute, got "${config.workspacePath}"`)
   }
   for (const [field, value] of Object.entries(config)) {
+    // `inboundDebounceMs` is the one duration a deployment may set to zero: answer every message at once.
+    if (field === 'inboundDebounceMs') continue
     if (typeof value === 'number' && (!Number.isSafeInteger(value) || value <= 0)) {
       throw new Error(`discord-gateway: ${field} must be a positive safe integer`)
     }
@@ -118,10 +149,17 @@ export function assertConfig(config: ResolvedConfig): void {
   if (config.reconnectDelayMs > config.maxReconnectDelayMs) {
     throw new Error('discord-gateway: reconnectDelayMs must not exceed maxReconnectDelayMs')
   }
+  if (config.idleReleaseMs >= config.conversationMaxAgeMs) {
+    throw new Error('discord-gateway: idleReleaseMs must be shorter than conversationMaxAgeMs, '
+      + 'otherwise no conversation is ever resumed as an idle one before it expires')
+  }
 }
 
 /** Split validated configuration into the settings and policy the router reads. */
-export function toSettings(config: ResolvedConfig): { settings: GatewaySettings; policy: RoutingPolicy } {
+export function toSettings(
+  config: ResolvedConfig,
+  botUserId: () => string,
+): { settings: GatewaySettings; policy: RoutingPolicy } {
   return {
     settings: {
       workspacePath: config.workspacePath,
@@ -130,10 +168,17 @@ export function toSettings(config: ResolvedConfig): { settings: GatewaySettings;
       titlePrefix: config.titlePrefix,
       maxInputChars: config.maxInputChars,
       turnTimeoutMs: config.turnTimeoutMs,
+      idleReleaseMs: config.idleReleaseMs,
+      conversationMaxAgeMs: config.conversationMaxAgeMs,
+      inboundDebounceMs: config.inboundDebounceMs,
+      guildRequireMention: config.guildRequireMention,
+      typingIndicator: config.typingIndicator,
     },
     policy: {
       allowedUserIds: new Set(config.allowedUserIds),
       allowedChannelIds: new Set(config.allowedChannelIds),
+      guildRequireMention: config.guildRequireMention,
+      botUserId,
     },
   }
 }
@@ -169,6 +214,7 @@ export type GatewayConnector = (options: DiscordGatewayOptions, signal: AbortSig
  * @param router - conversation router fed by the gateway's messages.
  * @param signal - cancellation owned by the plugin's registration.
  * @param connect - connection seam, defaulting to the real Gateway client.
+ * @param onReady - receives the bot's own user id from every `READY` dispatch.
  */
 export async function startListener(
   ctx: Context,
@@ -176,6 +222,7 @@ export async function startListener(
   router: ConversationRouter,
   signal: AbortSignal,
   connect: GatewayConnector = connectDiscordGateway,
+  onReady?: (applicationId: string) => void,
 ): Promise<void> {
   try {
     const credential = await resolveBotToken(ctx, config.tokenEnv)
@@ -185,6 +232,7 @@ export async function startListener(
       token: credential,
       intents: DISCORD_GATEWAY_INTENTS,
       onMessage: (message) => { router.handle(message) },
+      ...(onReady === undefined ? {} : { onReady }),
       onStatus: (status) => {
         if (status.kind === 'ready') {
           ctx.logger.info('discord-gateway: connected; messages from allowed users start conversations')
@@ -202,33 +250,45 @@ export async function startListener(
 }
 
 /**
- * Mount the Discord listener: validate configuration, own one cancellation for the connection, and
- * dispose the gateway socket and every conversation Session when the fiber goes away.
- * @param ctx - registrant context carrying Session-creating services and the credential provider.
- * @param config - deployment's token reference, allowlists, workspace, and presets.
+ * Mount the Discord listener: validate configuration, open the durable conversation records, own
+ * one cancellation for the connection, and dispose the gateway socket and every live conversation
+ * Session when the fiber goes away. Durable records survive; only live handles are released.
+ * @param ctx - registrant context carrying Session-creating services, the command registry, and the credential provider.
+ * @param config - deployment's token reference, allowlists, workspace, presets, and conversation bounds.
  */
-export function apply(ctx: Context, config: Config): void {
+export async function apply(ctx: Context, config: Config): Promise<void> {
   const resolved = config as ResolvedConfig
   assertConfig(resolved)
   if (!resolved.enabled) {
     ctx.logger.info('discord-gateway: mounted but disabled by configuration')
     return
   }
+  const domain = await ctx.storageDomain.open(discordGatewayDomainSpec)
   const controller = new AbortController()
-  const { settings, policy } = toSettings(resolved)
+  let botUserId = ''
+  const { settings, policy } = toSettings(resolved, () => botUserId)
   const router = createConversationRouter({
     ctx,
     signal: controller.signal,
     settings,
     policy,
+    table: domain.table('conversations'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
   })
 
   ctx.effect(() => {
-    void startListener(ctx, resolved, router, controller.signal)
+    void startListener(
+      ctx,
+      resolved,
+      router,
+      controller.signal,
+      connectDiscordGateway,
+      (applicationId: string) => { botUserId = applicationId },
+    )
     return async () => {
       controller.abort(new Error('discord-gateway disposed'))
       await router.dispose()
+      await domain.close()
     }
   }, 'discord-gateway listener')
 }

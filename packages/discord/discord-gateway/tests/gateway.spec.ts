@@ -58,7 +58,11 @@ class FakeSocket implements GatewaySocket {
 /** Run the client against sockets the test hands out, stopping it when the body resolves. */
 async function withGateway(
   run: (sockets: FakeSocket[], statuses: GatewayStatus[]) => Promise<void>,
-  options: { reconnectDelayMs?: number; onMessage?: (message: DiscordInboundMessage) => void } = {},
+  options: {
+    readonly reconnectDelayMs?: number
+    readonly onMessage?: (message: DiscordInboundMessage) => void
+    readonly onReady?: (applicationId: string) => void
+  } = {},
 ): Promise<void> {
   const sockets: FakeSocket[] = []
   const statuses: GatewayStatus[] = []
@@ -72,6 +76,7 @@ async function withGateway(
     },
     onMessage: options.onMessage ?? (() => {}),
     onStatus: status => statuses.push(status),
+    ...(options.onReady === undefined ? {} : { onReady: options.onReady }),
     reconnectDelayMs: options.reconnectDelayMs ?? 5,
     maxReconnectDelayMs: 5,
   }, controller.signal)
@@ -100,7 +105,35 @@ describe('parseMessageCreate', () => {
     })
     expect(message).toEqual({
       id: 'm1', channelId: 'c1', guildId: 'g1', authorId: 'u1', bot: true, channelType: 0, content: 'hello',
+      mentionedUserIds: [], replyToAuthorId: '',
     })
+  })
+
+  it('reads mention ids and the author of a replied-to message', () => {
+    const message = parseMessageCreate({
+      id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: 'you',
+      mentions: [{ id: 'bot1' }, 'junk', {}, { id: 'user2' }],
+      referenced_message: { author: { id: 'bot1' } },
+    })
+    expect(message?.mentionedUserIds).toEqual(['bot1', 'user2'])
+    expect(message?.replyToAuthorId).toBe('bot1')
+  })
+
+  it('reads no reply author when the referenced message carries none', () => {
+    const message = parseMessageCreate({
+      id: 'm1', channel_id: 'c1', author: { id: 'u1' },
+      referenced_message: { author: null, content: 'quoted' },
+    })
+    expect(message?.replyToAuthorId).toBe('')
+  })
+
+  it('defaults absent mentions and replies to empty', () => {
+    const message = parseMessageCreate({
+      id: 'm1', channel_id: 'c1', author: { id: 'u1' },
+      mentions: 'junk', referenced_message: { author: {} },
+    })
+    expect(message?.mentionedUserIds).toEqual([])
+    expect(message?.replyToAuthorId).toBe('')
   })
 
   it('defaults a missing guild, channel type, and bot flag', () => {
@@ -166,18 +199,46 @@ describe('connectDiscordGateway', () => {
 
   it('hands every MESSAGE_CREATE dispatch to the callback and ignores other events', async () => {
     const messages: DiscordInboundMessage[] = []
-    await withGateway(async (sockets) => {
+    const readyIds: string[] = []
+    await withGateway(async (sockets, statuses) => {
       sockets[0]!.frame({
         op: DiscordGatewayOpcode.dispatch,
         t: 'MESSAGE_CREATE',
         s: 7,
         d: { id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: 'hi' },
       })
-      sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'READY', s: 8, d: {} })
+      sockets[0]!.frame({
+        op: DiscordGatewayOpcode.dispatch,
+        t: 'READY',
+        s: 8,
+        d: { application: { id: 'bot-1' } },
+      })
+      sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'READY', s: 9, d: {} })
       await tick()
-    }, { onMessage: message => messages.push(message) })
+      expect(statuses).toContainEqual({ kind: 'ready' })
+    }, { onMessage: message => messages.push(message), onReady: id => readyIds.push(id) })
     expect(messages).toHaveLength(1)
     expect(messages[0]?.channelId).toBe('c1')
+    expect(readyIds).toEqual(['bot-1'])
+  })
+
+  it('ignores dispatch events the listener does not consume', async () => {
+    const messages: DiscordInboundMessage[] = []
+    await withGateway(async (sockets, statuses) => {
+      sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'GUILD_CREATE', s: 6, d: { id: 'g1' } })
+      await tick()
+      expect(messages).toEqual([])
+      expect(statuses).not.toContainEqual({ kind: 'ready' })
+    }, { onMessage: message => messages.push(message) })
+  })
+
+  it('discards a MESSAGE_CREATE dispatch whose payload cannot parse', async () => {
+    const messages: DiscordInboundMessage[] = []
+    await withGateway(async (sockets) => {
+      sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'MESSAGE_CREATE', s: 7, d: {} })
+      await tick()
+    }, { onMessage: message => messages.push(message) })
+    expect(messages).toEqual([])
   })
 
   it('drops frames that are not JSON, not objects, or carry no opcode', async () => {

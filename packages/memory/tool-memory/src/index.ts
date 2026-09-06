@@ -83,7 +83,13 @@ const PROMPT_TEXT =
  * @param config - deployment's caps, home override, and approval stance.
  */
 export function apply(ctx: Context, config: Config): void {
-  const resolved = { ...config, dshHome: resolveDshHome(config.dshHome) } as ResolvedConfig
+  const resolved = {
+    dshHome: resolveDshHome(config.dshHome),
+    userMaxChars: config.userMaxChars,
+    memoryMaxChars: config.memoryMaxChars,
+    entryMaxChars: config.entryMaxChars,
+    requireApproval: config.requireApproval,
+  } as ResolvedConfig
   assertConfig(resolved)
   ctx.systemPrompt.section({
     name: 'tool:memory',

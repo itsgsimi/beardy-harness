@@ -588,7 +588,7 @@ Source: [`packages/cron/cron/src/index.ts:75`](../packages/cron/cron/src/index.t
 
 ## `@deepseek-ai/dsh-discord-gateway`
 
-需要：`agentDefaultModel` · `agentPresets` · `agents` · `credentials` · `permissionPresets` · `sessionTitle` · `workspaceRegistry`
+需要：`agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `workspaceRegistry`
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -615,12 +615,22 @@ export interface Config {
   readonly reconnectDelayMs?: number
   /** Cap on the doubled reconnect delay. Defaults to 30000. */
   readonly maxReconnectDelayMs?: number
+  /** Silence after which the live Agent handle is released; the record stays and the next message resumes. Defaults to 900000. */
+  readonly idleReleaseMs?: number
+  /** Silence after which the next message starts a fresh Session and replaces the record. Defaults to 86400000. */
+  readonly conversationMaxAgeMs?: number
+  /** Window in which one channel's messages join into a single turn; `0` answers each message. Defaults to 3000. */
+  readonly inboundDebounceMs?: number
+  /** Answer guild-channel messages only when the bot is mentioned or replied to. Defaults to true. */
+  readonly guildRequireMention?: boolean
+  /** Send the typing indicator while an inbound turn runs. Defaults to true. */
+  readonly typingIndicator?: boolean
   /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
   readonly enabled?: boolean
 }
 ```
 
-Source: [`packages/discord/discord-gateway/src/index.ts:50`](../packages/discord/discord-gateway/src/index.ts)
+Source: [`packages/discord/discord-gateway/src/index.ts:64`](../packages/discord/discord-gateway/src/index.ts)
 
 <a id="deepseek-aidsh-e2b"></a>
 

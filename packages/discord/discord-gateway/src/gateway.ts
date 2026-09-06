@@ -55,6 +55,8 @@ export interface DiscordGatewayOptions {
   readonly socketFactory?: GatewaySocketFactory
   /** Called for every `MESSAGE_CREATE` dispatch, before any allowlist filtering. */
   readonly onMessage: (message: DiscordInboundMessage) => void
+  /** Called with the bot's own user id from each `READY` dispatch; guild mention checks need it. */
+  readonly onReady?: (applicationId: string) => void
   /** Connection state changes, for logs and diagnostics. */
   readonly onStatus?: (status: GatewayStatus) => void
   /** Delay seam used by heartbeats and reconnect backoff. */
@@ -121,6 +123,29 @@ function textField(record: Record<string, unknown>, field: string): string {
   return typeof value === 'string' ? value : ''
 }
 
+/** Narrow one server-controlled value to an object record, or undefined when it is not one. */
+function objectField(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined
+}
+
+/** Read the user ids out of a `mentions` array, ignoring malformed entries. */
+function mentionUserIds(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return []
+  const ids: string[] = []
+  for (const entry of value) {
+    const id = objectField(entry)?.['id']
+    if (typeof id === 'string') ids.push(id)
+  }
+  return ids
+}
+
+/** Read the author id of the message a `referenced_message` points at, or the empty string. */
+function referencedAuthorId(value: unknown): string {
+  const referenced = objectField(value)
+  if (referenced === undefined) return ''
+  return textField(objectField(referenced['author']) ?? {}, 'id')
+}
+
 /**
  * Reduce one `MESSAGE_CREATE` payload to {@link DiscordInboundMessage}.
  *
@@ -141,6 +166,8 @@ export function parseMessageCreate(payload: unknown): DiscordInboundMessage | un
     bot: authorRecord['bot'] === true,
     channelType: typeof record['channel_type'] === 'number' ? record['channel_type'] : 0,
     content: textField(record, 'content'),
+    mentionedUserIds: mentionUserIds(record['mentions']),
+    replyToAuthorId: referencedAuthorId(record['referenced_message']),
   }
   return message.id === '' || message.channelId === '' || message.authorId === '' ? undefined : message
 }
@@ -229,6 +256,12 @@ async function runConnection(
         connection.acked = true
         return
       case DiscordGatewayOpcode.dispatch:
+        if (frame.t === 'READY') {
+          const applicationId = textField(objectField(objectField(frame.d)?.['application']) ?? {}, 'id')
+          if (applicationId !== '') options.onReady?.(applicationId)
+          options.onStatus?.({ kind: 'ready' })
+          return
+        }
         if (frame.t === 'MESSAGE_CREATE') {
           const message = parseMessageCreate(frame.d)
           if (message !== undefined) options.onMessage(message)

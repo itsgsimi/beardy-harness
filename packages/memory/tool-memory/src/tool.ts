@@ -84,7 +84,7 @@ async function approvedForWrite(
     signal: exec.signal,
   })
   if (outcome !== 'allowed-once') {
-    throw new Error(`memory write was not approved (${String(outcome)}); the file is unchanged`)
+    throw new Error(`memory write was not approved (${outcome}); the file is unchanged`)
   }
 }
 

@@ -36,26 +36,64 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
       ctx.provide('credentials' as never, {
         resolve: async () => (token === undefined ? undefined : { value: token, source: 'env' }),
       } as never)
-      ctx.provide('agents' as never, {
-        create: async (options: { sessionId: string }) => {
-          record.created.push(options.sessionId)
-          const events: Record<string, unknown>[] = []
-          return {
-            agent: {
-              session: { get seq(): number { return events.length }, ownEvents: () => events },
-              followup: (message: { source?: { kind?: string } }) => {
-                record.followedUp.push(message.source?.kind ?? '')
-                events.push({
-                  seq: events.length + 1,
-                  type: 'assistant/message',
-                  data: { message: { content: [{ type: 'text', text: 'Morning brief is ready.' }] } },
-                })
-              },
-              whenIdle: async () => {},
+      const sessions = new Map<string, Record<string, unknown>[]>()
+      const fakeHandle = (sessionId: string) => {
+        const events = sessions.get(sessionId) ?? []
+        sessions.set(sessionId, events)
+        return {
+          agent: {
+            session: { get seq(): number { return events.length }, ownEvents: () => events },
+            followup: (message: { source?: { kind?: string } }) => {
+              record.followedUp.push(message.source?.kind ?? '')
+              events.push({
+                seq: events.length + 1,
+                type: 'assistant/message',
+                data: { message: { content: [{ type: 'text', text: 'Morning brief is ready.' }] } },
+              })
             },
-            dispose: async () => {},
-          }
+            whenIdle: async () => {},
+          },
+          dispose: async () => {},
+        }
+      }
+      const compositionSetup = (options: { setup?: (agentCtx: unknown) => Promise<void> }) =>
+        options.setup?.({ commands: { register: () => () => {} } })
+      ctx.provide('agents' as never, {
+        create: async (options: { sessionId: string; setup?: (agentCtx: unknown) => Promise<void> }) => {
+          record.created.push(options.sessionId)
+          await compositionSetup(options)
+          return fakeHandle(options.sessionId)
         },
+        resume: async (options: { resumeSessionId: string; setup?: (agentCtx: unknown) => Promise<void> }) => {
+          record.followedUp.push(`resume:${options.resumeSessionId}`)
+          await compositionSetup(options)
+          return fakeHandle(options.resumeSessionId)
+        },
+      } as never)
+      ctx.provide('commands' as never, {
+        execute: async () => undefined,
+        register: () => () => {},
+      } as never)
+      const conversations = new Map<string, Record<string, unknown>>()
+      ctx.provide('storageDomain' as never, {
+        open: async () => ({
+          name: 'discord-gateway',
+          table: () => ({
+            get: (key: string) => conversations.get(key),
+            entries: () => conversations.entries(),
+            keys: () => conversations.keys(),
+            size: conversations.size,
+            put: async (key: string, value: Record<string, unknown>) => { conversations.set(key, value) },
+            delete: async (key: string) => conversations.delete(key),
+            update: async (key: string, fn: (current: never) => never) => {
+              const next = fn(conversations.get(key) as never)
+              conversations.set(key, next)
+              return next
+            },
+          }),
+          global: { get: () => ({}) },
+          close: async () => {},
+        }),
       } as never)
       ctx.provide('agentDefaultModel' as never, {
         currentSelection: () => ({ provider: 'fixture-provider', model: 'fixture-model' }),
@@ -122,6 +160,7 @@ const GATEWAY_ROWS = [
   `    workspacePath: ${process.cwd()}`,
   '    agentPreset: beardy',
   '    permissionPreset: danger-full-access',
+  '    inboundDebounceMs: 0',
 ]
 
 /** Loader entries that were requested but never mounted. */
@@ -216,11 +255,15 @@ describe('discord-gateway real Loader composition', () => {
       const ctx = await boot([
         ...GATEWAY_ROWS,
         `    allowedUserIds: ['${USER}']`,
+        "    allowedChannelIds: ['12345678901234567']",
       ], 'fixture-token', record)
       for (let round = 0; round < 10 && StubSocket.instance === undefined; round += 1) {
         await new Promise(resolve => setTimeout(resolve, 5))
       }
       expect(StubSocket.instance).toBeDefined()
+      StubSocket.instance?.fire('message', {
+        data: JSON.stringify({ op: 0, t: 'READY', s: 2, d: { application: { id: 'bot-9' } } }),
+      })
       StubSocket.instance?.fire('message', {
         data: JSON.stringify({
           op: 0,
@@ -234,7 +277,23 @@ describe('discord-gateway real Loader composition', () => {
       }
       expect(record.created).toHaveLength(1)
       expect(record.followedUp).toEqual(['discord'])
-      expect(posts[0]).toContain('Morning brief is ready.')
+      expect(posts.some(body => body.includes('Morning brief is ready.'))).toBe(true)
+      // A guild message that mentions the bot user from READY opens its own channel conversation.
+      StubSocket.instance?.fire('message', {
+        data: JSON.stringify({
+          op: 0,
+          t: 'MESSAGE_CREATE',
+          s: 4,
+          d: {
+            id: 'm2', channel_id: '12345678901234567', channel_type: 0, guild_id: 'g1',
+            author: { id: USER }, content: 'beardy-bot hello', mentions: [{ id: 'bot-9' }],
+          },
+        }),
+      })
+      for (let round = 0; round < 20 && record.created.length < 2; round += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+      }
+      expect(record.created).toHaveLength(2)
       expect(unloaded(ctx)).toEqual([])
     } finally {
       vi.unstubAllGlobals()
@@ -254,12 +313,18 @@ describe('discord-gateway real Loader composition', () => {
       turnTimeoutMs: 600_000,
       reconnectDelayMs: 1_000,
       maxReconnectDelayMs: 30_000,
+      idleReleaseMs: 900_000,
+      conversationMaxAgeMs: 86_400_000,
+      inboundDebounceMs: 3_000,
+      guildRequireMention: true,
+      typingIndicator: true,
       enabled: true,
-    })
+    }, () => '')
     expect(settings.agentPreset).toBe('beardy')
     expect(policy.allowedUserIds.has(USER)).toBe(true)
     expect(DiscordGateway.isAdmitted({
-      id: 'm1', channelId: CHANNEL, guildId: '', authorId: USER, bot: false, channelType: 1, content: 'hi',
+      id: 'm1', channelId: CHANNEL, guildId: '', authorId: USER, bot: false, channelType: 1,
+      content: 'hi', mentionedUserIds: [], replyToAuthorId: '',
     }, policy)).toBe(true)
   })
 })

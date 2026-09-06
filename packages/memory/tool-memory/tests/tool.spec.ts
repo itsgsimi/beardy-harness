@@ -46,13 +46,20 @@ function fakeAgent(id: string): Agent {
 }
 
 /** Mount the plugin over a real local filesystem rooted at the temp home. */
-async function setup(config: toolMemory.Config = {}): Promise<{ ctx: Context; root: string }> {
+type Overrides = Partial<{
+  userMaxChars: number
+  memoryMaxChars: number
+  entryMaxChars: number
+  requireApproval: boolean
+}>
+
+async function setup(overrides: Overrides = {}): Promise<{ ctx: Context; root: string }> {
   const root = await home()
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(LocalFileSystem, { cwd: root })
-  await ctx.plugin(toolMemory, { dshHome: root, ...config })
+  await ctx.plugin(toolMemory, { dshHome: root, ...overrides })
   return { ctx, root }
 }
 

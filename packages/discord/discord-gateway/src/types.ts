@@ -40,6 +40,10 @@ export interface DiscordInboundMessage {
   readonly channelType: number
   /** Message text as Discord delivered it. */
   readonly content: string
+  /** User ids this message mentions, from Discord's own mention parsing. */
+  readonly mentionedUserIds: readonly string[]
+  /** Author id of the message this one replies to; empty when it replies to nothing. */
+  readonly replyToAuthorId: string
 }
 
 /** Validated plugin settings the conversation router reads, detached from schemastery types. */
@@ -56,6 +60,16 @@ export interface GatewaySettings {
   readonly maxInputChars: number
   /** Longest wait for one routed turn to settle before its reply is abandoned. */
   readonly turnTimeoutMs: number
+  /** Silence after which the live Agent handle is released; the durable record stays. */
+  readonly idleReleaseMs: number
+  /** Silence after which the next message starts a fresh Session and replaces the record. */
+  readonly conversationMaxAgeMs: number
+  /** Window in which one channel's messages join into a single turn; `0` answers each message. */
+  readonly inboundDebounceMs: number
+  /** Guild channels are answered only when the bot is mentioned or replied to. */
+  readonly guildRequireMention: boolean
+  /** Send `POST /channels/{id}/typing` while an inbound turn runs. */
+  readonly typingIndicator: boolean
 }
 
 /** Connection state reported to diagnostics. */

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiscordPostReply } from '../src/http.ts'
-import { DISCORD_API_BASE, DISCORD_MAX_RESPONSE_BYTES, discordReplyMessage, openDirectMessageChannel, postChannelMessage } from '../src/http.ts'
+import { DISCORD_API_BASE, DISCORD_MAX_RESPONSE_BYTES, discordReplyMessage, openDirectMessageChannel, postChannelMessage, postTyping } from '../src/http.ts'
 
 const CHANNEL = '1478276183543119914'
 
@@ -146,6 +146,28 @@ describe('openDirectMessageChannel', () => {
     await expect(
       openDirectMessageChannel({ recipientId: RECIPIENT, token: 'tok' }, new AbortController().signal),
     ).rejects.toThrow('returned no channel id')
+  })
+})
+
+describe('postTyping', () => {
+  it('sends an empty typing request to the channel endpoint', async () => {
+    const calls = stubFetch(new Response(null, { status: 204 }))
+    await expect(postTyping(CHANNEL, 'secret-token', new AbortController().signal)).resolves.toBeUndefined()
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.url).toBe(`${DISCORD_API_BASE}/channels/${CHANNEL}/typing`)
+    expect(calls[0]?.method).toBe('POST')
+    expect(calls[0]?.headers.authorization).toBe('Bot secret-token')
+    expect(calls[0]?.body).toBe('{}')
+  })
+
+  it('resolves even when Discord refuses the indicator', async () => {
+    stubFetch(new Response('{"message":"Missing Permissions"}', { status: 403 }))
+    await expect(postTyping(CHANNEL, 'tok', new AbortController().signal)).resolves.toBeUndefined()
+  })
+
+  it('propagates a transport failure so the caller can stop its loop', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('ECONNREFUSED')))
+    await expect(postTyping(CHANNEL, 'tok', new AbortController().signal)).rejects.toThrow('ECONNREFUSED')
   })
 })
 

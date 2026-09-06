@@ -22,6 +22,11 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     turnTimeoutMs: 600_000,
     reconnectDelayMs: 1_000,
     maxReconnectDelayMs: 30_000,
+    idleReleaseMs: 900_000,
+    conversationMaxAgeMs: 86_400_000,
+    inboundDebounceMs: 3_000,
+    guildRequireMention: true,
+    typingIndicator: true,
     enabled: true,
     ...overrides,
   }
@@ -61,6 +66,15 @@ describe('assertConfig', () => {
     expect(() => { assertConfig(config({ reconnectDelayMs: 5_000, maxReconnectDelayMs: 1_000 })) })
       .toThrow('reconnectDelayMs must not exceed maxReconnectDelayMs')
   })
+
+  it('rejects an idle release that is not shorter than the conversation expiry', () => {
+    expect(() => { assertConfig(config({ idleReleaseMs: 86_400_000 })) })
+      .toThrow('idleReleaseMs must be shorter than conversationMaxAgeMs')
+  })
+
+  it('accepts a zero debounce window, which answers every message at once', () => {
+    expect(() => { assertConfig(config({ inboundDebounceMs: 0 })) }).not.toThrow()
+  })
 })
 
 /** Context carrying only what the listener resolves before it dials out. */
@@ -92,19 +106,23 @@ describe('startListener', () => {
     const connect: GatewayConnector = async (options) => {
       captured = options
       const message: DiscordInboundMessage = {
-        id: 'm1', channelId: CHANNEL, guildId: '', authorId: USER, bot: false, channelType: 1, content: 'hi',
+        id: 'm1', channelId: CHANNEL, guildId: '', authorId: USER, bot: false, channelType: 1,
+        content: 'hi', mentionedUserIds: [], replyToAuthorId: '',
       }
       const statuses: GatewayStatus[] = [
         { kind: 'connecting' }, { kind: 'ready' }, { kind: 'disconnected', reason: 'socket closed' },
       ]
       for (const status of statuses) options.onStatus?.(status)
+      options.onReady?.('bot-user-1')
       options.onMessage(message)
     }
-    await startListener(ctx, config(), ROUTER, new AbortController().signal, connect)
+    const onReady = vi.fn()
+    await startListener(ctx, config(), ROUTER, new AbortController().signal, connect, onReady)
     expect(captured?.token).toBe('secret-token')
     expect(captured?.intents).toBeGreaterThan(0)
     expect(captured?.reconnectDelayMs).toBe(1_000)
     expect(handled).toHaveBeenCalledTimes(1)
+    expect(onReady).toHaveBeenCalledWith('bot-user-1')
     expect(logger.info).toHaveBeenCalledWith('discord-gateway: connected; messages from allowed users start conversations')
     expect(logger.warn).toHaveBeenCalledWith('discord-gateway: socket closed; reconnecting')
   })
