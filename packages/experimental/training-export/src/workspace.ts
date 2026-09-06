@@ -7,6 +7,10 @@
  */
 
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { TrainingDiffStat } from './types.ts'
 
@@ -14,10 +18,10 @@ const execFileAsync = promisify(execFile)
 const GIT_TIMEOUT_MS = 5_000
 
 /** Run one `git` subcommand; `null` on any failure (non-repo, missing binary, timeout). */
-async function runGit(cwd: string, args: readonly string[]): Promise<string | null> {
+async function runGit(cwd: string, args: readonly string[], env?: NodeJS.ProcessEnv): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync('git', [...args], {
-      cwd, timeout: GIT_TIMEOUT_MS, encoding: 'utf8',
+      cwd, timeout: GIT_TIMEOUT_MS, encoding: 'utf8', ...(env === undefined ? {} : { env }),
     })
     return stdout
   } catch {
@@ -25,35 +29,65 @@ async function runGit(cwd: string, args: readonly string[]): Promise<string | nu
   }
 }
 
-/** Captured head and dirty status for one workspace read. */
+/** Captured head, dirty status, and working-tree snapshot for one workspace read. */
 export interface WorkspaceHeadCapture {
   readonly head: string | null
   readonly dirty: boolean | null
+  /** Tree hash from {@link snapshotTree}; `null` alongside `head` outside a repository or on failure. */
+  readonly tree: string | null
 }
 
 /**
- * Read the current commit and dirty status: `git rev-parse HEAD` then, only
- * when that succeeds, `git status --porcelain`.
+ * Write the full current working tree (tracked + untracked, respecting
+ * `.gitignore`) as a tree object, without touching the real index: `git add
+ * -A .` and `git write-tree` both run against a throwaway `GIT_INDEX_FILE`
+ * under `os.tmpdir()`, removed afterward.
  * @param cwd - the session's working directory.
- * @returns `{ head: null, dirty: null }` outside a repository or on failure.
+ * @returns the written tree's hash, or `null` outside a repository or on failure.
+ */
+async function snapshotTree(cwd: string): Promise<string | null> {
+  const indexFile = join(tmpdir(), `dsh-training-export-${randomUUID()}.index`)
+  const env = { ...process.env, GIT_INDEX_FILE: indexFile }
+  try {
+    const added = await runGit(cwd, ['add', '-A', '.'], env)
+    if (added === null) return null
+    const tree = await runGit(cwd, ['write-tree'], env)
+    return tree === null ? null : tree.trim()
+  } finally {
+    // Swallows a missing index file: `git add` may never have created it.
+    await rm(indexFile, { force: true }).catch(() => undefined)
+  }
+}
+
+/**
+ * Read the current commit, dirty status, and a working-tree snapshot:
+ * `git rev-parse HEAD` then, only when that succeeds, `git status
+ * --porcelain` and {@link snapshotTree}.
+ * @param cwd - the session's working directory.
+ * @returns `{ head: null, dirty: null, tree: null }` outside a repository or on failure.
  */
 export async function captureWorkspaceHead(cwd: string): Promise<WorkspaceHeadCapture> {
   const head = await runGit(cwd, ['rev-parse', 'HEAD'])
-  if (head === null) return { head: null, dirty: null }
+  if (head === null) return { head: null, dirty: null, tree: null }
   const status = await runGit(cwd, ['status', '--porcelain'])
-  return { head: head.trim(), dirty: status === null ? null : status.length > 0 }
+  const tree = await snapshotTree(cwd)
+  return { head: head.trim(), dirty: status === null ? null : status.length > 0, tree }
 }
 
 const SHORTSTAT_PATTERN = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/
 
 /**
- * Read `git diff --shortstat` against a previously captured head.
+ * Diff a working-tree snapshot captured at the turn's first sample against a
+ * fresh snapshot taken now, so a pre-existing dirty tree does not repeat in
+ * every turn's label — only what changed during this turn counts.
  * @param cwd - the session's working directory.
- * @param head - the commit captured at the turn's first sample.
+ * @param beforeTree - the tree hash from {@link captureWorkspaceHead} at the turn's first sample.
  * @returns parsed counts, or `null` outside a repository, on failure, or when unchanged.
  */
-export async function diffShortstat(cwd: string, head: string): Promise<TrainingDiffStat | null> {
-  const output = await runGit(cwd, ['diff', '--shortstat', head])
+export async function diffTreeSnapshot(cwd: string, beforeTree: string): Promise<TrainingDiffStat | null> {
+  const afterTree = await snapshotTree(cwd)
+  if (afterTree === null) return null
+  const output = await runGit(cwd, ['diff', '--shortstat', beforeTree, afterTree])
   if (output === null) return null
   const match = SHORTSTAT_PATTERN.exec(output)
   if (match === null) return null

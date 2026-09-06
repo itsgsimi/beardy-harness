@@ -43,7 +43,7 @@ Mount this plugin beside a session-persisting composition to capture every compl
 
 ### What to expect
 
-For every `llm/stream` call whose `sessionId` is set, `<root>/<session-id-escaped>/samples.jsonl` gains one line after the stream settles — normally, on abort, or on a downstream throw — carrying the folded response and, on failure, a `{name, message, code?}` error. `<root>/<session-id-escaped>/meta.json` is written once, at the first sample. `<root>/<session-id-escaped>/labels.jsonl` gains one line per `turn/end`, with the turn's sample `seq`s, tool/hook/approval counts, a `git diff --shortstat` against the head captured at the turn's first allow-listed-provider sample, and any ratings recorded through `dsh-message-feedback` for that turn's assistant messages. A request with no `sessionId`, or one naming a session the store no longer holds, passes through completely untouched — this plugin only calls `next()` in that case, exactly like every other request.
+For every `llm/stream` call whose `sessionId` is set, `<root>/<session-id-escaped>/samples.jsonl` gains one line after the stream settles — normally, on abort, or on a downstream throw — carrying the folded response and, on failure, a `{name, message, code?}` error. `<root>/<session-id-escaped>/meta.json` is written once, at the first sample. `<root>/<session-id-escaped>/labels.jsonl` gains one line per `turn/end`, with the turn's sample `seq`s, tool/hook/approval counts, a `git diff --shortstat` between a full working-tree snapshot taken at the turn's first allow-listed-provider sample and a second one taken at `turn/end` — so `diff` reflects only what this turn changed, not a pre-existing dirty tree — and any ratings recorded through `dsh-message-feedback` for that turn's assistant messages. A request with no `sessionId`, or one naming a session the store no longer holds, passes through completely untouched — this plugin only calls `next()` in that case, exactly like every other request.
 
 Every disk write happens off a per-session queue (`fs.appendFile` chained on a promise tail); a write failure is logged through `ctx.logger` and never reaches the loop or the model call it observed.
 
@@ -65,13 +65,13 @@ The plugin wraps the `llm/stream` waterfall the same way `session-checkpoint-pol
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config`, the `llm/stream` wrapper, and the `session/event` listener |
 | [`src/writer.ts`](src/writer.ts) | Per-session state, the append queue, and the `samples.jsonl`/`labels.jsonl`/`meta.json` writers |
-| [`src/workspace.ts`](src/workspace.ts) | `git rev-parse`/`status`/`diff` reads (`execFile`, 5s timeout, never throws) |
+| [`src/workspace.ts`](src/workspace.ts) | `git rev-parse`/`status`/`diff` reads and throwaway-index tree snapshots (`execFile`, 5s timeout, never throws) |
 | [`src/hash.ts`](src/hash.ts) | SHA-256 and canonical (sorted-key) JSON for `hashes.system`/`hashes.tools` |
 | [`src/paths.ts`](src/paths.ts) | Session-id path escaping (mirrors `dsh-session-persistence-jsonl`'s `encodeSegment`) and the sidecar layout |
 
 ### Workspace capture
 
-At most one `git rev-parse HEAD` + `git status --porcelain` pair runs per turn: the first sample whose provider is in the allow-list captures it, and every later sample that turn (allow-listed or not) reuses the same snapshot. A session with no `cwd`, or a turn whose only samples are non-allow-listed providers, never runs `git` at all. `git diff --shortstat` against that head runs once more at `turn/end` to build the label's `diff`.
+At most one `git rev-parse HEAD` + `git status --porcelain` pair runs per turn: the first sample whose provider is in the allow-list captures it, and every later sample that turn (allow-listed or not) reuses the same snapshot. That same first sample also writes the full working tree (tracked + untracked, respecting `.gitignore`) as a tree object via a throwaway `GIT_INDEX_FILE` — never the real index — and keeps only its hash. A session with no `cwd`, or a turn whose only samples are non-allow-listed providers, never runs `git` at all. At `turn/end`, a second tree snapshot is taken the same way and `git diff --shortstat` runs between the two hashes to build the label's `diff`, so a tree already dirty before the turn started does not show up as this turn's change.
 
 </details>
 

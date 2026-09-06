@@ -22,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-compaction'
 import type {} from '@deepseek-ai/dsh-message-feedback'
 import { labelsPath, metaPath, samplesPath, sessionDir } from './paths.ts'
 import { hashSystem, hashTools } from './hash.ts'
-import { captureWorkspaceHead, diffShortstat } from './workspace.ts'
+import { captureWorkspaceHead, diffTreeSnapshot } from './workspace.ts'
 import type {
   TrainingApprovalCounts, TrainingExportMeta, TrainingHookOutcome, TrainingLabelLine,
   TrainingRatingEntry, TrainingSampleRequest, TrainingSampleResponse, TrainingWorkspaceSnapshot,
@@ -49,6 +49,8 @@ interface TurnAggregate {
   readonly assistantMessageIds: MessageId[]
   workspaceCaptured: boolean
   workspace: TrainingWorkspaceSnapshot | null
+  /** Tree hash from `captureWorkspaceHead`, kept only to diff against at `turn/end`; never serialized. */
+  workspaceTree: string | null
 }
 
 /** Per-session mutable state this plugin owns; garbage-collected with the `Session`. */
@@ -155,12 +157,14 @@ async function resolveWorkspace(
   if (cwd === undefined) {
     agg.workspaceCaptured = true
     agg.workspace = null
+    agg.workspaceTree = null
     return null
   }
   if (!config.providers.includes(provider)) return null
   agg.workspaceCaptured = true
-  const { head, dirty } = await captureWorkspaceHead(cwd)
+  const { head, dirty, tree } = await captureWorkspaceHead(cwd)
   agg.workspace = { cwd, head, dirty }
+  agg.workspaceTree = tree
   return agg.workspace
 }
 
@@ -248,8 +252,8 @@ export function enqueueLabel(
 ): void {
   enqueue(ctx, state, session.id, async () => {
     await mkdir(state.dir, { recursive: true })
-    const diff = agg.workspace?.head != null
-      ? await diffShortstat(agg.workspace.cwd, agg.workspace.head)
+    const diff = agg.workspace !== null && agg.workspaceTree !== null
+      ? await diffTreeSnapshot(agg.workspace.cwd, agg.workspaceTree)
       : null
     const ratings = await resolveRatings(ctx, session.id, agg.assistantMessageIds)
     const approvals: TrainingApprovalCounts = {
@@ -294,6 +298,7 @@ function startTurn(state: SessionExportState, turn: number): void {
     assistantMessageIds: [],
     workspaceCaptured: false,
     workspace: null,
+    workspaceTree: null,
   }
 }
 
