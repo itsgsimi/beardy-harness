@@ -43,6 +43,7 @@
     "@deepseek-ai/dsh-discord-gateway": "workspace:^",
     "@deepseek-ai/dsh-session-query-sqlite": "workspace:^",
     "@deepseek-ai/dsh-tool-discord": "workspace:^",
+    "@deepseek-ai/dsh-tool-memory": "workspace:^",
     "@deepseek-ai/dsh-tool-session-query": "workspace:^",
     "@deepseek-ai/dsh-web-search-searxng": "workspace:^"
   },

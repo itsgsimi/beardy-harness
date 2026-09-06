@@ -33,6 +33,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
 | `@deepseek-ai/dsh-tool-skill` | `skill`, `skill_manage` | `ctx.tools`, `ctx.agents`, `ctx.skills`, `ctx.fs for skill_manage` | `tool/call`, `tool/result`, `user/message replacement catalogs via agent.inject()` | - | - |
+| `@deepseek-ai/dsh-tool-memory` | `memory` | `ctx.tools`, `ctx.fs`, `ctx.systemPrompt` | `tool/call`, `fs/observed before and after each accepted write`, `tool/result` | - | Curated USER.md/MEMORY.md editor under the Harness home with character caps and an optional approval gate; later sessions receive both files as user-global instruction candidates. |
 | `@deepseek-ai/dsh-tool-session-query` | `session_event_read`, `session_event_search`, `session_event_trace`, `session_search`, `session_trace` | `ctx.tools`, `ctx.systemPrompt`, `ctx.sessionQuery`, `a calling Agent for workspace authority` | `tool/call`, `tool/result` | - | The five read-only tools hide provider cursors and authorize every result from the immutable calling agent session. The package is opt-in; compositions that need enforced deadlines or bounded inline output also mount the generic timeout or spill policies. |
 | `@deepseek-ai/dsh-tool-subagent` | `list_subagent_models`, `subagent` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `ctx.llm for model discovery and selected-route validation` | `tool/call`, `tool/result`, `child session events through the chosen provider` | `subagent`, `subagent_fork` | The registered delegation name is the load-time `toolName` config (default `subagent`); the default schema above has model selection off, while the discovery schema is shown as the fixed companion available in an enabled Session. Web presets sample the Plugins preference for each new top-level Session and preserve that decision for its child Sessions; `subagent_fork` remains fixed-route. Each instance independently controls whether it reads model-selection settings and its background behavior through `modelSelectionSettings`, `backgroundMode`, and `enableRunInBackground`. |
 | `@deepseek-ai/dsh-tool-subagent-control` | `interrupt_agent`, `list_agents`, `send_message` | `ctx.tools`, `ctx.subagents`, `ctx.agents and ctx.sessionProjections (list_agents only)` | `tool/call`, `tool/result`, `child session events through ctx.subagents` | - | The globally named control tools over continuable background subagents: provider-bound `tool-subagent` instances register distinct delegation tools, while this package registers `send_message` and `interrupt_agent` once, plus `list_agents` from its separately loaded `/list-agents` plugin (whose catalog rows use the sessionProjections and live Agent registries). |
@@ -1392,6 +1393,55 @@ Create, update, or delete a workspace skill. Skills are stored as flat Markdown 
 ```
 
 Source: [`packages/skill/tool-skill/src/index.ts`](../packages/skill/tool-skill/src/index.ts)
+
+<a id="deepseek-aidsh-tool-memory"></a>
+
+## `@deepseek-ai/dsh-tool-memory`
+
+### `memory`
+
+Edit one of the two curated memory files that load into every future session's baseline. target "user" edits USER.md (who the user is: name, role, environment, standing preferences); target "memory" edits MEMORY.md (your notes: conventions with no task home, environment facts, things learned that apply to every session). Entries are single-line declarative facts, one per call action; the result reports remaining budget. Writes take effect for later sessions; the current session keeps its loaded baseline.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "target": {
+      "type": "string",
+      "description": "Which memory file to edit.",
+      "enum": [
+        "user",
+        "memory"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "description": "Operation to perform on one entry.",
+      "enum": [
+        "add",
+        "replace",
+        "remove"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "description": "New entry text for add or replace: one line, no headings, fences, or newlines."
+    },
+    "old_text": {
+      "type": "string",
+      "description": "Substring matching exactly one existing entry, for replace or remove."
+    }
+  },
+  "required": [
+    "target",
+    "action"
+  ]
+}
+```
+
+Source: [`packages/memory/tool-memory/src/index.ts`](../packages/memory/tool-memory/src/index.ts)
+
+Curated USER.md/MEMORY.md editor under the Harness home with character caps and an optional approval gate; later sessions receive both files as user-global instruction candidates.
 
 <a id="deepseek-aidsh-tool-session-query"></a>
 

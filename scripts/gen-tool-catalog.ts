@@ -59,6 +59,7 @@ import * as ToolSchedule from '@deepseek-ai/dsh-schedule'
 import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
+import * as ToolMemory from '@deepseek-ai/dsh-tool-memory'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import type TeamService from '@deepseek-ai/dsh-experimental-agent-team'
@@ -454,6 +455,19 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
       await ctx.plugin(ToolSkill, { enableSkillManagement: true })
     },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-memory',
+    dir: 'tool-memory',
+    source: 'packages/memory/tool-memory/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.systemPrompt'],
+    writes: ['tool/call', 'fs/observed before and after each accepted write', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalFileSystem)
+      await ctx.plugin(ToolMemory)
+    },
+    note:
+      'Curated USER.md/MEMORY.md editor under the Harness home with character caps and an optional approval gate; later sessions receive both files as user-global instruction candidates.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-session-query',

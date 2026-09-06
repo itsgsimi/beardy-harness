@@ -1027,6 +1027,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'one entry per direct child, in stable name order.',
       },
       {
+        signature: 'abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>',
+        description: 'Create a directory and its missing parents. The operation is idempotent when the target is already a directory and participates in the same per-call sandbox policy as file mutations.',
+        parameters: [{ name: 'target', description: 'the directory target to create.' }, { name: 'signal', description: 'aborts before the directory is created.' }, { name: 'sandboxPolicy', description: 'the per-call policy for a sandboxing backend.' }],
+        returns: 'completion after the directory exists.',
+      },
+      {
+        signature: 'abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>',
+        description: 'Remove one regular file. Directory removal is intentionally not part of this seam; callers must not turn a model-visible file operation into recursive deletion by accident.',
+        parameters: [{ name: 'target', description: 'the regular-file target to remove.' }, { name: 'signal', description: 'aborts before removal takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call policy for a sandboxing backend.' }],
+        returns: 'completion after the file is absent.',
+      },
+      {
         signature: 'abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>',
         description: 'Atomically create or replace UTF-8 text. `expected` guards intent and staleness; omission allows unconditional overwrite.',
         parameters: [{ name: 'target', description: 'the resolved target to write.' }, { name: 'content', description: 'the full new file content.' }, { name: 'expected', description: 'the write intent guarding the write; omit for unconditional.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this write runs under; a sandboxing backend fences the write by it, the bare backend ignores it. Omit to leave the backend its own default.' }],

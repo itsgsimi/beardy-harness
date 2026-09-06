@@ -22,6 +22,11 @@
         maxSearchResults: 100
         searchTimeoutMs: 30000
 
+    # Curated memory: USER.md and MEMORY.md under the Harness home, delivered to
+    # later sessions through the preset's user-global instruction candidates.
+    - id: tool-memory
+      name: '@deepseek-ai/dsh-tool-memory'
+
 # Beardy uses the local SearXNG JSON API for search, so no DeepSeek search
 # credential is needed. Set SEARXNG_BASE_URL to use another instance; the
 # default matches the local container documented by the SearXNG provider.

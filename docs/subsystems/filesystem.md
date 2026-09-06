@@ -421,6 +421,28 @@ abstract readByteRange(target: FsTarget, range: { offset: number; length: number
 abstract listDir(target: FsTarget, signal?: AbortSignal): Promise<FsDirEntry[]>
 
 /**
+ * Create a directory and its missing parents. The operation is idempotent
+ * when the target is already a directory and participates in the same
+ * per-call sandbox policy as file mutations.
+ * @param target - the directory target to create.
+ * @param signal - aborts before the directory is created.
+ * @param sandboxPolicy - the per-call policy for a sandboxing backend.
+ * @returns completion after the directory exists.
+ */
+abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>
+
+/**
+ * Remove one regular file. Directory removal is intentionally not part of
+ * this seam; callers must not turn a model-visible file operation into
+ * recursive deletion by accident.
+ * @param target - the regular-file target to remove.
+ * @param signal - aborts before removal takes effect.
+ * @param sandboxPolicy - the per-call policy for a sandboxing backend.
+ * @returns completion after the file is absent.
+ */
+abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>
+
+/**
  * Atomically create or replace UTF-8 text. `expected` guards intent and
  * staleness; omission allows unconditional overwrite.
  * @param target - the resolved target to write.
