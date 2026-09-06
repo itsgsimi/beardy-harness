@@ -22,6 +22,7 @@ import {
   type SkillSummary,
 } from '@deepseek-ai/dsh-skill'
 import { applySkillManageTool } from './manage.ts'
+import { installSkillNudge } from './nudge.ts'
 
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills']
@@ -45,6 +46,14 @@ export interface SkillCatalogSource {
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'skill-catalog': SkillCatalogSource
+    /** One notice shown to the model after a tool-heavy turn that saved no skill. */
+    'skill-nudge': {
+      readonly kind: 'skill-nudge'
+      /** Completed tool calls in the turn this notice reports. */
+      readonly toolCalls: number
+      readonly form: 'notice'
+      readonly summary: string
+    }
   }
 }
 
@@ -65,12 +74,21 @@ export interface Config {
   catalogDescriptionMaxLength?: number
   /** Whether to expose the workspace-local skill_manage mutation tool. */
   enableSkillManagement?: boolean
+  /** Whether skill_manage may write the Harness-home user scope; needs enableSkillManagement. */
+  enableUserSkillManagement?: boolean
+  /** Create, update, and delete ask the approval service before they touch a file. */
+  requireApproval?: boolean
+  /** Tool calls in one settled turn that trigger the save-it-as-a-skill nudge; 0 disables. */
+  nudgeAfterToolCalls?: number
 }
 
 /** Validate and default the model-facing skill catalog configuration. */
 export const Config: z<Config> = z.object({
   catalogDescriptionMaxLength: z.number().default(DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH),
   enableSkillManagement: z.boolean().default(false),
+  enableUserSkillManagement: z.boolean().default(false),
+  requireApproval: z.boolean().default(false),
+  nudgeAfterToolCalls: z.number().default(0),
 })
 
 /**
@@ -82,6 +100,10 @@ export const Config: z<Config> = z.object({
 export function apply(ctx: Context, config: Config = {}): void {
   const catalogDescriptionMaxLength = config.catalogDescriptionMaxLength ?? DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
+  const nudgeAfterToolCalls = config.nudgeAfterToolCalls ?? 0
+  assertPositiveInteger('nudgeAfterToolCalls', nudgeAfterToolCalls, 0)
+
+  if (nudgeAfterToolCalls > 0) installSkillNudge(ctx, nudgeAfterToolCalls)
 
   const skillTool = defineTool({
     name: 'skill',
@@ -167,7 +189,10 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   if (config.enableSkillManagement === true) {
     ctx.inject(['fs'], (fsCtx) => {
-      applySkillManageTool(fsCtx, fsCtx.fs)
+      applySkillManageTool(fsCtx, fsCtx.fs, {
+        enableUserScope: config.enableUserSkillManagement === true,
+        requireApproval: config.requireApproval === true,
+      })
     })
   }
 
@@ -275,6 +300,7 @@ function renderCatalogMessage(entries: SkillCatalogSource['entries']): UserMessa
         '</available_skills>',
         '',
         "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.",
+        'If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.',
         'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
         '</system-reminder>',
       ].join('\n'),
@@ -295,6 +321,7 @@ function renderCatalogUpdate(entries: SkillCatalogSource['entries']): UserMessag
     ]
     : [
       'Use only names in this replacement catalog. If the user names a listed skill, or the task clearly matches its description, call the `skill` tool with the exact name before acting.',
+      'If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.',
       'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
     ]
   return createUserMessage({

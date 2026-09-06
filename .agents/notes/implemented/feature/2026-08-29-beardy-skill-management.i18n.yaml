@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-beardy-skill-management.md
-2026-08-29-beardy-skill-management.md: 79b77ee811b4e023317a604b6ffd0e934ba028c3
-2026-08-29-beardy-skill-management.zh.md: 075fb6b493fa2fa9e0d8751098e21bf22c835eb7
+2026-08-29-beardy-skill-management.md: 88de548d5f36100f5bf6b1fda05db94112eb1b63
+2026-08-29-beardy-skill-management.zh.md: 4bdb3a9391f67f62c7d231e0daa9f381d21e0998

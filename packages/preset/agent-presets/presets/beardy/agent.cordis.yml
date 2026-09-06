@@ -27,3 +27,14 @@
 # derived presets raise `requireApproval` for sessions nobody is watching.
 - id: tool-memory
   name: '@deepseek-ai/dsh-tool-memory'
+
+# Skill self-improvement: reusable procedures are saved with skill_manage in
+# the workspace or the Harness home, and a settled turn of eight or more tool
+# calls without a save gets one logged nudge. Approval stays off here: a person
+# is present; derived lanes that run unattended raise it or disable management.
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+  config:
+    enableSkillManagement: true
+    enableUserSkillManagement: true
+    nudgeAfterToolCalls: 8

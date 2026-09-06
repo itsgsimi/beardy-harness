@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Agents can discover and load skills during a session. Before the first request, they receive a durable catalog of available skill names and capped descriptions, and can use the `skill` tool to load full instructions. Users can invoke a skill with `/name`, which injects the same instructions into that step. Catalog changes append a complete replacement, including an empty catalog that retires old names; configure `catalogDescriptionMaxLength` to limit each description.
+Agents can discover, load, and optionally manage skills during a session. Before the first request, they receive a durable catalog of available skill names and capped descriptions, and can use the `skill` tool to load full instructions. Users can invoke a skill with `/name`, which injects the same instructions into that step. Optional configuration exposes approved workspace or user-scope mutations and a per-turn reminder to save reusable procedures. Catalog changes append a complete replacement, including an empty catalog that retires old names.
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@ Use it when agents should discover and load skills during a session. Skip it whe
 
 ### Mount and configure
 
-Load the plugin together with the skill registry and at least one provider. The only configuration caps the normalized description length rendered in the catalog.
+Load the plugin together with the skill registry and at least one provider. Management additionally requires `ctx.fs`; approval-gated management requires the approval service.
 
 ```yaml
 - name: '@deepseek-ai/dsh-skill'
@@ -44,6 +44,10 @@ Load the plugin together with the skill registry and at least one provider. The 
 | Field | Default | Meaning |
 |---|---|---|
 | `catalogDescriptionMaxLength` | `500` | Maximum normalized description length rendered in the session catalog; minimum 3 |
+| `enableSkillManagement` | `false` | Expose the `skill_manage` mutation tool; requires `ctx.fs` at runtime |
+| `enableUserSkillManagement` | `false` | Let `skill_manage` write the Harness-home user root (`$DSH_HOME/skills`) that every session loads |
+| `requireApproval` | `false` | Ask the approval service before any create, update, or delete; without a mounted answerer the write is refused |
+| `nudgeAfterToolCalls` | `0` | Tool calls in one settled turn that trigger the save-it-as-a-skill notice; `0` disables the nudge |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-skill) is the exhaustive source for every accepted field.
 
@@ -51,12 +55,14 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 - **A session catalog.** When model-invocable skills exist and the `skill` tool is visible, the agent receives a durable user-role message before its first request, listing each skill's name and a capped description; the message tells the model to load a skill with the tool before acting on it, and never to infer instructions from the summary alone.
 - **A loader tool.** The model calls `skill` with the exact skill name and receives the full instruction body plus resource guidance in a canonical `<skill_content>` block; the result is retained as ordinary tool history.
+- **A management tool.** When `ctx.fs` is mounted, the model calls `skill_manage` to create, update, or delete a flat skill file in the workspace, or in the Harness-home user root when user-scope management is enabled. The operation uses the filesystem provider's mutation and sandbox policy and accepts only kebab-case names inside the selected root. With `requireApproval`, a refusal changes nothing.
+- **A save-it-as-a-skill nudge.** When `nudgeAfterToolCalls` is positive and a turn ends after enough completed tool calls without using `skill_manage`, one logged notice enters the next request.
 - **Explicit user invocation.** A `/name` token in direct user input that names a user-invocable skill injects that skill's instructions into the step, without the model having to load it.
 - **Live catalog updates.** Later membership, description, or visibility changes append a complete replacement catalog; removing every skill appends an empty catalog that retires older names.
 
 ### Observable success and failures
 
-Loading a listed skill returns its full instructions; the model sees one canonical shape whether the load came from the tool or from a user's explicit invocation. An invalid name reports `Error: invalid skill name "<name>"`, an unknown name reports the skill is unknown or no longer available, and a skill disabled for model invocation reports it is not available for model invocation. The catalog is omitted entirely only when no model-invocable skills exist and none was ever published; a later visibility loss — the `skill` tool hidden or shadowed by a same-name scoped tool — instead appends an empty retirement catalog, as when every skill is removed.
+Loading a listed skill returns its full instructions; management returns the affected path and operation status. An invalid name reports `Error: invalid skill name "<name>"`, an unknown name reports the skill is unknown or no longer available, and a skill disabled for model invocation reports it is not available for model invocation. Management refusals report their cause, including disabled user scope, refused or unavailable approval, lifecycle mismatch, an unsafe target, missing workspace cwd, or path escape. The catalog is omitted entirely only when no model-invocable skills exist and none was ever published; a later visibility loss appends an empty retirement catalog.
 
 -----
 

@@ -32,4 +32,4 @@ loader 已经把 workspace Markdown 文件作为事实来源。第二个存储�
 
 Beardy 可以使用 `action: "create"` 调用 `skill_manage` 创建 skill，使用 `action: "update"` 更新完整 Markdown 文档，并使用 `action: "delete"` 删除它。创建和更新需要 description 与 content；名称必须使用 kebab-case；删除会拒绝目录与不存在的文件。管理器通过 filesystem 能力创建 workspace skill 目录，并拒绝逃逸 workspace 或符号链接目标。
 
-该能力明确选择启用，因此现有组合不会自动获得新的变更工具。它只管理扁平 workspace skill，不会生成多文件 skill 目录、编辑已安装或全局 skill，也不会在没有模型调用的情况下自动整理 skill。
+该能力明确选择启用，因此现有组合不会自动获得新的变更工具。它管理扁平 workspace skill；后续决策加入了可选的 Harness-home 用户作用域、审批门控与每轮次捕获提醒，记录于[通过用户作用域、审批门控与轮次提醒实现 skill 自我改进](2026-09-05-skill-nudge-and-user-scope.zh.md)。它不会生成多文件 skill 目录，也不会在没有模型调用的情况下自动整理 skill。

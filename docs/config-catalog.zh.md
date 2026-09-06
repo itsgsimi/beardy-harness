@@ -3104,10 +3104,16 @@ export interface Config {
   catalogDescriptionMaxLength?: number
   /** Whether to expose the workspace-local skill_manage mutation tool. */
   enableSkillManagement?: boolean
+  /** Whether skill_manage may write the Harness-home user scope; needs enableSkillManagement. */
+  enableUserSkillManagement?: boolean
+  /** Create, update, and delete ask the approval service before they touch a file. */
+  requireApproval?: boolean
+  /** Tool calls in one settled turn that trigger the save-it-as-a-skill nudge; 0 disables. */
+  nudgeAfterToolCalls?: number
 }
 ```
 
-来源：[`packages/skill/tool-skill/src/index.ts:63`](../packages/skill/tool-skill/src/index.ts)
+来源：[`packages/skill/tool-skill/src/index.ts:72`](../packages/skill/tool-skill/src/index.ts)
 
 <a id="deepseek-aidsh-tool-str-replace-editor"></a>
 
