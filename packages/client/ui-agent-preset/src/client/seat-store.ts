@@ -15,8 +15,8 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type {} from '@deepseek-ai/dsh-agent-presets/types'
-import { presetOptions, readRoster } from './settings-store.ts'
+import type { PresetPickerPlacement } from '@deepseek-ai/dsh-agent-presets/types'
+import { AGENT_PRESET_SETTINGS_NS, presetOptions, readRoster } from './settings-store.ts'
 import type { AgentPresetOption } from './settings-store.ts'
 
 /** Hero-chip snapshot. */
@@ -28,6 +28,10 @@ export interface AgentPresetSeatState {
   /** A rejected apply's message, cleared by the next attempt. */
   error: string | null
   busy: boolean
+  /** A placement write is pending; management controls wait for its result. */
+  pickerSaving: boolean
+  /** Placement-write failure, separate from session-selection errors. */
+  pickerError: string | null
   /**
    * One-shot cue that the chip should introduce itself (the creator-draft
    * entry staged the pick from another screen, so the user never touched the
@@ -37,7 +41,7 @@ export interface AgentPresetSeatState {
 }
 
 const INITIAL: AgentPresetSeatState = {
-  options: [], current: '', error: null, busy: false, introduce: false,
+  options: [], current: '', error: null, busy: false, introduce: false, pickerSaving: false, pickerError: null,
 }
 
 /** Stages the next session's preset and applies it when one appears. */
@@ -53,6 +57,8 @@ export class AgentPresetSeatController {
 
   /** Set while a pick is waiting for a session; cleared once applied. */
   private staged: string | undefined
+
+  private loadRevision = 0
 
   constructor(
     private readonly ctx: ClientContext,
@@ -72,7 +78,9 @@ export class AgentPresetSeatController {
   * @returns once the snapshot reflects the host.
   */
   async load(): Promise<void> {
+    const revision = ++this.loadRevision
     const roster = await readRoster(this.ctx)
+    if (revision !== this.loadRevision) return
     if (!roster.ok) {
       this.set({ error: roster.error })
       return
@@ -91,6 +99,26 @@ export class AgentPresetSeatController {
       current: this.staged ?? (session === undefined ? this.fallback : presetOf(session) ?? ''),
       error: null,
     })
+  }
+
+  /**
+   * Save one mode's picker placement without changing session composition.
+   * @param id - preset whose placement changes.
+   * @param picker - main list, collapsed group, or hidden from the picker.
+   * @returns once the write and roster refresh settle; failures remain in pickerError.
+   */
+  async setPickerPlacement(id: string, picker: PresetPickerPlacement): Promise<void> {
+    if (this.store.getSnapshot().pickerSaving) return
+    this.set({ pickerSaving: true, pickerError: null })
+    const result = await this.ctx.remote.settings.update(
+      AGENT_PRESET_SETTINGS_NS, { picker: { [id]: picker } }, undefined,
+    )
+    if (!result.ok) {
+      this.set({ pickerSaving: false, pickerError: result.error.message })
+      return
+    }
+    await this.load()
+    this.set({ pickerSaving: false, pickerError: this.store.getSnapshot().error })
   }
 
   /**

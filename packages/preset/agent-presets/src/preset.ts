@@ -7,6 +7,9 @@
  */
 export type PresetTrust = 'system' | 'user'
 
+/** Picker placement; hidden presets remain available to sessions and automation. */
+export type PresetPickerPlacement = 'main' | 'more' | 'hidden'
+
 /**
  * Ids a preset directory may use.
  *
@@ -31,6 +34,8 @@ export interface AgentPreset {
   readonly description?: string
   /** Declared position within its group; absent sorts after those that declare one. */
   readonly order?: number
+  /** Picker placement published by this preset; absent means the main group. */
+  readonly picker?: PresetPickerPlacement
   /**
    * Why this preset cannot compose a session, absent when it can. A broken
    * preset stays on the roster — hiding it would leave its directory blocking

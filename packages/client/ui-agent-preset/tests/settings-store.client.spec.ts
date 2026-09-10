@@ -12,6 +12,7 @@ import type { RemoteErrorCode } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { AgentPresetRoster, PresetPickerPlacement } from '@deepseek-ai/dsh-agent-presets/types'
 import {
   AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController, writeDefaultPreset,
 } from '../src/client/settings-store.ts'
@@ -118,6 +119,18 @@ describe('the agent-preset roster store', () => {
     // what a preset does.
     expect(controller.store.getSnapshot().options).toEqual([
       { id: 'standard', trust: 'system', name: '标准模式', description: '完整的编码 agent。' },
+    ])
+  })
+
+  it('keeps hidden mode metadata available to session labels and management', async () => {
+    const controller = derivedController(fakeRoster([
+      { id: 'standard', trust: 'system', isDefault: true, picker: 'hidden' },
+    ] as AgentPresetRoster['presets'][number][]))
+
+    await controller.load()
+
+    expect(controller.store.getSnapshot().options).toEqual([
+      { id: 'standard', trust: 'system', picker: 'hidden' },
     ])
   })
 
@@ -439,6 +452,90 @@ describe('the new-session chip controller', () => {
     await controller.load()
 
     expect(controller.store.getSnapshot()).toMatchObject({ error: 'host down', options: [] })
+  })
+
+  it('does not replace fresh placements with a roster read started before a settings refresh', async () => {
+    const stale = Promise.withResolvers<{ ok: true; value: AgentPresetRoster }>()
+    let reads = 0
+    const ctx = {
+      remote: { agentPresets: { list: () => ++reads === 1 ? stale.promise : Promise.resolve({
+        ok: true,
+        value: { presets: [{ id: 'standard', trust: 'system', isDefault: true, picker: 'hidden' }], authorable: true },
+      }) } },
+    } as unknown as ClientContext
+    const controller = new AgentPresetSeatController(ctx, () => undefined)
+    const first = controller.load()
+    await controller.load()
+    stale.resolve({ ok: true, value: { presets: ROSTER, authorable: true } })
+    await first
+
+    expect(controller.store.getSnapshot().options).toEqual([{ id: 'standard', trust: 'system', picker: 'hidden' }])
+  })
+
+  it('saves one placement only after the settings write commits, without changing the staged choice', async () => {
+    const writes: Recorded[] = []
+    const pending = Promise.withResolvers<undefined>()
+    const presets: AgentPresetRoster['presets'][number][] = [
+      { id: 'standard', trust: 'system', isDefault: true },
+      { id: 'minimal', trust: 'system', isDefault: false, picker: 'more' },
+    ]
+    const ctx = fakeRoster(presets, { settings: {
+      update: async (ns: string, patch: { picker: Record<string, PresetPickerPlacement> }) => {
+        writes.push({ ns, ops: patch })
+        await pending.promise
+        for (const [index, row] of presets.entries()) {
+          const picker = patch.picker[row.id]
+          if (picker !== undefined) presets[index] = { ...row, picker }
+        }
+        return { ok: true, value: {} }
+      },
+    } })
+    const controller = new AgentPresetSeatController(ctx, () => undefined)
+    await controller.load()
+    controller.stage('minimal')
+
+    const saving = controller.setPickerPlacement('minimal', 'hidden')
+    await controller.setPickerPlacement('standard', 'more')
+    expect(controller.store.getSnapshot()).toMatchObject({ pickerSaving: true, current: 'minimal' })
+    expect(controller.store.getSnapshot().options[1]?.picker).toBe('more')
+    pending.resolve(undefined)
+    await saving
+
+    expect(writes).toEqual([{ ns: AGENT_PRESET_SETTINGS_NS, ops: { picker: { minimal: 'hidden' } } }])
+    expect(controller.store.getSnapshot()).toMatchObject({ pickerSaving: false, pickerError: null, current: 'minimal' })
+    expect(controller.store.getSnapshot().options[1]?.picker).toBe('hidden')
+  })
+
+  it('retains the saved placement and reports a rejected update in management', async () => {
+    const controller = new AgentPresetSeatController(fakeApi(ROSTER, { failWrite: 'read-only settings' }), () => undefined)
+    await controller.load()
+
+    await controller.setPickerPlacement('minimal', 'hidden')
+
+    expect(controller.store.getSnapshot()).toMatchObject({ pickerSaving: false, pickerError: 'read-only settings', current: 'standard' })
+    expect(controller.store.getSnapshot().options[1]?.picker).toBeUndefined()
+  })
+
+  it('reports a failed refresh after the placement write without emptying the picker', async () => {
+    const result = { failList: undefined as string | undefined }
+    const ctx = {
+      remote: {
+        settings: { update: () => {
+          result.failList = 'host disconnected'
+          return Promise.resolve({ ok: true, value: {} })
+        } },
+        agentPresets: { list: () => Promise.resolve(result.failList === undefined
+          ? { ok: true, value: { presets: ROSTER, authorable: true } }
+          : { ok: false, error: new RemoteError('gateway/internal', result.failList, {}) }) },
+      },
+    } as unknown as ClientContext
+    const controller = new AgentPresetSeatController(ctx, () => undefined)
+    await controller.load()
+
+    await controller.setPickerPlacement('minimal', 'hidden')
+
+    expect(controller.store.getSnapshot()).toMatchObject({ pickerSaving: false, pickerError: 'host disconnected' })
+    expect(controller.store.getSnapshot().options).toHaveLength(2)
   })
 
 })

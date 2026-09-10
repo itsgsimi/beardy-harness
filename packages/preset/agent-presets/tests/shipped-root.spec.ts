@@ -101,6 +101,22 @@ describe('the shipped preset root', () => {
       .filter(reason => reason !== undefined && !reason.includes('cannot be resolved'))).toEqual([])
   })
 
+  it('publishes picker placements for ordinary, specialist, and delivery presets', async () => {
+    const ctx = await roster({ includeUserRoot: false })
+    const { presets } = await ctx.agentPresets.remoteExportList()
+
+    expect(Object.fromEntries(presets.map(preset => [preset.id, preset.picker]))).toEqual({
+      standard: 'main',
+      beardy: 'main',
+      ptc: 'more',
+      minimal: 'more',
+      cordis: 'more',
+      'beardy-discord': 'hidden',
+      'beardy-unattended': 'hidden',
+    })
+    expect(presets.every(preset => preset.name !== undefined && preset.description !== undefined)).toBe(true)
+  })
+
   it('prepends the shipped root before configured roots and the derived user root', async () => {
     const ctx = await roster({ roots: [{ path: SYSTEM_ROOT, trust: 'user' }] })
 

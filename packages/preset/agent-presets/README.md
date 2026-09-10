@@ -33,7 +33,7 @@ The shipped Web `standard`, `ptc`, and `cordis` presets include [explicit file d
 
 A session composed from a preset runs the plugins that preset's `agent.cordis.yml` names: its tools, prompt sections, and skills. Sessions joined to the same preset share one installed composition, and each session's state stays separate. A child agent (subagent) joins its parent's composition, so it sees the same tools and prompt sections as the agent that spawned it.
 
-The presets you can choose from come from three sources: the presets shipped inside this package under `presets/`, configured roots, and your own presets under `<dshHome>/.agent-presets`. The picker shows each preset's display name and description; a preset whose composition cannot load is listed with the reason rather than hidden, so you can see what to fix or delete.
+The presets you can choose from come from three sources: the presets shipped inside this package under `presets/`, configured roots, and your own presets under `<dshHome>/.agent-presets`. Each preset can publish a display name and description. The settings roster includes presets whose compositions cannot load, with the reason, so you can see what to fix or delete.
 
 ### Minimal configuration
 
@@ -69,6 +69,12 @@ agent-presets:
 ```
 
 The value is read when a session is created, so a changed default affects only sessions created afterwards; running sessions stay on the preset they were composed from. Clearing the user field re-inherits the composition default.
+
+### Organizing the picker
+
+A preset's optional `picker` field in `preset.yml` chooses its placement: `main` for the main list, `more` for the collapsible group, or `hidden` to omit it from ordinary selection. Missing or invalid placement metadata means `main`. Standard and Beardy use `main`; PTC, Minimal, and Creator use `more`; the Discord and unattended variants use `hidden`. Placement changes only presentation: hidden presets remain in the full roster and can still compose sessions, run automation, and be selected by id.
+
+The `agent-presets` settings namespace accepts a `picker` map from preset ids to these same values. A user's entry overrides that preset's metadata; removing the entry restores its published placement. Updating one entry merges it with the other saved placements and preserves the default preset. Invalid setting values are refused.
 
 ### Authoring presets
 
@@ -131,7 +137,7 @@ A directly-plugged subtree is absent from `ctx.loader.entries()`, so no boot aud
 
 ### Authoring mechanics
 
-A copy dereferences symlinks so it is self-contained, re-tightens the tree to owner-only (`0o600` files keeping their owner-execute bit, `0o700` directories), and creates the root on first copy. The copied `preset.yml` is rewritten: the source's description is kept for the author to edit, its name and roster `order` dropped, so the roster keeps distinguishing the copy from its source. Removal refuses presets that ship with the deployment and clears a user default that named the preset just deleted.
+A copy dereferences symlinks so it is self-contained, re-tightens the tree to owner-only (`0o600` files keeping their owner-execute bit, `0o700` directories), and creates the root on first copy. The copied `preset.yml` is rewritten: the source's description is kept for the author to edit, while its name, roster `order`, and `picker` placement are dropped. The copy has its own identity and uses the main placement unless the user overrides it. Removal refuses presets that ship with the deployment and clears a user default that named the preset just deleted.
 
 ### The session record
 

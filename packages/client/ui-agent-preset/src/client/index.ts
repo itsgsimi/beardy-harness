@@ -113,6 +113,7 @@ export function apply(ctx: ClientContext): void {
       load: () => seat.load(),
       select: (id: string) => seat.select(id),
       introduced: () => { seat.introduced() },
+      setPickerPlacement: (id, picker) => seat.setPickerPlacement(id, picker),
     })
 
     const labelInjected = (): AgentPresetLabelInjected => ({

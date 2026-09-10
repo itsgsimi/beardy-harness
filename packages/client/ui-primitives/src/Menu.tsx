@@ -17,6 +17,8 @@ export interface MenuItem {
   danger?: boolean
   /** Nested card opened to the right on hover/focus. */
   submenu?: readonly MenuItem[]
+  /** Inline disclosure state; the owner toggles it through onSelect and supplies the visible rows. Ignored for submenu parents. */
+  expanded?: boolean
 }
 
 /** Hairline between item groups (not selectable). */
@@ -61,7 +63,7 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @param props.align - list alignment against the anchor (default 'start').
  * @param props.side - open below (`bottom`, default) or above (`top`) the anchor.
  * @param props.portal - render the list into document.body, fixed-positioned
- * from the anchor rect (repositions on scroll/resize while open). Use when an
+ * from the anchor rect (repositions on scroll, resize, and list size changes while open). Use when an
  * ancestor's overflow clipping would crop the in-place list; default false
  * keeps the pure-CSS in-place behavior.
  * @param props.closeOnPointerLeave - close the list once the pointer has left
@@ -157,7 +159,14 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
     place()
     window.addEventListener('scroll', place, true)
     window.addEventListener('resize', place)
+    const list = listRef.current
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && list !== null) {
+      observer = new ResizeObserver(place)
+      observer.observe(list)
+    }
     return () => {
+      observer?.disconnect()
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
     }
@@ -245,7 +254,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
           className={clsx(css.item, selected && (selection === 'fill' ? css.selectedFill : css.selected), entry.danger === true && css.danger)}
           disabled={entry.disabled}
           aria-haspopup={hasSub ? 'menu' : undefined}
-          aria-expanded={hasSub ? subOpen : undefined}
+          aria-expanded={hasSub ? subOpen : entry.expanded}
           onFocus={() => { setOpenSubmenuId(hasSub ? entry.id : null) }}
           onClick={() => {
             if (hasSub) {

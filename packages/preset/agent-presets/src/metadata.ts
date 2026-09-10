@@ -1,5 +1,5 @@
 /**
- * A preset's display metadata: the name and description a picker shows.
+ * A preset's display metadata: its name, description, order, and picker placement.
  *
  * It lives in its own file because the composition is a top-level list of
  * plugin rows — YAML cannot carry sibling keys beside it, and faking a
@@ -7,7 +7,7 @@
  * also keeps the composition exactly what its name says: a Cordis file the
  * loader owns and the cordis preset can author.
  *
- * The file carries display text ONLY. `id` is the directory name and `trust`
+ * The file carries presentation metadata only. `id` is the directory name and `trust`
  * comes from the root a preset was discovered under, so neither is writable
  * here — otherwise a locally authored preset could claim to be a shipped one.
  *
@@ -20,11 +20,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import yaml from 'js-yaml'
+import type { PresetPickerPlacement } from './preset.ts'
 
 /** The optional display-metadata file beside a preset's composition. */
 export const METADATA_FILE = 'preset.yml'
 
-/** Display text a preset may publish about itself. */
+/** Presentation metadata a preset may publish about itself. */
 export interface PresetMetadata {
   /** Human-facing name; falls back to the preset id when absent. */
   readonly name?: string
@@ -36,6 +37,8 @@ export interface PresetMetadata {
    * can read in capability order while authored ones stay alphabetical.
    */
   readonly order?: number
+  /** Picker placement; absent means the main group and never prevents mounting. */
+  readonly picker?: PresetPickerPlacement
 }
 
 /** A non-empty trimmed string, or undefined for anything else. */
@@ -51,7 +54,7 @@ function text(value: unknown): string | undefined {
  * Absent, unparsable, and wrongly-shaped files are all the same answer —
  * empty metadata — because the caller renders a picker, not a diagnostic.
  * @param directory - the preset directory.
- * @returns the display text the preset published, possibly empty.
+ * @returns the presentation metadata the preset published, possibly empty.
  */
 export async function readPresetMetadata(directory: string): Promise<PresetMetadata> {
   let raw: string
@@ -77,10 +80,14 @@ export async function readPresetMetadata(directory: string): Promise<PresetMetad
   const order = typeof record.order === 'number' && Number.isFinite(record.order)
     ? record.order
     : undefined
+  const picker = record.picker === 'main' || record.picker === 'more' || record.picker === 'hidden'
+    ? record.picker
+    : undefined
   return {
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...picker === undefined ? {} : { picker },
   }
 }
 
@@ -89,17 +96,18 @@ export async function readPresetMetadata(directory: string): Promise<PresetMetad
  *
  * Absent fields are omitted rather than written empty, so a preset with no
  * description does not ship a key that reads as an intentional blank.
- * @param metadata - the display text to store.
+ * @param metadata - the presentation metadata to store.
  * @returns the YAML document, or undefined when there is nothing to store.
  */
 export function renderPresetMetadata(metadata: PresetMetadata): string | undefined {
   const name = text(metadata.name)
   const description = text(metadata.description)
-  const { order } = metadata
-  if (name === undefined && description === undefined && order === undefined) return undefined
+  const { order, picker } = metadata
+  if (name === undefined && description === undefined && order === undefined && picker === undefined) return undefined
   return yaml.dump({
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...picker === undefined ? {} : { picker },
   }, { lineWidth: -1 })
 }

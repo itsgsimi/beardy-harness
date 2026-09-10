@@ -413,6 +413,31 @@ describe('ui-agent-preset apply', () => {
     await vi.waitFor(() => { expect(calls).toContain('select:minimal') })
   })
 
+  it('saves picker placement through the chip without selecting a different mode', async () => {
+    const { ctx, slots, calls } = await bench()
+    try {
+      declareRoot(slots)
+      declareConversation(slots)
+      ctx.provide('conversation', {} as never)
+      ctx.provide('sessions', sessionsDouble({ byId: {} }) as never)
+      ctx.provide('uiWorkspace', uiWorkspaceDouble() as never)
+      await ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'uiWorkspace'], apply }).await()
+      const chip = (slots.entries('conversation.hero.agentPreset')[0]!
+        .inject as unknown as () => AgentPresetSeatInjected)()
+      await chip.load()
+
+      await chip.setPickerPlacement('standard', 'hidden')
+
+      expect(calls).toContain('settings:{"picker":{"standard":"hidden"}}')
+      expect(calls.some(call => call.startsWith('select:'))).toBe(false)
+      expect(chip.hooks.agentPresetSeat.getSnapshot()).toMatchObject({
+        current: 'standard', pickerSaving: false, pickerError: null,
+      })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('applies the stage to a session that records no preset of its own', async () => {
     const { ctx, slots, calls } = await bench()
     declareRoot(slots)

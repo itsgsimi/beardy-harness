@@ -1,0 +1,46 @@
+- dialog "Manage modes":
+  - heading "Manage modes" [level=2]
+  - button "Close":
+    - img
+  - paragraph: Choose where each mode appears. The selected mode stays visible. Hidden modes remain available to integrations.
+  - text: Standard mode
+  - combobox "Standard mode placement":
+    - option "Main list" [selected]
+    - option "More modes"
+    - option "Hidden"
+  - text: PTC mode
+  - combobox "PTC mode placement":
+    - option "Main list"
+    - option "More modes" [selected]
+    - option "Hidden"
+  - text: Beardy mode
+  - combobox "Beardy mode placement":
+    - option "Main list" [selected]
+    - option "More modes"
+    - option "Hidden"
+  - text: Minimal mode
+  - combobox "Minimal mode placement":
+    - option "Main list"
+    - option "More modes" [selected]
+    - option "Hidden"
+  - text: Creator mode
+  - combobox "Creator mode placement":
+    - option "Main list"
+    - option "More modes" [selected]
+    - option "Hidden"
+  - text: Beardy unattended
+  - combobox "Beardy unattended placement":
+    - option "Main list"
+    - option "More modes"
+    - option "Hidden" [selected]
+  - text: Beardy Discord
+  - combobox "Beardy Discord placement":
+    - option "Main list"
+    - option "More modes"
+    - option "Hidden" [selected]
+  - text: Refusing mode
+  - combobox "Refusing mode placement":
+    - option "Main list" [selected]
+    - option "More modes"
+    - option "Hidden"
+  - button "Done"

@@ -1,8 +1,8 @@
 /** Client-safe payloads and event declarations owned by the agent-preset domain. */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { PresetTrust } from './preset.ts'
+import type { PresetPickerPlacement, PresetTrust } from './preset.ts'
 
-export type { PresetTrust } from './preset.ts'
+export type { PresetPickerPlacement, PresetTrust } from './preset.ts'
 
 /**
  * One roster row as a client reads it. Path-free: a preset is addressed by id
@@ -19,6 +19,8 @@ export interface AgentPresetRow {
   readonly name?: string
   /** One sentence on what this preset is for. */
   readonly description?: string
+  /** User override or published picker placement; absent means the main group. */
+  readonly picker?: PresetPickerPlacement
   /** Why this preset cannot compose a session; absent when it can. */
   readonly broken?: string
 }

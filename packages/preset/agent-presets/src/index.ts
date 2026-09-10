@@ -30,7 +30,7 @@ import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type 
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { AgentPresetDocument, AgentPresetRoster } from './types.ts'
+import type { AgentPresetDocument, AgentPresetRoster, PresetPickerPlacement } from './types.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
 // Type-only: resolves the registry notification emitted after scope reparenting.
 import type {} from '@deepseek-ai/dsh-tools'
@@ -51,7 +51,7 @@ export type {
   AgentPresetComposition, AgentPresetCompositionRow, CompositionRowEnablement,
 } from './composition-inventory.ts'
 
-/** Settings namespace carrying the user's chosen default preset. */
+/** Settings namespace carrying the user's default preset and picker placements. */
 export const SETTINGS_NAMESPACE = 'agent-presets'
 
 /** Refuse an empty preset id before invoking a domain operation. */
@@ -65,11 +65,14 @@ function validatePresetId(value: string, field: 'agentPreset' | 'from'): void {
 export interface AgentPresetSettings {
   /** Preset mounted when a session names none. */
   default?: string
+  /** Per-preset picker placements overriding display metadata without changing availability. */
+  picker?: Record<string, PresetPickerPlacement>
 }
 
 /** Runtime schema for the user-writable slice. */
 export const AgentPresetSettingsSchema: z<AgentPresetSettings> = z.object({
   default: z.string(),
+  picker: z.dict(z.union(['main', 'more', 'hidden'] as const).required()),
 })
 
 export { COMPOSITION_FILE, discoverPresets, scanRoot, SHIPPED_PRESET_ROOT } from './discovery.ts'
@@ -139,7 +142,7 @@ export class AgentPresets extends TypertRemoteService {
   private readonly harnessBase: string
 
   /**
-   * The user layer over `config.default`, present only while a settings
+   * The user layer for defaults and picker placements, present only while a settings
    * provider is composed. Held rather than snapshotted so a hot-reloaded
    * document takes effect without a restart.
    */
@@ -261,15 +264,22 @@ export class AgentPresets extends TypertRemoteService {
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
     const defaultId = this.defaultId
+    const pickerOverrides = this.settings?.get().picker
     return {
-      presets: (await this.list()).map(preset => ({
-        id: preset.id,
-        trust: preset.trust,
-        isDefault: preset.id === defaultId,
-        ...preset.name === undefined ? {} : { name: preset.name },
-        ...preset.description === undefined ? {} : { description: preset.description },
-        ...preset.broken === undefined ? {} : { broken: preset.broken },
-      })),
+      presets: (await this.list()).map((preset) => {
+        const picker = pickerOverrides !== undefined && Object.hasOwn(pickerOverrides, preset.id)
+          ? pickerOverrides[preset.id]
+          : preset.picker
+        return {
+          id: preset.id,
+          trust: preset.trust,
+          isDefault: preset.id === defaultId,
+          ...preset.name === undefined ? {} : { name: preset.name },
+          ...preset.description === undefined ? {} : { description: preset.description },
+          ...picker === undefined ? {} : { picker },
+          ...preset.broken === undefined ? {} : { broken: preset.broken },
+        }
+      }),
       authorable: this.authorable,
     }
   }

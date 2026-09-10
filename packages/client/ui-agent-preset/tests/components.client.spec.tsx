@@ -6,7 +6,7 @@
  * tools, so the choice is only ever offered before one starts.
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -35,7 +35,18 @@ const SEAT_READY: AgentPresetSeatState = {
   busy: false,
   error: null,
   introduce: false,
+  pickerSaving: false,
+  pickerError: null,
 }
+
+const GROUPED_OPTIONS: AgentPresetSeatState['options'] = [
+  { id: 'standard', trust: 'system', picker: 'main' },
+  { id: 'beardy', trust: 'system', picker: 'main' },
+  { id: 'minimal', trust: 'system', picker: 'more' },
+  { id: 'cordis', trust: 'system', picker: 'more' },
+  { id: 'beardy-discord', trust: 'system', picker: 'hidden' },
+  { id: 'mine', trust: 'user' },
+]
 
 /** The runtime's own `{name}` substitution, so a test reads the shown text. */
 function translate(key: keyof typeof en, params?: Record<string, unknown>): string {
@@ -50,13 +61,18 @@ function renderSeat(
   select: () => Promise<string | undefined> = () => Promise.resolve(undefined),
 ) {
   const store = createSnapshotStore<AgentPresetSeatState>({ ...SEAT_READY, ...state })
-  const actions = { load: vi.fn(() => Promise.resolve()), select: vi.fn(select), introduced: vi.fn() }
+  const actions = {
+    load: vi.fn(() => Promise.resolve()),
+    select: vi.fn(select),
+    introduced: vi.fn(),
+    setPickerPlacement: vi.fn(() => Promise.resolve()),
+  }
   render(<AgentPresetSeat {...({
     ...actions,
     useAgentPresetSeat: bindSnapshotSelector(store),
     t: translate,
   } as unknown as AgentPresetSeatProps)} />)
-  return actions
+  return { ...actions, store }
 }
 
 function renderLabel(
@@ -93,9 +109,7 @@ describe('the new-session chip', () => {
 
     fireEvent.click(screen.getByRole('button'))
 
-    // The id alone never said what a preset does; the description is the
-    // whole reason a preset can publish metadata at all.
-    expect(screen.getByText(en.presetStandardDescription)).toBeTruthy()
+    expect(screen.getByText(en.presetStandardSummary)).toBeTruthy()
     // A preset that published none still reads as a row, with its id standing
     // in for the name.
     expect(screen.getByText(en.noDescription)).toBeTruthy()
@@ -153,6 +167,130 @@ describe('the new-session chip', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('shows main and unclassified modes, and reveals additional modes without closing', () => {
+    const actions = renderSeat({ options: GROUPED_OPTIONS })
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(screen.getByRole('menuitem', { name: /Standard mode/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /Beardy mode/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /mine/ })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /Minimal mode/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Beardy Discord/ })).toBeNull()
+    const more = screen.getByRole('menuitem', { name: /^More modes/ })
+    expect(more.textContent).toContain('2')
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+
+    more.focus()
+    fireEvent.click(more)
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(more.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(more)
+    expect(screen.getByRole('menuitem', { name: /Minimal mode/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /Creator mode/ })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /Beardy Discord/ })).toBeNull()
+
+    fireEvent.click(more)
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(more)
+    expect(screen.queryByRole('menuitem', { name: /Minimal mode/ })).toBeNull()
+    expect(actions.select).not.toHaveBeenCalled()
+  })
+
+  it.each(['more', 'hidden'] as const)('keeps the active mode in the main list when placed in %s', (picker) => {
+    renderSeat({
+      current: 'minimal',
+      options: GROUPED_OPTIONS.map(option => option.id === 'minimal' ? { ...option, picker } : option),
+    })
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(screen.getAllByRole('menuitem', { name: /Minimal mode/ })).toHaveLength(1)
+    const more = screen.getByRole('menuitem', { name: /^More modes/ })
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(more.textContent).toContain('1')
+    fireEvent.click(more)
+    expect(screen.getAllByRole('menuitem', { name: /Minimal mode/ })).toHaveLength(1)
+  })
+
+  it('keeps the disclosure preference when the picker is reopened', () => {
+    renderSeat({ options: GROUPED_OPTIONS })
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^More modes/ }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(screen.getByRole('menuitem', { name: /^More modes/ }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: /Minimal mode/ })).toBeTruthy()
+  })
+
+  it('offers additional choices while the current mode is absent from the refreshed roster', () => {
+    renderSeat({ current: 'arriving', options: [{ id: 'minimal', trust: 'system', picker: 'more' }] })
+    fireEvent.click(screen.getByRole('button', { name: 'arriving' }))
+
+    expect(screen.queryByRole('separator')).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: /^More modes/ }))
+    expect(screen.getByRole('menuitem', { name: /Minimal mode/ })).toBeTruthy()
+  })
+})
+
+describe('picker placement management', () => {
+  it('lists hidden modes, writes the selected placement, and returns to the picker', () => {
+    const actions = renderSeat({ options: GROUPED_OPTIONS })
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
+
+    const dialog = screen.getByRole('dialog', { name: en.manageModes })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(within(dialog).getAllByRole('combobox')).toHaveLength(GROUPED_OPTIONS.length)
+    expect(within(dialog).getByRole('combobox', { name: 'mine placement' })).toHaveProperty('value', 'main')
+    const hidden = within(dialog).getByRole('combobox', { name: 'Beardy Discord placement' })
+    expect(hidden).toHaveProperty('value', 'hidden')
+    expect(within(hidden).getAllByRole('option').map(option => option.textContent))
+      .toEqual([en.pickerMain, en.pickerMore, en.pickerHidden])
+
+    fireEvent.change(hidden, { target: { value: 'more' } })
+    expect(actions.setPickerPlacement).toHaveBeenCalledWith('beardy-discord', 'more')
+    expect(actions.select).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: en.done }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('menu')).toBeTruthy()
+  })
+
+  it('disables every placement control while saving', () => {
+    renderSeat({ options: GROUPED_OPTIONS, pickerSaving: true })
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
+
+    for (const select of screen.getAllByRole('combobox')) expect(select).toHaveProperty('disabled', true)
+  })
+
+  it('announces a failed placement save in the manager', () => {
+    renderSeat({ options: GROUPED_OPTIONS, pickerError: 'Settings file is read-only' })
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
+
+    expect(screen.getByRole('alert').textContent).toBe('Settings file is read-only')
+    expect(screen.getByRole('combobox', { name: 'Beardy Discord placement' })).toHaveProperty('value', 'hidden')
+  })
+
+  it.each([false, true])('restores focus after saving unless focus moved elsewhere (%s)', (moveFocus) => {
+    const { store } = renderSeat({ options: GROUPED_OPTIONS })
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
+    const placement = screen.getByRole('combobox', { name: 'Beardy Discord placement' })
+    placement.focus()
+    fireEvent.change(placement, { target: { value: 'more' } })
+    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: true }) })
+    const done = screen.getByRole('button', { name: en.done })
+    // jsdom cannot blur disabled fields; an enabled control can transfer focus to the body.
+    done.focus()
+    if (!moveFocus) done.blur()
+    expect(document.activeElement).toBe(moveFocus ? done : document.body)
+
+    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: false }) })
+
+    expect(document.activeElement).toBe(moveFocus ? done : placement)
   })
 })
 

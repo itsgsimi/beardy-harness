@@ -136,4 +136,21 @@
   line-height: 16px;
   color: var(--dsw-alias-label-caption);
   white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.groupLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.groupCount {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
 }

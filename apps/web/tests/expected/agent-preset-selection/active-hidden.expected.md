@@ -1,13 +1,14 @@
 - menu:
-  - menuitem "Standard mode Full coding agent":
-    - text: Standard mode Full coding agent
-    - img
+  - menuitem "Standard mode Full coding agent"
   - menuitem "Beardy mode Coding with personality and memory"
+  - menuitem "Minimal mode Persistent shell only":
+    - text: Minimal mode Persistent shell only
+    - img
   - menuitem "Refusing mode Resolves, then refuses to start."
   - separator
-  - menuitem "More modes 3":
+  - menuitem "More modes 2":
     - img
-    - text: More modes 3
+    - text: More modes 2
   - menuitem "Manage modes…":
     - img
     - text: Manage modes…

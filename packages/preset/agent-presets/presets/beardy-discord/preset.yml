@@ -1,3 +1,4 @@
 name: Beardy Discord
-description: Beardy for Discord conversations: short plain-text replies with the full standard toolset, memory writes staged for approval.
+description: 'Beardy for Discord conversations: short plain-text replies with the full standard toolset, memory writes staged for approval.'
 order: 6
+picker: hidden

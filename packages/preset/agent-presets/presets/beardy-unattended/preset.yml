@@ -1,3 +1,4 @@
 name: Beardy Unattended
-description: Beardy for unattended runs: delivers through discord_send, keeps authoring tools off, and refuses memory writes without an approval answerer.
+description: 'Beardy for unattended runs: delivers through discord_send, keeps authoring tools off, and refuses memory writes without an approval answerer.'
 order: 5
+picker: hidden

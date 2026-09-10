@@ -1,5 +1,7 @@
 /** Locale bundles for the agent-preset hero chip, header label, and management section. */
 
+import { presetDisplayText, type PresetDisplaySource } from '@deepseek-ai/dsh-agent-presets/display'
+
 /** Locale keys these surfaces render. */
 export type AgentPresetSettingsKey =
   | 'error' | 'userTrust' | 'seatHint' | 'headerHint'
@@ -19,10 +21,30 @@ export type AgentPresetSettingsKey =
   | 'copyTitle' | 'copyIntro' | 'create' | 'creating' | 'creatorDraft'
   | 'openLocation' | 'showLocation' | 'revealedPathLabel'
   | 'idRequired' | 'idInvalid' | 'idTaken'
+  | 'moreModes' | 'manageModes' | 'manageModesAction' | 'pickerPlacement' | 'pickerMain' | 'pickerMore' | 'pickerHidden' | 'done'
+  | 'pickerIntro'
+  | 'presetStandardSummary' | 'presetBeardySummary' | 'presetPtcSummary' | 'presetMinimalSummary'
+  | 'presetCordisSummary' | 'presetBeardyUnattendedSummary' | 'presetBeardyDiscordSummary'
   | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
 
 /** English copy. */
 export const en: Record<AgentPresetSettingsKey, string> = {
+  moreModes: 'More modes',
+  manageModes: 'Manage modes',
+  manageModesAction: 'Manage modes…',
+  pickerPlacement: '{name} placement',
+  pickerMain: 'Main list',
+  pickerMore: 'More modes',
+  pickerHidden: 'Hidden',
+  done: 'Done',
+  pickerIntro: 'Choose where each mode appears. The selected mode stays visible. Hidden modes remain available to integrations.',
+  presetStandardSummary: 'Full coding agent',
+  presetBeardySummary: 'Coding with personality and memory',
+  presetPtcSummary: 'Combine tool calls in TypeScript',
+  presetMinimalSummary: 'Persistent shell only',
+  presetCordisSummary: 'Create and customize agent presets',
+  presetBeardyUnattendedSummary: 'Unattended runs with Discord delivery',
+  presetBeardyDiscordSummary: 'Replies to Discord conversations',
   error: 'Could not load agent presets.',
   userTrust: 'Custom',
   seatHint: 'Agent preset for the session you are about to start',
@@ -96,6 +118,22 @@ export const en: Record<AgentPresetSettingsKey, string> = {
 
 /** Simplified Chinese copy. */
 export const zh: Record<AgentPresetSettingsKey, string> = {
+  moreModes: '更多模式',
+  manageModes: '管理模式',
+  manageModesAction: '管理模式…',
+  pickerPlacement: '「{name}」的显示位置',
+  pickerMain: '主列表',
+  pickerMore: '更多模式',
+  pickerHidden: '隐藏',
+  done: '完成',
+  pickerIntro: '选择各模式的显示位置。当前选中的模式始终可见。隐藏的模式仍可供集成使用。',
+  presetStandardSummary: '功能完整的编码 Agent',
+  presetBeardySummary: '具备个性与记忆的编码助手',
+  presetPtcSummary: '使用 TypeScript 组合工具调用',
+  presetMinimalSummary: '仅使用持久 shell',
+  presetCordisSummary: '创建和自定义 Agent 预设',
+  presetBeardyUnattendedSummary: '无人值守运行并通过 Discord 投递',
+  presetBeardyDiscordSummary: '回复 Discord 对话',
   error: '无法加载 Agent 预设。',
   userTrust: '自定义',
   seatHint: '即将开始的这个会话所用的 Agent 预设',
@@ -158,5 +196,29 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
 // The resolution itself is the shared fold in `dsh-agent-presets/display`,
 // re-exported here so every surface in this plugin reads one path; the
 // Settings plugin list inlines the same fold over this plugin's dictionaries.
-export { presetDisplayText } from '@deepseek-ai/dsh-agent-presets/display'
+export { presetDisplayText }
 export type { PresetDisplaySource, PresetDisplayText } from '@deepseek-ai/dsh-agent-presets/display'
+
+const PICKER_SUMMARIES = new Map<string, AgentPresetSettingsKey>([
+  ['standard', 'presetStandardSummary'],
+  ['beardy', 'presetBeardySummary'],
+  ['ptc', 'presetPtcSummary'],
+  ['minimal', 'presetMinimalSummary'],
+  ['cordis', 'presetCordisSummary'],
+  ['beardy-unattended', 'presetBeardyUnattendedSummary'],
+  ['beardy-discord', 'presetBeardyDiscordSummary'],
+])
+
+/**
+ * Short chooser copy for shipped modes; other modes retain their own description.
+ * @param preset - roster display metadata.
+ * @param t - the active locale dictionary.
+ * @returns the localized summary, or the preset's own description when supplied.
+ */
+export function presetPickerDescription(
+  preset: PresetDisplaySource,
+  t: (key: AgentPresetSettingsKey) => string,
+): string | undefined {
+  const key = preset.trust === 'system' ? PICKER_SUMMARIES.get(preset.id) : undefined
+  return key === undefined ? preset.description : t(key)
+}

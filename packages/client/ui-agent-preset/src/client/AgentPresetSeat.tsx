@@ -15,13 +15,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PresetPickerPlacement } from '@deepseek-ai/dsh-agent-presets/types'
 import {
-  IconAgentPresetOutline16, IconChevronDownOutline14, IconWarningOutline16, Menu, Toast,
+  IconAgentPresetOutline16, IconChevronDownOutline14, IconChevronRightOutline14, IconSettingsOutline16,
+  IconWarningOutline16, Menu, Toast, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { AgentPresetSeatState } from './seat-store.ts'
-import { presetDisplayText } from './locales.ts'
+import { presetDisplayText, presetPickerDescription } from './locales.ts'
+import { AgentPresetPickerSettings } from './AgentPresetPickerSettings.tsx'
 import css from './AgentPresetSeat.module.css'
 
 /** Registration-side business face for the hero chip. */
@@ -36,7 +39,13 @@ export interface AgentPresetSeatInjected {
   select: (id: string) => Promise<string | undefined>
   /** Clear the one-shot introduce cue once the chip has played it. */
   introduced: () => void
+  /** Save one mode's position without changing the session preset. */
+  setPickerPlacement: (id: string, picker: PresetPickerPlacement) => Promise<void>
 }
+
+// Colons cannot occur in preset ids.
+const MORE_MODES_ID = ':more'
+const MANAGE_MODES_ID = ':manage'
 
 /* Introduce timeline: the icon eases in first (the CSS animation shares this
    duration); the name's characters start fading up the moment it lands, each
@@ -82,9 +91,11 @@ export type AgentPresetSeatProps =
  * @param props - composed slot props.
  * @returns the chip, or null when the deployment composes no presets.
  */
-export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, t }: AgentPresetSeatProps) {
+export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, useAgentPresetSeat, t }: AgentPresetSeatProps) {
   const state = useAgentPresetSeat(snapshot => snapshot)
   const [open, setOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [managing, setManaging] = useState(false)
   // The seq keys the banner, so picking the same broken preset twice replays
   // it rather than leaving the first one silently in place.
   const toastSeq = useRef(0)
@@ -143,28 +154,50 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
     )
     : label
 
+  const modeItem = (option: AgentPresetSeatState['options'][number]): MenuEntry => {
+    const text = presetDisplayText(option, t)
+    return {
+      id: option.id,
+      label: (
+        <span className={css.item}>
+          <span className={css.itemName}>{text.name}</span>
+          <span className={css.itemDesc}>{presetPickerDescription(option, t) ?? t('noDescription')}</span>
+        </span>
+      ),
+    }
+  }
+  const main = state.options.filter(option => option.id === state.current || (option.picker ?? 'main') === 'main')
+  const more = state.options.filter(option => option.id !== state.current && option.picker === 'more')
+  const items: MenuEntry[] = main.map(modeItem)
+  if (more.length > 0) {
+    if (main.length > 0) items.push({ id: ':more-separator', type: 'separator' })
+    items.push({
+      id: MORE_MODES_ID,
+      expanded: moreOpen,
+      icon: moreOpen ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />,
+      label: <span className={css.groupLabel}><span>{t('moreModes')}</span><span className={css.groupCount}>{more.length}</span></span>,
+    })
+    if (moreOpen) items.push(...more.map(modeItem))
+  }
+
   return (
     <>
       <Menu
         open={open}
         onClose={() => { setOpen(false) }}
-        items={state.options.map((option) => {
-          const text = presetDisplayText(option, t)
-          return {
-            id: option.id,
-            // Name and description together: the id alone never says what a
-            // preset does, which is why the roster carries display copy.
-            label: (
-              <span className={css.item}>
-                <span className={css.itemName}>{text.name}</span>
-                <span className={css.itemDesc}>{text.description ?? t('noDescription')}</span>
-              </span>
-            ),
-          }
-        })}
+        items={items}
+        footer={[{ id: MANAGE_MODES_ID, label: t('manageModesAction'), icon: <IconSettingsOutline16 /> }]}
         selectedId={state.current}
         onSelect={(id) => {
+          if (id === MORE_MODES_ID) {
+            setMoreOpen(value => !value)
+            return
+          }
           setOpen(false)
+          if (id === MANAGE_MODES_ID) {
+            setManaging(true)
+            return
+          }
           const picked = state.options.find(option => option.id === id)
           // The fallback is for the row shape `find` cannot promise; the menu's
           // items ARE `state.options`, so an emitted id is always one of them.
@@ -180,6 +213,8 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
           })
         }}
         align="start"
+        autoFocus
+        dense
         portal
         className={css.menuAnchor}
         anchor={(
@@ -197,6 +232,13 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
             <IconChevronDownOutline14 className={css.chevron} />
           </button>
         )}
+      />
+      <AgentPresetPickerSettings
+        open={managing}
+        onClose={() => { setManaging(false); setOpen(true) }}
+        state={state}
+        setPickerPlacement={setPickerPlacement}
+        t={t}
       />
       {toast !== null && (
         <Toast

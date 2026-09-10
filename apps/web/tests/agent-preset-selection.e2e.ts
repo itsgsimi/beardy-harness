@@ -9,7 +9,7 @@
 //
 // Zero model calls: no replay fixture mounts, so a stray stream fails loud.
 import { fileURLToPath } from 'node:url'
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
@@ -31,6 +31,9 @@ import {
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/agent-preset-selection', import.meta.url))
 const HERO_EXPECTED = join(SNAPSHOT_DIR, 'hero.expected.md')
 const MENU_EXPECTED = join(SNAPSHOT_DIR, 'menu.expected.md')
+const EXPANDED_MENU_EXPECTED = join(SNAPSHOT_DIR, 'expanded-menu.expected.md')
+const MANAGER_EXPECTED = join(SNAPSHOT_DIR, 'manager.expected.md')
+const ACTIVE_HIDDEN_EXPECTED = join(SNAPSHOT_DIR, 'active-hidden.expected.md')
 const HEADER_EXPECTED = join(SNAPSHOT_DIR, 'header.expected.md')
 const MODE = webSnapshotMode()
 const SEED_ID = 'agent-preset-selection-web-e2e'
@@ -66,6 +69,8 @@ async function seedRefusingPreset(root: string): Promise<void> {
  * @param workspaceCwd - the scaffold's temp project parent.
  */
 async function seedWorkspaceSkill(workspaceCwd: string): Promise<void> {
+  // Project-root discovery must stop before host-owned temporary ancestors.
+  await mkdir(join(workspaceCwd, 'workspace', '.git'), { recursive: true })
   const directory = join(workspaceCwd, 'workspace', '.agents', 'skills', SKILL_NAME)
   await mkdir(directory, { recursive: true })
   await writeFile(join(directory, 'SKILL.md'), [
@@ -259,30 +264,125 @@ describe('web e2e: agent-preset selection', () => {
     expect(snapshot).toContain('Standard mode')
   })
 
-  it('names every preset and what it is for', async () => {
+  it('keeps the main list compact and expands the additional modes on demand', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-preset-menu'))
     await page.getByRole('button', { name: 'Standard mode' }).click()
     const menu = page.getByRole('menu')
     await menu.waitFor({ timeout: 10_000 })
 
-    const snapshot = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
+    const more = menu.getByRole('menuitem', { name: /^More modes/ })
+    expect(await more.getAttribute('aria-expanded')).toBe('false')
+    const collapsed = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(MENU_EXPECTED, collapsed, MODE)
+    expect(collapsed).toContain('Standard mode')
+    expect(collapsed).toContain('Refusing mode')
+    expect(collapsed).not.toContain('Minimal mode')
 
-    await compareOrRefreshGolden(MENU_EXPECTED, snapshot, MODE)
-    // Every shipped preset, each with the sentence saying what it composes —
-    // the id alone never said what a preset does.
-    expect(snapshot).toContain('Minimal mode')
-    expect(snapshot).toContain('Creator mode')
+    await more.click()
+    expect(await more.getAttribute('aria-expanded')).toBe('true')
+    const expanded = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(EXPANDED_MENU_EXPECTED, expanded, MODE)
+    expect(expanded).toContain('PTC mode')
+    expect(expanded).toContain('Minimal mode')
+    expect(expanded).toContain('Creator mode')
+    expect(expanded).not.toContain('Beardy Discord')
+    expect(expanded).not.toContain('Beardy unattended')
+
+    await more.click()
+    expect(await more.getAttribute('aria-expanded')).toBe('false')
+    expect(await menu.getByRole('menuitem', { name: /Minimal mode/ }).count()).toBe(0)
+    await page.keyboard.press('Escape')
+  })
+
+  it('saves placements across reload and restores a hidden mode through Manage modes', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-preset-placements'))
+    await page.getByRole('button', { name: 'Standard mode' }).click()
+    await page.getByRole('menuitem', { name: 'Manage modes…', exact: true }).click()
+    const manager = page.getByRole('dialog', { name: 'Manage modes', exact: true })
+    await manager.waitFor()
+    const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(MANAGER_EXPECTED, snapshot, MODE)
+
+    await page.setViewportSize({ width: 360, height: 420 })
+    const bounds = await manager.boundingBox()
+    expect(bounds).not.toBeNull()
+    expect(bounds!.x).toBeGreaterThanOrEqual(0)
+    expect(bounds!.y).toBeGreaterThanOrEqual(0)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(360)
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(420)
+    await manager.getByRole('combobox').last().scrollIntoViewIfNeeded()
+    const done = await manager.getByRole('button', { name: 'Done', exact: true }).boundingBox()
+    expect(done).not.toBeNull()
+    expect(done!.y).toBeGreaterThanOrEqual(0)
+    expect(done!.y + done!.height).toBeLessThanOrEqual(420)
+    await page.setViewportSize({ width: 1680, height: 1000 })
+
+    const settingsPath = join(scaffold.harnessHome, 'settings.yaml')
+    const minimalPlacement = manager.getByRole('combobox', { name: 'Minimal mode placement', exact: true })
+    await minimalPlacement.focus()
+    await minimalPlacement.selectOption('hidden')
+    await expect.poll(() => readFile(settingsPath, 'utf8'), { timeout: 10_000 }).toContain('minimal: hidden')
+    await expect.poll(
+      () => minimalPlacement.evaluate(element => document.activeElement === element), { timeout: 10_000 },
+    ).toBe(true)
+    await manager.getByRole('combobox', { name: 'Creator mode placement', exact: true }).selectOption('main')
+    await expect.poll(() => readFile(settingsPath, 'utf8'), { timeout: 10_000 }).toContain('cordis: main')
+    await page.keyboard.press('Escape')
+    await manager.waitFor({ state: 'hidden' })
+
+    await page.reload({ waitUntil: 'load' })
+    await page.getByRole('button', { name: 'Standard mode' }).click()
+    const menu = page.getByRole('menu')
+    expect(await menu.getByRole('menuitem', { name: /^More modes/ }).getAttribute('aria-expanded')).toBe('false')
+    await menu.getByRole('menuitem', { name: /Creator mode/ }).waitFor()
+    await menu.getByRole('menuitem', { name: /^More modes/ }).click()
+    expect(await menu.getByRole('menuitem', { name: /Minimal mode/ }).count()).toBe(0)
+
+    await menu.getByRole('menuitem', { name: 'Manage modes…', exact: true }).click()
+    await manager.waitFor()
+    expect(await manager.getByRole('combobox', { name: 'Minimal mode placement', exact: true }).inputValue()).toBe('hidden')
+    await manager.getByRole('combobox', { name: 'Minimal mode placement', exact: true }).selectOption('more')
+    await expect.poll(() => readFile(settingsPath, 'utf8'), { timeout: 10_000 }).toContain('minimal: more')
+    await manager.getByRole('combobox', { name: 'Creator mode placement', exact: true }).selectOption('more')
+    await expect.poll(() => readFile(settingsPath, 'utf8'), { timeout: 10_000 }).toContain('cordis: more')
+    await manager.getByRole('button', { name: 'Done', exact: true }).click()
+    await manager.waitFor({ state: 'hidden' })
+    await menu.getByRole('menuitem', { name: /^More modes/ }).click()
     await page.keyboard.press('Escape')
   })
 
   it('applies the staged pick to the blank session, and the host honors it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-preset-stage'))
     await page.getByRole('button', { name: 'Standard mode' }).click()
+    await page.getByRole('menuitem', { name: /^More modes/ }).click()
     await page.getByRole('menuitem', { name: /Minimal mode/ }).click()
+    await page.getByRole('menu').waitFor({ state: 'hidden' })
 
     // The chip stages; the blank session the workspace connect produced is
     // what the stage lands on. The host's own answer is what comes back.
     await expect.poll(() => livePreset(scaffold), { timeout: 15_000 }).toBe('minimal')
+  })
+
+  it('keeps the active mode visible when its saved placement is hidden', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-preset-active-hidden'))
+    await page.getByRole('button', { name: 'Minimal mode' }).click()
+    await page.getByRole('menuitem', { name: /^More modes/ }).click()
+    await page.getByRole('menuitem', { name: 'Manage modes…', exact: true }).click()
+    const manager = page.getByRole('dialog', { name: 'Manage modes', exact: true })
+    await manager.getByRole('combobox', { name: 'Minimal mode placement', exact: true }).selectOption('hidden')
+    await expect.poll(
+      () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 10_000 },
+    ).toContain('minimal: hidden')
+    await page.keyboard.press('Escape')
+    await manager.waitFor({ state: 'hidden' })
+
+    const menu = page.getByRole('menu')
+    expect(await menu.getByRole('menuitem', { name: /^More modes/ }).getAttribute('aria-expanded')).toBe('false')
+    await menu.getByRole('menuitem', { name: /Minimal mode/ }).waitFor()
+    const snapshot = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(ACTIVE_HIDDEN_EXPECTED, snapshot, MODE)
+    expect(await livePreset(scaffold)).toBe('minimal')
+    await page.keyboard.press('Escape')
   })
 
   it('says why a switch was refused instead of letting the chip revert in silence', async () => {

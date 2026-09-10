@@ -85,6 +85,15 @@ describe('reading display metadata', () => {
     expect(await readPresetMetadata(await presetDir('order: .inf\n'))).toEqual({})
   })
 
+  it.each(['main', 'more', 'hidden'] as const)('reads the %s picker placement', async (picker) => {
+    expect(await readPresetMetadata(await presetDir(`picker: ${picker}\n`))).toEqual({ picker })
+  })
+
+  it.each(['other', 'true', '42', '[main]'])('ignores an invalid picker placement: %s', async (picker) => {
+    expect(await readPresetMetadata(await presetDir(`name: Example\npicker: ${picker}\n`)))
+      .toEqual({ name: 'Example' })
+  })
+
   it('cannot carry identity or trust', async () => {
     const dir = await presetDir('name: mine\nid: standard\ntrust: system\n')
 
@@ -104,6 +113,11 @@ describe('rendering display metadata', () => {
 
   it('stores a declared order', () => {
     expect(renderPresetMetadata({ name: '标准模式', order: 1 })).toBe('name: 标准模式\norder: 1\n')
+  })
+
+  it.each(['main', 'more', 'hidden'] as const)('round-trips the %s picker placement alone', async (picker) => {
+    const rendered = renderPresetMetadata({ picker })
+    expect(await readPresetMetadata(await presetDir(rendered))).toEqual({ picker })
   })
 
   it('omits an absent field rather than writing it blank', () => {

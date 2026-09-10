@@ -5,9 +5,12 @@
   - menuitem "Beardy mode Coding with personality and memory"
   - menuitem "Refusing mode Resolves, then refuses to start."
   - separator
-  - menuitem "More modes 3":
+  - menuitem "More modes 3" [expanded]:
     - img
     - text: More modes 3
+  - menuitem "PTC mode Combine tool calls in TypeScript"
+  - menuitem "Minimal mode Persistent shell only"
+  - menuitem "Creator mode Create and customize agent presets"
   - menuitem "Manage modes…":
     - img
     - text: Manage modes…

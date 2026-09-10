@@ -4,7 +4,7 @@
  * so a person can change which preset new sessions get without a restart.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -19,8 +19,9 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
+import yaml from 'js-yaml'
 import { afterEach, describe, expect, it } from 'vitest'
-import AgentPresets, { COMPOSITION_FILE, SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-agent-presets'
+import AgentPresets, { COMPOSITION_FILE, METADATA_FILE, SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-agent-presets'
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const ROOTS = [{ path: join(FIXTURES, 'system'), trust: 'system' as const }]
@@ -63,6 +64,19 @@ async function harness(
 
 const toolNames = (ctx: Context, agent?: unknown): string[] =>
   ctx.tools.schemas(agent as never).map(schema => schema.name).sort()
+
+/** Create one preset with an independent metadata file. */
+async function presetRoot(id: string, metadata: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-preset-placement-'))
+  roots.push(root)
+  await mkdir(join(root, id))
+  await writeFile(
+    join(root, id, COMPOSITION_FILE),
+    `- id: only\n  name: ${join(FIXTURES, 'plugins', 'contribute.js')}\n  config:\n    tool: only\n`,
+  )
+  await writeFile(join(root, id, METADATA_FILE), metadata)
+  return root
+}
 
 describe('the default preset as a user setting', () => {
   it('falls back to the composition default while the user set none', async () => {
@@ -157,6 +171,73 @@ describe('the default preset as a user setting', () => {
   })
 })
 
+describe('picker placement settings', () => {
+  it('uses metadata until a user override is set and restores it when cleared', async () => {
+    const root = await presetRoot('mine', 'picker: more\n')
+    const { ctx } = await harness([{ path: root, trust: 'user' }])
+    const placement = async () => (await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'mine')?.picker
+
+    expect(await placement()).toBe('more')
+    await ctx.settings.update(NS, { picker: { mine: 'main' } })
+    expect(await placement()).toBe('main')
+    expect((await ctx.agentPresets.resolve('mine')).picker).toBe('more')
+
+    await ctx.settings.replace(NS, {})
+    expect(await placement()).toBe('more')
+    expect((await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'standard')).not.toHaveProperty('picker')
+  })
+
+  it('persists each placement without replacing other placements or the default', async () => {
+    const { ctx, settingsFile } = await harness()
+    await ctx.settings.update(NS, { default: 'minimal', picker: { minimal: 'hidden' } })
+    await ctx.settings.update(NS, { picker: { standard: 'more' } })
+
+    const { presets } = await ctx.agentPresets.remoteExportList()
+    expect(presets.find(preset => preset.id === 'minimal'))
+      .toMatchObject({ isDefault: true, picker: 'hidden' })
+    expect(presets.find(preset => preset.id === 'standard')).toMatchObject({ picker: 'more' })
+    expect(yaml.load(await readFile(settingsFile, 'utf8'))).toEqual({
+      'agent-presets': { default: 'minimal', picker: { minimal: 'hidden', standard: 'more' } },
+    })
+  })
+
+  it('keeps hidden presets discoverable and usable for direct session selection', async () => {
+    const root = await presetRoot('mine', 'picker: hidden\n')
+    const { ctx } = await harness([{ path: root, trust: 'user' }])
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('settings-hidden'),
+      setup: async (agentCtx: Context) => void await ctx.agentPresets.mount(agentCtx),
+    })
+    try {
+      expect((await ctx.agentPresets.list()).some(preset => preset.id === 'mine')).toBe(true)
+      expect((await ctx.agentPresets.remoteExportList()).presets.find(preset => preset.id === 'mine'))
+        .toMatchObject({ picker: 'hidden' })
+      await ctx.agentPresets.select(handle.agent, 'mine')
+      expect(toolNames(ctx, handle.agent)).toEqual(['only'])
+    } finally {
+      await handle.dispose()
+    }
+  })
+
+  it('treats a preset named constructor as an ordinary absent override', async () => {
+    const root = await presetRoot('constructor', 'picker: more\n')
+    const { ctx } = await harness([{ path: root, trust: 'user' }])
+    await ctx.settings.update(NS, { picker: { standard: 'hidden' } })
+
+    expect((await ctx.agentPresets.remoteExportList()).presets.find(preset => preset.id === 'constructor'))
+      .toMatchObject({ picker: 'more' })
+  })
+
+  it.each(['other', 42, null, ['main']])('refuses an invalid stored placement: %j', async (placement) => {
+    const { ctx } = await harness()
+    await expect(ctx.settings.update(NS, { picker: { standard: placement } })).rejects.toThrow()
+    expect((await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'standard')).not.toHaveProperty('picker')
+  })
+})
+
 describe('a settings provider that goes away', () => {
   it('falls back to the composition default when the provider unloads', async () => {
     const { ctx, settingsFiber } = await harness()
@@ -168,5 +249,15 @@ describe('a settings provider that goes away', () => {
     await settingsFiber.dispose()
 
     expect(ctx.agentPresets.defaultId).toBe('standard')
+  })
+
+  it('restores metadata placement when the settings provider unloads', async () => {
+    const root = await presetRoot('mine', 'picker: hidden\n')
+    const { ctx, settingsFiber } = await harness([{ path: root, trust: 'user' }])
+    await ctx.settings.update(NS, { picker: { mine: 'main' } })
+    await settingsFiber.dispose()
+
+    expect((await ctx.agentPresets.remoteExportList()).presets.find(preset => preset.id === 'mine'))
+      .toMatchObject({ picker: 'hidden' })
   })
 })
