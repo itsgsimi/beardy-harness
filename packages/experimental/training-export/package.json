@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-experimental-training-export",
   "description": "Sidecar train/sample and train/label capture for the llm/stream waterfall and session events, for offline distillation datasets",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "private": true,
   "repository": {
     "type": "git",

@@ -10,3 +10,5 @@ header:
   toolSchemasSource: ptc-turn
 replay:
   override: true
+workspace:
+  setup: project-root

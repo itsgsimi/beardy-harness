@@ -12,7 +12,7 @@ Status: implemented
 
 `skill_manage` 新增了 `scope` 参数。默认的 `workspace` 作用域保持不变；`user` 在 `resolveDshHome()/skills` 下写入扁平文件——文件系统 skill 提供方已把该根目录作为其 `user-dsh` 来源扫描，因此无需改动提供方配置，用户作用域的 skill 在每个会话中都会加载。`enableUserSkillManagement`（默认 false）按调用把关该作用域；被禁用的请求会以模型可见的消息拒绝。`requireApproval`（默认 false）在调用时把创建、更新和删除路由给审批服务，沿用 memory 工具的模式：未挂载应答者即拒绝而不是回退，只有 `allowed-once` 才继续。
 
-提醒按 Agent 统计当前轮次内完成的工具调用：用 WeakMap 计数，由 `tools/post-execute` 瀑布喂数——监听器始终向 `next()` 委托——并在 `agent/turn-stopping` 检查。当某个轮次结束时的调用数达到 `nudgeAfterToolCalls`（默认 0，即关闭）且没有调用过 `skill_manage`，就通过 `agent.inject()` 向下一条被准入的请求注入一条提示，携带含次数的类型化 `skill-nudge` 消息来源；计数在轮次结束处被消费，因此一个轮次至多欠一条提示。`skill_manage` 的工具描述如今把沉淀列为预期行为；两个目录模板都告诉模型：若已加载 skill 的结果中含有压缩裁剪标记 `[... tool result middle pruned ...]`，其步骤不完整，必须先按名称重新加载再照做。
+提醒按 Agent 统计当前轮次内完成的工具调用：用 WeakMap 计数，由 `tools/post-execute` 瀑布喂数——监听器始终向 `next()` 委托——并在 `agent/turn-stopping` 检查。当某个轮次结束时的调用数达到 `nudgeAfterToolCalls`（默认 0，即关闭）且没有调用过 `skill_manage`，就通过 `agent.inject()` 向下一条被准入的请求注入一条提示，携带含次数的类型化 `skill-nudge` 消息来源；计数在轮次结束处被消费，因此一个轮次至多欠一条提示。`skill_manage` 的工具描述把沉淀列为预期行为。启用管理功能或提醒后，两个目录模板都会告诉模型：若已加载 skill 的结果中含有压缩裁剪标记 `[... tool result middle pruned ...]`，其步骤不完整，必须先按名称重新加载再照做。
 
 ## 备选方案
 

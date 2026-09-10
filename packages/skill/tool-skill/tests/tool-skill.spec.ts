@@ -271,7 +271,7 @@ describe('dsh-tool-skill', () => {
 
   it('injects a stable durable name-and-description catalog at the first step', async () => {
     const home = await tempDir('tool-catalog')
-    const ctx = await setup(home, { catalogDescriptionMaxLength: 50 })
+    const ctx = await setup(home, { catalogDescriptionMaxLength: 50, enableSkillManagement: true })
     ctx.skills.register({
       name: 'z-skill',
       description: 'Long   description '.repeat(5),

@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-beardy",
   "description": "The Beardy agent bundle: persistent session search, history tools, SearXNG web search, web fetching, and the Beardy persona over dsh-base and dsh-web-app",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "publishConfig": {
     "access": "public"
   },

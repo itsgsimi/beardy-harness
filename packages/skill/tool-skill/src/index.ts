@@ -102,6 +102,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
   const nudgeAfterToolCalls = config.nudgeAfterToolCalls ?? 0
   assertPositiveInteger('nudgeAfterToolCalls', nudgeAfterToolCalls, 0)
+  const includePrunedResultGuidance = config.enableSkillManagement === true || nudgeAfterToolCalls > 0
 
   if (nudgeAfterToolCalls > 0) installSkillNudge(ctx, nudgeAfterToolCalls)
 
@@ -276,8 +277,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
     const catalog = history.published
-      ? renderCatalogUpdate(entries)
-      : renderCatalogMessage(entries)
+      ? renderCatalogUpdate(entries, includePrunedResultGuidance)
+      : renderCatalogMessage(entries, includePrunedResultGuidance)
     return {
       ...decision,
       messages: existing === undefined
@@ -287,7 +288,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 }
 
-function renderCatalogMessage(entries: SkillCatalogSource['entries']): UserMessage {
+function renderCatalogMessage(
+  entries: SkillCatalogSource['entries'],
+  includePrunedResultGuidance: boolean,
+): UserMessage {
   return createUserMessage({
     content: [{
       type: 'text',
@@ -300,7 +304,9 @@ function renderCatalogMessage(entries: SkillCatalogSource['entries']): UserMessa
         '</available_skills>',
         '',
         "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.",
-        'If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.',
+        ...includePrunedResultGuidance
+          ? ['If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.']
+          : [],
         'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
         '</system-reminder>',
       ].join('\n'),
@@ -313,7 +319,10 @@ function renderCatalogMessage(entries: SkillCatalogSource['entries']): UserMessa
   })
 }
 
-function renderCatalogUpdate(entries: SkillCatalogSource['entries']): UserMessage {
+function renderCatalogUpdate(
+  entries: SkillCatalogSource['entries'],
+  includePrunedResultGuidance: boolean,
+): UserMessage {
   const availability = entries.length === 0
     ? [
       'No skills are currently available through the `skill` tool. Do not use names from earlier skill catalogs.',
@@ -321,7 +330,9 @@ function renderCatalogUpdate(entries: SkillCatalogSource['entries']): UserMessag
     ]
     : [
       'Use only names in this replacement catalog. If the user names a listed skill, or the task clearly matches its description, call the `skill` tool with the exact name before acting.',
-      'If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.',
+      ...includePrunedResultGuidance
+        ? ['If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.']
+        : [],
       'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
     ]
   return createUserMessage({

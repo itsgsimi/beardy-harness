@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-odysseus-research",
   "description": "Odysseus deep-research job bridge with configured worker selection",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "publishConfig": {
     "access": "public"
   },

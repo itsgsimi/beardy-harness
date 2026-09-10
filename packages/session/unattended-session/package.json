@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-unattended-session",
   "description": "Shared transaction that opens one unattended root Agent Session with reported rollback, plus the turn-bound and final-text helpers unattended callers wait on",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "publishConfig": {
     "access": "public"
   },

@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-discord",
   "description": "Model-facing discord_send tool posting to one configured Discord channel for the DeepSeek Harness",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "publishConfig": {
     "access": "public"
   },

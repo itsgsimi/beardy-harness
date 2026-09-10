@@ -3,6 +3,10 @@
   disabled: true
 - id: llm-pi-ai
   disabled: true
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-v4-flash
 - id: session-title-llm
   disabled: true
 - id: session-telemetry-otel

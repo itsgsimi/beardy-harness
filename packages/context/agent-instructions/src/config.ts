@@ -83,7 +83,12 @@ export function workspaceBaselineIdentity(
   return JSON.stringify({
     projectRoot: relative(cwd, projectRoot),
     projectRootMarkers: config.projectRootMarkers,
-    userGlobalInstructionCandidates: config.userGlobalInstructionCandidates,
+    ...config.userGlobalInstructionCandidates.length === DEFAULT_USER_GLOBAL_INSTRUCTION_CANDIDATES.length
+      && config.userGlobalInstructionCandidates.every(
+        (candidate, index) => candidate === DEFAULT_USER_GLOBAL_INSTRUCTION_CANDIDATES[index],
+      )
+      ? {}
+      : { userGlobalInstructionCandidates: config.userGlobalInstructionCandidates },
     ...config.frozenUserGlobalInstructionCandidates.length === 0 ? {} : {
       frozenUserGlobalInstructionCandidates: config.frozenUserGlobalInstructionCandidates,
     },

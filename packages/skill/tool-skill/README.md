@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Agents can discover, load, and optionally manage skills during a session. Before the first request, they receive a durable catalog of available skill names and capped descriptions, and can use the `skill` tool to load full instructions. Users can invoke a skill with `/name`, which injects the same instructions into that step. Optional configuration exposes approved workspace or user-scope mutations and a per-turn reminder to save reusable procedures. Catalog changes append a complete replacement, including an empty catalog that retires old names.
+Agents can discover, load, and optionally manage skills during a session. Before the first request, when model-invocable skills exist and the `skill` tool is visible, they receive a durable catalog of available skill names and capped descriptions, and can use the tool to load full instructions. Users can invoke a user-invocable skill with `/name`, which injects the same instructions into that step. Optional configuration exposes approved workspace or user-scope mutations and a per-turn reminder to save reusable procedures. Catalog changes append a complete replacement, including an empty catalog that retires old names; configure `catalogDescriptionMaxLength` to limit each description.
 
 ## Table of Contents
 
@@ -62,7 +62,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### Observable success and failures
 
-Loading a listed skill returns its full instructions; management returns the affected path and operation status. An invalid name reports `Error: invalid skill name "<name>"`, an unknown name reports the skill is unknown or no longer available, and a skill disabled for model invocation reports it is not available for model invocation. Management refusals report their cause, including disabled user scope, refused or unavailable approval, lifecycle mismatch, an unsafe target, missing workspace cwd, or path escape. The catalog is omitted entirely only when no model-invocable skills exist and none was ever published; a later visibility loss appends an empty retirement catalog.
+Loading a listed skill returns its full instructions in the same canonical form used for a user's explicit invocation; management returns the affected path and operation status. An invalid name reports `Error: invalid skill name "<name>"`, an unknown name reports the skill is unknown or no longer available, and a skill disabled for model invocation reports it is not available for model invocation. Management refusals report their cause, including disabled user scope, refused or unavailable approval, lifecycle mismatch, an unsafe target, missing workspace cwd, or path escape. The catalog is omitted entirely when no catalog was ever published and either no model-invocable skills exist or the `skill` tool is hidden or shadowed; after publication, either visibility loss or removal of every skill appends an empty catalog that retires older names.
 
 -----
 

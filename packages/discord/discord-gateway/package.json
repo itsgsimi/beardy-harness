@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-discord-gateway",
   "description": "Discord Gateway listener that turns direct messages from allowed users into Agent Sessions and posts the agent's replies back",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "publishConfig": {
     "access": "public"
   },

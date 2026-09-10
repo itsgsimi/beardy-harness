@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-cron",
   "description": "Global scheduler that starts unattended Agent Sessions on cron expressions and hands each job its prompt, presets, and workspace",
-  "version": "0.1.5-alpha.2",
+  "version": "0.1.5-rc.1",
   "publishConfig": {
     "access": "public"
   },
