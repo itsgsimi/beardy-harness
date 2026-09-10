@@ -144,6 +144,55 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
     `)
   })
 
+  it('prints a clean startup URL and warning when authentication is explicitly disabled', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-web-no-auth-snapshot-'))
+    tempRoots.push(root)
+    const result = await execa(process.execPath, [
+      '--import', openerHook,
+      builtBin,
+      '--profile', 'web',
+      '--no-open',
+      '--port', '0',
+      '--insecure-no-auth',
+    ], {
+      cwd: root,
+      env: {
+        ...process.env,
+        DEEPSEEK_API_KEY: 'keyless-browser-open-no-call',
+        DSH_AGENTS_HOME: join(root, '.agents'),
+        DSH_BROWSER_OPEN_TEST_EXIT_ON_READY: '1',
+        DSH_HOME: join(root, '.dsh'),
+        DSH_TELEMETRY_DISABLED: '1',
+        NODE_NO_WARNINGS: '1',
+        SSH_CONNECTION: '',
+        SSH_TTY: '',
+      },
+      input: '',
+      timeout: 30_000,
+      killSignal: 'SIGKILL',
+      reject: false,
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.signal).toBeUndefined()
+    const readyUrl = /dsh web: (http:\/\/[^\s]+)/u.exec(result.stdout)?.[1]
+
+    expect({
+      exitCode: result.exitCode,
+      opening: result.stdout.includes(openingMessage),
+      readyUrl: readyUrl === undefined ? undefined : normalizeLocalUrl(readyUrl),
+      opened: result.stdout.includes('dsh browser-open: '),
+      stderr: result.stderr,
+    }).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "opened": false,
+        "opening": false,
+        "readyUrl": "http://127.0.0.1:{{port}}/",
+        "stderr": "WARNING: --insecure-no-auth disables authentication. Anyone who can reach this server can operate the harness.",
+      }
+    `)
+  })
+
   it('prints the host URL without launching a browser in a VS Code Remote SSH session', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-web-browser-open-ssh-snapshot-'))
     tempRoots.push(root)

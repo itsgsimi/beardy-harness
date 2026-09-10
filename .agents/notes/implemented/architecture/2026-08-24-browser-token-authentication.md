@@ -10,7 +10,7 @@ The Web Host runs tool-capable Sessions with the current operating-system user's
 
 ## Decision
 
-`dsh-client-connection` authenticates the complete Host API before dispatch. Every API Proxy method, Remote unary call, generic Connection channel, and Remote WebSocket stream requires the same browser session; endpoint ownership and method names do not alter authority. The existing Host/Origin checks run first and retain their DNS-rebinding and cross-site-request role, returning 403 when they fail. A trusted Host without a valid browser session receives 401. The browser-trust rules remain owned by the [carrier-level browser trust decision](2026-07-28-api-browser-trust-boundary.md).
+`dsh-client-connection` authenticates the complete Host API before dispatch by default. Every API Proxy method, Remote unary call, generic Connection channel, and Remote WebSocket stream requires the same browser session; endpoint ownership and method names do not alter authority. The existing Host/Origin checks run first and retain their DNS-rebinding and cross-site-request role, returning 403 when they fail. A trusted Host without a valid browser session receives 401. The browser-trust rules remain owned by the [carrier-level browser trust decision](2026-07-28-api-browser-trust-boundary.md).
 
 Each Host process generates a random launch token, retained by the root application context across Connection hot reloads. `dsh-web-app` prints and opens the normal root URL with that token in the query once per process. `frontend-static` asks Connection to authorize index responses: only `GET /?token=...` exchanges the process token for a cookie, then redirects to clean `/`; the token is not accepted on API paths or in an Authorization header. An obsolete token paired with a valid cookie redirects to clean `/`. Missing and invalid credentials receive one minimal 401 response. Static non-index assets remain public.
 
@@ -20,7 +20,7 @@ The HMAC secret is a versioned `grant` record at `client-connection/browser-sess
 
 The in-page Web Worker preview exposes no network socket. Its page-owned `postMessage` tunnel enters the real route first, then retries a 401 or 403 through the worker-local fetch handler. This keeps Connection interceptors while limiting the authentication bypass to the page that created the Host worker.
 
-The shipped CLI continues to reject `--host 0.0.0.0`. Authentication does not imply supported network deployment, TLS, forwarding-header interpretation, or proxy configuration.
+The [explicit token-free mode](../feature/2026-09-09-explicit-token-free-web-access.md) is the authentication opt-out and permits `--host 0.0.0.0` only with `--insecure-no-auth`. The default CLI still rejects that bind. Browser authentication adds no TLS, forwarding-header interpretation, or proxy configuration.
 
 ## Verification
 

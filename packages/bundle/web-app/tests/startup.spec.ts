@@ -60,6 +60,7 @@ export const apply = ctx => globalThis.__webStartupApply(ctx)
     `  name: ${pathToFileURL(join(dir, 'reader.mjs')).href}`,
     `  inject: [${WEB_STARTUP_SERVICE}]`,
     '  config:',
+    '    insecureNoAuth: !!js ctx.webStartup.insecureNoAuth',
     "    host: !!js ctx.webStartup.host ?? '127.0.0.1'",
     '    openBrowser: !!js ctx.webStartup.openBrowser',
     '    port: !!js ctx.webStartup.port ?? 3080',
@@ -79,12 +80,12 @@ export const apply = ctx => globalThis.__webStartupApply(ctx)
   globals.__webStartupObserved = observed
 
   const ctx = new Context()
+  disposers.push(async () => { await ctx.fiber.dispose() })
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   provideCmdline(ctx, { args, exit: code => void observed.exits.push(code) })
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(join(dir, 'cordis.yml')).href } })
   await ctx.loader.await()
-  disposers.push(async () => { await ctx.fiber.dispose() })
   return {
     values: ctx.get(WEB_STARTUP_SERVICE) as WebStartupValues | undefined,
     observed,
@@ -101,6 +102,7 @@ describe('web command-line provider', () => {
       '--trusted-host', '10.0.0.9',
     ])
     expect(values).toEqual({
+      insecureNoAuth: false,
       host: '127.0.0.1',
       openBrowser: false,
       port: 8080,
@@ -112,8 +114,9 @@ describe('web command-line provider', () => {
 
   it('leaves deployment values to each consumer when flags omit them', async () => {
     const { values, observed } = await bootProvider([])
-    expect(values).toEqual({ openBrowser: true, trustedHosts: [] })
+    expect(values).toEqual({ insecureNoAuth: false, openBrowser: true, trustedHosts: [] })
     expect(observed.readerConfig).toEqual({
+      insecureNoAuth: false,
       host: '127.0.0.1',
       openBrowser: true,
       port: 3080,
@@ -126,6 +129,7 @@ describe('web command-line provider', () => {
     expect(observed.out).toContain('dsh --profile web')
     expect(observed.out).toContain('--no-open')
     expect(observed.out).toContain('--trusted-host')
+    expect(observed.out).toContain('--insecure-no-auth')
     expect(values).toBeUndefined()
     expect(observed.readerConfig).toBeUndefined()
     expect(observed.exits).toEqual([0])
@@ -139,11 +143,22 @@ describe('web command-line provider', () => {
     expect(observed.exits).toEqual([1])
   })
 
-  it('rejects the intentionally unsupported all-interfaces host before the consumer activates', async () => {
+  it('rejects the all-interfaces host without an explicit authentication bypass', async () => {
     const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
-    expect(observed.out).toContain('--host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
+    expect(observed.out).toContain('--host 0.0.0.0 requires --insecure-no-auth')
     expect(values).toBeUndefined()
     expect(observed.readerConfig).toBeUndefined()
     expect(observed.exits).toEqual([1])
+  })
+
+  it('allows an explicit unauthenticated LAN bind and warns before publishing it', async () => {
+    const { values, observed } = await bootProvider(['--host', '0.0.0.0', '--insecure-no-auth', '--port', '0'])
+
+    expect(values).toEqual({
+      insecureNoAuth: true, host: '0.0.0.0', port: 0, openBrowser: true, trustedHosts: [],
+    })
+    expect(observed.readerConfig).toEqual(values)
+    expect(observed.out).toBe('WARNING: --insecure-no-auth disables authentication. Anyone who can reach this server can operate the harness.\n')
+    expect(observed.exits).toEqual([])
   })
 })

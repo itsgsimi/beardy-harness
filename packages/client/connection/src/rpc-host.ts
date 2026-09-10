@@ -1,6 +1,7 @@
 /** Host registry and HTTP adapter for generic Connection RPC channels. */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
   RpcId,
@@ -49,6 +50,10 @@ interface ConnectionServerResponse {
   readonly result: ConnectionRpcResult<unknown>
 }
 
+type ConnectionAuthentication =
+  | { readonly kind: 'browser'; readonly browserAuth: BrowserAuth }
+  | { readonly kind: 'insecure' }
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Host Connection transport and RPC registrations. */
@@ -65,12 +70,12 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by the Host/Origin fence.
-   * @param browserAuth - process token and persistent browser-session owner.
+   * @param authentication - browser-session owner or explicit authentication opt-out.
    */
   constructor(
     ctx: Context,
     private readonly trustedHosts: readonly string[],
-    private readonly browserAuth: BrowserAuth,
+    private readonly authentication: ConnectionAuthentication,
   ) {
     super(ctx, 'connection')
   }
@@ -93,20 +98,45 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the configured Host/Origin fence, then browser authentication. */
+  /** Apply request trust checks and the configured browser authentication policy. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
+    switch (this.authentication.kind) {
+      case 'insecure': return undefined
+      case 'browser': return this.authentication.browserAuth.isAuthenticated(request) ? undefined : 401
+      default: return assertNever(this.authentication)
+    }
   }
 
-  /** Authenticate an index request through the process-token exchange or cookie. */
+  /** Authorize index access through browser authentication, or request trust in explicit insecure mode. */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
-    return this.browserAuth.authorizeIndex(request, response)
+    switch (this.authentication.kind) {
+      case 'browser': return this.authentication.browserAuth.authorizeIndex(request, response)
+      case 'insecure':
+        if (isTrustedApiRequest(request, this.trustedHosts)) return true
+        response.writeHead(403, {
+          'cache-control': 'no-store',
+          'content-type': 'text/plain; charset=utf-8',
+        })
+        response.end(request.method === 'HEAD' ? undefined : 'forbidden')
+        return false
+      default: return assertNever(this.authentication)
+    }
   }
 
-  /** Add this process's launch token to the clean application URL. */
+  /** Return the application root URL, carrying a process token when browser authentication is enabled. */
   authenticatedUrl(baseUrl: string): string {
-    return this.browserAuth.authenticatedUrl(baseUrl)
+    switch (this.authentication.kind) {
+      case 'browser': return this.authentication.browserAuth.authenticatedUrl(baseUrl)
+      case 'insecure': {
+        const url = new URL(baseUrl)
+        url.pathname = '/'
+        url.search = ''
+        url.hash = ''
+        return url.href
+      }
+      default: return assertNever(this.authentication)
+    }
   }
 
   /**

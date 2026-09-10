@@ -8,9 +8,9 @@ import type { AddressInfo } from 'node:net'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { IndexInjection, WebServer, WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
-import { API_PATH, RpcId, apply, inject, type ClientRequest, type ConnectionConfig, type HostConnectionHandle } from '../src/index.ts'
+import { API_PATH, Config, RpcId, apply, inject, type ClientRequest, type ConnectionConfig, type HostConnectionHandle } from '../src/index.ts'
 import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../src/http-bridge.ts'
-import { provideBrowserCredentials } from './browser-credentials.ts'
+import { provideBrowserCredentials, type RecordCredentials } from './browser-credentials.ts'
 
 /** Structural webServer fake recording both route registries. */
 function fakeHttpServer(
@@ -276,6 +276,94 @@ describe('connection node half', () => {
       cookie: browserCookie(connection, 'harness.example'),
     }))).toBeUndefined()
     await dispose()
+  })
+
+  it.each([{}, { insecureNoAuth: false }])('requires a browser session without an explicit opt-out: %j', async (config) => {
+    expect(new Config(config).insecureNoAuth).toBe(false)
+    const { connection, dispose } = await mounted(config)
+    try {
+      const request = fakeRequest({ host: '127.0.0.1:3080' }, '/')
+      expect(connection.requestRejection(request)).toBe(401)
+      const denied = fakeResponse()
+      expect(connection.authorizeIndex(request, denied.response)).toBe(false)
+      expect(denied.state.status).toBe(401)
+      expect(new URL(connection.authenticatedUrl('http://127.0.0.1:3080')).searchParams.has('token')).toBe(true)
+      expect(connection.requestRejection(fakeRequest({
+        host: '127.0.0.1:3080', cookie: browserCookie(connection, '127.0.0.1:3080'),
+      }))).toBeUndefined()
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('serves trusted index and RPC requests without browser credentials only in explicit insecure mode', async () => {
+    const { ctx, connection, routes, dispose } = await mounted({
+      insecureNoAuth: true, trustedHosts: ['harness.example'],
+    })
+    try {
+      expect((ctx.credentials as unknown as RecordCredentials).modifies).toBe(0)
+      expect(connection.authenticatedUrl('http://harness.example:3080/index.html?token=obsolete#fragment'))
+        .toBe('http://harness.example:3080/')
+      for (const path of ['/', '/index.html']) {
+        const response = fakeResponse()
+        expect(connection.authorizeIndex(fakeRequest({ host: 'harness.example' }, path), response.response)).toBe(true)
+        expect(response.state).toEqual({})
+      }
+      const calls: string[] = []
+      const remove = connection.rpc.intercept('/api', endpoint => endpoint === 'settings/describe', async (endpoint) => {
+        calls.push(endpoint)
+        return { ok: true, value: { enabled: true } }
+      })
+      try {
+        const response = fakeResponse()
+        await routes[0]!.handler(fakePost({ host: 'harness.example' }, '/api/settings/describe', {
+          type: 'client-request', rpcId: RpcId('insecure-rpc'), method: 'settings/describe', payload: {},
+        }), response.response)
+        expect(response.state.status).toBe(200)
+        expect(JSON.parse(String(response.state.body))).toEqual({
+          type: 'server-response', rpcId: 'insecure-rpc', result: { ok: true, value: { enabled: true } },
+        })
+        expect(calls).toEqual(['settings/describe'])
+      } finally {
+        await remove()
+      }
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('retains Host, Origin and Fetch-Metadata checks for insecure index, API and sibling routes', async () => {
+    const { connection, routes, dispose } = await mounted({
+      insecureNoAuth: true, trustedHosts: ['harness.example'],
+    })
+    try {
+      const refusedHeaders: Record<string, string>[] = [
+        {},
+        { host: 'attacker.example' },
+        { host: 'harness.example', origin: 'http://attacker.example' },
+        { host: 'harness.example', origin: 'null' },
+        { host: 'harness.example', 'sec-fetch-site': 'cross-site' },
+      ]
+      for (const headers of refusedHeaders) {
+        const request = fakeRequest(headers, '/')
+        expect(connection.requestRejection(request)).toBe(403)
+        const index = fakeResponse()
+        expect(connection.authorizeIndex(request, index.response)).toBe(false)
+        expect(index.state).toMatchObject({ status: 403, body: 'forbidden', headers: { 'cache-control': 'no-store' } })
+        const api = fakeResponse()
+        await routes[0]!.handler(fakeRequest(headers), api.response)
+        expect(api.state).toMatchObject({ status: 403, body: 'forbidden' })
+      }
+      const head = fakeRequest({ host: 'attacker.example' }, '/')
+      head.method = 'HEAD'
+      const index = fakeResponse()
+      expect(connection.authorizeIndex(head, index.response)).toBe(false)
+      expect(index.state.status).toBe(403)
+      expect(index.state.body).toBeUndefined()
+      expect(connection.requestRejection(fakeRequest({ host: '127.0.0.1:3080' }))).toBeUndefined()
+    } finally {
+      await dispose()
+    }
   })
 
   it('provides a disposable dedicated RPC channel', async () => {

@@ -1,6 +1,6 @@
 /**
  * The web app's command-line provider: it parses the `dsh --profile web` flag
- * family (`--host`, `--port`, `--trusted-host`, `--no-open`) and its `--help`
+ * family (`--host`, `--port`, `--trusted-host`, `--no-open`, `--insecure-no-auth`) and its `--help`
  * text, then provides the immutable values as {@link WEB_STARTUP_SERVICE}.
  * Ordinary rows inject that service before reading it from lazy config.
  * @module @deepseek-ai/dsh-web-app/startup
@@ -21,6 +21,8 @@ export const WEB_STARTUP_SERVICE = 'webStartup'
 
 /** What the web rows read from {@link WEB_STARTUP_SERVICE}. */
 export interface WebStartupValues {
+  /** Explicit authentication bypass; false unless `--insecure-no-auth` is supplied. */
+  insecureNoAuth: boolean
   /** Whether this invocation opens the default browser after startup. */
   openBrowser: boolean
   /** `--host`, absent when the invocation did not name one. */
@@ -33,6 +35,7 @@ export interface WebStartupValues {
 
 /** The web flag family, as commander parsed it. */
 interface WebOptions {
+  insecureNoAuth: boolean
   host?: string
   open: boolean
   port?: string
@@ -49,6 +52,7 @@ function webCommand(): Command {
     .description('Serve the DeepSeek Harness browser UI.')
     .helpOption('-h, --help', 'show this help')
     .option('--host <host>', 'bind host')
+    .option('--insecure-no-auth', 'disable authentication; anyone who can reach this server can operate the harness', false)
     .option('--no-open', 'do not open the Web UI in the default browser')
     .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one')
     .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
@@ -63,7 +67,7 @@ Examples:
 /**
  * Parse and provide the Web invocation as an ordinary Cordis service. The
  * command's action publishes the flags this invocation named; `--host 0.0.0.0`
- * or a non-numeric `--port` is a usage error, so on rejection (and on `--help`)
+ * without `--insecure-no-auth`, or a non-numeric `--port`, is a usage error, so on rejection (and on `--help`)
  * nothing is provided.
  * @param ctx - plugin context carrying the command line.
  */
@@ -71,13 +75,19 @@ export function apply(ctx: Context): void {
   const program = webCommand()
   program.action(() => {
     const options = program.opts<WebOptions>()
-    if (options.host === '0.0.0.0') {
-      program.error('error: --host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
+    if (options.host === '0.0.0.0' && !options.insecureNoAuth) {
+      program.error('error: --host 0.0.0.0 requires --insecure-no-auth; anyone who can reach this server can operate the harness. Use 127.0.0.1 to keep the authenticated default')
     }
     if (options.port !== undefined && !/^\d+$/.test(options.port)) {
       program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)
     }
+    if (options.insecureNoAuth) {
+      // parseCmdline supplies writeErr before invoking this action.
+      const output = program.configureOutput() as { writeErr(text: string): void }
+      output.writeErr('WARNING: --insecure-no-auth disables authentication. Anyone who can reach this server can operate the harness.\n')
+    }
     ctx.provide(WEB_STARTUP_SERVICE, {
+      insecureNoAuth: options.insecureNoAuth,
       openBrowser: options.open,
       ...options.host !== undefined && { host: options.host },
       ...options.port !== undefined && { port: Number(options.port) },

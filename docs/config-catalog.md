@@ -352,6 +352,8 @@ Requires: `credentials`
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
 export interface ConnectionConfig {
+  /** Disable browser authentication while retaining request trust checks. Default: false; grants every accepted caller Host control. */
+  insecureNoAuth?: boolean
   /** Browser recovery timing, injected into each served page. */
   recovery?: ConnectionRecoveryConfig
   /**
