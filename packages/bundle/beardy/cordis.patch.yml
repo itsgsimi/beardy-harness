@@ -54,6 +54,12 @@
     fetch: true
     searchTimeoutMs: 60000
 
+# Supply the server, credential reference, and worker in the personal profile patch.
+- insert:
+    - id: tool-odysseus-research
+      name: '@deepseek-ai/dsh-tool-odysseus-research'
+      disabled: true
+
 # Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
 # only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
 # token itself lives in the environment or the root .env; the composition names the reference, never

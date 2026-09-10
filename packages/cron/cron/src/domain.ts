@@ -8,6 +8,7 @@
 
 import { z } from 'zod'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
+import { SessionId } from '@deepseek-ai/dsh-session'
 
 /** Where one job definition came from: plugin configuration or the durable store. */
 export const jobOrigin = z.enum(['config', 'stored'])
@@ -59,14 +60,30 @@ export type JobDelivery = z.infer<typeof jobDelivery>
 export const runHistoryEntry = z.object({
   /** Epoch milliseconds of the fire that produced this run. */
   firedAt: z.number(),
-  /** Session the run executed in; empty when the Session never opened. */
+  /** Reserved Session id; its log may be absent when creation failed. */
   sessionId: z.string(),
   /** How the run ended. */
-  outcome: z.enum(['answered', 'no-text-answer', 'timed-out', 'failed']),
+  outcome: z.enum(['answered', 'no-text-answer', 'timed-out', 'failed', 'interrupted']),
 })
 
 /** One retained entry of a job's run history. */
 export type RunHistoryEntry = z.infer<typeof runHistoryEntry>
+
+/** A reserved run whose Session may not yet have opened. */
+export const activeRunRecord = z.object({
+  firedAt: z.number(),
+  sessionId: z.string().min(1).transform(SessionId),
+  deliverChannelId: z.string().optional(),
+  reportOutcome: z.boolean(),
+})
+
+/** Durable reservation written before any Agent work begins. */
+export type ActiveRunRecord = z.infer<typeof activeRunRecord>
+
+const pendingOutcomeRecord = activeRunRecord.extend({
+  outcome: runHistoryEntry.shape.outcome,
+  text: z.string(),
+})
 
 /**
  * Durable continuity state of one job, keyed by job name. Notes carry between runs so each fire
@@ -77,6 +94,16 @@ export const jobStateRecord = z.object({
   notes: z.string(),
   /** Most recent runs first, capped by the plugin's history bound. */
   lastRuns: z.array(runHistoryEntry),
+  /**
+   * Arm state written by `pause` and `resume`, authoritative over the job's origin default for both
+   * origins. Absent means the job follows its origin: a configured job is armed while its definition
+   * remains in configuration, and a stored job follows the `enabled` field of its definition record.
+   */
+  enabled: z.boolean().optional(),
+  /** Accepted fire still awaiting a terminal outcome; absent means no active run. */
+  activeRun: activeRunRecord.optional(),
+  /** Finished output awaiting durable delivery acceptance; recovery never reruns the Agent. */
+  pendingOutcome: pendingOutcomeRecord.optional(),
 })
 
 /** One job's durable continuity state. */

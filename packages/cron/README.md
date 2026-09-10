@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The cron group runs agents on a timetable with nobody present. Jobs are declared in configuration — a cron expression, an IANA timezone, a prompt, and the agent-preset and permission-preset pair that shape the run — and each fire opens its own Session, so the run is searchable and its log reconstructs every step afterwards. Configuration is validated at load: duplicate job names, unusable expressions or timezones, and relative workspace paths stop startup instead of leaving a job that never fires. The group delivers nothing; a run reaches the outside world through whatever tools its preset mounts, such as [`discord_send`](../discord/tool-discord/README.md). Session-scoped reminders with durable rules belong to [`dsh-schedule`](../schedule/schedule/README.md), not here.
+The cron group runs agents on a timetable with nobody present. Jobs come from configuration or durable runtime management through `cron_manage` and `/cron`. Each accepted fire opens a fresh Session using its schedule, timezone, prompt, presets, workspace, and current continuity notes. Durable reservations and outcomes distinguish unfinished work after restart; finished text waits for a delivery listener such as the [Discord gateway](../discord/discord-gateway/README.md). The [cron package](cron/README.md) owns configuration, recovery, and delivery details. Session-scoped reminders belong to [`dsh-schedule`](../schedule/schedule/README.md).
 
 ## Table of Contents
 
@@ -23,11 +23,12 @@ The cron group runs agents on a timetable with nobody present. Jobs are declared
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`cron/`](cron/README.md) | Mounts configured cron jobs and opens one unattended Session per fire | consumes `ctx.agents`, `ctx.agentPresets`, `ctx.permissionPresets`, `ctx.workspaceRegistry`, `ctx.sessionTitle` |
+| [`cron/`](cron/README.md) | Manages configured and stored jobs, runs unattended Sessions, and retains outcomes until delivery acceptance | consumes `ctx.agents`, `ctx.agentPresets`, `ctx.permissionPresets`, `ctx.workspaceRegistry`, `ctx.sessionTitle` |
 
 -----
 
 <a id="related-documentation"></a>
 ## Related documentation
 
+- [Cron subsystem reference](../../docs/subsystems/cron.md) — run results and the delivery acknowledgment event.
 - [Host-scoped cron with Discord delivery Agent Note](../../.agents/notes/implemented/feature/2026-09-05-host-cron-with-discord-delivery.md) — why the host scheduler is separate from `dsh-schedule`, and what it defers.

@@ -4,7 +4,7 @@
  * @module tests/support
  */
 
-import type { CreateJobInput, JobGuardrails } from '../src/registry.ts'
+import type { CreateJobInput, JobGuardrails, JobRegistry } from '../src/registry.ts'
 import { createJobRegistry } from '../src/registry.ts'
 import type { CronJobSpec } from '../src/types.ts'
 import type { JobStateRecord, StoredJobRecord } from '../src/domain.ts'
@@ -101,4 +101,18 @@ export function makeRegistry(
     guardrails: { ...GUARDRAILS, ...options.guardrails },
   })
   return { registry, jobsTable, stateTable }
+}
+
+/** Registry over the same tables as an earlier one, as a host restart sees them. */
+export function reopenRegistry(
+  tables: { readonly jobsTable: Map<string, StoredJobRecord>; readonly stateTable: Map<string, JobStateRecord> },
+  configJobs: readonly CronJobSpec[] = [],
+): JobRegistry {
+  return createJobRegistry({
+    configJobs,
+    configDelivery: new Map(),
+    jobsTable: fakeTable(tables.jobsTable) as never,
+    stateTable: fakeTable(tables.stateTable) as never,
+    guardrails: GUARDRAILS,
+  })
 }

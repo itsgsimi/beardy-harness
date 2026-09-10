@@ -23,6 +23,8 @@ export interface Config {
   projectRootMarkers?: string[]
   /** Ordered instruction files read from the Harness home before project files. */
   userGlobalInstructionCandidates?: string[]
+  /** User-global candidates captured once per session, including absence; must name configured candidates. */
+  frozenUserGlobalInstructionCandidates?: string[]
   /** UTF-8 byte cap for one rendered baseline or dynamic batch; non-positive or non-finite disables loading. */
   maxBytes: number
   /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
@@ -43,6 +45,7 @@ export const Config: z<Config> = z.object({
   dshHome: z.string(),
   projectRootMarkers: z.array(z.string()).default([...DEFAULT_PROJECT_ROOT_MARKERS]),
   userGlobalInstructionCandidates: z.array(z.string()).default([...DEFAULT_USER_GLOBAL_INSTRUCTION_CANDIDATES]),
+  frozenUserGlobalInstructionCandidates: z.array(z.string()).default([]),
   maxBytes: z.number().required(),
   maxSourceBytes: z.number().step(1).min(1).default(DEFAULT_MAX_SOURCE_BYTES),
   instructionFileCandidates: z.array(z.string()).default([...DEFAULT_INSTRUCTION_FILE_CANDIDATES]),
@@ -62,6 +65,7 @@ export interface ResolvedDiscoveryConfig {
 export interface ResolvedConfig extends ResolvedDiscoveryConfig {
   maxBytes: number
   maxSourceBytes: number
+  frozenUserGlobalInstructionCandidates: string[]
 }
 
 /**
@@ -80,6 +84,9 @@ export function workspaceBaselineIdentity(
     projectRoot: relative(cwd, projectRoot),
     projectRootMarkers: config.projectRootMarkers,
     userGlobalInstructionCandidates: config.userGlobalInstructionCandidates,
+    ...config.frozenUserGlobalInstructionCandidates.length === 0 ? {} : {
+      frozenUserGlobalInstructionCandidates: config.frozenUserGlobalInstructionCandidates,
+    },
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes,
     instructionFileCandidates: config.instructionFileCandidates,
@@ -93,10 +100,18 @@ export function workspaceBaselineIdentity(
  * @returns normalized runtime configuration.
  */
 export function resolveConfig(config: Config): ResolvedConfig {
+  const discovery = resolveDiscoveryConfig(config)
+  const frozen = config.frozenUserGlobalInstructionCandidates ?? []
+  for (const candidate of frozen) {
+    if (!discovery.userGlobalInstructionCandidates.includes(candidate)) {
+      throw new Error(`agent-instructions: frozen user-global candidate "${candidate}" must appear in userGlobalInstructionCandidates`)
+    }
+  }
   return {
-    ...resolveDiscoveryConfig(config),
+    ...discovery,
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes ?? DEFAULT_MAX_SOURCE_BYTES,
+    frozenUserGlobalInstructionCandidates: frozen,
   }
 }
 

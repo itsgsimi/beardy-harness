@@ -7,6 +7,8 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
+Odysseus 深度研究需显式启用：在个人配置档补丁中启用默认禁用的 `tool-odysseus-research` 条目，并根据[研究桥接配置](../../web/tool-odysseus-research/README.zh.md)选择服务器、研究令牌、端点、模型和预算。
+
 ## 概述
 
 Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。随发行版交付的 `beardy` profile 会自动包含它，并在 Harness home 下保存专用的会话搜索索引。Beardy 继承完整的 Creator mode 能力清单，包括 standard 编码工具与 Cordis 实时创作工具，再增加自己的身份、`$DSH_HOME/SOUL.md` 个性文件、跨会话的策展记忆（由单一 `memory` 工具管理的 `$DSH_HOME/USER.md` 与 `MEMORY.md`）、会话搜索、对话时钟、SearXNG 支持的 Web 搜索与 Web 抓取。定时运行与 Discord 投递来自 `dsh-cron`、`dsh-tool-discord` 与 `dsh-discord-gateway`；patch 把这三行挡在 `DISCORD_BOT_TOKEN` 凭据之后，且不随包交付任何 cron 任务。你自己的简报、渠道目的地、网关工作区与权限预设由你的 profile patch（`$DSH_HOME/profiles/<profile>/cordis.patch.yml`）提供；被启用却缺少该配置的行会在 schema 检查处响亮失败，而不是按默认值运行。
@@ -77,7 +79,9 @@ SEARXNG_BASE_URL=http://127.0.0.1:8080
         timezone: Europe/Zagreb
         agentPreset: beardy-unattended
         permissionPreset: workspace-write
-        prompt: Prepare the morning brief and send it with discord_send.
+        workspacePath: /srv/beardy-workspace
+        deliverChannel: !!js process.env.DISCORD_CHANNEL_ID
+        prompt: Prepare the morning brief.
 ```
 
 用 systemd 运行它，使其在注销与重启后存活：
@@ -97,7 +101,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-随发行版交付的三个 Beardy preset 划分了角色：你在 Web 里启动的会话使用 `beardy`，网关对话运行 `beardy-discord`（简短纯文本回复，记忆写入交审批处理），cron 任务运行 `beardy-unattended`（用 `discord_send` 投递结果，关闭创作类工具）。被启用却缺少 profile 配置的行会在加载时失败并点名必填字段，因此半配置的部署绝不会按别人的默认值运行。
+随发行版交付的三个 Beardy preset 划分了角色：Web 中启动的会话使用 `beardy`，网关对话运行 `beardy-discord`（简洁 Markdown 回复，记忆写入提交审批），cron 任务运行 `beardy-unattended`（遵循任务的投递指令，关闭创作类工具）。[Discord 网关](../../discord/discord-gateway/README.zh.md)提供原生命令菜单、审批按钮、选项菜单、进度反馈与持久回复投递。启用却缺少 profile 配置的行会在加载时失败并点名必填字段。
 
 ### 把组合包加入其他 profile
 
@@ -169,7 +173,7 @@ patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-
 
 #### 模型看到什么
 
-该 profile 在基础提示词各节与所选工具之前贡献一段稳定的 persona。运行时按当前进程解析 `{{model}}` 与 `{{cwd}}`。`beardy-unattended` 与 `beardy-discord` 各自追加一句稳定的话：无人值守的运行被告知必须自行决策并用 `discord_send` 投递；Discord 回复则被要求保持简短、纯文本。
+该 profile 在基础提示词各节与所选工具之前贡献一段稳定的 persona。运行时按当前进程解析 `{{model}}` 与 `{{cwd}}`。`beardy-unattended` 与 `beardy-discord` 预设追加稳定指令：无人值守运行自行决策并遵循任务的投递指令，缺少指令时使用 `discord_send`；Discord 回复先给结果，使用简洁段落、粗体标签、项目符号、链接与完整围栏代码，并避免在回复中披露私有推理和内部工具跟踪。
 
 ##### Persona 文本
 
@@ -218,7 +222,7 @@ Beardy 把 `$DSH_HOME/SOUL.md` 作为持久的全局指令，与 `$DSH_HOME/AGEN
 
 #### 模型看到什么
 
-`memory` 工具 schema，含两个固定目标（`user`、`memory`）与三个动作，外加作为 user-global 指令加载的 `$DSH_HOME/USER.md` 与 `MEMORY.md` 当前内容。时钟贡献一段稳定的时间上下文小节，每个会话最多每小时重新渲染一次。
+`memory` 工具 schema，含两个固定目标（`user`、`memory`）与三个动作，外加在首次请求前作为 user-global 指令捕获的 `$DSH_HOME/USER.md` 与 `MEMORY.md` 内容。捕获的内容（包括文件缺失状态）在恢复与压缩后仍保留；写入只影响新会话。时钟贡献一段稳定的时间上下文小节，每个会话最多每小时重新渲染一次。
 
 #### Token 影响
 
@@ -226,7 +230,7 @@ Beardy 把 `$DSH_HOME/SOUL.md` 作为持久的全局指令，与 `$DSH_HOME/AGEN
 
 #### KV Cache 影响
 
-记忆文件内容位于持久指令前缀中，只在写入落盘时改变前缀。每小时的时钟刷新只改变一个靠后的小节，而非整个前缀。
+记忆文件内容在当前会话的持久指令前缀中保持固定。新会话会捕获最新文件。每小时的时钟刷新只改变一个靠后的小节，而非整个前缀。
 
 ### 会话历史工具、Web 搜索与 Web 抓取
 
@@ -247,11 +251,11 @@ Beardy 把 `$DSH_HOME/SOUL.md` 作为持久的全局指令，与 `$DSH_HOME/AGEN
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **没有自动 skill curator** — skill 的发现与加载由基础 skill 包完成；Beardy 不会自动编写或改进 skill。
-- **定时任务仅为配置** — 任务来自你 profile patch 中的 `dsh-cron` 配置，运行时没有任何东西能创建或编辑任务；改动时间表、订阅源或目的地意味着编辑 patch 并重启。
+- **技能学习需要审阅** — Beardy 可以创建和更新用户技能，并在持续使用工具后收到留存提醒。它没有自动质量评估或合并流程。
+- **运行时调度需要配置** — 操作者配置预设和工作区允许清单后，`cron_manage` 与 `/cron` 可管理存储任务。配置任务除笔记和显式运行外保持只读。
 - **每个 bot token 只能一个进程** — 网关会回复它看到的每一条入站私信，因此若另一个挂载 `dsh-discord-gateway` 且使用同一 token 的 profile 并行运行，会重复回复。
 - **没有通用消息网关** — 该 profile 提供 Web 应用；Discord 是它唯一的渠道适配器，没有 Telegram、Slack 或类似服务的适配器。
-- **无人值守会话中的记忆写入会被拒绝** — `beardy-unattended` 与 `beardy-discord` 提高了 `requireApproval`，没有审批 answerer 的会话会收到拒绝而非静默写入；经 Discord 的持久应答路由属于延期项。
+- **无人值守记忆写入需要回答器** — `beardy-unattended` 与 `beardy-discord` 要求审批。Discord 支持按钮、表情回应或文本回复审批；没有回答器的无人值守会话拒绝写入。
 - **搜索使用独立数据库** — 不要把 `session-query-sqlite.path` 指向 session-persistence 数据库。
 - **SearXNG 是外部前置条件** — 默认本地端点必须正在运行并暴露 JSON 响应格式，Beardy 才能使用 `web_search`。
 

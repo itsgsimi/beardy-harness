@@ -1,0 +1,8 @@
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+    dshHome: !!js process.cwd() + '/memory'
+    projectRootMarkers: []
+    userGlobalInstructionCandidates: [USER.md, MEMORY.md]
+    frozenUserGlobalInstructionCandidates: [USER.md, MEMORY.md]

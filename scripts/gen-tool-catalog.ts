@@ -6,9 +6,11 @@
  * `.agents/notes/archived/process/2026-07-02-tool-schema-catalog.md`.
  */
 
-import { globSync, readFileSync, writeFileSync } from 'node:fs'
+import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { basename, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import FileSettings from '@deepseek-ai/dsh-settings-file'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
@@ -67,6 +69,7 @@ import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import { registerListSubagentModels } from '../packages/subagent/tool-subagent/src/list-models.ts'
+import * as ToolOdysseusResearch from '@deepseek-ai/dsh-tool-odysseus-research'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
@@ -619,6 +622,24 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-odysseus-research',
+    dir: 'tool-odysseus-research',
+    source: 'packages/web/tool-odysseus-research/src/index.ts',
+    requires: ['ctx.tools', 'ctx.credentials', 'ctx.settings'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalCredentialProvider)
+      const settingsDir = mkdtempSync(resolve(tmpdir(), 'dsh-catalog-research-'))
+      ctx.effect(() => () => { rmSync(settingsDir, { recursive: true, force: true }) })
+      await ctx.plugin(FileSettings, { path: resolve(settingsDir, 'settings.yaml') })
+      await ctx.plugin(ToolOdysseusResearch, {
+        baseURL: 'http://localhost:7000', tokenEnv: 'ODYSSEUS_RESEARCH_TOKEN',
+        endpointId: 'worker-4b', model: 'Qwen3.5-4B', maxRounds: 1, maxTimeSeconds: 60,
+      })
+    },
+    note: 'Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-discord',

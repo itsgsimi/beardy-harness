@@ -10,8 +10,8 @@ import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { Cron } from 'croner'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { assertSchedule } from './schedule.ts'
-import type { CronJobSpec } from './types.ts'
-import type { JobStateRecord, RunHistoryEntry, StoredJobRecord } from './domain.ts'
+import type { CronJobSpec, CronRunFinished, CronRunResult } from './types.ts'
+import type { ActiveRunRecord, JobStateRecord, RunHistoryEntry, StoredJobRecord } from './domain.ts'
 
 /** Bounds a runtime-created job must satisfy; every field is validated plugin configuration. */
 export interface JobGuardrails {
@@ -75,19 +75,27 @@ export interface JobRegistry {
   /** Armed jobs the scheduler should hold timers for. */
   scheduled(): RegistryJob[]
   /** One job by name, or undefined when nothing carries that name. */
-  find(name: string): RegistryJob | undefined
+  find(name: string): JobListing | undefined
   /** Create a stored job after every guardrail check. */
   create(input: CreateJobInput): Promise<RegistryJob>
   /** Patch a stored job; configured jobs refuse every change. */
   update(name: string, patch: UpdateJobPatch): Promise<RegistryJob>
   /** Remove a stored job and its continuity state; configured jobs refuse. */
   remove(name: string): Promise<void>
-  /** Arm or pause a stored job; configured jobs refuse. */
+  /** Arm or pause a job of either origin; only its definition stays read-only for configured jobs. */
   setEnabled(name: string, enabled: boolean): Promise<RegistryJob>
   /** Replace a job's continuity notes; works for configured and stored jobs alike. */
   setNotes(name: string, notes: string): Promise<void>
-  /** Prepend one run outcome to the job's history, bounded by `keepHistory`. */
-  recordRun(name: string, entry: RunHistoryEntry, keepHistory: number): Promise<void>
+  /** Persist a run reservation before its Session opens; pending outcomes must be delivered first. */
+  beginRun(name: string, run: ActiveRunRecord): Promise<void>
+  /** Store the terminal outcome and its pending delivery in the same durable write. */
+  settleRun(name: string, result: CronRunResult, keepHistory: number): Promise<CronRunFinished>
+  /** Pending delivery for one job, or undefined after its handoff was acknowledged. */
+  pendingOutcome(name: string): CronRunFinished | undefined
+  /** Clear a delivered outcome only when it still names the acknowledged Session. */
+  acknowledgeOutcome(name: string, sessionId: string): Promise<void>
+  /** Mark uncompleted reservations interrupted and return all outcomes awaiting delivery. */
+  recoverRuns(keepHistory: number): Promise<CronRunFinished[]>
 }
 
 /** The definition fields every guardrail check reads. */
@@ -111,7 +119,17 @@ function registryError(message: string): never {
   throw new Error(`dsh-cron: ${message}`)
 }
 
-/** Whether `path` equals `root` or sits inside it, on resolved absolute paths. */
+function finishedPayload(name: string, pending: NonNullable<JobStateRecord['pendingOutcome']>): CronRunFinished {
+  const { deliverChannelId, ...result } = pending
+  return { jobName: name, ...result, ...(deliverChannelId === undefined ? {} : { deliverChannelId }) }
+}
+
+/**
+ * Whether `path` equals `root` or sits inside it, on resolved absolute paths.
+ * @param root - Allowed workspace root.
+ * @param path - Candidate workspace path.
+ * @returns Whether the resolved candidate equals or descends from the resolved root.
+ */
 export function isInsideRoot(root: string, path: string): boolean {
   const base = resolvePath(root)
   const target = resolvePath(path)
@@ -144,13 +162,20 @@ export function nextFireGap(expression: string, timezone: string, from: Date): n
  */
 export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
   const stateOf = (name: string): JobStateRecord => deps.stateTable.get(name) ?? { notes: '', lastRuns: [] }
+  let stateWrites: Promise<unknown> = Promise.resolve()
+  const changeState = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = stateWrites.then(operation)
+    // The caller observes write failures; later notes and recovery writes must still run.
+    stateWrites = result.catch(() => {})
+    return result
+  }
 
   const fromConfig = (job: CronJobSpec): RegistryJob => {
     const channel = deps.configDelivery.get(job.name)
     return {
       ...job,
       origin: 'config',
-      enabled: true,
+      enabled: stateOf(job.name).enabled ?? true,
       ...(channel === undefined ? {} : { deliverChannelId: channel }),
     }
   }
@@ -164,7 +189,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
     workspacePath: record.workspacePath,
     ...(record.title === undefined ? {} : { title: record.title }),
     origin: 'stored',
-    enabled: record.enabled,
+    enabled: stateOf(record.name).enabled ?? record.enabled,
     ...(record.deliver.kind === 'channel' ? { deliverChannelId: record.deliver.channelId } : {}),
   })
 
@@ -227,8 +252,9 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
     scheduled(): RegistryJob[] {
       return all().filter(job => job.enabled)
     },
-    find(name: string): RegistryJob | undefined {
-      return all().find(job => job.name === name)
+    find(name: string): JobListing | undefined {
+      const job = all().find(job => job.name === name)
+      return job === undefined ? undefined : { ...job, ...stateOf(name) }
     },
     async create(input: CreateJobInput): Promise<RegistryJob> {
       if (isConfigured(input.name)) {
@@ -280,15 +306,30 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
       return fromStored(next)
     },
     async remove(name: string): Promise<void> {
-      requireStored(name, 'delete')
-      await deps.jobsTable.delete(name)
-      await deps.stateTable.delete(name)
+      await changeState(async () => {
+        requireStored(name, 'delete')
+        const state = stateOf(name)
+        if (state.activeRun !== undefined || state.pendingOutcome !== undefined) {
+          registryError(`job "${name}" has a run or delivery pending; pause it and wait before deleting`)
+        }
+        await deps.jobsTable.delete(name)
+        await deps.stateTable.delete(name)
+      })
     },
     async setEnabled(name: string, enabled: boolean): Promise<RegistryJob> {
-      const current = requireStored(name, enabled ? 'resume' : 'pause')
-      const next = { ...current, enabled }
-      await deps.jobsTable.put(next.name, next)
-      return fromStored(next)
+      if (registry.find(name) === undefined) registryError(`no job named "${name}"`)
+      const record = deps.jobsTable.get(name)
+      if (record !== undefined) {
+        // A stored job keeps arm state in its own definition, so a re-pause never leaves an override
+        // that would outlive a later edit of that field.
+        await deps.jobsTable.put(record.name, { ...record, enabled })
+      }
+      await changeState(async () => {
+        await deps.stateTable.put(name, { ...stateOf(name), enabled })
+      })
+      const job = registry.find(name)
+      if (job === undefined) registryError(`job "${name}" disappeared while its arm state was being written`)
+      return job
     },
     async setNotes(name: string, notes: string): Promise<void> {
       if (registry.find(name) === undefined) registryError(`no job named "${name}" to take notes`)
@@ -296,13 +337,54 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
         registryError(`notes are ${String(notes.length)} characters, above the cap of `
           + `${String(deps.guardrails.notesMaxChars)}; shorten them`)
       }
-      const state = stateOf(name)
-      await deps.stateTable.put(name, { ...state, notes })
+      await changeState(async () => {
+        await deps.stateTable.put(name, { ...stateOf(name), notes })
+      })
     },
-    async recordRun(name: string, entry: RunHistoryEntry, keepHistory: number): Promise<void> {
-      const state = stateOf(name)
-      const lastRuns = [entry, ...state.lastRuns].slice(0, Math.max(0, keepHistory))
-      await deps.stateTable.put(name, { ...state, lastRuns })
+    async beginRun(name, run) {
+      await changeState(async () => {
+        if (registry.find(name)?.enabled !== true) registryError(`job "${name}" is not armed`)
+        const state = stateOf(name)
+        if (state.activeRun !== undefined || state.pendingOutcome !== undefined) {
+          registryError(`job "${name}" has an unfinished run or delivery`)
+        }
+        await deps.stateTable.put(name, { ...state, activeRun: run })
+      })
+    },
+    async settleRun(name, result, keepHistory) {
+      return await changeState(async () => {
+        const { activeRun, ...state } = stateOf(name)
+        if (activeRun === undefined) registryError(`job "${name}" has no active run to settle`)
+        const pendingOutcome = { ...activeRun, ...result, sessionId: activeRun.sessionId }
+        const entry = { firedAt: activeRun.firedAt, sessionId: activeRun.sessionId, outcome: result.outcome }
+        await deps.stateTable.put(name, {
+          ...state,
+          lastRuns: [entry, ...state.lastRuns].slice(0, keepHistory),
+          pendingOutcome,
+        })
+        return finishedPayload(name, pendingOutcome)
+      })
+    },
+    pendingOutcome(name) {
+      const pending = stateOf(name).pendingOutcome
+      return pending === undefined ? undefined : finishedPayload(name, pending)
+    },
+    async acknowledgeOutcome(name, sessionId) {
+      await changeState(async () => {
+        const { pendingOutcome, ...state } = stateOf(name)
+        if (pendingOutcome?.sessionId === sessionId) await deps.stateTable.put(name, state)
+      })
+    },
+    async recoverRuns(keepHistory) {
+      for (const [name, state] of deps.stateTable.entries()) {
+        if (state.activeRun !== undefined) {
+          await registry.settleRun(name, { outcome: 'interrupted', sessionId: state.activeRun.sessionId, text: '' }, keepHistory)
+        }
+      }
+      return [...deps.stateTable.keys()].flatMap((name) => {
+        const pending = registry.pendingOutcome(name)
+        return pending === undefined ? [] : [pending]
+      })
     },
   }
   return registry

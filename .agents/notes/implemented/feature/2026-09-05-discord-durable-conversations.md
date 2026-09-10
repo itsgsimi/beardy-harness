@@ -26,4 +26,6 @@ Joining debounced messages into one user message was chosen over a queue of sepa
 
 ## Consequences
 
+Automatic outcome delivery and cold reminder recovery follow the [durable delivery decision](2026-09-07-durable-personal-agent-delivery.md). Native command discovery and message controls follow the [interaction presentation decision](2026-09-07-discord-native-interactions-and-presentation.md).
+
 The gateway now injects `commands` and `storageDomain`; every composition mounting it must provide both, which the base bundle already does. Records are deleted on `/new` and expiry but kept after turn timeouts so the next message still resumes the same history. Existing deployments with allowlisted guild channels see a behavior change: mentions are required by default and `guildRequireMention: false` restores answering every post. Each active channel costs one extra Discord API call per eight seconds while its turn runs, abandoned when the indicator endpoint fails or the token is gone. Resume keeps a session's prompt prefix intact across restarts, which favors the KV cache compared to the old fresh-session-per-restart behavior. Idle answers to `/new`, `/status`, and `/stop` never enter a session log because no agent exists to record them; that gap is documented in the package README rather than faked with a synthetic event.

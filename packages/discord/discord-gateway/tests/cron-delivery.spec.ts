@@ -9,6 +9,7 @@ describe('cron delivery content', () => {
     ['answered with text', { outcome: 'answered', text: 'Brief ready.', reportOutcome: true }, 'Brief ready.'],
     ['no text, report wanted', { outcome: 'no-text-answer', text: '', reportOutcome: true }, 'The scheduled run finished without a text answer.'],
     ['timed out, report wanted', { outcome: 'timed-out', text: '', reportOutcome: true }, 'The scheduled run timed out.'],
+    ['interrupted, report wanted', { outcome: 'interrupted', text: '', reportOutcome: true }, 'The scheduled run was interrupted.'],
     ['failed to start, report wanted', { outcome: 'failed', text: '', reportOutcome: true }, 'The scheduled run could not start.'],
     ['no text, report declined', { outcome: 'timed-out', text: '', reportOutcome: false }, undefined],
   ]

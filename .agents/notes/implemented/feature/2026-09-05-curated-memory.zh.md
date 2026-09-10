@@ -12,7 +12,7 @@ Status: implemented
 
 两个扁平 Markdown 文件加一个工具。`@deepseek-ai/dsh-tool-memory`（`packages/memory/tool-memory/`）只注册一个 `memory` 工具，编辑 `$DSH_HOME/USER.md`（关于用户的事实）与 `$DSH_HOME/MEMORY.md`（agent 自己的笔记），每次调用对单个条目做 add、replace 或 remove。每个文件都是严格 bullet list——任何非空行必须能按 `- text` 解析且不含控制字符——因此工具写出的内容读回来必然逐字一致；被手工编辑到漂移的文件会被点名文件和第一个坏行地拒绝，而不是被静默重写。字符上限（USER.md 1375、MEMORY.md 2200、单条目 400，均可配置）在写入前强制检查，每个结果都报告剩余预算，让模型做策划而不是无限追加。写入经由 `ctx.fs`：先拒绝符号链接，再做带版本校验的替换，事务前后发出 `fs/observed` 事件。
 
-送达未来会话复用既有 seam：beardy preset 把两个文件名加进 `dsh-agent-instructions` 的 `userGlobalInstructionCandidates`，它们在会话启动时作为 user-global instruction 加载一次。memory 包从不自己注入，因此运行中会话的 prompt prefix——以及 KV cache——不被写入触碰。一个静态 `TOOL_MEMORY` prompt section 陈述声明性事实：两个文件各自的用途、写入只对后续会话生效、写满时的动作是 replace。设置 `requireApproval: true` 后，每次写入先向 `approval` service 提问，没有挂载 answerer 时直接拒绝，于是无人值守 preset 可以把记忆变更交给人工 answerer 裁决，而不是让一个 07:00 的 job 静默改写用户档案。
+送达未来会话复用既有 seam：beardy preset 把两个文件名加入 `dsh-agent-instructions` 的 `userGlobalInstructionCandidates` 与 `frozenUserGlobalInstructionCandidates`，因此即使不存在普通 AGENTS.md，它们也会在首次请求前加载。baseline 来源为每个冻结候选记录捕获的文本或缺失状态；恢复与压缩复用该快照。其他全局与项目指令文件继续实时刷新。memory 包从不自己注入，因此运行中会话的 prompt prefix——以及 KV cache——不被写入触碰。一个静态 `TOOL_MEMORY` prompt section 陈述声明性事实：两个文件各自的用途、写入只对后续会话生效、写满时的动作是 replace。设置 `requireApproval: true` 后，每次写入先向 `approval` service 提问，没有挂载 answerer 时直接拒绝，于是无人值守 preset 可以把记忆变更交给人工 answerer 裁决，而不是让一个 07:00 的 job 静默改写用户档案。
 
 ## 考虑过的替代方案
 

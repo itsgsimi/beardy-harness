@@ -241,7 +241,7 @@ export type WebFetchBody =
 fetch 提供方的资源控制：
 
 - 仅接受 `http:` 和 `https:` URL；拒绝 URL 中的凭证。
-- 字面 IP 地址或 hostname 一次解析得到的完整结果只能包含全球可达的单播 IPv4 或 IPv6 目的地址。IPv6 解析还会发现当前 DNS64 前缀，并拒绝转换到非公开 IPv4 的 NAT64 地址。loopback、私有、link-local、运营商级 NAT、多播、保留、过渡、转换和映射到私有 IPv4 的 IPv6 地址都会被拒绝。
+- 字面 IP 地址或 hostname 一次解析得到的完整结果只能包含全球可达的单播 IPv4 或 IPv6 目的地址。IPv6 解析还会发现当前 DNS64 前缀，并拒绝转换到非公开 IPv4 的 NAT64 地址。如果这项辅助发现失败，已经校验的双栈结果可以只用其中的 IPv4 成员继续；仅有 IPv6 的结果会因为无法检查其转换目标而失败，abort 仍会停止解析。loopback、私有、link-local、运营商级 NAT、多播、保留、过渡、转换和映射到私有 IPv4 的 IPv6 地址都会被拒绝。
 - 请求通过 Undici lookup 回调保留这一组已验证地址，不会再次解析 hostname。原 hostname 仍作为 HTTP Host 与 TLS SNI 值，而 DNS rebinding 无法在验证后替换连接目的地址。
 - 强制执行最大 URL 长度、响应字节上限、解码正文字符上限、超时和重定向跳数上限。
 - Abort 信号传播到网络获取和高开销解码。

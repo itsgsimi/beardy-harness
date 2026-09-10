@@ -241,7 +241,7 @@ The provider owns safe resource retrieval: URL validation, HTTP transport, redir
 The fetch provider's resource controls:
 
 - Only `http:` and `https:` URLs are accepted; credentials in URLs are rejected.
-- A literal address or the complete result of one hostname lookup must contain only globally reachable unicast IPv4 or IPv6 destinations. IPv6 resolution also discovers the active DNS64 prefix and rejects NAT64 addresses that translate to non-public IPv4. Loopback, private, link-local, carrier-grade NAT, multicast, reserved, transition, translation, and private IPv4-mapped IPv6 addresses are rejected.
+- A literal address or the complete result of one hostname lookup must contain only globally reachable unicast IPv4 or IPv6 destinations. IPv6 resolution also discovers the active DNS64 prefix and rejects NAT64 addresses that translate to non-public IPv4. If this auxiliary discovery fails, a validated dual-stack answer may continue with only its IPv4 members; an IPv6-only answer fails because its translation cannot be checked, and abort still stops resolution. Loopback, private, link-local, carrier-grade NAT, multicast, reserved, transition, translation, and private IPv4-mapped IPv6 addresses are rejected.
 - The request retains that validated address set in an Undici lookup callback instead of resolving the hostname again. The original hostname remains the HTTP Host and TLS SNI value, while DNS rebinding cannot replace the connection destination after validation.
 - Maximum URL length, response byte cap, decoded body character cap, timeout, and redirect hop cap are enforced.
 - Abort signals propagate through network fetches and expensive decoding.

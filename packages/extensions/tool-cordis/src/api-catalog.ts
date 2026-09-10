@@ -689,6 +689,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'name-sorted descriptors after scoped shadowing.',
       },
       {
+        signature: 'listForScope(scope: ScopeKey): readonly CommandDescriptor[]',
+        description: 'Read effective command descriptors for a standing preset without creating an Agent.',
+        parameters: [{ name: 'scope', description: 'Standing preset scope obtained from the preset registry.' }],
+        returns: 'name-sorted immutable descriptors after inherited and exact-scope shadowing.',
+      },
+      {
         signature: 'find(agent: Agent, name: string): CommandDefinition | undefined',
         description: 'Resolve one effective command definition.',
         parameters: [{ name: 'agent', description: 'exact receiving agent and scoped-layer key.' }, { name: 'name', description: 'command name without a slash.' }],
@@ -3279,6 +3285,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'ref', description: 'the reference whose stored value changed.' }],
   },
   {
+    name: 'cron/run-finished',
+    mode: 'serial',
+    signature: '\'cron/run-finished\'(payload: CronRunFinished): true | undefined | Promise<true | undefined>',
+    summary: 'One cron run settled, carrying the text a delivery lane may forward.',
+    description: 'One cron run settled, carrying the text a delivery lane may forward. The scheduler emits it after recording the run in the job\'s history; delivering to a channel belongs to whichever listener owns one. Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome pending for another handoff; listeners must deduplicate by Session id and fire time.',
+    parameters: [{ name: 'payload', description: 'Persisted run result, job identity, fire time, and delivery policy.' }],
+  },
+  {
     name: 'domain/changed',
     mode: 'emit',
     signature: '\'domain/changed\'(change: DomainChanged): void',
@@ -4069,6 +4083,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CredentialRef',
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
+  },
+  {
+    name: 'CronRunFinished',
+    declaration: 'export interface CronRunFinished extends CronRunResult {\n    readonly jobName: string;\n    readonly firedAt: number;\n    readonly deliverChannelId?: string;\n    readonly reportOutcome: boolean;\n}',
+  },
+  {
+    name: 'CronRunOutcome',
+    declaration: 'export type CronRunOutcome = \'answered\' | \'no-text-answer\' | \'timed-out\' | \'failed\' | \'interrupted\';',
+  },
+  {
+    name: 'CronRunResult',
+    declaration: 'export interface CronRunResult {\n    readonly outcome: CronRunOutcome;\n    readonly sessionId: string;\n    readonly text: string;\n}',
   },
   {
     name: 'DeepSeekLlmApiExtensionMap',

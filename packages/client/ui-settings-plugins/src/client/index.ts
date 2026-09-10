@@ -33,6 +33,8 @@ import { ConfigurablePluginsTabController } from './tab-store.ts'
 import {
   SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
 } from './subagent-model-selection-card-controller.ts'
+import { ResearchCard } from './ResearchCard.tsx'
+import { RESEARCH_NS, ResearchCardController } from './research-card-controller.ts'
 import { WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
 import { en, zh } from './locales.ts'
 
@@ -65,6 +67,7 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-plugins: section dictionaries')
 
+  const research = new ResearchCardController(ctx.settingsScope.bind({ namespace: RESEARCH_NS }))
   const bash = new BashCardController(ctx.settingsScope.bind({ namespace: SHELL_NS }))
   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
   const webSearch = new WebSearchCardController(
@@ -165,6 +168,7 @@ export function apply(ctx: ClientContext): void {
   }, ConfigurablePluginsTab))
 
   ctx.slots.inject('settings.plugin.item', function* () {
+    yield ctx.slots.register({ name: 'settings.plugin.item', key: RESEARCH_NS, locale: NS, inject: () => research.inject() }, ResearchCard)
     yield ctx.slots.register({
       name: 'settings.plugin.item',
       key: SHELL_NS,

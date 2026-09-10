@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-discord-durable-conversations.md
-2026-09-05-discord-durable-conversations.md: afba952a57eeb505e352675fce62f486f8b26ce1
-2026-09-05-discord-durable-conversations.zh.md: ce20346db1b3b28225f7c54c31932245d1d14ec8
+2026-09-05-discord-durable-conversations.md: bd724461a5ac0c69a5cc1681dcf003e3ef6b47d5
+2026-09-05-discord-durable-conversations.zh.md: 1b0c0069b338ed03ac9b3d487cf2bc8f31706e7a

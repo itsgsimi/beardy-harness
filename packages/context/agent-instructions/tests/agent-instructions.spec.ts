@@ -640,7 +640,7 @@ describe('workspace context instruction discovery', () => {
     }
   })
 
-  it('defaults dshHome and uses cwd itself as root when no project marker exists', async () => {
+  it('defaults dshHome and uses cwd itself as root when project markers are disabled', async () => {
     const root = await tempRepo()
     const emptyHome = await tempRepo()
     // Isolate the default-home fallback: blank DSH_HOME is treated as unset, and
@@ -656,7 +656,7 @@ describe('workspace context instruction discovery', () => {
       await write(join(root, 'AGENTS.md'), 'parent without marker')
       await write(join(cwd, 'AGENTS.md'), 'cwd without marker')
 
-      const files = await discoverBaselineInstructionFiles({ cwd })
+      const files = await discoverBaselineInstructionFiles({ cwd, projectRootMarkers: [] })
 
       expect(files.map(file => file.displayPath)).toEqual(['AGENTS.md'])
       expect(files.map(file => file.absolutePath)).toEqual([join(cwd, 'AGENTS.md')])
@@ -1135,6 +1135,304 @@ describe('workspace context request injection', () => {
       expect(derivedText(agent)).not.toContain('<context source=')
       expect(derivedText(agent)).not.toContain('<agent-instructions')
     } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('includes every configured global file in the first model request without a project instruction file', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'))
+      for (const candidate of ['SOUL.md', 'USER.md', 'MEMORY.md']) {
+        await write(join(home, candidate), `Remember ${candidate}`)
+      }
+      const adapter = new MockAdapter([textResponse('done')])
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(SystemPrompt)
+      await ctx.plugin(ToolRuntime)
+      await ctx.plugin(AgentRegistry)
+      await ctx.plugin(LocalFileSystem, { cwd: root })
+      await mountWorkspaceContextPlugin(ctx, {
+        dshHome: home,
+        maxBytes: 65536,
+        userGlobalInstructionCandidates: ['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+      })
+      await ctx.plugin(AgentLoop, { agents: [] })
+      ctx.llm.registerAdapter(['mock'], adapter)
+      const agent = await ctx.agentLoop.create(SessionId('global-first-request'), {
+        provider: 'mock', model: 'mock',
+      }, { cwd: root })
+      agent.followup(createUserMessage({
+        content: [{ type: 'text', text: 'What do you remember?' }], source: { kind: 'user' },
+      }))
+      await agent.whenIdle()
+
+      expect(adapter.requests).toHaveLength(1)
+      const text = adapter.requests[0]?.messages.map(message => blocksText(message.content)).join('\n')
+      for (const candidate of ['SOUL.md', 'USER.md', 'MEMORY.md']) expect(text).toContain(`Remember ${candidate}`)
+      expect(baselineEvents(agent)).toHaveLength(1)
+      expect(baselineEvents(agent)[0]).toMatchObject({ data: { source: {
+        frozenUserGlobalInstructions: { 'USER.md': 'Remember USER.md', 'MEMORY.md': 'Remember MEMORY.md' },
+      } } })
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps captured memory through edits, resume, and compaction while personality and project rules refresh', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'))
+      await write(join(root, 'AGENTS.md'), 'original project rules')
+      await write(join(home, 'AGENTS.md'), 'original global rules')
+      await write(join(home, 'SOUL.md'), 'original personality')
+      await write(join(home, 'USER.md'), 'original user facts')
+      await mountWorkspaceContext(ctx, {
+        dshHome: home, maxBytes: 65536,
+        userGlobalInstructionCandidates: ['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+      })
+      const original = stubAgent(root)
+      await composeBaselinePrefix(ctx, original)
+      await write(join(root, 'AGENTS.md'), 'edited project rules')
+      await write(join(home, 'AGENTS.md'), 'edited global rules')
+      await write(join(home, 'SOUL.md'), 'edited personality')
+      await write(join(home, 'USER.md'), 'edited user facts')
+      await write(join(home, 'MEMORY.md'), 'new memory facts')
+      await composeBaselinePrefix(ctx, original)
+      const refreshed = blocksText(original.session.deriveMessages().at(-1)?.content)
+      expect(refreshed).toContain('edited project rules')
+      expect(refreshed).toContain('edited global rules')
+      expect(refreshed).toContain('edited personality')
+      expect(refreshed).not.toContain('edited user facts')
+      expect(refreshed).not.toContain('new memory facts')
+
+      const resumed = stubAgent(root, original.session.snapshotEvents())
+      await composeBaselinePrefix(ctx, resumed)
+      expect(resumed.session.deriveMessages()).toEqual(original.session.deriveMessages())
+      const baseline = baselineEvents(resumed)[0]!
+      resumed.session.append('user/message', createUserMessage({
+        content: [{ type: 'text', text: 'compacted summary' }], source: { kind: 'plugin', plugin: 'compact' },
+      }), {
+        surfaceOp: { op: 'replace', start: baseline.seq, end: baseline.seq },
+        sourceEventSeqs: [baseline.seq],
+      })
+      await composeBaselinePrefix(ctx, resumed)
+      const restored = blocksText(resumed.session.deriveMessages().at(-1)?.content)
+      expect(restored).toContain('original user facts')
+      expect(restored).toContain('edited personality')
+      expect(restored).not.toContain('edited user facts')
+      expect(restored).not.toContain('new memory facts')
+
+      const fresh = stubAgent(root)
+      await composeBaselinePrefix(ctx, fresh)
+      expect(derivedText(fresh)).toContain('edited user facts')
+      expect(derivedText(fresh)).toContain('new memory facts')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('retains absent frozen files when the whole initial baseline is empty', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'))
+      await mountWorkspaceContext(ctx, {
+        dshHome: home, maxBytes: 65536,
+        userGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+      })
+      const original = stubAgent(root)
+      await composeBaselinePrefix(ctx, original)
+      expect(baselineEvents(original)[0]).toMatchObject({ data: { source: {
+        changes: [], frozenUserGlobalInstructions: { 'USER.md': null, 'MEMORY.md': null },
+      } } })
+      await write(join(home, 'USER.md'), 'newly created user facts')
+      const resumed = stubAgent(root, original.session.snapshotEvents())
+      await composeBaselinePrefix(ctx, resumed)
+      expect(resumed.session.deriveMessages()).toEqual(original.session.deriveMessages())
+      const fresh = stubAgent(root)
+      await composeBaselinePrefix(ctx, fresh)
+      expect(derivedText(fresh)).toContain('newly created user facts')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('retains frozen memory when a queued baseline is recovered before admission', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await write(join(home, 'USER.md'), 'queued user facts')
+      await mountWorkspaceContext(ctx, {
+        dshHome: home, maxBytes: 65536, projectRootMarkers: [],
+        userGlobalInstructionCandidates: ['USER.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md'],
+      })
+      const original = stubAgent(root)
+      await syncWorkspaceContext(ctx, original)
+      expect(baselineEvents(original)).toHaveLength(0)
+      expect(original.inbox.nextStep).toHaveLength(1)
+      await write(join(home, 'USER.md'), 'changed user facts')
+      const resumed = stubAgent(root, original.session.snapshotEvents())
+      await composeBaselinePrefix(ctx, resumed)
+      expect(derivedText(resumed)).toContain('queued user facts')
+      expect(derivedText(resumed)).not.toContain('changed user facts')
+      expect(baselineEvents(resumed)).toHaveLength(1)
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a frozen file that is not a configured global candidate', () => {
+    expect(() => resolveConfig({
+      maxBytes: 65536, frozenUserGlobalInstructionCandidates: ['MEMORY.md'],
+    })).toThrow('must appear in userGlobalInstructionCandidates')
+  })
+
+  it('rejects a budget that cannot retain an empty frozen baseline', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mountWorkspaceContext(ctx, {
+        dshHome: home, maxBytes: 100, projectRootMarkers: [],
+        userGlobalInstructionCandidates: ['USER.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md'],
+      })
+      await expect(composeBaselinePrefix(ctx, stubAgent(root))).rejects
+        .toThrow('maxBytes cannot retain an empty frozen baseline')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('refreshes a global candidate in the first resumed request after it becomes live', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const originalCtx = new Context()
+    const resumedCtx = new Context()
+    const refrozenCtx = new Context()
+    try {
+      const config = {
+        dshHome: home, maxBytes: 65536, projectRootMarkers: [],
+        userGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+      }
+      await write(join(home, 'USER.md'), 'original user facts')
+      await write(join(home, 'MEMORY.md'), 'original memory facts')
+      await mountWorkspaceContext(originalCtx, {
+        ...config, frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+      })
+      const original = stubAgent(root)
+      await composeBaselinePrefix(originalCtx, original)
+      await write(join(home, 'USER.md'), 'current user facts')
+      await write(join(home, 'MEMORY.md'), 'current memory facts')
+      await mountWorkspaceContext(resumedCtx, {
+        ...config, frozenUserGlobalInstructionCandidates: ['MEMORY.md'],
+      })
+      const resumed = stubAgent(root, original.session.snapshotEvents())
+      await composeBaselinePrefix(resumedCtx, resumed)
+      const baseline = baselineEvents(resumed).at(-1)
+      const text = baseline?.type === 'user/message' ? blocksText(baseline.data.content) : ''
+      expect(text).toContain('current user facts')
+      expect(text).not.toContain('original user facts')
+      expect(text).toContain('original memory facts')
+      expect(text).not.toContain('current memory facts')
+      await mountWorkspaceContext(refrozenCtx, {
+        ...config, frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
+      })
+      const refrozen = stubAgent(root, resumed.session.snapshotEvents())
+      await composeBaselinePrefix(refrozenCtx, refrozen)
+      const refrozenBaseline = baselineEvents(refrozen).at(-1)
+      const refrozenText = refrozenBaseline?.type === 'user/message' ? blocksText(refrozenBaseline.data.content) : ''
+      expect(refrozenText).toContain('original user facts')
+      expect(refrozenText).not.toContain('current user facts')
+    } finally {
+      await originalCtx.fiber.dispose()
+      await resumedCtx.fiber.dispose()
+      await refrozenCtx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a budget-omitted frozen file absent when rebuilding the baseline', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'))
+      await write(join(root, 'AGENTS.md'), 'project rules')
+      await write(join(home, 'USER.md'), 'old user fact '.repeat(200))
+      await mountWorkspaceContext(ctx, {
+        dshHome: home, maxBytes: 800,
+        userGlobalInstructionCandidates: ['USER.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md'],
+      })
+      const original = stubAgent(root)
+      await composeBaselinePrefix(ctx, original)
+      const baseline = baselineEvents(original)[0]!
+      expect(baseline).toMatchObject({ data: { source: { frozenUserGlobalInstructions: { 'USER.md': null } } } })
+      await write(join(home, 'USER.md'), 'short replacement user fact')
+      original.session.append('user/message', createUserMessage({
+        content: [{ type: 'text', text: 'compacted summary' }], source: { kind: 'plugin', plugin: 'compact' },
+      }), {
+        surfaceOp: { op: 'replace', start: baseline.seq, end: baseline.seq },
+        sourceEventSeqs: [baseline.seq],
+      })
+      await composeBaselinePrefix(ctx, original)
+      const restored = blocksText(original.session.deriveMessages().at(-1)?.content)
+      expect(restored).toContain('project rules')
+      expect(restored).not.toContain('user fact')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses an invalid frozen snapshot in session history instead of rereading current files', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'))
+      await mountWorkspaceContext(ctx, {
+        dshHome: home, maxBytes: 65536,
+        userGlobalInstructionCandidates: ['USER.md'],
+        frozenUserGlobalInstructionCandidates: ['USER.md'],
+      })
+      const agent = stubAgent(root)
+      const message = createUserMessage({
+        content: [{ type: 'text', text: 'unreadable captured memory' }],
+        source: { kind: 'agent-instructions', form: 'instructions', changes: [],
+          frozenUserGlobalInstructions: { 'USER.md': 42 } as unknown as Record<string, string | null> },
+      })
+      agent.session.append('user/message', message, { surfaceOp: 'append' })
+      await expect(composeBaselinePrefix(ctx, agent)).rejects
+        .toThrow('session contains invalid frozen user-global instructions')
+    } finally {
+      await ctx.fiber.dispose()
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
     }

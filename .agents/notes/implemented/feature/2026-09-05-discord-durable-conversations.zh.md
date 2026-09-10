@@ -26,4 +26,6 @@ Discord 网关能回答消息，但进程一停就把一切忘了：频道到会
 
 ## Consequences
 
+自动结果投递与冷会话提醒恢复遵循[持久投递决策](2026-09-07-durable-personal-agent-delivery.zh.md)。原生命令发现与消息控件遵循[交互展示决策](2026-09-07-discord-native-interactions-and-presentation.zh.md)。
+
 网关现在注入 `commands` 与 `storageDomain`；挂载它的每个组成都必须提供两者，基础 bundle 已经如此。记录在 `/new` 与过期时被删除，但在轮次超时后保留，于是下一条消息仍恢复同一历史。已把服务器频道列入允许清单的现有部署会看到行为变化：默认要求提及，`guildRequireMention: false` 可恢复逢帖必答。每个活跃频道在其轮次运行期间每八秒多花一次 Discord API 调用，一旦提示端点失败或凭据消失即被放弃。跨重启的恢复让会话的 prompt 前缀保持完整，相比旧的"每次重启新会话"更利于 KV cache。空闲时对 `/new`、`/status`、`/stop` 的回答永不进入任何会话日志，因为不存在能记录它们的 agent；这个缺口写进了包 README，而不是用合成事件去伪造。

@@ -61,6 +61,13 @@ describe('prompt text', () => {
     expect(text).toContain('comma-separated (for example 1,3)')
   })
 
+  it('describes the enabled menu without offering disabled numbered text answers', () => {
+    expect(buildQuestionPrompt(question(), 0, 1, ['component'])).toContain('Choose an answer from the menu below.')
+    expect(buildQuestionPrompt(question(), 0, 1, ['component'])).not.toContain('Reply with')
+    expect(buildQuestionPrompt(question({ options: Array.from({ length: 26 }, (_, i) => ({ label: String(i) })) }),
+      0, 1, ['component'])).toContain('Reply with the number')
+  })
+
   it('asks for free text when the question carries no options', () => {
     const text = buildQuestionPrompt({ id: 'q1', question: 'What timezone?' }, 0, 1)
     expect(text).toContain('Reply with your answer.')
@@ -102,6 +109,19 @@ describe('question reply matching', () => {
 })
 
 describe('approval answerer through the router', () => {
+  it('does not register a late approval after its prompt POST settles during disposal', async () => {
+    const release = Promise.withResolvers<undefined>()
+    const h = harness({ replyText: 'x', promptBarrier: release.promise, manualWait: true })
+    h.router.handle(inbound())
+    await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
+    const outcome = h.emitWaterfall('approval/request', { agent: h.agent, toolName: 'bash' })
+    await vi.waitFor(() => { expect(h.prompts).toHaveLength(1) })
+    const disposed = h.router.dispose()
+    release.resolve(undefined)
+    await disposed
+    await expect(outcome).resolves.toBe('cancelled')
+  })
+
   it('delegates a request from an Agent this listener does not own', async () => {
     const h = harness({ replyText: 'x' })
     let delegated = false

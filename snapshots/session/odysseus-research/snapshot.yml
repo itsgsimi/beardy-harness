@@ -1,0 +1,11 @@
+version: 1
+scenario: odysseus-research
+profile: headless
+composition: odysseus-research
+recording: authored
+permission: workspace-write
+environment:
+  ODYSSEUS_SNAPSHOT_TOKEN: fixture-token
+header:
+  class: odysseus-research
+  pin: true

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiscordPostReply } from '../src/http.ts'
-import { DISCORD_API_BASE, DISCORD_MAX_RESPONSE_BYTES, discordReplyMessage, openDirectMessageChannel, postChannelMessage, postTyping } from '../src/http.ts'
+import { DISCORD_API_BASE, DISCORD_MAX_RESPONSE_BYTES, discordReplyMessage, discordRequest, editChannelMessage, openDirectMessageChannel, postChannelMessage, postTyping } from '../src/http.ts'
+import type { DiscordMessageBody } from '../src/types.ts'
 
 const CHANNEL = '1478276183543119914'
 
@@ -101,10 +102,81 @@ describe('postChannelMessage', () => {
     expect(reply.body).toHaveLength(DISCORD_MAX_RESPONSE_BYTES)
   })
 
-  it('propagates a transport failure from fetch', async () => {
+  it('reports transport failure without retaining URL-bearing causes', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('ECONNREFUSED')))
     await expect(postChannelMessage({ channelId: CHANNEL, token: 't', content: 'x' }, new AbortController().signal))
-      .rejects.toThrow('ECONNREFUSED')
+      .rejects.toThrow('discord: REST request failed')
+  })
+})
+
+describe('rich message transport', () => {
+  const body: DiscordMessageBody = {
+    content: '**Choose:**',
+    embeds: [{ title: 'Input needed', description: 'Select an option.', color: 0x336699, fields: [{ name: 'State', value: 'Waiting', inline: true }], footer: { text: 'DSH' } }],
+    components: [{ type: 1, components: [{ type: 2, style: 1, label: 'Continue', custom_id: 'request:1', disabled: false }] }],
+  }
+
+  it('posts cards and controls with mentions suppressed', async () => {
+    const calls = stubFetch(new Response('{"id":"1"}'))
+    await postChannelMessage({ ...body, channelId: CHANNEL, token: 'secret' }, new AbortController().signal)
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ ...body, allowed_mentions: { parse: [] } })
+  })
+
+  it('edits an existing message and can remove its controls', async () => {
+    const calls = stubFetch(new Response('{"id":"1"}'))
+    await editChannelMessage({ ...body, components: [], messageId: '1', channelId: CHANNEL, token: 'secret' }, new AbortController().signal)
+    expect(calls[0]?.url).toBe(`${DISCORD_API_BASE}/channels/${CHANNEL}/messages/1`)
+    expect(calls[0]?.method).toBe('PATCH')
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ ...body, components: [], allowed_mentions: { parse: [] } })
+  })
+})
+
+describe('discordRequest', () => {
+  it('gets a command catalog without sending a JSON body', async () => {
+    const calls = stubFetch(new Response('[]'))
+    await discordRequest({ method: 'GET', path: '/applications/app/commands', token: 'secret' }, new AbortController().signal)
+    expect(calls[0]?.method).toBe('GET')
+    expect(calls[0]?.body).toBeUndefined()
+    expect(calls[0]?.headers).toEqual({ authorization: 'Bot secret' })
+  })
+
+  it('replaces a catalog with an array body and returns refusal status for its owner', async () => {
+    const calls = stubFetch(new Response('{"message":"Missing Access"}', { status: 403 }))
+    const body = [{ name: 'status', description: 'Show status', type: 1 }]
+    const reply = await discordRequest({ method: 'PUT', path: '/applications/app/commands', token: 'secret', body }, new AbortController().signal)
+    expect(calls[0]?.body).toBe(JSON.stringify(body))
+    expect(reply.status).toBe(403)
+  })
+
+  it('acknowledges an interaction without adding bot credentials', async () => {
+    const calls = stubFetch(new Response(null, { status: 204 }))
+    await discordRequest({ method: 'POST', path: '/interactions/i/interaction-secret/callback', body: { type: 5 } }, new AbortController().signal)
+    expect(calls[0]?.headers).toEqual({ 'content-type': 'application/json' })
+    expect(calls[0]?.redirect).toBe('error')
+  })
+
+  it('removes an interaction response without a body', async () => {
+    const calls = stubFetch(new Response(null, { status: 204 }))
+    await discordRequest({ method: 'DELETE', path: '/webhooks/app/interaction-secret/messages/@original' }, new AbortController().signal)
+    expect(calls[0]?.method).toBe('DELETE')
+    expect(calls[0]?.headers).toEqual({})
+    expect(calls[0]?.body).toBeUndefined()
+  })
+
+  it('does not expose interaction tokens from fetch failures', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('request https://discord.com/api/v10/interactions/i/secret/callback failed')))
+    const error = await discordRequest({ method: 'POST', path: '/interactions/i/secret/callback' }, new AbortController().signal).catch((failure: unknown) => failure)
+    expect(String(error)).toBe('Error: discord: REST request failed')
+    expect((error as Error).cause).toBeUndefined()
+  })
+
+  it('does not expose interaction tokens from response stream failures', async () => {
+    stubFetch(new Response(new ReadableStream({
+      start(controller) { controller.error(new Error('stream failed at /webhooks/app/secret/messages/@original')) },
+    })))
+    const error = await discordRequest({ method: 'GET', path: '/webhooks/app/secret/messages/@original' }, new AbortController().signal).catch((failure: unknown) => failure)
+    expect(String(error)).toBe('Error: discord: response body read failed')
+    expect((error as Error).cause).toBeUndefined()
   })
 })
 
@@ -167,7 +239,7 @@ describe('postTyping', () => {
 
   it('propagates a transport failure so the caller can stop its loop', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('ECONNREFUSED')))
-    await expect(postTyping(CHANNEL, 'tok', new AbortController().signal)).rejects.toThrow('ECONNREFUSED')
+    await expect(postTyping(CHANNEL, 'tok', new AbortController().signal)).rejects.toThrow('discord: REST request failed')
   })
 })
 

@@ -86,7 +86,7 @@ function describeCreate(args: CronManageArgs, name: string): string {
 }
 
 function line(job: RegistryJob): string {
-  const state = job.origin === 'config' ? 'config' : job.enabled ? 'stored' : 'stored, paused'
+  const state = job.enabled ? job.origin : `${job.origin}, paused`
   return `${job.name}: ${job.expression} ${job.timezone} (${state})`
 }
 
@@ -109,10 +109,11 @@ export function createCronManageTool(
       + 'with its origin and arm state; "create" schedules a new stored job (name, expression, timezone, '
       + 'prompt, agent_preset, permission_preset, workspace_path required; title and deliver_channel '
       + 'optional); "update" patches a stored job; "delete" removes one; "pause" and "resume" stop or '
-      + 're-arm a stored job without losing it; "run_now" starts a job immediately outside its schedule; '
-      + '"note" replaces the continuity notes carried into every future run of the job — record what was '
-      + 'reported so the next run continues instead of repeating. Jobs from plugin configuration accept '
-      + 'only list, run_now, and note.',
+      + 're-arm any job of either origin without losing it, and the pause survives a restart; "run_now" '
+      + 'starts a job immediately outside its schedule; "note" replaces the continuity notes carried into '
+      + 'every future run of the job — record what was reported so the next run continues instead of '
+      + 'repeating. A job from plugin configuration keeps its definition read-only: change its schedule '
+      + 'or prompt by editing that configuration, which takes effect when the host restarts.',
     parameters: {
       action: { type: 'string', required: true, enum: ['list', 'create', 'update', 'delete', 'pause', 'resume', 'run_now', 'note'], description: 'Operation to perform.' },
       name: { type: 'string', description: 'Job name. Required for every action except list and create; the new job\'s name for create.' },

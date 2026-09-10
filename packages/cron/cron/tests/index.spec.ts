@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { apply, assertConfig, createSchedulerHost, mountJobs } from '../src/index.ts'
 import type { CronJobSpec, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
+import { fakeTable } from './support.ts'
+
+const cleanup: (() => Promise<void>)[] = []
+afterEach(async () => {
+  for (const close of cleanup.splice(0)) await close()
+  vi.useRealTimers()
+})
 
 const JOB: CronJobSpec = {
   name: 'morning-brief',
@@ -28,6 +35,7 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     keepRunHistory: 3,
     requireApproval: false,
     deliverOutcomes: true,
+    deliveryRetryMs: 30_000,
     ...overrides,
   }
 }
@@ -62,12 +70,15 @@ describe('assertConfig', () => {
   })
 })
 
-/** Scheduler seam that hands the test the fire callbacks per job and counts stops. */
+/** Scheduler seam that hands the test the fire callbacks per job and counts live timers and stops. */
 function fakeScheduler() {
   const ticks = new Map<string, (firedAt: number) => void>()
   let stopped = 0
+  // `sync` stops every timer before starting a fresh set, so creations minus stops is the live set.
+  let started = 0
   let next: number | undefined = Date.parse('2026-09-05T05:00:00.000Z')
   const scheduler: Scheduler = (job, onTick) => {
+    started += 1
     ticks.set(job.expression, onTick)
     return {
       stop: () => { stopped += 1 },
@@ -77,27 +88,9 @@ function fakeScheduler() {
   return {
     scheduler,
     fire: (expression = '0 7 * * *') => { ticks.get(expression)?.(Date.parse('2026-09-04T05:00:00.000Z')) },
-    tickCount: () => ticks.size,
+    tickCount: () => started - stopped,
     stoppedCount: () => stopped,
     withoutNextRun: () => { next = undefined },
-  }
-}
-
-/** In-memory KvTable stand-in over a plain map. */
-function fakeTable<T>(backing = new Map<string, T>()) {
-  return {
-    rows: backing,
-    get: (key: string) => backing.get(key),
-    entries: () => backing.entries(),
-    keys: () => backing.keys(),
-    size: backing.size,
-    put: async (key: string, value: T) => { backing.set(key, value) },
-    delete: async (key: string) => backing.delete(key),
-    update: async (key: string, fn: (current: T) => T) => {
-      const next = fn(backing.get(key) as T)
-      backing.set(key, next)
-      return next
-    },
   }
 }
 
@@ -120,9 +113,11 @@ function contextStub(overrides: Record<string, unknown> = {}) {
   const commands: { name: string; handler?: unknown }[] = []
   const listeners: { event: string; handler: (payload: never) => void }[] = []
   let domainClosed = false
+  cleanup.push(async () => { for (const dispose of disposers.splice(0)) await dispose() })
   const ctx = {
     logger,
     emit: (event: string, payload: unknown) => { emitted.push({ event, payload }) },
+    serial: async (event: string, payload: unknown) => { emitted.push({ event, payload }); return true },
     on: (event: string, handler: (payload: never) => void) => {
       listeners.push({ event, handler })
       return () => {}
@@ -298,6 +293,43 @@ function storedRow(name: string, expression: string): Record<string, unknown> {
 const settle = (ms = 10): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('createSchedulerHost', () => {
+  it('ignores callbacks from replaced or stopped timers and cancels a queued fire', async () => {
+    const { ctx } = contextStub()
+    const create = vi.spyOn(ctx.agents, 'create')
+    const fake = fakeScheduler()
+    const host = createSchedulerHost(ctx, { turnTimeoutMs: 60_000, maxLiveRuns: 5 }, fake.scheduler)
+    host.sync([{ ...JOB, notes: '' }])
+    host.sync([])
+    fake.fire()
+    host.sync([{ ...JOB, notes: '' }])
+    fake.fire()
+    await host.dispose()
+    fake.fire()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('waits for settlement before disposing and refuses triggers afterward', async () => {
+    const { ctx } = contextStub()
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const host = createSchedulerHost(ctx, {
+      turnTimeoutMs: 60_000, maxLiveRuns: 5,
+      onSettled: async () => { entered.resolve(undefined); await release.promise },
+    }, fakeScheduler().scheduler)
+    host.sync([{ ...JOB, notes: '' }])
+    host.trigger(JOB.name)
+    await entered.promise
+    let disposed = false
+    const closing = host.dispose().then(() => { disposed = true })
+    await Promise.resolve()
+    expect(disposed).toBe(false)
+    expect(host.trigger(JOB.name)).toBe(false)
+    host.sync([{ ...JOB, notes: '' }])
+    expect(host.trigger(JOB.name)).toBe(false)
+    release.resolve(undefined)
+    await closing
+  })
+
   it('fires an armed job on trigger and ignores names that are not armed', async () => {
     const { ctx, logger } = contextStub()
     const fake = fakeScheduler()
@@ -326,6 +358,176 @@ describe('createSchedulerHost', () => {
 })
 
 describe('apply', () => {
+  it('skips a job paused after its timer callback was queued', async () => {
+    const { ctx, tables } = contextStub()
+    const create = vi.spyOn(ctx.agents, 'create')
+    const jobs = fakeTable()
+    tables.set('jobs', jobs)
+    jobs.rows.set('pr-check', storedRow('pr-check', '0 9 * * 1'))
+    const fake = fakeScheduler()
+    await apply(ctx, config({ jobs: [] }), fake.scheduler)
+    fake.fire('0 9 * * 1')
+    jobs.rows.set('pr-check', { ...storedRow('pr-check', '0 9 * * 1'), enabled: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('shares a pending handoff across retry ticks', async () => {
+    vi.useFakeTimers()
+    const entered = Promise.withResolvers<undefined>()
+    const accepted = Promise.withResolvers<true>()
+    const serial = vi.fn(async () => { entered.resolve(undefined); return await accepted.promise })
+    const { ctx, tables } = contextStub({ serial })
+    const fake = fakeScheduler()
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }] }), fake.scheduler)
+    fake.fire()
+    await entered.promise
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(serial).toHaveBeenCalledTimes(1)
+    accepted.resolve(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(tables.get('state')?.rows.get(JOB.name)).not.toHaveProperty('pendingOutcome')
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(serial).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands off retained output before starting the next scheduled run', async () => {
+    const serial = vi.fn(async () => undefined as true | undefined)
+    const { ctx, logger, tables } = contextStub({ serial })
+    const fake = fakeScheduler()
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }] }), fake.scheduler)
+    fake.fire()
+    await vi.waitFor(() => { expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('no delivery listener')) })
+    serial.mockResolvedValue(true)
+    fake.fire()
+    await vi.waitFor(() => { expect(serial).toHaveBeenCalledTimes(3) })
+    expect(tables.get('state')?.rows.get(JOB.name)).toMatchObject({ lastRuns: [{ outcome: 'answered' }, { outcome: 'answered' }] })
+  })
+
+  it('finishes an ongoing startup handoff before disposal and leaves later outcomes pending', async () => {
+    const entered = Promise.withResolvers<undefined>()
+    const accepted = Promise.withResolvers<true>()
+    const serial = vi.fn(async () => { entered.resolve(undefined); return await accepted.promise })
+    const { ctx, tables, disposers, domainClosed, tools } = contextStub({ serial })
+    const state = fakeTable()
+    tables.set('state', state)
+    for (const name of ['first', 'second']) {
+      state.rows.set(name, { notes: '', lastRuns: [], pendingOutcome: {
+        firedAt: 1, sessionId: name, outcome: 'answered', text: name, deliverChannelId: 'c', reportOutcome: true,
+      } })
+    }
+    const loading = apply(ctx, config(), fakeScheduler().scheduler)
+    await entered.promise
+    const closing = Promise.all(disposers.splice(0).map(async (dispose) => { await dispose() }))
+    expect(domainClosed()).toBe(false)
+    accepted.resolve(true)
+    await Promise.all([loading, closing])
+    expect(domainClosed()).toBe(true)
+    expect(serial).toHaveBeenCalledTimes(1)
+    expect(state.rows.get('second')).toHaveProperty('pendingOutcome')
+    expect(tools).toEqual([])
+  })
+
+  it('resolves newly saved notes at each fire without re-arming the timer', async () => {
+    const prompts: string[] = []
+    const { ctx, tables, emitted } = contextStub({ agents: {
+      create: async () => ({
+        agent: {
+          session: { seq: 0, ownEvents: () => [] },
+          followup: (message: { content: { text: string }[] }) => { prompts.push(message.content[0]!.text) },
+          whenIdle: async () => {},
+        },
+        dispose: async () => {},
+      }),
+    } })
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    fake.fire()
+    await vi.waitFor(() => { expect(emitted).toHaveLength(1) })
+    const state = tables.get('state')!
+    await state.put(JOB.name, { ...(state.rows.get(JOB.name) as object), notes: 'Already reported A.' })
+    fake.fire()
+    await vi.waitFor(() => { expect(prompts).toHaveLength(2) })
+    expect(prompts[1]).toContain('Already reported A.')
+    expect(fake.stoppedCount()).toBe(0)
+  })
+
+  it('persists the reservation before creating an Agent and history before delivering output', async () => {
+    const { ctx, tables, emitted } = contextStub()
+    const create = ctx.agents.create.bind(ctx.agents)
+    ctx.agents.create = vi.fn(async (options: Parameters<typeof ctx.agents.create>[0]) => {
+      expect(tables.get('state')?.rows.get(JOB.name)).toMatchObject({ activeRun: { sessionId: options.sessionId } })
+      return await create(options)
+    })
+    ctx.serial = vi.fn(async (_event, payload) => {
+      expect(tables.get('state')?.rows.get(JOB.name)).toMatchObject({
+        lastRuns: [{ outcome: 'answered' }], pendingOutcome: { text: 'done' },
+      })
+      emitted.push({ event: 'cron/run-finished', payload })
+      return true
+    }) as typeof ctx.serial
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    fake.fire()
+    await vi.waitFor(() => { expect(emitted).toHaveLength(1) })
+    expect(tables.get('state')?.rows.get(JOB.name)).not.toHaveProperty('activeRun')
+    await vi.waitFor(() => { expect(tables.get('state')?.rows.get(JOB.name)).not.toHaveProperty('pendingOutcome') })
+  })
+
+  it('starts no Agent when its reservation cannot be persisted', async () => {
+    const { ctx, tables, logger } = contextStub()
+    const create = vi.spyOn(ctx.agents, 'create')
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    tables.get('state')!.put = async () => { throw new Error('disk full') }
+    fake.fire()
+    await vi.waitFor(() => { expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('disk full')) })
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('retries recovered output after a delivery listener becomes available without running the Agent', async () => {
+    vi.useFakeTimers()
+    const serial = vi.fn(async () => undefined as true | undefined)
+    const { ctx, tables } = contextStub({ serial })
+    const create = vi.spyOn(ctx.agents, 'create')
+    const state = fakeTable()
+    tables.set('state', state)
+    state.rows.set('removed-job', { notes: '', lastRuns: [{ firedAt: 1, sessionId: 'saved', outcome: 'answered' }], pendingOutcome: {
+      firedAt: 1, sessionId: 'saved', outcome: 'answered', text: 'Saved answer', deliverChannelId: 'c', reportOutcome: true,
+    } })
+    await apply(ctx, config(), fakeScheduler().scheduler)
+    expect(serial).toHaveBeenCalledTimes(1)
+    expect(state.rows.get('removed-job')).toHaveProperty('pendingOutcome')
+    serial.mockResolvedValue(true)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(serial).toHaveBeenCalledTimes(2)
+    expect(state.rows.get('removed-job')).not.toHaveProperty('pendingOutcome')
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('records shutdown as interrupted before closing the durable domain', async () => {
+    const admitted = Promise.withResolvers<undefined>()
+    const { ctx, disposers, tables, domainClosed } = contextStub({ agents: {
+      create: async () => ({
+        agent: {
+          session: { seq: 0, ownEvents: () => [] },
+          followup: () => { admitted.resolve(undefined) },
+          whenIdle: () => new Promise<void>(() => {}),
+        },
+        dispose: async () => {},
+      }),
+    } })
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    fake.fire()
+    await admitted.promise
+    for (const dispose of disposers.splice(0)) await dispose()
+    expect(domainClosed()).toBe(true)
+    expect(tables.get('state')?.rows.get(JOB.name)).toMatchObject({ lastRuns: [{ outcome: 'interrupted' }] })
+    expect(tables.get('state')?.rows.get(JOB.name)).not.toHaveProperty('activeRun')
+  })
+
   it('mounts management surfaces even when no jobs are configured', async () => {
     const { ctx, logger, tools, commands } = contextStub()
     await apply(ctx, config({ jobs: [] }), fakeScheduler().scheduler)
@@ -369,11 +571,20 @@ describe('apply', () => {
     expect(fake.tickCount()).toBe(2)
   })
 
-  it('leaves timers alone for changes in other tables or domains', async () => {
+  it('drops a configured job timer when its pause lands in the state table', async () => {
+    const { ctx, tables, emitTo } = contextStub()
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    expect(fake.tickCount()).toBe(1)
+    tables.get('state')?.rows.set('morning-brief', { notes: '', lastRuns: [], enabled: false })
+    emitTo('domain/changed', { domain: 'cron_jobs', table: 'state', key: 'morning-brief', operation: 'put' })
+    expect(fake.tickCount()).toBe(0)
+  })
+
+  it('leaves timers alone for changes in other domains', async () => {
     const { ctx, emitTo } = contextStub()
     const fake = fakeScheduler()
     await apply(ctx, config(), fake.scheduler)
-    emitTo('domain/changed', { domain: 'cron_jobs', table: 'state', key: 'morning-brief', operation: 'put' })
     emitTo('domain/changed', { domain: 'discord-gateway', table: 'conversations', key: 'c', operation: 'put' })
     expect(fake.tickCount()).toBe(1)
   })

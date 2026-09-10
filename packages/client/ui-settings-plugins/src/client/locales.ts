@@ -2,6 +2,7 @@
 
 /** Locale keys these surfaces render. */
 export type PluginsSettingsLocaleKey =
+  | 'researchTitle' | 'researchDescription' | 'researchModel' | 'researchHint'
   | 'nav' | 'title' | 'intro' | 'tabs' | 'configurableTab' | 'empty'
   | 'overridden' | 'reset' | 'readOnly' | 'expand' | 'collapse'
   | 'save' | 'saving' | 'discard' | 'unsaved' | 'saveFailed' | 'invalidNumber'
@@ -20,6 +21,10 @@ export type PluginsSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
+  researchTitle: 'Deep research',
+  researchDescription: 'Choose the model Odysseus uses to research and write reports.',
+  researchModel: 'Research model',
+  researchHint: 'Applies to new research jobs. Running jobs and the chat model keep their current model.',
   nav: 'Plugins',
   title: 'Plugins',
   intro: 'Configure and inspect the plugins installed in this deployment.',
@@ -76,6 +81,10 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
 
 /** Simplified Chinese copy. */
 export const zh: Record<PluginsSettingsLocaleKey, string> = {
+  researchTitle: '深度研究',
+  researchDescription: '选择 Odysseus 研究和撰写报告时使用的模型。',
+  researchModel: '研究模型',
+  researchHint: '仅应用于新研究任务；正在运行的任务和聊天模型保持当前选择。',
   nav: '插件',
   title: '插件',
   intro: '配置和查看本部署已安装的插件。',

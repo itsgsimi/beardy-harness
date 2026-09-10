@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { isInsideRoot, nextFireGap } from '../src/registry.ts'
-import { CONFIG_JOB, createInput, makeRegistry, storedRow } from './support.ts'
+import { CONFIG_JOB, createInput, makeRegistry, reopenRegistry, storedRow } from './support.ts'
 
 describe('isInsideRoot', () => {
   it.each([
@@ -33,7 +34,7 @@ describe('job registry view', () => {
   it('merges configured and stored jobs sorted by name with continuity state', () => {
     const { registry } = makeRegistry([CONFIG_JOB], {
       stored: [storedRow('pr-check')],
-      state: { 'pr-check': { notes: 'Round two.', lastRuns: [{ firedAt: 1, sessionId: 's', outcome: 'answered' }] } },
+      state: { 'pr-check': { notes: 'Round two.', lastRuns: [{ firedAt: 1, sessionId: SessionId('s'), outcome: 'answered' }] } },
     })
     const names = registry.list().map(job => job.name)
     expect(names).toEqual(['morning-brief', 'pr-check'])
@@ -135,11 +136,28 @@ describe('job registry update, pause, and delete', () => {
     expect((await registry.update('pr-check', { deliverChannelId: '' })).deliverChannelId).toBeUndefined()
   })
 
-  it('refuses every mutation of a configured job, naming the action', async () => {
+  it('refuses definition changes of a configured job, naming the action', async () => {
     const { registry } = makeRegistry([CONFIG_JOB])
     await expect(registry.update(CONFIG_JOB.name, { prompt: 'x' })).rejects.toThrow('comes from configuration; update applies to stored jobs only')
-    await expect(registry.setEnabled(CONFIG_JOB.name, false)).rejects.toThrow('pause applies to stored jobs only')
     await expect(registry.remove(CONFIG_JOB.name)).rejects.toThrow('delete applies to stored jobs only')
+  })
+
+  it('pauses and resumes a configured job through arm state, keeping its definition out of the store', async () => {
+    const { registry, jobsTable, stateTable } = makeRegistry([CONFIG_JOB])
+    expect((await registry.setEnabled(CONFIG_JOB.name, false)).enabled).toBe(false)
+    expect(registry.scheduled().map(job => job.name)).toEqual([])
+    expect(jobsTable.rows.has(CONFIG_JOB.name)).toBe(false)
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.enabled).toBe(false)
+    expect((await registry.setEnabled(CONFIG_JOB.name, true)).enabled).toBe(true)
+    expect(registry.scheduled().map(job => job.name)).toEqual(['morning-brief'])
+  })
+
+  it('carries a configured pause into a registry reopened over the same state', async () => {
+    const opened = makeRegistry([CONFIG_JOB])
+    await opened.registry.setEnabled(CONFIG_JOB.name, false)
+    const reopened = reopenRegistry({ jobsTable: opened.jobsTable.rows, stateTable: opened.stateTable.rows }, [CONFIG_JOB])
+    expect(reopened.find(CONFIG_JOB.name)?.enabled).toBe(false)
+    expect(reopened.scheduled()).toEqual([])
   })
 
   it('refuses unknown names on mutation', async () => {
@@ -167,6 +185,84 @@ describe('job registry update, pause, and delete', () => {
 })
 
 describe('job registry continuity state', () => {
+  it('keeps concurrent notes and run history when the first write waits for durability', async () => {
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB])
+    await registry.beginRun(CONFIG_JOB.name, { firedAt: 1, sessionId: SessionId('s'), reportOutcome: true })
+    const blocked = Promise.withResolvers<undefined>()
+    const entered = Promise.withResolvers<undefined>()
+    const put = stateTable.put
+    stateTable.put = async (name, value) => {
+      entered.resolve(undefined)
+      await blocked.promise
+      await put(name, value)
+    }
+    const note = registry.setNotes(CONFIG_JOB.name, 'Do not repeat this item.')
+    await entered.promise
+    const record = registry.settleRun(CONFIG_JOB.name, { sessionId: SessionId('s'), outcome: 'answered', text: 'done' }, 3)
+    blocked.resolve(undefined)
+    await Promise.all([note, record])
+    expect(registry.find(CONFIG_JOB.name)).toMatchObject({ notes: 'Do not repeat this item.', lastRuns: [{ sessionId: SessionId('s') }] })
+  })
+
+  it('reserves a run and retains its output until the matching acknowledgement', async () => {
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB])
+    await registry.beginRun(CONFIG_JOB.name, { firedAt: 1, sessionId: SessionId('s'), reportOutcome: true, deliverChannelId: 'c' })
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.activeRun?.sessionId).toBe('s')
+    await registry.setNotes(CONFIG_JOB.name, 'Second fire.')
+    const payload = await registry.settleRun(CONFIG_JOB.name, { sessionId: SessionId('s'), outcome: 'answered', text: 'Result' }, 0)
+    expect(payload).toMatchObject({ jobName: CONFIG_JOB.name, text: 'Result', deliverChannelId: 'c' })
+    expect(stateTable.rows.get(CONFIG_JOB.name)).toMatchObject({ notes: 'Second fire.', lastRuns: [], pendingOutcome: { text: 'Result' } })
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.activeRun).toBeUndefined()
+    await registry.acknowledgeOutcome(CONFIG_JOB.name, 'other')
+    expect(registry.pendingOutcome(CONFIG_JOB.name)).toEqual(payload)
+    await registry.acknowledgeOutcome(CONFIG_JOB.name, 's')
+    expect(registry.pendingOutcome(CONFIG_JOB.name)).toBeUndefined()
+  })
+
+  it('recovers interrupted work and finished undelivered output without duplicating history', async () => {
+    const active = { firedAt: 2, sessionId: SessionId('active'), reportOutcome: true, deliverChannelId: 'c' }
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB], { state: {
+      [CONFIG_JOB.name]: { notes: 'Remember this.', lastRuns: [], activeRun: active },
+      'notes-only': { notes: 'Saved notes.', lastRuns: [] },
+      removed: { notes: '', lastRuns: [{ firedAt: 1, sessionId: SessionId('done'), outcome: 'answered' }], pendingOutcome: {
+        firedAt: 1, sessionId: SessionId('done'), outcome: 'answered', text: 'Saved result', reportOutcome: true,
+      } },
+    } })
+    const recovered = await registry.recoverRuns(3)
+    expect(recovered).toEqual(expect.arrayContaining([
+      { jobName: CONFIG_JOB.name, ...active, outcome: 'interrupted', text: '' },
+      expect.objectContaining({ jobName: 'removed', text: 'Saved result' }),
+    ]))
+    expect(await registry.recoverRuns(3)).toEqual(recovered)
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.lastRuns).toHaveLength(1)
+    expect(stateTable.rows.get('removed')?.lastRuns).toHaveLength(1)
+  })
+
+  it('refuses deletion and a second start while work or delivery is pending', async () => {
+    const { registry } = makeRegistry([], { stored: [storedRow('pr-check')] })
+    const run = { firedAt: 1, sessionId: SessionId('s'), reportOutcome: true }
+    await registry.beginRun('pr-check', run)
+    await expect(registry.beginRun('pr-check', run)).rejects.toThrow('unfinished run or delivery')
+    await expect(registry.remove('pr-check')).rejects.toThrow('pause it and wait')
+    await registry.settleRun('pr-check', { sessionId: SessionId('s'), outcome: 'failed', text: '' }, 3)
+    await expect(registry.beginRun('pr-check', run)).rejects.toThrow('unfinished run or delivery')
+    await registry.acknowledgeOutcome('pr-check', 's')
+    await registry.remove('pr-check')
+    await expect(registry.beginRun('pr-check', run)).rejects.toThrow('not armed')
+    await expect(registry.settleRun('pr-check', { sessionId: SessionId('s'), outcome: 'failed', text: '' }, 3)).rejects.toThrow('no active run')
+  })
+
+  it('leaves a failed outcome write recoverable as an active attempt', async () => {
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB])
+    await registry.beginRun(CONFIG_JOB.name, { firedAt: 1, sessionId: SessionId('s'), reportOutcome: true })
+    const original = stateTable.put
+    stateTable.put = vi.fn(async () => { throw new Error('disk full') })
+    await expect(registry.settleRun(CONFIG_JOB.name, { sessionId: SessionId('s'), outcome: 'answered', text: 'done' }, 3)).rejects.toThrow('disk full')
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.activeRun?.sessionId).toBe('s')
+    stateTable.put = original
+    expect(await registry.recoverRuns(3)).toEqual([expect.objectContaining({ outcome: 'interrupted' })])
+  })
+
   it('takes notes for configured and stored jobs alike', async () => {
     const { registry, stateTable } = makeRegistry([CONFIG_JOB], { stored: [storedRow('pr-check')] })
     await registry.setNotes(CONFIG_JOB.name, 'Weather source flaky.')
@@ -183,21 +279,24 @@ describe('job registry continuity state', () => {
   })
 
   it('prepends run history newest-first, bounded by the keep count', async () => {
-    const { registry, stateTable } = makeRegistry()
-    await registry.recordRun('pr-check', { firedAt: 1, sessionId: 'a', outcome: 'answered' }, 2)
-    await registry.recordRun('pr-check', { firedAt: 2, sessionId: 'b', outcome: 'timed-out' }, 2)
-    await registry.recordRun('pr-check', { firedAt: 3, sessionId: 'c', outcome: 'failed' }, 2)
+    const { registry, stateTable } = makeRegistry([], { stored: [storedRow('pr-check')] })
+    for (const [firedAt, sessionId, outcome] of [[1, 'a', 'answered'], [2, 'b', 'timed-out'], [3, 'c', 'failed']] as const) {
+      await registry.beginRun('pr-check', { firedAt, sessionId: SessionId(sessionId), reportOutcome: true })
+      await registry.settleRun('pr-check', { sessionId, outcome, text: '' }, 2)
+      await registry.acknowledgeOutcome('pr-check', sessionId)
+    }
     expect(stateTable.rows.get('pr-check')?.lastRuns).toEqual([
-      { firedAt: 3, sessionId: 'c', outcome: 'failed' },
-      { firedAt: 2, sessionId: 'b', outcome: 'timed-out' },
+      { firedAt: 3, sessionId: SessionId('c'), outcome: 'failed' },
+      { firedAt: 2, sessionId: SessionId('b'), outcome: 'timed-out' },
     ])
   })
 
   it('keeps notes while recording runs and survives a zero keep count', async () => {
-    const { registry, stateTable } = makeRegistry()
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB])
     await expect(registry.setNotes('ghost-notes', 'x')).rejects.toThrow('no job named')
-    await registry.recordRun('any-job', { firedAt: 1, sessionId: 'a', outcome: 'answered' }, 0)
-    expect(stateTable.rows.get('any-job')?.lastRuns).toEqual([])
-    expect(registry.list()).toEqual([])
+    await registry.setNotes(CONFIG_JOB.name, 'Keep this.')
+    await registry.beginRun(CONFIG_JOB.name, { firedAt: 1, sessionId: SessionId('a'), reportOutcome: true })
+    await registry.settleRun(CONFIG_JOB.name, { sessionId: SessionId('a'), outcome: 'answered', text: '' }, 0)
+    expect(stateTable.rows.get(CONFIG_JOB.name)).toMatchObject({ notes: 'Keep this.', lastRuns: [] })
   })
 })

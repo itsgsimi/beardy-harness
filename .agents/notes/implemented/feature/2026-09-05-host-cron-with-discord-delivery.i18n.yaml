@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-host-cron-with-discord-delivery.md
-2026-09-05-host-cron-with-discord-delivery.md: 7e88c23adb26d8fe14775e3a05c0d172970d7cf7
-2026-09-05-host-cron-with-discord-delivery.zh.md: 349c69541d8f54e136a6560e57371e4c555aec3e
+2026-09-05-host-cron-with-discord-delivery.md: 62525b3f74360277176b11b57876abe808872a28
+2026-09-05-host-cron-with-discord-delivery.zh.md: 0006d765cf0c6ca5cf993a0d73cb03f94bcecaac

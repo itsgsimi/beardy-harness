@@ -5,6 +5,8 @@
  * @module @deepseek-ai/dsh-discord-gateway/types
  */
 
+import type { OutboxSettings } from './outbox.ts'
+
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     /** One message admitted from Discord for the user to converse with an agent. */
@@ -59,10 +61,32 @@ export interface DiscordInboundReaction {
 }
 
 /** Reply forms a pending approval or question accepts from an allowlisted user. */
-export type DiscordAnswerForm = 'reaction' | 'text'
+export type DiscordAnswerForm = 'reaction' | 'text' | 'component'
 
 /** Validated plugin settings the conversation router reads, detached from schemastery types. */
-export interface GatewaySettings {
+export interface GatewaySettings extends OutboxSettings {
+  /** Render command and lifecycle notices as Discord cards. */
+  readonly richMessages: boolean
+  /** Preset commands owned by another UI and omitted from Discord. */
+  readonly excludedPresetCommands: readonly string[]
+  /** Accent color of Discord cards. */
+  readonly accentColor: number
+  /** Mark admitted messages with processing and completion reactions. */
+  readonly reactionStatus: boolean
+  /** Per-attempt outbound HTTP bound. */
+  readonly replyRequestTimeoutMs: number
+  /** Additional rate-limit retries for immediate replies. */
+  readonly replyMaxRetries: number
+  /** Longest accepted server-requested retry delay. */
+  readonly replyMaxRetryWaitMs: number
+  /** Maximum chunks of an immediate reply. */
+  readonly replyMaxChunksPerCall: number
+  /** Maximum simultaneous native interactions. */
+  readonly interactionMaxPending: number
+  /** Completed native interaction ids retained to suppress duplicate delivery. */
+  readonly interactionReceiptLimit: number
+  /** Retry delay after a failed cold reminder read or resume. */
+  readonly wakeRetryMs: number
   /** Workspace every routed conversation runs in. */
   readonly workspacePath: string
   /** Agent preset mounted into each routed Session. */
@@ -89,7 +113,7 @@ export interface GatewaySettings {
   readonly approvalTimeoutMs: number
   /** Longest wait for one question's answer before the request rejects unanswered. */
   readonly questionTimeoutMs: number
-  /** Reply forms that answer a pending approval or question; both by default. */
+  /** Reply forms that answer a pending approval or question; all three by default. */
   readonly answerers: readonly DiscordAnswerForm[]
 }
 

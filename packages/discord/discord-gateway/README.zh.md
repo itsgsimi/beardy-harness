@@ -1,5 +1,5 @@
 ---
-description: "Discord 入站对话：一个网关 websocket，把允许用户的私信变成持久化的 DSH 会话，支持恢复、斜杠命令、正在输入反馈、主动投递，以及审批与提问的回答，供想在 Discord 里与 agent 协作的用户阅读。"
+description: "Discord 对话：为从 Discord 与 DSH agent 协作的用户提供持久会话、原生斜杠命令、审批按钮、选项菜单、Markdown 回复与投递恢复。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包让一个人从 Discord 与 DSH agent 对话。它维持一个 Gateway v10 websocket，用凭据引用解析出的 bot token 完成 identify，并读取 `MESSAGE_CREATE` 事件：来自 `allowedUserIds` 中用户的私信——或被点名回应、且在允许清单内的服务器频道发言——会在本机（Host）上开启一个会话，在配置的工作区挂载指定的 agent 预设与权限预设，把文本作为一条带 Discord 来源信息的普通用户消息交进去，再把 agent 的回答发回消息来源的频道。每个频道对应一段对话，其身份被持久记录，因此重启、空闲释放与提醒都延续同一个会话，并和其他所有会话一起出现在 Web UI 中。当某个工具需要许可、或 agent 提出问题时，提示会出现在频道里，由本人用表情回应或回复来作答。重连延迟按倍增直到上限；`enabled: false` 会挂载插件但不发起连接。
+允许清单中的 Discord 账号可通过私信或指定服务器频道中点名 bot 的消息与 DSH agent 对话。每个频道在配置的工作区与预设下保留持久会话，重启或空闲释放后可恢复，并在 Web UI 中与其他会话并列显示。原生命令用于查看和控制对话；审批按钮与选项菜单让用户在 Discord 中回答待决请求。回复保留有用的 Markdown，正在输入提示与状态表情显示轮次是否运行。`enabled: false` 挂载插件但不连接。
 
 ## 目录
 
@@ -23,14 +23,16 @@ kind: "package-reference"
 <a id="conversation-behavior"></a>
 ## 对话行为
 
-- **持久化对话。** 会话开启的那一刻，频道的会话 id、预设与工作区就写入一条 storage-domain 记录。重启或空闲释放（`idleReleaseMs`）之后，下一条消息会恢复该会话而不是从头开始；一旦静默超过 `conversationMaxAgeMs`，下一条消息会开启全新会话并替换记录。
+- **持久化对话。** 频道的会话 id、预设与工作区保存在 storage domain 中。重启或空闲释放（`idleReleaseMs`）后，下一条消息恢复该会话；静默超过 `conversationMaxAgeMs` 后，下一条消息开启新会话。空闲释放只在 agent 已空闲且没有等待回答的请求时发生。
 - **消息合并。** 在 `inboundDebounceMs` 窗口内到达的消息合并成一轮，因此连发多条短消息的人只会得到一次回答；设为 `0` 则每条消息单独回答。
-- **正在输入反馈。** 入站轮次运行期间，网关会持续重发 Discord 的正在输入提示（`typingIndicator`），直到回答发出。
+- **进度与结果。** `typingIndicator` 在入站轮次运行时重复发送正在输入提示。`reactionStatus` 在处理期间添加 👀，并在轮次完成时替换为 ✅，否则替换为 ❌；表情发送失败不会阻断对话。超时与错误会发送带当前对话控件的通知。
 - **服务器频道门槛。** 服务器频道必须出现在 `allowedChannelIds` 中；在 `guildRequireMention: true`（默认）下，只有提及 bot 或回复其消息的消息会被回应。允许用户的私信总是会被回应。
-- **斜杠命令。** `/new` 释放当前对话，让下一条消息开启全新会话；`/status` 报告会话 id、预设、存活或已释放状态、以及是有轮次在运行还是有请求在等待回答；`/stop` 取消正在运行的轮次以及任何在等待的请求。其他斜杠命令经普通命令注册表交给存活的 agent 执行（`/compact` 之类）；没有存活对话时收到的命令只给出指引，不会擅自开启会话。
-- **主动投递。** 网关未发起的轮次——例如 `dsh-schedule` 提醒——会在 agent 转入空闲时把其最终 assistant 文本发到频道，于是承诺过的跟进能送达提出者。
-- **cron 运行投递。** `@deepseek-ai/dsh-cron` 完成的定时运行携带一个投递渠道；网关把该运行的最终文本发到那里，若运行没有产出文本且 cron 的 `deliverOutcomes` 要求告知，则发一行结果说明。没有投递渠道的运行不受打扰。
-- **审批与提问。** 当某个工具调用需要许可、或 agent 提出问题时，提示会发到频道：点 ✅ 表情回应表示本次放行、点 ❌ 表示拒绝，或回复 `yes` / `no`；问题用选项编号回答（多选为逗号分隔的列表），也可用自由文本。`answerers` 决定哪些作答形式有效（`reaction`、`text`），请求在 `approvalTimeoutMs` / `questionTimeoutMs` 之后过期，并在频道里发出通知。每个频道同一时间只有一个请求在等待：较新的请求会取消较旧的。
+- **原生与文本命令。** 命令菜单将配置预设的注册表与 `/help`、`/new`、`/status`、`/stop` 合并。`/help` 列出可用命令；`/new` 让下一条消息开启新会话；`/status` 显示会话、预设、活动与待投递内容；`/stop` 取消当前工作和待决请求。原生调用会及时确认并私密返回结果。斜杠开头的聊天文本走相同的命令执行路径。预设命令需要存活对话，否则返回指引；`excludedPresetCommands` 默认排除仅供 Web 使用的 `export` 命令。
+- **消息格式。** 普通回复保留标题、粗体、列表、链接与围栏代码。表格转为带标签的项目组，长代码块在有界消息间保留语言与缩进。`richMessages` 将命令结果与生命周期通知渲染为使用 `accentColor` 的卡片；卡片按钮明确操作频道的当前对话。[共享 Discord 格式化器](../tool-discord/README.zh.md)负责文本与提及处理。
+- **主动投递与提醒唤醒。** 已结束的主动轮次将最终 assistant 文本排入频道的持久投递队列。网关启动时仅检查它自己的已记录会话，在最早的待办提醒到期时恢复对应会话；空闲释放后也重新设置该计时器。会话内的 `dsh-schedule` 负责派发提醒，无需新入站消息。读取或恢复失败后按 `wakeRetryMs` 重试。
+- **cron 运行投递。** `dsh-cron` 的完成结果只有在网关将其文本持久排队后才得到确认；重复的运行 id 在保留的回执窗口内不会重复入队。没有文本且启用 `deliverOutcomes` 的运行会排入一行结果说明。恢复投递不会重新运行 agent。
+- **有界投递恢复。** 最终回复与频道通知在发送前以完整消息体持久保存；每个已确认分条都会记录进度。`outboxMaxPending` 限制待办记录数，`outboxMaxChars` 限制每次投递的文本或序列化富消息体。超限会拒绝入队并记录诊断。失败投递从 `outboxRetryMs` 开始重试，延迟不超过 `outboxMaxRetryMs`；重启后按保存的格式继续发送尚未确认的分条。
+- **审批与提问。** 审批提示提供 **Allow once** 与 **Reject** 按钮；不超过 25 个选项的问题提供单选或多选菜单。`answerers` 默认启用 `component`、`reaction`、`text`：审批也接受 ✅ / ❌ 或 `yes` / `no`，问题接受选项编号或自由文本。组件模式对自由文本问题和超过 25 个选项的菜单保留文本作答。控件匹配允许用户、频道、提示消息与请求标识；已回答、过期或被替代的提示无法敲定另一个请求。请求结束后移除控件，等待在 `approvalTimeoutMs` / `questionTimeoutMs` 后过期。每个频道同一时间只有一个请求在等待。
 
 <a id="model-experience"></a>
 ## 模型体验
@@ -67,14 +69,16 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **服务器频道需要开发者后台的特权开关** —— 本包仅以 `GUILD_MESSAGES | DIRECT_MESSAGES` intent 完成 identify，因此在 Discord 开发者后台为该应用启用 Message Content intent 之前，服务器频道的消息正文到达时为空。私信不受此限制，正文完整到达。
+- **服务器消息可见性** —— 网关请求消息与表情 intent，但不请求特权 Message Content intent。Discord 提供私信与提及 bot 的消息正文；用 `guildRequireMention: false` 允许未点名 bot 的服务器消息，并不能使其正文可用。
 - **一个 bot token 只能由一个 Host 使用** —— 用同一 token identify 的两个进程都会收到全部事件、也都会回复；网关只应在恰好一个进程中运行。
-- **仅支持文本与审批表情回应** —— 附件与 embed 会被忽略；入站的表情回应只在某频道有审批在等待时才有意义，过长的入站文本在 `maxInputChars` 处截断，而不是拆成多轮。
-- **Discord 中没有收到确认或失败通知** —— 正在输入提示覆盖运行中的轮次，但网关在消息到达时不发送确认，轮次超时或失败时也不发频道消息；这些结果只出现在 Host 日志里。
-- **空闲时的命令回答没有日志** —— 在没有存活对话时回答的 `/new`、`/status`、`/stop` 直接由持久状态作答，没有 agent 记录它们，因此这些交互永远不会进入任何会话日志。
-- **主动投递是尽力而为的文本** —— 若某个已收尾轮次或某次 cron 运行投递失败，该文本会被丢弃而不是重试，且只有最终 assistant 文本会外发；中间叙述留在会话内。
-- **问题需要文本回答** —— 选项编号是从聊天文本解析的，因此在 `answerers: [reaction]` 下，审批仍可用表情回应作答，而问题只能过期。
-- **提示消息 id 是尽力而为的** —— 只有当提示的帖子返回了其消息 id，表情回应才会被接受；若 Discord 的响应没有带 id，该审批只能用文本回复作答。
+- **一个全局命令目录** —— `nativeCommands` 在每次新的 Gateway READY 及预设命令注册表变更后，将该应用的全局目录与配置命令比较，仅在有差异时替换。其他运行时的命令会从此全局目录移除；服务器专属注册仍单独管理。同步失败后按 `commandSyncRetryMs` 重试。应用必须通过 Gateway 接收交互，不能配置向外发送交互的 Interactions Endpoint URL。
+- **仅接收入站文本** —— 附件与 embed 会被忽略；入站表情回应仅在该频道有审批等待时有效。过长的入站文本在 `maxInputChars` 处截断，不拆成多轮。
+- **不流式发送工具跟踪** —— 回复投递已提交的 assistant 输出。状态表情与正在输入提示显示活动；内部推理与工具跟踪不会流入频道。
+- **空闲时的命令回答没有日志** —— 没有存活对话时，网关控件根据持久状态作答，没有 agent 记录，因此这些交互不会进入会话日志。
+- **存储单元升级必须显式执行** —— 版本 1/2 的单文件存储单元无法按版本 3 打开。必须先停止网关，由操作者用当前 schema 验证全部对话与发件箱记录，保留逐字节一致的备份，再原子更新 `unit.version` 后重新打开。无效记录会阻止升级。[JSON 存储后端](../../storage/storage-json/README.zh.md)定义单元版本检查；逐记录兼容性不适用于本域的布局。
+- **投递可能重复** —— Discord 已接受分条、本地检查点尚未写入时崩溃，可能导致重发。回执只保留 `outboxMaxReceipts` 个标识。原生交互回复与待决审批或提问提示是临时的；其响应 token 与等待不会在重启后恢复。
+- **仅表情模式无法回答问题** —— `answerers: [reaction]` 可以敲定审批，但问题需要 `text` 或 `component`。
+- **控件需要提示消息 id** —— 表情回应与原生提示控件需要返回的消息 id。提示响应没有 id 时，只剩其已启用的文本作答路径。
 
 
 <a id="dev-note"></a>
@@ -83,7 +87,9 @@ kind: "package-reference"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-`gateway.ts` 负责 websocket 生命周期（identify、heartbeat、resume、重连退避），通过 `onStatus` 报告状态，并把每次 `READY` 中 bot 自身的用户 id 交给路由器用于提及判断。`conversation.ts` 经由 `openUnattendedSession` 与 `resumeUnattendedSession` 负责会话的开启/恢复/释放、经由 tail promise 的按频道串行执行、防抖、投递，以及把已收尾的主动轮次送达频道的 `agent/status` 空闲监听器；`turn-stopping` 在最终 assistant 文本落日志之前触发，这正是投递改挂空闲转换的原因。斜杠命令绕过串行尾链，以便 `/stop` 能触达运行中的轮次；`commands.ts` 把 `/new`、`/status`、`/stop` 注册进每个会话 Agent 的作用域，没有存活 agent 时由路由器凭持久状态作答。`answerers.ts` 存放审批与提问的提示文本及回复解析；`conversation.ts` 用一个 pendings 映射为每个频道保管一个在等待的请求，同时由消息文本与 `MESSAGE_REACTION_ADD` 事件喂入，且表情回应只有指向该提示帖子返回的消息 id 时才会敲定审批。`attachCronDelivery` 监听 `cron/run-finished`，并复用回复帖子路径完成投递渠道的发送。`domain.ts` 声明 storage-domain 记录（`discord_gateway`）。出站帖子复用 `@deepseek-ai/dsh-tool-discord` 的 `sendDiscordMessage`，因此 2000 字符分条与提及改写只存在于一处。测试用假 socket、假 agent 与内存表驱动这两半；没有任何测试会真的连接 Discord。
+命令注册表拥有命令描述与处理器；`interactions.ts` 将它们映射到 Discord 原生目录与响应 API，`native.ts` 在交给路由器之前验证并确认调用。交互 token 只保存在内存中。网关命令在每个 agent 注入了 commands 的子上下文中注册，并随该 agent 一并移除。
+
+`gateway.ts` 负责协议解析与连接生命周期。`conversation.ts` 负责会话路由、待决请求与最终回复游标；`presentation.ts` 生成卡片与控件，不修改会话事件。`wake.ts` 恢复提醒计时器；`outbox.ts` 保留按频道排序的投递。存储域版本 3 校验富文本内容、embed 总量与组件限制，并原样发送旧字符串分条。其默认单文件布局要求存储单元本身标记为版本 3；接受旧记录字段并不意味着升级旧存储单元。单元测试替换传输；录制会话快照无需 Discord 凭据即可验证发行 profile 的私信投递与原生交互。
 
 </details>
 

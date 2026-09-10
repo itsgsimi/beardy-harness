@@ -5,11 +5,13 @@
 
 import { vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import { createConversationRouter } from '../src/conversation.ts'
 import type { RoutingPolicy } from '../src/conversation.ts'
-import type { ConversationRecord } from '../src/domain.ts'
+import type { ConversationRecord, OutboxRecord } from '../src/domain.ts'
+import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { DiscordInboundMessage, GatewaySettings } from '../src/types.ts'
 
 export const USER = '138391763999129600'
@@ -19,6 +21,11 @@ export const BOT_USER = '111111111111111111'
 
 /** Settings that keep every timer in the router inert unless a test arms it deliberately. */
 export const SETTINGS: GatewaySettings = {
+  excludedPresetCommands: ['export'], richMessages: false, accentColor: 0x5865f2, reactionStatus: false,
+  replyRequestTimeoutMs: 15000, replyMaxRetries: 2, replyMaxRetryWaitMs: 30000, replyMaxChunksPerCall: 10,
+  interactionMaxPending: 100, interactionReceiptLimit: 1000,
+  outboxMaxPending: 100, outboxMaxChars: 20000, outboxRetryMs: 1000,
+  outboxMaxRetryMs: 60000, outboxMaxReceipts: 1000, wakeRetryMs: 30000,
   workspacePath: '/workspace',
   agentPreset: 'beardy',
   permissionPreset: 'danger-full-access',
@@ -64,6 +71,10 @@ export function record(overrides: Partial<ConversationRecord> = {}): Conversatio
 }
 
 export interface HarnessOptions {
+  readonly richMessages?: boolean
+  readonly reactionStatus?: boolean
+  readonly outboxStorage?: KvTable<string, OutboxRecord>
+  readonly storedEvents?: SessionEvent[]
   readonly turnTimeoutMs?: number
   readonly idleReleaseMs?: number
   readonly conversationMaxAgeMs?: number
@@ -105,21 +116,25 @@ export interface HarnessOptions {
   readonly promptId?: string
   /** Fail the prompt-delivery seam. */
   readonly failPrompt?: boolean
+  /** Hold the prompt POST acknowledgement until the test releases it. */
+  readonly promptBarrier?: Promise<void>
+  readonly promptResult?: (ordinal: number) => Promise<string>
   /** Leave out the prompt seam so the router's Discord transport runs for prompts. */
   readonly useDefaultPrompt?: boolean
   /** Reply forms the router accepts; defaults to both. */
-  readonly answerers?: readonly ('reaction' | 'text')[]
+  readonly answerers?: readonly ('component' | 'reaction' | 'text')[]
 }
 
 /** Context carrying the services the router touches, recording every call it makes. */
 export function harness(options: HarnessOptions = {}) {
   const calls: string[] = []
   const warnings: string[] = []
-  const events: SessionEvent[] = []
+  const events: SessionEvent[] = options.storedEvents ?? []
   const eventHandlers = new Map<string, ((payload: Record<string, unknown>, next: () => Promise<never>) => unknown)[]>()
   const registeredCommands = new Map<string, { name: string; description: string; handler: (invocation: { agent: unknown }) => unknown }>()
   let idleResolve: () => void = () => {}
   const agent = {
+    status: 'idle',
     session: {
       get seq(): number { return events.length },
       ownEvents: () => events,
@@ -127,11 +142,18 @@ export function harness(options: HarnessOptions = {}) {
     followup(message: { content: readonly { text?: string }[] }) {
       calls.push(`followup:${message.content[0]?.text ?? ''}`)
       if (options.replyText !== undefined) {
+        if (options.outboxStorage !== undefined || options.reactionStatus === true) {
+          events.push({ seq: events.length, type: 'turn/start', data: { turn: 1 } } as SessionEvent)
+        }
         events.push({
           seq: events.length,
           type: 'assistant/message',
           data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: options.replyText }] } },
         } as unknown as SessionEvent)
+        if (options.outboxStorage !== undefined || options.reactionStatus === true) {
+          events.push({ seq: events.length, type: 'turn/end',
+            data: { turn: 1, reason: { kind: 'completed' } } } as SessionEvent)
+        }
       }
     },
     cancel: (cause: unknown) => { calls.push(`cancel:${JSON.stringify(cause)}`) },
@@ -148,7 +170,9 @@ export function harness(options: HarnessOptions = {}) {
     dispose: vi.fn(async () => { calls.push('dispose') }),
   }
   const agentCtx = {
+    inject: (_services: string[], apply: (ctx: unknown) => void) => { apply(agentCtx) },
     commands: {
+      list: () => [...registeredCommands.values()].map(({ name,description }) => ({ name,description })),
       register: (definition: { name: string; description: string; handler: (invocation: { agent: unknown }) => unknown }) => {
         calls.push(`cmd:${definition.name}`)
         registeredCommands.set(definition.name, definition)
@@ -157,6 +181,8 @@ export function harness(options: HarnessOptions = {}) {
     },
   }
   const ctx = {
+    sessions: { flush: async () => true },
+    sessionPersistence: { open: async () => ({ inheritedEventCount: 0, read: async () => events, close: async () => {} }) },
     logger: { info: vi.fn(), warn: (message: string) => { warnings.push(message) }, error: vi.fn(), debug: vi.fn() },
     effect: (fn: () => (() => unknown) | undefined) => fn(),
     on: (event: string, handler: (payload: Record<string, unknown>, next: () => Promise<never>) => unknown) => {
@@ -205,6 +231,7 @@ export function harness(options: HarnessOptions = {}) {
       },
     },
     commands: {
+      list: () => [...registeredCommands.values()].map(({ name, description }) => ({ name, description })),
       execute: async (execAgent: unknown, line: string) => {
         const name = line.slice(1).split(/\s/, 1)[0] ?? ''
         calls.push(`execute:${name}`)
@@ -246,7 +273,10 @@ export function harness(options: HarnessOptions = {}) {
   }
 
   const posted: { content: string; channelId: string; token: string }[] = []
-  const prompts: { content: string; channelId: string }[] = []
+  const prompts: { content: string; channelId: string; components?: readonly DiscordActionRow[] }[] = []
+  const cards: DiscordMessageBody[] = []
+  const cleared: string[] = []
+  const reactions: string[] = []
   const typed: string[] = []
   const waitResolvers: (() => void)[] = []
   const controller = new AbortController()
@@ -255,6 +285,8 @@ export function harness(options: HarnessOptions = {}) {
     signal: controller.signal,
     settings: {
       ...SETTINGS,
+      richMessages: options.richMessages ?? false,
+      reactionStatus: options.reactionStatus ?? false,
       ...(options.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: options.turnTimeoutMs }),
       ...(options.idleReleaseMs === undefined ? {} : { idleReleaseMs: options.idleReleaseMs }),
       ...(options.conversationMaxAgeMs === undefined ? {} : { conversationMaxAgeMs: options.conversationMaxAgeMs }),
@@ -271,6 +303,10 @@ export function harness(options: HarnessOptions = {}) {
       botUserId: () => BOT_USER,
     } satisfies RoutingPolicy,
     table,
+    postRich: async (body) => { cards.push(body) },
+    clearPrompt: async (_channelId, messageId) => { cleared.push(messageId) },
+    react: async (_message, emoji, remove) => { reactions.push(`${remove ? 'remove' : 'add'}:${emoji}`) },
+    ...(options.outboxStorage === undefined ? {} : { outboxTable: options.outboxStorage }),
     resolveToken: async () => {
       if (options.failToken) throw new Error('no token')
       return 'tok'
@@ -288,10 +324,15 @@ export function harness(options: HarnessOptions = {}) {
       },
     }),
     ...(options.useDefaultPrompt === true ? {} : {
-      prompt: async (content: string, channelId: string) => {
+      prompt: async (
+        content: string, channelId: string, _token: string, _signal: AbortSignal, components?: readonly DiscordActionRow[],
+      ) => {
         calls.push('prompt')
         if (options.failPrompt) throw new Error('prompt refused')
-        prompts.push({ content, channelId })
+        prompts.push({ content, channelId, ...(components === undefined ? {} : { components }) })
+        const ordinal = prompts.length
+        await options.promptBarrier
+        if (options.promptResult !== undefined) return await options.promptResult(ordinal)
         return options.promptId ?? 'prompt-1'
       },
     }),
@@ -309,7 +350,8 @@ export function harness(options: HarnessOptions = {}) {
     }),
   })
   return {
-    router, calls, posted, prompts, typed, events, agent, handle, controller, table, registeredCommands, warnings,
+    router, calls, posted, cards, cleared, reactions, prompts, typed, events, agent, handle, controller,
+    table, registeredCommands, warnings,
     waitResolvers,
     emitEvent: (event: string, payload: Record<string, unknown>) => {
       for (const handler of [...(eventHandlers.get(event) ?? [])]) {
@@ -319,6 +361,7 @@ export function harness(options: HarnessOptions = {}) {
     ctx: ctx as unknown as Context,
     releaseIdle: () => { idleResolve() },
     emitStatus: (liveAgent: unknown, status: string) => {
+      if (liveAgent === agent) agent.status = status
       for (const handler of [...(eventHandlers.get('agent/status') ?? [])]) {
         handler({ agent: liveAgent, status }, async () => undefined as never)
       }

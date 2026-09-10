@@ -76,6 +76,48 @@ describe('RepositoryCleaner', () => {
     expect(existsSync(join(root, 'native/system/tsconfig.tsbuildinfo'))).toBe(false)
   })
 
+  it('removes tsc emit written beside project sources and reports it before cleaning', async () => {
+    const root = fixture()
+    addProject(root, 'products/shell')
+    write(join(root, 'products/shell/src/view.tsx'), 'export {}\n')
+    write(join(root, 'products/shell/src/index.js'))
+    write(join(root, 'products/shell/src/index.js.map'))
+    write(join(root, 'products/shell/src/index.d.ts'))
+    write(join(root, 'products/shell/src/index.d.ts.map'))
+    write(join(root, 'products/shell/src/view.js'))
+    write(join(root, 'products/shell/src/unrelated.js'))
+
+    const cleaner = new RepositoryCleaner(root)
+    await expect(cleaner.sourceEmitResidue()).resolves.toEqual([
+      'products/shell/src/index.d.ts',
+      'products/shell/src/index.d.ts.map',
+      'products/shell/src/index.js',
+      'products/shell/src/index.js.map',
+      'products/shell/src/view.js',
+    ])
+    await cleaner.clean()
+
+    expect(existsSync(join(root, 'products/shell/src/index.js'))).toBe(false)
+    expect(existsSync(join(root, 'products/shell/src/view.js'))).toBe(false)
+    expect(existsSync(join(root, 'products/shell/src/index.ts'))).toBe(true)
+    expect(existsSync(join(root, 'products/shell/src/view.tsx'))).toBe(true)
+    // A `.js` with no `.ts` sibling is not emit residue and is left alone.
+    expect(existsSync(join(root, 'products/shell/src/unrelated.js'))).toBe(true)
+  })
+
+  it('keeps a hand-written declaration file that a project declares as a root file', async () => {
+    const root = fixture()
+    addProject(root, 'products/shell')
+    write(join(root, 'products/shell/src/index.d.ts'), 'export {}\n')
+    write(join(root, 'products/shell/tsconfig.json'), JSON.stringify({
+      compilerOptions: { composite: true, outDir: 'lib/types' },
+      include: ['src'],
+      files: ['src/index.d.ts'],
+    }))
+
+    await expect(new RepositoryCleaner(root).sourceEmitResidue()).resolves.toEqual([])
+  })
+
   it('refuses project outputs reached through a symlink outside the repository', async () => {
     const root = fixture()
     const externalProject = fixture()

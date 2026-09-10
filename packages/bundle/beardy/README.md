@@ -7,6 +7,8 @@ kind: "package-bundle"
 
 English | [中文](README.zh.md)
 
+Odysseus deep research is opt-in: enable the disabled `tool-odysseus-research` row in your personal profile patch and select its server, research token, endpoint, model, and budget using the [research bridge configuration](../../web/tool-odysseus-research/README.md).
+
 ## Summary
 
 The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. The shipped `beardy` profile includes it automatically and stores a dedicated session-search index under the Harness home. Beardy inherits the complete Creator mode capability roster, including the standard coding tools and live Cordis authoring tools, then adds its identity, `$DSH_HOME/SOUL.md` personality file, curated cross-session memory (`$DSH_HOME/USER.md` and `MEMORY.md` behind one `memory` tool), session search, a conversation clock, SearXNG-backed Web search, and Web fetching. Scheduled runs and Discord delivery come from `dsh-cron`, `dsh-tool-discord`, and `dsh-discord-gateway`; the patch gates those three rows behind a `DISCORD_BOT_TOKEN` credential and ships no cron jobs. Your own briefs, channel destination, gateway workspace, and permission preset come from your profile patch (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`); an enabled row without that configuration fails its schema check loudly rather than running on defaults.
@@ -77,7 +79,9 @@ Then add the deployment rows to `$DSH_HOME/profiles/beardy/cordis.patch.yml`. A 
         timezone: Europe/Zagreb
         agentPreset: beardy-unattended
         permissionPreset: workspace-write
-        prompt: Prepare the morning brief and send it with discord_send.
+        workspacePath: /srv/beardy-workspace
+        deliverChannel: !!js process.env.DISCORD_CHANNEL_ID
+        prompt: Prepare the morning brief.
 ```
 
 Run it under systemd so it survives logout and reboots:
@@ -97,7 +101,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-The three shipped Beardy presets split the roles: sessions you start in the Web use `beardy`, gateway conversations run `beardy-discord` (short plain-text replies, memory writes staged for approval), and cron jobs run `beardy-unattended` (delivers with `discord_send`, authoring tools off). An enabled row whose profile configuration is missing fails at load naming the required field, so a half-configured deployment never runs on someone else's defaults.
+The three shipped Beardy presets split the roles: sessions you start in the Web use `beardy`, gateway conversations run `beardy-discord` (concise Markdown replies, memory writes staged for approval), and cron jobs run `beardy-unattended` (follows the job’s delivery instructions, authoring tools off). The [Discord gateway](../../discord/discord-gateway/README.md) supplies the native command menu, approval buttons, choice menus, progress feedback, and durable reply delivery. An enabled row whose profile configuration is missing fails at load naming the required field.
 
 ### Add the bundle to another profile
 
@@ -169,7 +173,7 @@ The bundle registers no runtime invariant because it only replaces and inserts r
 
 #### What the model sees
 
-The profile contributes one stable persona before the base prompt sections and selected tools. The runtime resolves `{{model}}` and `{{cwd}}` for the current process. The `beardy-unattended` and `beardy-discord` presets append one stable sentence each: unattended runs learn they must decide alone and deliver through `discord_send`; Discord replies are told to stay short and plain-text.
+The profile contributes one stable persona before the base prompt sections and selected tools. The runtime resolves `{{model}}` and `{{cwd}}` for the current process. The `beardy-unattended` and `beardy-discord` presets append stable instructions: unattended runs decide alone and follow the job’s delivery instructions, with `discord_send` as the fallback; Discord replies put the outcome first and use concise paragraphs, bold labels, bullets, links, and complete fenced code while keeping private reasoning and internal tool traces out of the reply.
 
 ##### Persona text
 
@@ -218,7 +222,7 @@ The file is stable for a workspace until its contents change; editing it changes
 
 #### What the model sees
 
-The `memory` tool schema with its two fixed targets (`user`, `memory`) and three actions, plus the current contents of `$DSH_HOME/USER.md` and `MEMORY.md` loaded as user-global instructions. The clock contributes a stable time-context section that re-renders at most hourly per session.
+The `memory` tool schema with its two fixed targets (`user`, `memory`) and three actions, plus the contents of `$DSH_HOME/USER.md` and `MEMORY.md` captured before the first request as user-global instructions. Their captured contents, including absent files, persist through resume and compaction; writes affect new sessions. The clock contributes a stable time-context section that re-renders at most hourly per session.
 
 #### Token effect
 
@@ -226,7 +230,7 @@ One small stable tool schema plus the data-dependent memory files inside the ins
 
 #### KV Cache effect
 
-Memory file contents sit in the durable instruction prefix and change the prefix only when a write lands. The hourly clock refresh changes one late section, not the whole prefix.
+Memory file contents remain fixed in the current session's durable instruction prefix. A new session captures the latest files. The hourly clock refresh changes one late section, not the whole prefix.
 
 ### Session history tools, Web search, and Web fetch
 
@@ -247,11 +251,11 @@ The history guidance and tool schemas remain prefix-stable for a fixed bundle an
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **No automatic skill curator** — skills are discovered and loaded through the base skill packages; Beardy does not write or improve skills automatically.
-- **Scheduled jobs are configuration-only** — jobs run from the `dsh-cron` config in your profile patch, and nothing creates or edits a job at runtime; changing the timetable, feeds, or destination means editing a patch and restarting.
+- **Skill learning requires review** — Beardy can create and update user skills and receives a capture reminder after sustained tool use. It has no automatic quality evaluation or consolidation process.
+- **Runtime scheduling requires configuration** — `cron_manage` and `/cron` manage stored jobs after the operator configures the preset and workspace allowlists. Configured jobs remain read-only apart from notes and explicit runs.
 - **One process per bot token** — the gateway answers every inbound direct message it sees, so running this profile alongside another that mounts `dsh-discord-gateway` with the same token replies twice.
 - **No general messaging gateway** — the profile provides the Web application; Discord is its only channel adapter, and there is none for Telegram, Slack, or similar services.
-- **Memory writes in unattended sessions refuse** — `beardy-unattended` and `beardy-discord` raise `requireApproval`, and a session with no approval answerer receives a refusal instead of a silent write; durable answer routing over Discord is deferred.
+- **Unattended memory writes require an answerer** — `beardy-unattended` and `beardy-discord` require approval. Discord supports approval by button, reaction, or reply; unattended sessions without an answerer refuse writes.
 - **Search uses a separate database** — do not point `session-query-sqlite.path` at the session-persistence database.
 - **SearXNG is an external prerequisite** — the default local endpoint must be running and must expose the JSON response format before Beardy can use `web_search`.
 

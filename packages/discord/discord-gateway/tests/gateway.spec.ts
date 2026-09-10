@@ -9,6 +9,7 @@ import {
 } from '../src/gateway.ts'
 import type { GatewaySocket, GatewaySocketEvent } from '../src/gateway.ts'
 import type { DiscordInboundMessage, DiscordInboundReaction, GatewayStatus } from '../src/types.ts'
+import type { DiscordInteraction } from '../src/interactions.ts'
 
 /** Socket the client drives, with the test deciding what the gateway says. */
 class FakeSocket implements GatewaySocket {
@@ -62,8 +63,9 @@ async function withGateway(
   options: {
     readonly reconnectDelayMs?: number
     readonly onMessage?: (message: DiscordInboundMessage) => void
-    readonly onReady?: (applicationId: string) => void
+    readonly onReady?: (botUserId: string, applicationId: string) => void
     readonly onReaction?: (reaction: DiscordInboundReaction) => void
+    readonly onInteraction?: (interaction: DiscordInteraction) => void
   } = {},
 ): Promise<void> {
   const sockets: FakeSocket[] = []
@@ -80,6 +82,7 @@ async function withGateway(
     onStatus: status => statuses.push(status),
     ...(options.onReady === undefined ? {} : { onReady: options.onReady }),
     ...(options.onReaction === undefined ? {} : { onReaction: options.onReaction }),
+    ...(options.onInteraction === undefined ? {} : { onInteraction: options.onInteraction }),
     reconnectDelayMs: options.reconnectDelayMs ?? 5,
     maxReconnectDelayMs: 5,
   }, controller.signal)
@@ -154,8 +157,10 @@ describe('parseMessageCreate', () => {
 
   it('defaults a missing guild, channel type, and bot flag', () => {
     expect(parseMessageCreate({ id: 'm1', channel_id: 'c1', author: { id: 'u1' } })).toMatchObject({
-      guildId: '', channelType: 0, bot: false, content: '',
+      guildId: '', channelType: 1, bot: false, content: '',
     })
+    expect(parseMessageCreate({ id: 'm2', channel_id: 'c2', guild_id: 'g2', author: { id: 'u1' } }))
+      .toMatchObject({ guildId: 'g2', channelType: 0 })
   })
 
   it.each([
@@ -170,6 +175,21 @@ describe('parseMessageCreate', () => {
 })
 
 describe('connectDiscordGateway', () => {
+  it('dispatches validated native interactions and ignores malformed interaction identities', async () => {
+    const interactions: DiscordInteraction[] = []
+    await withGateway(async (sockets) => {
+      const data = {
+        id: '1472404859679670455', application_id: '138391763999129600', token: 'private-token',
+        channel_id: '138391763999129602', user: { id: '138391763999129601' }, type: 2,
+        data: { type: 1, name: 'status' },
+      }
+      sockets[0]!.frame({ op: 0, t: 'INTERACTION_CREATE', s: 1, d: data })
+      sockets[0]!.frame({ op: 0, t: 'INTERACTION_CREATE', s: 2, d: { ...data, id: 'invalid' } })
+      expect(interactions).toHaveLength(1)
+      expect(interactions[0]).toMatchObject({ kind: 'command', name: 'status', arguments: '' })
+    }, { onInteraction: interaction => interactions.push(interaction) })
+  })
+
   it('identifies with the token and intents as soon as the socket opens', async () => {
     await withGateway(async (sockets) => {
       sockets[0]!.emit('open', undefined)
@@ -215,7 +235,7 @@ describe('connectDiscordGateway', () => {
 
   it('hands every MESSAGE_CREATE dispatch to the callback and ignores other events', async () => {
     const messages: DiscordInboundMessage[] = []
-    const readyIds: string[] = []
+    const readyIds: [string, string][] = []
     await withGateway(async (sockets, statuses) => {
       sockets[0]!.frame({
         op: DiscordGatewayOpcode.dispatch,
@@ -227,15 +247,27 @@ describe('connectDiscordGateway', () => {
         op: DiscordGatewayOpcode.dispatch,
         t: 'READY',
         s: 8,
-        d: { application: { id: 'bot-1' } },
+        d: { user: { id: 'bot-1' }, application: { id: 'app-1' } },
       })
       sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'READY', s: 9, d: {} })
       await tick()
       expect(statuses).toContainEqual({ kind: 'ready' })
-    }, { onMessage: message => messages.push(message), onReady: id => readyIds.push(id) })
+    }, { onMessage: message => messages.push(message), onReady: (userId, applicationId) => readyIds.push([userId, applicationId]) })
     expect(messages).toHaveLength(1)
     expect(messages[0]?.channelId).toBe('c1')
-    expect(readyIds).toEqual(['bot-1'])
+    expect(readyIds).toEqual([['bot-1', 'app-1']])
+  })
+
+  it('keeps bot identity separate when READY has no usable application identity', async () => {
+    const readyIds: [string, string][] = []
+    await withGateway(async (sockets) => {
+      for (const application of [undefined, null, {}, [], { id: 123 }]) {
+        sockets[0]!.frame({ op: DiscordGatewayOpcode.dispatch, t: 'READY', s: 1,
+          d: { user: { id: 'bot-1' }, application } })
+      }
+      await tick()
+    }, { onReady: (userId, applicationId) => readyIds.push([userId, applicationId]) })
+    expect(readyIds).toEqual(Array.from({ length: 5 }, () => ['bot-1', '']))
   })
 
   it('hands every MESSAGE_REACTION_ADD dispatch to the reaction callback', async () => {

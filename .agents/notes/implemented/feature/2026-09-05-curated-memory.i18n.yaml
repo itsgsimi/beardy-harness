@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-curated-memory.md
-2026-09-05-curated-memory.md: 77df54748fc2e87f6fc5a5cd599942ddf1f85baf
-2026-09-05-curated-memory.zh.md: e4e3f508a05f81d44e1dafa391a22cd2a5f4179a
+2026-09-05-curated-memory.md: 54b45cda1d08477da02ae2a092e2743689fc1c54
+2026-09-05-curated-memory.zh.md: 51532b8dcf2fb19799d1f3a60ffca64225dd853a

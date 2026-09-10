@@ -54,6 +54,35 @@ describe('parseCommand()', () => {
 })
 
 describe('CommandRuntime', () => {
+  it('discovers inherited standing-scope commands without creating an Agent', async () => {
+    const ctx = await mount()
+    try {
+      const parentKey = {}
+      const childKey = {}
+      let parent!: Scope
+      let child!: Scope
+      ctx.commands.register(command('shared', 'global'))
+      await ctx.plugin(Object.assign((inner: Context) => {
+        parent = createScope(inner, parentKey)
+        parent.ctx.commands.register(command('shared', 'parent'))
+        parent.ctx.commands.register(command('parent-only'))
+        child = createScope(inner, childKey, { parent: parentKey })
+        child.ctx.commands.register({ ...command('shared', 'child'), description: 'Child command' })
+      }, { inject: ['commands'] }))
+      const descriptors = ctx.commands.listForScope(childKey)
+      expect(descriptors.map(command => command.name)).toEqual(['parent-only', 'shared'])
+      expect(descriptors.find(command => command.name === 'shared')?.description).toBe('Child command')
+      expect(Object.isFrozen(descriptors)).toBe(true)
+      await child.dispose()
+      expect(ctx.commands.listForScope(childKey).find(command => command.name === 'shared')?.description)
+        .toBe('command shared')
+      await parent.dispose()
+      expect(ctx.commands.listForScope(childKey).map(command => command.name)).toEqual(['shared'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('lists immutable global descriptors with input metadata', async () => {
     const ctx = await mount()
     const { agent } = await mintAgentScope(ctx, 'a')

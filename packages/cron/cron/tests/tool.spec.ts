@@ -48,6 +48,22 @@ describe('cron_manage tool', () => {
     expect(result.jobs?.some(line => line.includes('stored, paused') && line.includes('[has notes]'))).toBe(true)
   })
 
+  it('marks a paused configured job in the listing', async () => {
+    const h = setup({ state: { 'morning-brief': { notes: '', lastRuns: [], enabled: false } } })
+    const result = await h.tool.execute({ action: 'list' }, h.exec) as { jobs?: string[] }
+    expect(result.jobs?.some(line => line.includes('morning-brief') && line.includes('config, paused'))).toBe(true)
+  })
+
+  it('pauses and resumes a configured job through the tool', async () => {
+    const h = setup()
+    expect(await h.tool.execute({ action: 'pause', name: 'morning-brief' }, h.exec)).toMatchObject({
+      action: 'pause', message: 'Paused job morning-brief: 0 7 * * * Europe/Zagreb (config, paused).',
+    })
+    expect(h.stateTable.rows.get('morning-brief')?.enabled).toBe(false)
+    expect(await h.tool.execute({ action: 'resume', name: 'morning-brief' }, h.exec)).toMatchObject({ action: 'resume' })
+    expect(h.stateTable.rows.get('morning-brief')?.enabled).toBe(true)
+  })
+
   it('creates a stored job without approval when the operator disabled the gate', async () => {
     const h = setup()
     expect(await h.tool.execute(CREATE_ARGS, h.exec)).toMatchObject({ action: 'create', name: 'pr-check' })

@@ -41,6 +41,8 @@ export interface AgentInstructionSource {
   baseline?: true
   /** Discovery, precedence, and budget identity used to validate a resumed baseline. */
   baselineIdentity?: string
+  /** Captured user-global file text or absence; later baselines reuse it after resume or compaction. */
+  frozenUserGlobalInstructions?: Record<string, string | null>
   changes: AgentInstructionChange[]
 }
 
@@ -329,6 +331,9 @@ export async function reconcileInstructionContext(
   const scopesByDirectory = new Map<string, string[]>()
   for (const scope of scopes) {
     const { directory } = decodeScopeKey(scope)
+    if (directory === USER_GLOBAL_DIRECTORY
+      && resolved.frozenUserGlobalInstructionCandidates.some(candidate =>
+        scope === candidateScopeKey(USER_GLOBAL_DIRECTORY, candidate))) continue
     const directoryScopes = scopesByDirectory.get(directory)
     if (directoryScopes === undefined) scopesByDirectory.set(directory, [scope])
     else directoryScopes.push(scope)

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { DiscordPostReply } from '../src/http.ts'
+import type { DiscordMessageBody } from '../src/types.ts'
 import type { DiscordSenderOptions } from '../src/send.ts'
-import { defangBroadcastMentions, sendDiscordMessage } from '../src/send.ts'
+import { defangBroadcastMentions, postDiscordMessageBody, sendDiscordMessage } from '../src/send.ts'
 
 const CHANNEL = '1478276183543119914'
 
@@ -52,6 +53,23 @@ describe('defangBroadcastMentions', () => {
 })
 
 describe('sendDiscordMessage', () => {
+  it('retries a complete rich message unchanged and returns its accepted response', async () => {
+    const body: DiscordMessageBody = { content: '  preserved\n', embeds: [{ title: 'Waiting', description: '**Approval**' }],
+      components: [{ type: 1, components: [{ type: 2, style: 3, label: 'Allow once', custom_id: 'request' }] }],
+    }
+    const posted: DiscordMessageBody[] = []
+    const reply = accepted()
+    const { options, waited } = fixture([], { post: async ({ channelId, token, ...message }) => {
+      expect(channelId).toBe(CHANNEL)
+      expect(token).toBe('token')
+      posted.push(message)
+      return posted.length === 1 ? { status: 429, retryAfterMs: 2, body: '' } : reply
+    } })
+    expect(await postDiscordMessageBody(options, 'token', body, signal())).toBe(reply)
+    expect(posted).toEqual([body, body])
+    expect(waited).toEqual([2])
+  })
+
   it('posts one short body and reports its length', async () => {
     const { options, posted } = fixture([accepted()])
     const result = await sendDiscordMessage(options, 'token', 'Morning brief: sunny.', signal())

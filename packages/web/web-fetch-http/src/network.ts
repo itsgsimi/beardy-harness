@@ -70,7 +70,8 @@ export function isPublicIpAddress(input: string): boolean {
  * @param hostname - URL hostname, including brackets when it is an IPv6 literal.
  * @param signal - aborts the wait for system resolution; an in-flight OS lookup may finish unused.
  * @param resolver - lookup implementation, overridden only by focused tests.
- * @returns the validated, non-empty address set.
+ * @returns the validated, non-empty address set. If DNS64 discovery fails for a
+ * dual-stack hostname, only its validated IPv4 addresses remain eligible.
  */
 export async function resolvePublicAddresses(
   hostname: string,
@@ -87,11 +88,6 @@ export async function resolvePublicAddresses(
     throw new WebError(`hostname "${hostname}" resolved to no addresses`, 'WEB_PROVIDER_ERROR')
   }
 
-  const hasIpv6 = resolved.some(entry => entry.family === 6 && isIP(entry.address) === 6)
-  const nat64Prefixes = hasIpv6
-    ? await discoverNat64Prefixes(signal, resolver)
-    : []
-
   const addresses: PublicAddress[] = []
   for (const entry of resolved) {
     if ((entry.family !== 4 && entry.family !== 6) || isIP(entry.address) !== entry.family) {
@@ -100,13 +96,29 @@ export async function resolvePublicAddresses(
     if (!isPublicIpAddress(entry.address)) {
       throw new WebError(`URL hostname "${hostname}" resolves to a non-public IP address`, 'WEB_BLOCKED_URL')
     }
+    addresses.push({ address: entry.address, family: entry.family })
+  }
+
+  let eligibleAddresses = addresses
+  let nat64Prefixes: Nat64Prefix[] = []
+  if (addresses.some(entry => entry.family === 6)) {
+    try {
+      nat64Prefixes = await discoverNat64Prefixes(signal, resolver)
+    } catch (error: unknown) {
+      if (signal.aborted) throw error
+      const ipv4Addresses = addresses.filter(entry => entry.family === 4)
+      if (ipv4Addresses.length === 0) throw error
+      eligibleAddresses = ipv4Addresses
+    }
+  }
+
+  for (const entry of eligibleAddresses) {
     const translatedIpv4 = translatedIpv4Address(entry.address, nat64Prefixes)
     if (translatedIpv4 !== undefined && !isPublicIpAddress(translatedIpv4)) {
       throw new WebError(`URL hostname "${hostname}" resolves through NAT64 to a non-public IPv4 address`, 'WEB_BLOCKED_URL')
     }
-    addresses.push({ address: entry.address, family: entry.family })
   }
-  return addresses
+  return eligibleAddresses
 }
 
 /** Discover the active DNS64 prefix set using RFC 7050's reserved hostname. */

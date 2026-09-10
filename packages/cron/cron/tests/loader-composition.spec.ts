@@ -21,9 +21,10 @@ afterEach(async () => {
 /** What the fixture services record while the composition runs. */
 interface FixtureRecord {
   created: string[]
-  tools: string[]
-  commands: string[]
+  tools: Map<string, Record<string, unknown>>
+  commands: Map<string, Record<string, unknown>>
   storedJobs: Map<string, Record<string, unknown>>
+  state: Map<string, Record<string, unknown>>
 }
 
 /** Services a scheduled run mounts through; the session factory records whether it was used. */
@@ -66,14 +67,13 @@ function fixtureDependencies(record: FixtureRecord): unknown {
         }),
       } as never)
       ctx.provide('tools' as never, {
-        register: (tool: { name: string }) => { record.tools.push(tool.name); return () => {} },
+        register: (tool: { name: string }) => { record.tools.set(tool.name, tool); return () => {} },
       } as never)
       ctx.provide('commands' as never, {
-        register: (command: { name: string }) => { record.commands.push(command.name); return () => {} },
+        register: (command: { name: string }) => { record.commands.set(command.name, command); return () => {} },
       } as never)
-      const state = new Map<string, Record<string, unknown>>()
       const tableFor = (name: string): Map<string, Record<string, unknown>> =>
-        name === 'jobs' ? record.storedJobs : state
+        name === 'jobs' ? record.storedJobs : record.state
       ctx.provide('storageDomain' as never, {
         open: async () => ({
           name: 'cron_jobs',
@@ -99,6 +99,7 @@ function fixtureDependencies(record: FixtureRecord): unknown {
 async function boot(
   lines: readonly string[],
   storedJobs: Record<string, unknown>[] = [],
+  persistedState: Record<string, unknown>[] = [],
 ): Promise<{ ctx: Context; record: FixtureRecord }> {
   root = await mkdtemp(join(tmpdir(), 'dsh-cron-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -108,8 +109,9 @@ async function boot(
   context.baseUrl = pathToFileURL(root).href + '/'
   await context.plugin(Loader)
   context.loader.builtins.include = Include
-  const record: FixtureRecord = { created: [], tools: [], commands: [], storedJobs: new Map() }
+  const record: FixtureRecord = { created: [], tools: new Map(), commands: new Map(), storedJobs: new Map(), state: new Map() }
   for (const job of storedJobs) record.storedJobs.set(String(job.name), job)
+  for (const state of persistedState) record.state.set(String(state.name), state)
   const modules = new Map<string, unknown>([
     ['fixture-dependencies', fixtureDependencies(record)],
     ['@deepseek-ai/dsh-cron', Cron],
@@ -156,8 +158,8 @@ describe('dsh-cron real Loader composition', () => {
   it('mounts with an empty job list and starts nothing', { timeout: 60_000 }, async () => {
     const { ctx, record } = await boot(["- name: '@deepseek-ai/dsh-cron'", '  config:', '    jobs: []'])
     expect(unloaded(ctx)).toEqual([])
-    expect(record.tools).toEqual(['cron_manage'])
-    expect(record.commands).toEqual(['cron'])
+    expect([...record.tools.keys()]).toEqual(['cron_manage'])
+    expect([...record.commands.keys()]).toEqual(['cron'])
   })
 
   it('schedules a configured job without starting a session before its time', { timeout: 60_000 }, async () => {
@@ -207,5 +209,32 @@ describe('dsh-cron real Loader composition', () => {
       enabled: true, deliver: { kind: 'none' }, createdAt: 1,
     }])
     expect(unloaded(ctx)).toEqual([])
+  })
+
+  it('pauses a configured job through the tool and keeps it paused across a restart', { timeout: 60_000 }, async () => {
+    const pause = (record: FixtureRecord): Promise<Record<string, unknown>> => {
+      const tool = record.tools.get('cron_manage') as { execute: (args: unknown, exec: unknown) => Promise<Record<string, unknown>> }
+      return Promise.resolve(tool.execute(
+        { action: 'pause', name: 'morning-brief' },
+        { agent: { session: { header: { id: 'session-1' } } }, callId: 'call-1', signal: new AbortController().signal },
+      ))
+    }
+
+    const first = await boot(jobRows('morning-brief', '0 7 * * *'))
+    expect(await pause(first.record)).toMatchObject({ action: 'pause' })
+    // The pause is durable arm state, never a stored definition row for a configured job.
+    expect(first.record.storedJobs.has('morning-brief')).toBe(false)
+    expect(first.record.state.get('morning-brief')).toMatchObject({ enabled: false })
+
+    const second = await boot(jobRows('morning-brief', '0 7 * * *'), [], [
+      { name: 'morning-brief', notes: '', lastRuns: [], enabled: false },
+    ])
+    expect(unloaded(second.ctx)).toEqual([])
+    const listed = await (second.record.tools.get('cron_manage') as {
+      execute: (args: unknown, exec: unknown) => Promise<{ jobs?: string[] }>
+    }).execute({ action: 'list' }, {
+      agent: { session: { header: { id: 'session-2' } } }, callId: 'call-2', signal: new AbortController().signal,
+    })
+    expect(listed.jobs?.join('\n')).toContain('morning-brief: 0 7 * * * Europe/Zagreb (config, paused)')
   })
 })

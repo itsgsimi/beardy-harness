@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { LookupAddress } from 'node:dns'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { AddressInfo } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
@@ -142,6 +143,16 @@ describe('public-network policy', () => {
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
   })
 
+  it('rejects an unsafe IPv6 answer before attempting DNS64 discovery', async () => {
+    const resolver = vi.fn(async () => [
+      { address: '8.8.8.8', family: 4 },
+      { address: '::1', family: 6 },
+    ])
+    await expect(resolvePublicAddresses('rebinding.test', new AbortController().signal, resolver))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    expect(resolver).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects empty and invalid resolver results', async () => {
     await expect(resolvePublicAddresses('empty.test', new AbortController().signal, async () => []))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
@@ -174,6 +185,51 @@ describe('public-network policy', () => {
 
     await expect(resolvePublicAddresses('nat64.test', new AbortController().signal, resolver))
       .resolves.toEqual([{ address: '2001:4860:64:64::808:808', family: 6 }])
+  })
+
+  it('uses validated IPv4 answers when DNS64 discovery fails for a dual-stack hostname', async () => {
+    const resolver = vi.fn(async (hostname: string) => {
+      if (hostname === 'ipv4only.arpa') throw new Error('DNS64 discovery unavailable')
+      return [
+        { address: '8.8.4.4', family: 4 },
+        { address: '2001:4860:4860::8888', family: 6 },
+      ]
+    })
+
+    await expect(resolvePublicAddresses('dual-stack.test', new AbortController().signal, resolver))
+      .resolves.toEqual([{ address: '8.8.4.4', family: 4 }])
+  })
+
+  it('fails closed when DNS64 discovery fails for an IPv6-only hostname', async () => {
+    const resolver = vi.fn(async (hostname: string) => {
+      if (hostname === 'ipv4only.arpa') throw new Error('DNS64 discovery unavailable')
+      return [{ address: '2001:4860:4860::8888', family: 6 }]
+    })
+
+    await expect(resolvePublicAddresses('ipv6-only.test', new AbortController().signal, resolver))
+      .rejects.toThrow('DNS64 discovery unavailable')
+  })
+
+  it('does not use the IPv4 fallback when DNS64 discovery is aborted', async () => {
+    const discovery = Promise.withResolvers<LookupAddress[]>()
+    const discoveryStarted = Promise.withResolvers<undefined>()
+    const resolver = vi.fn(async (hostname: string) => {
+      if (hostname === 'ipv4only.arpa') {
+        discoveryStarted.resolve(undefined)
+        return await discovery.promise
+      }
+      return [
+        { address: '8.8.4.4', family: 4 },
+        { address: '2001:4860:4860::8888', family: 6 },
+      ]
+    })
+    const controller = new AbortController()
+    const pending = resolvePublicAddresses('dual-stack.test', controller.signal, resolver)
+    await discoveryStarted.promise
+    controller.abort(new Error('stop'))
+
+    await expect(pending).rejects.toThrow('web fetch aborted during hostname resolution')
+    discovery.resolve([])
   })
 
   it('deduplicates discovered prefixes and ignores addresses outside their translation layout', async () => {

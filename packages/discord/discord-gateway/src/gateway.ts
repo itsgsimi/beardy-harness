@@ -6,6 +6,8 @@
  */
 
 import type { DiscordInboundMessage, DiscordInboundReaction, GatewayStatus } from './types.ts'
+import { parseDiscordInteraction } from './interactions.ts'
+import type { DiscordInteraction } from './interactions.ts'
 
 /** Gateway websocket endpoint for API v10 with JSON payloads. A published protocol constant. */
 export const DISCORD_GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json'
@@ -58,10 +60,12 @@ export interface DiscordGatewayOptions {
   readonly socketFactory?: GatewaySocketFactory
   /** Called for every `MESSAGE_CREATE` dispatch, before any allowlist filtering. */
   readonly onMessage: (message: DiscordInboundMessage) => void
-  /** Called with the bot's own user id from each `READY` dispatch; guild mention checks need it. */
-  readonly onReady?: (applicationId: string) => void
+  /** Called with the bot user id and application id from READY; an absent application id is empty. */
+  readonly onReady?: (botUserId: string, applicationId: string) => void
   /** Called for every `MESSAGE_REACTION_ADD` dispatch, before any allowlist filtering. */
   readonly onReaction?: (reaction: DiscordInboundReaction) => void
+  /** Called for a parsed native application command, autocomplete request, or component interaction. */
+  readonly onInteraction?: (interaction: DiscordInteraction) => void
   /** Connection state changes, for logs and diagnostics. */
   readonly onStatus?: (status: GatewayStatus) => void
   /** Delay seam used by heartbeats and reconnect backoff. */
@@ -169,7 +173,9 @@ export function parseMessageCreate(payload: unknown): DiscordInboundMessage | un
     guildId: textField(record, 'guild_id'),
     authorId: textField(authorRecord, 'id'),
     bot: authorRecord['bot'] === true,
-    channelType: typeof record['channel_type'] === 'number' ? record['channel_type'] : 0,
+    channelType: typeof record['channel_type'] === 'number'
+      ? record['channel_type']
+      : textField(record, 'guild_id') === '' ? DISCORD_CHANNEL_TYPE_DM : 0,
     content: textField(record, 'content'),
     mentionedUserIds: mentionUserIds(record['mentions']),
     replyToAuthorId: referencedAuthorId(record['referenced_message']),
@@ -177,7 +183,11 @@ export function parseMessageCreate(payload: unknown): DiscordInboundMessage | un
   return message.id === '' || message.channelId === '' || message.authorId === '' ? undefined : message
 }
 
-/** One `MESSAGE_REACTION_ADD` dispatch reduced to what an answerer matches on. */
+/**
+ * Reduce one `MESSAGE_REACTION_ADD` dispatch to the fields an answerer matches.
+ * @param payload - Discord's untrusted event payload.
+ * @returns parsed reaction fields, or undefined for a malformed dispatch.
+ */
 export function parseMessageReaction(payload: unknown): DiscordInboundReaction | undefined {
   if (typeof payload !== 'object' || payload === null) return undefined
   const record = payload as Record<string, unknown>
@@ -280,8 +290,9 @@ async function runConnection(
         return
       case DiscordGatewayOpcode.dispatch:
         if (frame.t === 'READY') {
+          const botUserId = textField(objectField(objectField(frame.d)?.['user']) ?? {}, 'id')
           const applicationId = textField(objectField(objectField(frame.d)?.['application']) ?? {}, 'id')
-          if (applicationId !== '') options.onReady?.(applicationId)
+          if (botUserId !== '') options.onReady?.(botUserId, applicationId)
           options.onStatus?.({ kind: 'ready' })
           return
         }
@@ -293,6 +304,10 @@ async function runConnection(
         if (frame.t === 'MESSAGE_REACTION_ADD') {
           const reaction = parseMessageReaction(frame.d)
           if (reaction !== undefined) options.onReaction?.(reaction)
+        }
+        if (frame.t === 'INTERACTION_CREATE') {
+          const interaction = parseDiscordInteraction(frame.d)
+          if (interaction !== undefined) options.onInteraction?.(interaction)
         }
         return
       case DiscordGatewayOpcode.reconnect:

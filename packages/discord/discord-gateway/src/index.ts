@@ -8,6 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { sleep } from '@deepseek-ai/dsh-unattended-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import { attachCronDelivery, createConversationRouter } from './conversation.ts'
@@ -16,11 +17,17 @@ import { discordGatewayDomainSpec } from './domain.ts'
 import { connectDiscordGateway, DISCORD_GATEWAY_INTENTS } from './gateway.ts'
 import type { DiscordGatewayOptions, GatewaySocketFactory } from './gateway.ts'
 import type { GatewaySettings } from './types.ts'
+import { discordCommands } from './commands.ts'
+import { buildDiscordCommandCatalog, synchronizeDiscordCommands } from './interactions.ts'
+import { createNativeInteractions } from './native.ts'
 
 export * from './conversation.ts'
 export * from './commands.ts'
 export * from './domain.ts'
 export * from './gateway.ts'
+export * from './interactions.ts'
+export * from './native.ts'
+export * from './presentation.ts'
 export type * from './types.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -36,6 +43,8 @@ export const inject = [
   'permissionPresets',
   'sessionTitle',
   'storageDomain',
+  'sessions',
+  'sessionPersistence',
   'workspaceRegistry',
 ]
 
@@ -68,6 +77,30 @@ export const DEFAULT_DISCORD_QUESTION_TIMEOUT_MS = 600_000
 
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
 export interface Config {
+  /** Render command and lifecycle notices as Discord cards. */
+  readonly richMessages?: boolean
+  /** Preset commands unavailable in Discord. Defaults to the Web-only export command. */
+  readonly excludedPresetCommands?: string[]
+  /** Accent color of Discord cards. */
+  readonly accentColor?: number
+  /** Mark admitted messages with processing and completion reactions. */
+  readonly reactionStatus?: boolean
+  /** Per-attempt outbound HTTP bound. */
+  readonly replyRequestTimeoutMs?: number
+  /** Additional rate-limit retries for immediate replies. */
+  readonly replyMaxRetries?: number
+  /** Longest accepted server-requested retry delay. */
+  readonly replyMaxRetryWaitMs?: number
+  /** Maximum chunks of an immediate reply. */
+  readonly replyMaxChunksPerCall?: number
+  /** Maximum simultaneous native interactions. */
+  readonly interactionMaxPending?: number
+  /** Completed native interaction ids retained to suppress duplicate delivery. */
+  readonly interactionReceiptLimit?: number
+  /** Own and synchronize this application's global command menu. Defaults to true. */
+  readonly nativeCommands?: boolean
+  /** Delay before retrying a failed command-menu sync. Defaults to 30000. */
+  readonly commandSyncRetryMs?: number
   /** Credential reference holding the bot token, such as `DISCORD_BOT_TOKEN`. */
   readonly tokenEnv: string
   /** User ids allowed to converse. Must be non-empty: an open listener is not a supported mode. */
@@ -104,13 +137,37 @@ export interface Config {
   readonly approvalTimeoutMs?: number
   /** Longest wait for one question's answer in milliseconds. Defaults to 600000. */
   readonly questionTimeoutMs?: number
-  /** Reply forms that answer approvals and questions: `reaction`, `text`. Defaults to both. */
+  /** Reply forms: `component`, `reaction`, and `text`. Defaults to all three. */
   readonly answerers?: string[]
   /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
   readonly enabled?: boolean
+  /** Maximum queued, unfinished deliveries. Defaults to 100. */
+  readonly outboxMaxPending?: number
+  /** Maximum UTF-16 units per delivery: rewritten text or serialized rich message bodies. Defaults to 20000. */
+  readonly outboxMaxChars?: number
+  /** Initial delivery retry delay in milliseconds. Defaults to 1000. */
+  readonly outboxRetryMs?: number
+  /** Maximum delivery retry delay in milliseconds. Defaults to 60000. */
+  readonly outboxMaxRetryMs?: number
+  /** Completed delivery ids retained to suppress replays. Defaults to 1000. */
+  readonly outboxMaxReceipts?: number
+  /** Retry delay for a failed reminder read or resume. Defaults to 30000. */
+  readonly wakeRetryMs?: number
 }
 
 export const Config: z<Config> = z.object({
+  richMessages: z.boolean().default(true),
+  excludedPresetCommands: z.array(z.string()).default(['export']),
+  accentColor: z.number().min(0).max(0xffffff).default(0x5865f2),
+  reactionStatus: z.boolean().default(true),
+  replyRequestTimeoutMs: z.number().min(1).default(15000),
+  replyMaxRetries: z.number().min(0).default(2),
+  replyMaxRetryWaitMs: z.number().min(0).default(30000),
+  replyMaxChunksPerCall: z.number().min(1).default(10),
+  interactionMaxPending: z.number().min(1).default(100),
+  interactionReceiptLimit: z.number().min(1).default(1000),
+  nativeCommands: z.boolean().default(true),
+  commandSyncRetryMs: z.number().min(1).default(30000),
   tokenEnv: z.string().role('credential-ref').required(),
   allowedUserIds: z.array(z.string()).required(),
   allowedChannelIds: z.array(z.string()).default([]),
@@ -129,8 +186,14 @@ export const Config: z<Config> = z.object({
   typingIndicator: z.boolean().default(true),
   approvalTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_APPROVAL_TIMEOUT_MS),
   questionTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_QUESTION_TIMEOUT_MS),
-  answerers: z.array(z.string()).default(['reaction', 'text']),
+  answerers: z.array(z.string()).default(['component', 'reaction', 'text']),
   enabled: z.boolean().default(true),
+  outboxMaxPending: z.number().min(1).default(100),
+  outboxMaxChars: z.number().min(1).default(20_000),
+  outboxRetryMs: z.number().min(1).default(1_000),
+  outboxMaxRetryMs: z.number().min(1).default(60_000),
+  outboxMaxReceipts: z.number().min(1).default(1_000),
+  wakeRetryMs: z.number().min(1).default(30_000),
 })
 
 /** Complete configuration after schemastery applies every field default. */
@@ -139,7 +202,10 @@ export type ResolvedConfig = Required<Config>
 /** A Discord user or channel id is a snowflake: 17 to 20 decimal digits. */
 const SNOWFLAKE_PATTERN = /^\d{17,20}$/
 
-/** Reject configuration that would listen for nobody, write outside a workspace, or wait unboundedly. */
+/**
+ * Reject configuration that would listen for nobody, write outside a workspace, or wait unboundedly.
+ * @param config - Complete configuration after defaults have been applied.
+ */
 export function assertConfig(config: ResolvedConfig): void {
   if (config.allowedUserIds.length === 0) {
     throw new Error('discord-gateway: allowedUserIds must name at least one Discord user')
@@ -155,21 +221,34 @@ export function assertConfig(config: ResolvedConfig): void {
     throw new Error(`discord-gateway: workspacePath must be absolute, got "${config.workspacePath}"`)
   }
   for (const [field, value] of Object.entries(config)) {
-    // `inboundDebounceMs` is the one duration a deployment may set to zero: answer every message at once.
-    if (field === 'inboundDebounceMs') continue
+    if (['inboundDebounceMs', 'replyMaxRetries', 'replyMaxRetryWaitMs', 'accentColor'].includes(field)) {
+      if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+        throw new Error(`discord-gateway: ${field} must be a non-negative safe integer`)
+      }
+      continue
+    }
     if (typeof value === 'number' && (!Number.isSafeInteger(value) || value <= 0)) {
       throw new Error(`discord-gateway: ${field} must be a positive safe integer`)
     }
   }
+  if (config.accentColor > 0xffffff) throw new Error('discord-gateway: accentColor must be a 24-bit RGB color')
   if (config.reconnectDelayMs > config.maxReconnectDelayMs) {
     throw new Error('discord-gateway: reconnectDelayMs must not exceed maxReconnectDelayMs')
+  }
+  if (config.outboxRetryMs > config.outboxMaxRetryMs) {
+    throw new Error('discord-gateway: outboxRetryMs must not exceed outboxMaxRetryMs')
+  }
+  for (const command of config.excludedPresetCommands) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(command) || ['help', 'new', 'status', 'stop'].includes(command)) {
+      throw new Error('discord-gateway: excludedPresetCommands must name preset commands, not gateway controls')
+    }
   }
   if (config.answerers.length === 0) {
     throw new Error('discord-gateway: answerers must name at least one reply form; prompts nobody can answer only expire')
   }
   for (const form of config.answerers) {
-    if (form !== 'reaction' && form !== 'text') {
-      throw new Error(`discord-gateway: answerers entries must each be "reaction" or "text", got "${form}"`)
+    if (form !== 'reaction' && form !== 'text' && form !== 'component') {
+      throw new Error(`discord-gateway: answerers entries must each be "reaction", "text", or "component", got "${form}"`)
     }
   }
   if (config.idleReleaseMs >= config.conversationMaxAgeMs) {
@@ -178,13 +257,28 @@ export function assertConfig(config: ResolvedConfig): void {
   }
 }
 
-/** Split validated configuration into the settings and policy the router reads. */
+/**
+ * Split validated configuration into the settings and policy the router reads.
+ * @param config - Complete validated plugin configuration.
+ * @param botUserId - Current gateway bot identity used to match mentions.
+ * @returns deployment settings and message admission policy.
+ */
 export function toSettings(
   config: ResolvedConfig,
   botUserId: () => string,
 ): { settings: GatewaySettings; policy: RoutingPolicy } {
   return {
     settings: {
+      richMessages: config.richMessages,
+      excludedPresetCommands: config.excludedPresetCommands,
+      accentColor: config.accentColor,
+      reactionStatus: config.reactionStatus,
+      replyRequestTimeoutMs: config.replyRequestTimeoutMs,
+      replyMaxRetries: config.replyMaxRetries,
+      replyMaxRetryWaitMs: config.replyMaxRetryWaitMs,
+      replyMaxChunksPerCall: config.replyMaxChunksPerCall,
+      interactionMaxPending: config.interactionMaxPending,
+      interactionReceiptLimit: config.interactionReceiptLimit,
       workspacePath: config.workspacePath,
       agentPreset: config.agentPreset,
       permissionPreset: config.permissionPreset,
@@ -199,6 +293,12 @@ export function toSettings(
       approvalTimeoutMs: config.approvalTimeoutMs,
       questionTimeoutMs: config.questionTimeoutMs,
       answerers: config.answerers as GatewaySettings['answerers'],
+      outboxMaxPending: config.outboxMaxPending,
+      outboxMaxChars: config.outboxMaxChars,
+      outboxRetryMs: config.outboxRetryMs,
+      outboxMaxRetryMs: config.outboxMaxRetryMs,
+      outboxMaxReceipts: config.outboxMaxReceipts,
+      wakeRetryMs: config.wakeRetryMs,
     },
     policy: {
       allowedUserIds: new Set(config.allowedUserIds),
@@ -248,31 +348,78 @@ export async function startListener(
   router: ConversationRouter,
   signal: AbortSignal,
   connect: GatewayConnector = connectDiscordGateway,
-  onReady?: (applicationId: string) => void,
+  onReady?: (botUserId: string) => void,
 ): Promise<void> {
+  const stopping = new AbortController()
+  const active = AbortSignal.any([signal, stopping.signal])
+  const aborted = (): boolean => active.aborted
+  let native: ReturnType<typeof createNativeInteractions> | undefined
+  let syncing: Promise<void> | undefined
+  let removeObserver: (() => unknown) | undefined
   try {
     const credential = await resolveBotToken(ctx, config.tokenEnv)
     await ctx.agentPresets.resolve(config.agentPreset)
     ctx.permissionPresets.resolve(config.permissionPreset)
+    let applicationId = ''
+    let synchronized = ''
+    let requestSync = (): void => {}
+    if (config.nativeCommands || config.richMessages || config.answerers.includes('component')) {
+      const scope = await ctx.agentPresets.standingKeyFor(config.agentPreset)
+      const commands = () => discordCommands(ctx.commands.listForScope(scope), config.excludedPresetCommands)
+      const { settings, policy } = toSettings(config, () => applicationId)
+      native = createNativeInteractions({ signal: active, settings, policy, applicationId: () => applicationId,
+        commands, execute: (channelId, line, requestSignal) => router.execute(channelId, line, requestSignal),
+        component: (interaction, requestSignal) => router.component(interaction, requestSignal),
+        warn: (message) => { ctx.logger.warn(message) },
+      })
+      let requested = false
+      const sync = async (): Promise<void> => {
+        while (requested && !active.aborted) {
+          requested = false
+          try {
+            const desired = buildDiscordCommandCatalog(commands())
+            const signature = JSON.stringify(desired)
+            if (signature === synchronized) continue
+            await synchronizeDiscordCommands(applicationId, credential, commands(), active, {
+              requestTimeoutMs: config.replyRequestTimeoutMs, maxRetries: config.replyMaxRetries,
+              maxRetryWaitMs: config.replyMaxRetryWaitMs,
+            })
+            synchronized = signature
+          } catch (error: unknown) {
+            if (aborted()) return
+            ctx.logger.warn(`discord-gateway: native command sync failed; retrying: ${errorChain(error)}`)
+            requested = true
+            try { await sleep(config.commandSyncRetryMs, active) } catch { return }
+          }
+        }
+      }
+      requestSync = (): void => {
+        if (!config.nativeCommands || applicationId === '' || active.aborted) return
+        requested = true
+        if (syncing !== undefined) return
+        syncing = sync().finally(() => { syncing = undefined; if (requested && !active.aborted) requestSync() })
+      }
+      if (config.nativeCommands) removeObserver = ctx.on('commands/change', requestSync)
+    }
     await connect({
       token: credential,
       intents: DISCORD_GATEWAY_INTENTS,
       onMessage: (message) => { router.handle(message) },
       onReaction: (reaction) => { router.handleReaction(reaction) },
-      ...(onReady === undefined ? {} : { onReady }),
+      onInteraction: (interaction) => { native?.handle(interaction) },
+      onReady: (botId, appId) => { applicationId = appId; synchronized = ''; onReady?.(botId); requestSync() },
       onStatus: (status) => {
-        if (status.kind === 'ready') {
-          ctx.logger.info('discord-gateway: connected; messages from allowed users start conversations')
-        } else if (status.kind === 'disconnected') {
-          ctx.logger.warn(`discord-gateway: ${status.reason}; reconnecting`)
-        }
+        if (status.kind === 'ready') ctx.logger.info('discord-gateway: connected; messages from allowed users start conversations')
+        else if (status.kind === 'disconnected') ctx.logger.warn(`discord-gateway: ${status.reason}; reconnecting`)
       },
-      reconnectDelayMs: config.reconnectDelayMs,
-      maxReconnectDelayMs: config.maxReconnectDelayMs,
-    }, signal)
+      reconnectDelayMs: config.reconnectDelayMs, maxReconnectDelayMs: config.maxReconnectDelayMs,
+    }, active)
   } catch (error: unknown) {
-    if (signal.aborted) return
-    ctx.logger.error(`discord-gateway: listener stopped and will not retry: ${errorChain(error)}`)
+    if (!signal.aborted) ctx.logger.error(`discord-gateway: listener stopped and will not retry: ${errorChain(error)}`)
+  } finally {
+    stopping.abort()
+    removeObserver?.()
+    await Promise.allSettled([syncing, native?.dispose()])
   }
 }
 
@@ -290,6 +437,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     ctx.logger.info('discord-gateway: mounted but disabled by configuration')
     return
   }
+  const presetScope = await ctx.agentPresets.standingKeyFor(resolved.agentPreset)
   const domain = await ctx.storageDomain.open(discordGatewayDomainSpec)
   const controller = new AbortController()
   let botUserId = ''
@@ -300,22 +448,26 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     settings,
     policy,
     table: domain.table('conversations'),
+    outboxTable: domain.table('outbox'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
+    commands: () => discordCommands(ctx.commands.listForScope(presetScope), resolved.excludedPresetCommands),
   })
   attachCronDelivery(ctx, router)
 
   ctx.effect(() => {
-    void startListener(
+    const listening = router.recover().then(() => startListener(
       ctx,
       resolved,
       router,
       controller.signal,
       connectDiscordGateway,
       (applicationId: string) => { botUserId = applicationId },
-    )
+    ))
     return async () => {
       controller.abort(new Error('discord-gateway disposed'))
-      await router.dispose()
+      const disposed = router.dispose()
+      await Promise.allSettled([listening, disposed])
+      await disposed
       await domain.close()
     }
   }, 'discord-gateway listener')

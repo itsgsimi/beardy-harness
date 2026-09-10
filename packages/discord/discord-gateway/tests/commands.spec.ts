@@ -1,40 +1,70 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
+import CommandRuntime from '@deepseek-ai/dsh-commands'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { registerGatewayCommands } from '../src/commands.ts'
 import { CHANNEL, drain, harness, inbound } from './support.ts'
 
 describe('registerGatewayCommands', () => {
-  function collector() {
-    const definitions = new Map<string, { description: string; handler: () => unknown }>()
-    const agentCtx = {
-      commands: { register: (definition: { name: string; description: string; handler: () => unknown }) => {
-        definitions.set(definition.name, definition)
-        return () => { definitions.delete(definition.name) }
-      } },
-    }
-    return { agentCtx, definitions }
-  }
+  const contexts: Context[] = []
 
-  it('registers the three gateway commands with descriptions', () => {
-    const { agentCtx, definitions } = collector()
-    registerGatewayCommands(agentCtx as never, {
-      startFresh: async () => 'fresh',
-      status: () => 'status text',
-      stopTurn: () => 'stop text',
-    })
-    expect([...definitions.keys()].sort()).toEqual(['new', 'status', 'stop'])
-    for (const definition of definitions.values()) expect(definition.description).not.toBe('')
+  afterEach(async () => {
+    for (const ctx of contexts.splice(0)) await ctx.fiber.dispose()
   })
 
-  it('routes each handler to its router operation', async () => {
-    const { agentCtx, definitions } = collector()
-    registerGatewayCommands(agentCtx as never, {
-      startFresh: async () => 'fresh',
-      status: () => 'status text',
-      stopTurn: () => 'stop text',
+  async function mount(): Promise<Context> {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(CommandRuntime)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    return ctx
+  }
+
+  async function createConversation(ctx: Context, id: string) {
+    return await ctx.agents.create({
+      sessionId: SessionId(id),
+      setup: (agentCtx) => {
+        registerGatewayCommands(agentCtx, {
+          startFresh: async () => `fresh ${id}`,
+          status: () => `status ${id}`,
+          stopTurn: () => `stop ${id}`,
+        })
+      },
     })
-    expect(await (definitions.get('new') as never as { handler: () => Promise<{ text: string }> }).handler()).toEqual({ kind: 'success', text: 'fresh' })
-    expect((definitions.get('status') as never as { handler: () => { text: string } }).handler().text).toBe('status text')
-    expect((definitions.get('stop') as never as { handler: () => { text: string } }).handler().text).toBe('stop text')
+  }
+
+  it('registers and executes gateway commands during real Agent setup', async () => {
+    const ctx = await mount()
+    const { agent } = await createConversation(ctx, 'first')
+    const commands = ctx.commands.list(agent)
+    expect(commands.map(command => command.name)).toEqual(['new', 'status', 'stop'])
+    for (const command of commands) expect(command.description).not.toBe('')
+    const signal = new AbortController().signal
+    for (const [name, text] of [['new', 'fresh first'], ['status', 'status first'], ['stop', 'stop first']]) {
+      const execution = await ctx.commands.execute(agent, `/${name}`, [], signal)
+      expect(execution?.result).toEqual({ kind: 'success', text })
+    }
+  })
+
+  it('keeps commands local to each Agent and removes them with its scope', async () => {
+    const ctx = await mount()
+    const first = await createConversation(ctx, 'first')
+    const second = await createConversation(ctx, 'second')
+    const other = await ctx.agents.create({ sessionId: SessionId('other') })
+    expect(ctx.commands.list(other.agent)).toEqual([])
+    const signal = new AbortController().signal
+    expect((await ctx.commands.execute(first.agent, '/status', [], signal))?.result.text).toBe('status first')
+    expect((await ctx.commands.execute(second.agent, '/status', [], signal))?.result.text).toBe('status second')
+    await first.dispose()
+    expect(ctx.commands.list(first.agent)).toEqual([])
+    expect(ctx.commands.list(second.agent).map(command => command.name)).toEqual(['new', 'status', 'stop'])
+    await second.dispose()
+    expect(ctx.commands.list(second.agent)).toEqual([])
   })
 })
 

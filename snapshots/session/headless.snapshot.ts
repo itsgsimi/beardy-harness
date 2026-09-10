@@ -8,6 +8,7 @@ import { basename, delimiter, dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import ts from 'typescript'
+import { load as loadYaml } from 'js-yaml'
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { releasedV0SessionFormatCodec } from '@deepseek-ai/dsh-session-format-v0-to-v1'
 import type { SessionFormatEvent, SessionFormatMigrationContext } from '@deepseek-ai/dsh-session-format'
@@ -52,6 +53,7 @@ import {
 import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-loader-smoke'
 import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
 import { parseSessionLog, prepareSessionSnapshotFixtureForComparison } from '@deepseek-ai/dsh-llm-replay'
+import { runPrompt } from '@deepseek-ai/dsh-cron'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const snapshotsRoot = fileURLToPath(new URL('./', import.meta.url))
@@ -632,6 +634,31 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
 }
 
 describe('headless recorded-session snapshots', () => {
+  it('records the cron delivery prompt produced for a channel-bound job', async () => {
+    const dir = join(snapshotsRoot, 'cron-delivery-guidance')
+    const fixture = await readFile(join(dir, await primaryFixtureFile(dir)), 'utf8')
+    const preset = loadYaml(await readFile(join(
+      repoRoot, 'packages/preset/agent-presets/presets/beardy-unattended/agent.cordis.yml',
+    ), 'utf8')) as Array<{ config: { patches: Array<{ id: string; config?: { text?: string } }> } }>
+    const persona = preset[0]?.config.patches.find(row => row.id === 'persona')?.config?.text
+    expect(persona).toContain("Follow the run's delivery instructions; if none are provided, deliver with discord_send.")
+    const patch = await readFile(join(dir, 'cordis.yml'), 'utf8')
+    const composition = loadYaml(patch) as Array<{ config: { persona: string } }>
+    expect(composition[0]?.config.persona).toBe(persona)
+    expect(await readFile(join(dir, 'cordis.snapshot.yml'), 'utf8')).toContain(patch.trim())
+    expect(taskFromSession(fixture)).toBe(runPrompt({
+      name: 'morning-brief',
+      expression: '0 7 * * *',
+      timezone: 'UTC',
+      prompt: 'Prepare a one-sentence morning brief. Do not use tools.',
+      agentPreset: 'beardy-unattended',
+      permissionPreset: 'workspace-write',
+      workspacePath: '/workspace',
+      notes: 'Yesterday’s update already covered item A.',
+      deliverChannelId: 'brief-channel',
+    }))
+  })
+
   it('gives every composition and header class exactly one current-writer pin', () => {
     for (const scenario of scenarios) {
       expect(ownerOf(scenario), `${scenario.name}: composition owner`).toBeDefined()

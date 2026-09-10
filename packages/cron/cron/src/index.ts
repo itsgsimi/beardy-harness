@@ -7,7 +7,9 @@
  */
 
 import { isAbsolute } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
@@ -19,7 +21,7 @@ import { assertSchedule, cronerScheduler } from './schedule.ts'
 import type { Scheduler } from './schedule.ts'
 import { createCronManageTool } from './tool.ts'
 import { registerCronCommand } from './command.ts'
-import type { ConfiguredCronJob, CronRunResult, ScheduledJobSpec } from './types.ts'
+import type { ConfiguredCronJob, CronRunFinished, CronRunResult, ScheduledJobSpec } from './types.ts'
 export * from './domain.ts'
 export * from './launch.ts'
 export * from './registry.ts'
@@ -62,6 +64,9 @@ export const DEFAULT_CRON_NOTES_MAX_CHARS = 8_000
 /** Run outcomes retained per job. */
 export const DEFAULT_CRON_KEEP_RUN_HISTORY = 5
 
+/** Delay before retrying finished output that no delivery listener durably accepted. */
+export const DEFAULT_CRON_DELIVERY_RETRY_MS = 30_000
+
 export const Config: z<{
   jobs: ConfiguredCronJob[]
   turnTimeoutMs: number
@@ -75,6 +80,7 @@ export const Config: z<{
   keepRunHistory: number
   requireApproval: boolean
   deliverOutcomes: boolean
+  deliveryRetryMs: number
 }> = z.object({
   jobs: z.array(z.object({
     name: z.string().required(),
@@ -98,6 +104,7 @@ export const Config: z<{
   keepRunHistory: z.number().min(0).default(DEFAULT_CRON_KEEP_RUN_HISTORY),
   requireApproval: z.boolean().default(true),
   deliverOutcomes: z.boolean().default(true),
+  deliveryRetryMs: z.number().min(1_000).default(DEFAULT_CRON_DELIVERY_RETRY_MS),
 })
 
 /** Complete configuration after schemastery applies every field default. */
@@ -126,6 +133,8 @@ export interface ResolvedConfig {
   readonly requireApproval: boolean
   /** Finished runs announce an outcome line when there is no text to deliver. */
   readonly deliverOutcomes: boolean
+  /** Delay between retries of finished output awaiting durable delivery acceptance. */
+  readonly deliveryRetryMs: number
 }
 
 /**
@@ -160,6 +169,7 @@ export function assertConfig(config: ResolvedConfig): void {
     maxLiveRuns: config.maxLiveRuns,
     minIntervalMs: config.minIntervalMs,
     notesMaxChars: config.notesMaxChars,
+    deliveryRetryMs: config.deliveryRetryMs,
   })) {
     if (!Number.isSafeInteger(value) || value <= 0) {
       throw new Error(`dsh-cron: ${field} must be a positive safe integer`)
@@ -168,10 +178,7 @@ export function assertConfig(config: ResolvedConfig): void {
 }
 
 /** One job as the scheduler host holds it: what to run plus where finished text is delivered. */
-export interface HostJob extends ScheduledJobSpec {
-  /** Channel a settled run's text should reach; absent means no channel delivery. */
-  readonly deliverChannelId?: string
-}
+export type HostJob = ScheduledJobSpec
 
 /** What mounting one job list returns: the runner plus the handles that stop the timers. */
 export interface MountedJobs {
@@ -194,6 +201,10 @@ export interface SchedulerHostOptions {
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted before the oldest are released. */
   readonly maxLiveRuns: number
+  /** Resolve the current definition and notes when a timer fires; undefined skips a removed job. */
+  resolveJob?(name: string): HostJob | undefined
+  /** Durably reserve the run before opening its Session. A failure prevents dispatch. */
+  onStarting?(job: HostJob, firedAt: number, sessionId: SessionId): Promise<void>
   /** Called once per settled run, after logging and before the fire guard releases. */
   onSettled?(job: HostJob, firedAt: number, result: CronRunResult): void | Promise<void>
 }
@@ -217,34 +228,44 @@ export function createSchedulerHost(
   const controller = new AbortController()
   const runner = createJobRunner({ ctx, signal: controller.signal, turnTimeoutMs: options.turnTimeoutMs })
   const inFlight = new Map<string, Promise<unknown>>()
-  const armed = new Map<string, (firedAt: number) => void>()
+  const armed = new Map<string, HostJob>()
   const timers: { stop(): void }[] = []
 
-  function fire(job: HostJob, firedAt: number): void {
+  function fire(job: HostJob, firedAt: number): boolean {
+    if (controller.signal.aborted || armed.get(job.name) !== job) return false
     const running = inFlight.get(job.name)
     if (running !== undefined) {
       ctx.logger.warn(`dsh-cron: job "${job.name}" is still running; this fire is skipped`)
-      return
+      return false
     }
-    const run = runner.run(job, firedAt)
-      .then(async (result) => { await options.onSettled?.(job, firedAt, result) })
+    const run = Promise.resolve().then(async () => {
+      if (controller.signal.aborted) return
+      const current = options.resolveJob === undefined ? job : options.resolveJob(job.name)
+      if (current === undefined) return
+      const sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)
+      await options.onStarting?.(current, firedAt, sessionId)
+      const result = await runner.run(current, firedAt, sessionId)
+      await options.onSettled?.(current, firedAt, result)
+      await runner.trim(options.maxLiveRuns)
+    })
       .catch((error: unknown) => {
         ctx.logger.error(`dsh-cron: job "${job.name}" run reported a failure: ${errorChain(error)}`)
       })
       .finally(() => {
         inFlight.delete(job.name)
-        void runner.trim(options.maxLiveRuns)
       })
     inFlight.set(job.name, run)
+    return true
   }
 
   return {
     runner,
     sync(jobs: readonly HostJob[]): void {
+      if (controller.signal.aborted) return
       for (const timer of timers.splice(0)) timer.stop()
       armed.clear()
       for (const job of jobs) {
-        armed.set(job.name, (firedAt: number) => { fire(job, firedAt) })
+        armed.set(job.name, job)
         const scheduled = scheduler({ expression: job.expression, timezone: job.timezone }, (firedAt: number) => {
           fire(job, firedAt)
         })
@@ -257,13 +278,13 @@ export function createSchedulerHost(
     trigger(name: string): boolean {
       const entry = armed.get(name)
       if (entry === undefined) return false
-      entry(Date.now())
-      return true
+      return fire(entry, Date.now())
     },
     async dispose(): Promise<void> {
       controller.abort(new Error('dsh-cron disposed'))
       for (const timer of timers.splice(0)) timer.stop()
-      inFlight.clear()
+      armed.clear()
+      await Promise.all(inFlight.values())
       await runner.dispose()
     },
   }
@@ -321,30 +342,72 @@ export async function apply(
       notesMaxChars: resolved.notesMaxChars,
     },
   })
+  const handoffs = new Map<string, Promise<void>>()
+  function deliver(payload: CronRunFinished): Promise<void> {
+    const current = handoffs.get(payload.sessionId)
+    if (current !== undefined) return current
+    const operation = Promise.resolve().then(async () => {
+      const accepted = await ctx.serial('cron/run-finished', payload)
+      if (payload.deliverChannelId !== undefined && accepted !== true) {
+        throw new Error(`dsh-cron: job "${payload.jobName}" has no delivery listener accepting its outcome`)
+      }
+      await registry.acknowledgeOutcome(payload.jobName, payload.sessionId)
+    }).finally(() => { handoffs.delete(payload.sessionId) })
+    handoffs.set(payload.sessionId, operation)
+    return operation
+  }
   const host = createSchedulerHost(ctx, {
     turnTimeoutMs: resolved.turnTimeoutMs,
     maxLiveRuns: resolved.maxLiveRuns,
-    onSettled(job, firedAt, result) {
-      ctx.emit('cron/run-finished', {
-        jobName: job.name,
-        sessionId: result.sessionId,
-        firedAt,
-        outcome: result.outcome,
-        text: result.text,
+    resolveJob(name) {
+      const job = registry.find(name)
+      return job?.enabled === true ? job : undefined
+    },
+    async onStarting(job, firedAt, sessionId) {
+      const pending = registry.pendingOutcome(job.name)
+      if (pending !== undefined) await deliver(pending)
+      await registry.beginRun(job.name, {
+        firedAt, sessionId, reportOutcome: resolved.deliverOutcomes,
         ...(job.deliverChannelId === undefined ? {} : { deliverChannelId: job.deliverChannelId }),
-        reportOutcome: resolved.deliverOutcomes,
       })
-      return registry.recordRun(
-        job.name,
-        { firedAt, sessionId: result.sessionId, outcome: result.outcome },
-        resolved.keepRunHistory,
-      )
+    },
+    async onSettled(job, _firedAt, result) {
+      await deliver(await registry.settleRun(job.name, result, resolved.keepRunHistory))
     },
   }, scheduler)
+  const deliveryController = new AbortController()
+  async function retryOutcomes(outcomes: readonly CronRunFinished[]): Promise<void> {
+    for (const pending of outcomes) {
+      if (deliveryController.signal.aborted) break
+      try {
+        await deliver(pending)
+      } catch (error: unknown) {
+        ctx.logger.error(`dsh-cron: job "${pending.jobName}" outcome delivery remains pending: ${errorChain(error)}`)
+      }
+    }
+  }
+  const retryTimer = setInterval(() => {
+    void retryOutcomes([...domain.table('state').keys()].flatMap((name) => {
+      const pending = registry.pendingOutcome(name)
+      return pending === undefined ? [] : [pending]
+    }))
+  }, resolved.deliveryRetryMs)
+  ctx.effect(() => async () => {
+    deliveryController.abort()
+    clearInterval(retryTimer)
+    await host.dispose()
+    await Promise.allSettled(handoffs.values())
+    await domain.close()
+  }, 'dsh-cron scheduled jobs')
+  await retryOutcomes(await registry.recoverRuns(resolved.keepRunHistory))
+  if (deliveryController.signal.aborted) return
   host.sync(registry.list().filter(job => job.enabled))
 
   ctx.on('domain/changed', (change) => {
-    if (change.domain === 'cron_jobs' && change.table === 'jobs') {
+    // The `jobs` table holds stored definitions and the `state` table holds arm state for both
+    // origins, so a write to either can change which jobs hold timers. Notes rides along in `state`;
+    // re-syncing on it only rebuilds timers for a job whose expression is unchanged.
+    if (change.domain === 'cron_jobs' && (change.table === 'jobs' || change.table === 'state')) {
       host.sync(registry.list().filter(job => job.enabled))
     }
   })
@@ -355,8 +418,4 @@ export async function apply(
   if (resolved.jobs.length === 0) {
     ctx.logger.info('dsh-cron: mounted with no configured jobs; stored jobs and management stay available')
   }
-  ctx.effect(() => async () => {
-    await host.dispose()
-    await domain.close()
-  }, 'dsh-cron scheduled jobs')
 }

@@ -308,7 +308,16 @@ export class CommandRuntime extends TypertRemoteService {
    */
   @Remote
   list(agent: Agent): readonly CommandDescriptor[] {
-    return Object.freeze([...this.view(agent).values()]
+    return this.listForScope(agent)
+  }
+
+  /**
+   * Read effective command descriptors for a standing preset without creating an Agent.
+   * @param scope - Standing preset scope obtained from the preset registry.
+   * @returns name-sorted immutable descriptors after inherited and exact-scope shadowing.
+   */
+  listForScope(scope: ScopeKey): readonly CommandDescriptor[] {
+    return Object.freeze([...this.layers.merge(scope, layer => layer.commands).values()]
       .map(command => command.descriptor)
       // Names are unique in the effective view, so equality is impossible.
       .sort((left, right) => left.name < right.name ? -1 : 1))

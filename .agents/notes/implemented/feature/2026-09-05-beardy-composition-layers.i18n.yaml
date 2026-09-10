@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-beardy-composition-layers.md
-2026-09-05-beardy-composition-layers.md: e1693aee5441f9b85616b9c24107c6615257f34d
-2026-09-05-beardy-composition-layers.zh.md: 6ccd41f4a14097be3829e231773075f08b6eaa17
+2026-09-05-beardy-composition-layers.md: acda8553484cab8a419fb9b45b7efdd6952dea1c
+2026-09-05-beardy-composition-layers.zh.md: c6fd18b7e64746cd5980203cccfcf2bde662de19

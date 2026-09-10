@@ -1,7 +1,7 @@
-# Beardy answers people in Discord direct messages: short plain-text replies,
+# Beardy answers people in Discord direct messages: concise Markdown replies,
 # the full standard toolset kept (a person can steer every turn), durable
 # reminders so a promised check-back survives a restart, and memory writes
-# staged for approval — answered from Discord once an answerer exists.
+# staged for approval and answered through Discord controls.
 
 - id: beardy
   name: '@deepseek-ai/dsh-agent-presets/include'
@@ -14,7 +14,7 @@
           text: >-
             You are Beardy, a warmly pragmatic coding and research agent powered by the {{model}} model. Your working directory is {{cwd}}.
             When the user refers to a past conversation, use session_search before asking them to repeat it.
-            You are answering from Discord: reply in plain text, keep messages short, skip tables and markdown decoration, and split long results into the key points with detail only on request.
+            You are answering from Discord. Use concise paragraphs, bold labels, bullets, links, and fenced code blocks with a language when useful. Put the outcome first and keep progress updates brief. Prefer labeled lists to tables. Preserve useful detail and complete code; the Discord transport splits long replies safely. Never reveal private reasoning or internal tool traces.
       - id: tool-skill
         name: '@deepseek-ai/dsh-tool-skill'
         config:

@@ -60,6 +60,10 @@ interface LoadOptions extends DiscoverOptions {
   maxBytes: number
   maxSourceBytes?: number
   replacePreviousBaseline?: boolean
+  /** Captured user-global file text or absence, retained when rebuilding a session baseline. */
+  frozenUserGlobalInstructions?: Readonly<Record<string, string | null>>
+  /** Record a baseline even when every configured instruction file is absent. */
+  retainEmptyBaseline?: boolean
 }
 
 /** Rendered baseline plus the successfully read and byte-budget-retained files. */
@@ -422,8 +426,21 @@ export async function loadBaselineInstructionSet(
   const config = resolveConfig(options)
   if (config.maxBytes <= 0 || !Number.isFinite(config.maxBytes)) return undefined
   if (config.maxSourceBytes <= 0 || !Number.isFinite(config.maxSourceBytes)) return undefined
-  const discovered = await discoverInstructionFiles(options, fileSystem)
+  const discovered = await discoverInstructionFiles({
+    ...options,
+    userGlobalInstructionCandidates: config.userGlobalInstructionCandidates.filter(candidate =>
+      !Object.hasOwn(options.frozenUserGlobalInstructions ?? {}, candidate)),
+  }, fileSystem)
   const loaded: LoadedInstructionFile[] = []
+  for (const candidate of config.userGlobalInstructionCandidates) {
+    const content = options.frozenUserGlobalInstructions?.[candidate]
+    if (content === undefined || content === null) continue
+    loaded.push({
+      absolutePath: join(config.dshHome, candidate),
+      displayPath: userGlobalDisplayPath(config.dshHome, candidate),
+      content,
+    })
+  }
   for (const file of discovered) {
     const content = await readBounded(file, config.maxSourceBytes, fileSystem, options.signal)
     if (content !== undefined) {
@@ -435,12 +452,16 @@ export async function loadBaselineInstructionSet(
       })
     }
   }
+  const globalOrder = new Map(config.userGlobalInstructionCandidates.map((candidate, index) =>
+    [join(config.dshHome, candidate), index]))
+  loaded.sort((left, right) => (globalOrder.get(left.absolutePath) ?? Number.MAX_SAFE_INTEGER)
+    - (globalOrder.get(right.absolutePath) ?? Number.MAX_SAFE_INTEGER))
   const deduped = dedupInstructionFilesByDirectory(loaded)
   if (deduped.length === 0) {
-    if (options.replacePreviousBaseline !== true) return undefined
+    if (options.replacePreviousBaseline !== true && options.retainEmptyBaseline !== true) return undefined
     const { rendered, included } = renderWorkspaceInstructionSet([], {
       maxBytes: config.maxBytes,
-      replacePreviousBaseline: true,
+      ...options.replacePreviousBaseline === true ? { replacePreviousBaseline: true } : {},
     })
     return {
       rendered,

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-agent-instructions` 从用户全局和项目级、兼容 `AGENTS.md` 的文件向 agent 提供工作区指引。它为第一次请求加载适用的指令链。它不会持续监视外部编辑：成功的文件系统操作会发现新适用的嵌套文件，并让后续变更或移除可见；恢复会话也会对账基线。`dsh-base` 默认启用此行为，profile 可以禁用。字节预算限制注入的上下文：较宽泛的文件先被省略，最具体的文件最后被截断，空指令链不添加任何内容。
+`dsh-agent-instructions` 把配置的用户全局文件和项目指令链作为一条持久基线加载到第一次模型请求中。后续请求会对账已改变的文件，成功的文件系统操作会发现新适用的嵌套指令。选定的用户全局文件可以在整个会话中保留其初始内容，包括恢复和压缩之后。`dsh-base` 默认启用此行为。字节预算会先省略较宽泛的文件，再截断最具体的文件。
 
 ## 目录
 
@@ -29,7 +29,9 @@ kind: "package-reference"
 
 ### agent 获得的内容
 
-第一次请求包含一条持久基线消息：先是用户全局 `$DSH_HOME/AGENTS.md`，再按从宽泛到具体的顺序包含项目指令链——从项目根目录到会话工作目录的每个目录中所有现有候选文件。去除空白后内容一致的同级文件只渲染一次，因此复制了 `AGENTS.md` 的 `CLAUDE.md` 不会被重复加载。当成功的 `read`、`write` 或 `edit` 调用到达更深的目录后，下一次请求会包含新适用的指令文件；已改变的文件会替换其内容，消失或成为较早候选文件重复项的文件会产生移除通知。
+第一次请求包含一条持久基线消息：先是配置的用户全局文件，再按从宽泛到具体的顺序包含项目指令链——从项目根目录到会话工作目录的每个目录中所有现有候选文件。去除空白后内容一致的同级文件只渲染一次。成功的文件系统操作到达更深的目录后，下一次请求会包含新适用的指令文件；已改变的文件会替换其内容，移除或重复的文件会产生移除通知。
+
+`frozenUserGlobalInstructionCandidates` 选择在会话期间保持基线内容不变的全局文件。缺失或因预算被省略的文件即使稍后出现也保持缺席。恢复和压缩会复用捕获的文本或缺席状态；新会话读取当前文件。未列出的全局文件和项目指令会继续刷新。Beardy 会冻结 `USER.md` 和 `MEMORY.md`，同时让 `AGENTS.md` 和 `SOUL.md` 保持实时更新。
 
 ### 配置
 
@@ -49,6 +51,8 @@ kind: "package-reference"
 export interface Config {
   dshHome?: string
   projectRootMarkers?: string[]
+  userGlobalInstructionCandidates?: string[]
+  frozenUserGlobalInstructionCandidates?: string[]
   maxBytes: number
   maxSourceBytes?: number
   instructionFileCandidates?: string[]
@@ -61,9 +65,11 @@ export interface Config {
 | `maxBytes` | 必填 | 完整渲染基线消息的上限，单位为字节 |
 | `maxSourceBytes` | `1048576` | 渲染前单个源指令文件的上限 |
 | `projectRootMarkers` | `['.git']` | 标记项目根目录的目录名 |
+| `userGlobalInstructionCandidates` | `['AGENTS.md']` | 在项目文件之前从 `$DSH_HOME` 加载的有序文件名 |
+| `frozenUserGlobalInstructionCandidates` | `[]` | 捕获文本或缺席状态在会话期间保持不变的已配置全局候选项；其他名称会在加载时失败 |
 | `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | 每个项目目录中加载的基础文件名 |
 | `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | 在基础文件之后加载的本地 overlay 文件名 |
-| `dshHome` | `$DSH_HOME` 或 `~/.dsh` | 存放用户全局 `AGENTS.md` 的目录 |
+| `dshHome` | `$DSH_HOME` 或 `~/.dsh` | 存放用户全局指令文件的目录 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-instructions)是每个受支持字段及其 JSDoc 的穷尽式真源。
 

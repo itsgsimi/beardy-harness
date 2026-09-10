@@ -138,6 +138,13 @@ describe('run prompt', () => {
     expect(text).toContain(CONTINUITY_WITH_NOTES)
     expect(text).toContain('Notes from earlier runs:\nReported items A and B on Monday.')
   })
+
+  it('uses the final answer for configured channel delivery', () => {
+    expect(runPrompt({ ...JOB, deliverChannelId: 'channel-9' })).toContain(
+      'Your final answer will be delivered to the configured channel automatically. Put the content to deliver in your final answer; do not send the same content separately with discord_send.',
+    )
+    expect(runPrompt(JOB)).not.toContain('automatically')
+  })
 })
 
 describe('job runner', () => {
@@ -191,22 +198,24 @@ describe('job runner', () => {
     h.releaseIdle()
   })
 
-  it('reports a bound whose delay seam rejected as a timeout', async () => {
-    const h = harness({ replyText: 'late', rejectWait: true })
-    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('timed-out')
+  it('reports a failed delay while the turn is pending as failed', async () => {
+    const h = harness({ hang: true, rejectWait: true })
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    h.releaseIdle()
   })
 
-  it('reports a turn that fails outright as a timeout', async () => {
+  it('reports a turn that fails outright as failed', async () => {
     const h = harness({ replyText: 'late', rejectIdle: true })
-    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('timed-out')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
   })
 
   it('cancels a waiting run when the scheduler is cancelled without an error reason', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5_000 })
     const running = h.runner.run(JOB, FIRED_AT)
-    await new Promise(resolve => setTimeout(resolve, 2))
+    await vi.waitFor(() => { expect(h.calls.some(call => call.startsWith('followup:'))).toBe(true) })
     h.controller.abort('scheduler gone')
-    expect((await running).outcome).toBe('timed-out')
+    expect((await running).outcome).toBe('interrupted')
     h.releaseIdle()
   })
 
@@ -229,6 +238,23 @@ describe('job runner', () => {
     expect(h.runner.live()).toBe(2)
   })
 
+  it('trims completed runs without releasing another job still working', async () => {
+    const active = harness({ hang: true })
+    const finished = harness({ replyText: 'done' })
+    active.ctx.agents.create = vi.fn()
+      .mockResolvedValueOnce(active.handle)
+      .mockResolvedValueOnce(finished.handle)
+    const running = active.runner.run(JOB, FIRED_AT)
+    await vi.waitFor(() => { expect(active.calls.some(call => call.startsWith('followup:'))).toBe(true) })
+    await active.runner.run({ ...JOB, name: 'another' }, FIRED_AT)
+    await active.runner.trim(0)
+    expect(finished.handle.dispose).toHaveBeenCalledTimes(1)
+    expect(active.handle.dispose).not.toHaveBeenCalled()
+    active.releaseIdle()
+    await running
+    await active.runner.dispose()
+  })
+
   it('disposes every mounted run and reports a failed teardown', async () => {
     const h = harness({ replyText: 'ok' })
     await h.runner.run(JOB, FIRED_AT)
@@ -238,11 +264,22 @@ describe('job runner', () => {
     expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('disposal of session'))
   })
 
+  it('does not dispose an active Session again when cancellation follows disposal', async () => {
+    const h = harness({ hang: true })
+    const running = h.runner.run(JOB, FIRED_AT)
+    await vi.waitFor(() => { expect(h.calls.some(call => call.startsWith('followup:'))).toBe(true) })
+    await h.runner.dispose()
+    h.controller.abort(new Error('shutdown'))
+    expect((await running).outcome).toBe('interrupted')
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    h.releaseIdle()
+  })
+
   it('refuses to mount a session for a cancelled scheduler', async () => {
     const h = harness({ replyText: 'ok' })
     h.controller.abort(new Error('scheduler disposed'))
-    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
-    expect(h.calls).toContain('preset-resolve:beardy')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('interrupted')
+    expect(h.calls).not.toContain('preset-resolve:beardy')
     expect(h.calls).not.toContain('agent-create')
   })
 })

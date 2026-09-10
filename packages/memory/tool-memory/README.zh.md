@@ -31,6 +31,8 @@ kind: "package-reference"
 | `entryMaxChars` | 400 | 单条目字符上限；必须同时容纳于两个文件上限内 |
 | `requireApproval` | false | 每次写入前向 approval service 提问 |
 
+指令加载器必须在 `userGlobalInstructionCandidates` 和 `frozenUserGlobalInstructionCandidates` 中同时列出 `USER.md` 与 `MEMORY.md`，并使用与本工具相同的 Harness home。Beardy 提供此配置。第一次请求捕获两个文件或其缺失状态；现有会话在恢复和压缩后仍保留该快照，新会话则接收后续写入。
+
 -----
 
 <a id="dev-note"></a>
@@ -55,7 +57,7 @@ kind: "package-reference"
 
 #### KV Cache effect
 
-prompt section 随 composition 固定，位于稳定 prefix。记忆写入不改变当前会话 prompt：user-global scope 只在会话启动时加载一次，dynamic re-render path 会跳过它，从而保住运行中的 prefix cache。后续会话看到新的 baseline 文本；其 prefix 只在那次首装配时变化。
+prompt section 随 composition 固定。采用必需的冻结候选配置后，记忆写入不会改变现有会话的指令快照。后续会话捕获新的基线文本；压缩从会话日志恢复已捕获的记忆。
 
 ## 已知限制与延期工作
 

@@ -6,6 +6,7 @@
  * network while retaining the recorded request URL.
  */
 import { HttpFetchProvider } from '@deepseek-ai/dsh-web-fetch-http'
+import { resolvePublicAddresses } from '@deepseek-ai/dsh-web-fetch-http/src/network.ts'
 import { applyLoopbackServerEffect } from '../loopback-fixture-server.mjs'
 
 /** Model-visible URL retained by the recorded session. */
@@ -45,8 +46,21 @@ export async function apply(ctx) {
   let transportUrl
   let startupError
 
-  const resolveAddresses = async (hostname) => {
+  const resolveAddresses = async (hostname, signal) => {
     if (hostname !== 'public.test') throw new Error(`unexpected snapshot hostname: ${hostname}`)
+    const eligible = await resolvePublicAddresses(hostname, signal, async (queriedHostname) => {
+      if (queriedHostname === hostname) {
+        return [
+          { address: '8.8.4.4', family: 4 },
+          { address: '2001:4860:4860::8888', family: 6 },
+        ]
+      }
+      if (queriedHostname === 'ipv4only.arpa') throw new Error('snapshot DNS64 discovery unavailable')
+      throw new Error(`unexpected snapshot DNS query: ${queriedHostname}`)
+    })
+    if (eligible.length !== 1 || eligible[0].address !== '8.8.4.4') {
+      throw new Error('snapshot resolver did not retain only the validated IPv4 answer')
+    }
     return [{ address: '127.0.0.1', family: 4 }]
   }
 

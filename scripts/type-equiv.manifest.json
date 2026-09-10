@@ -2105,6 +2105,21 @@
       "doc": "packages/client/ui-conversation/README.md",
       "symbol": "ComposerChainProps",
       "source": "packages/client/ui-conversation/src/client/contract/slots.ts"
+    },
+    {
+      "doc": "docs/subsystems/cron.md",
+      "symbol": "CronRunOutcome",
+      "source": "packages/cron/cron/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/cron.md",
+      "symbol": "CronRunResult",
+      "source": "packages/cron/cron/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/cron.md",
+      "symbol": "CronRunFinished",
+      "source": "packages/cron/cron/src/types.ts"
     }
   ]
 }

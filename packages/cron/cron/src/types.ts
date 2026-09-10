@@ -49,19 +49,33 @@ export interface ConfiguredCronJob extends CronJobSpec {
 export interface ScheduledJobSpec extends CronJobSpec {
   /** Notes from earlier runs, injected under the prompt; empty when the job has none. */
   readonly notes: string
+  /** Channel receiving the final answer through the scheduler's durable delivery handoff. */
+  readonly deliverChannelId?: string
 }
 
-/** How one fired job ended, reported to logs only. */
-export type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed'
+/** How one accepted fire ended, retained in job history and delivery notices. */
+export type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted'
 
 /** What one settled run reports back to the scheduler. */
 export interface CronRunResult {
   /** How the run ended. */
   readonly outcome: CronRunOutcome
-  /** Session the run executed in; empty when the Session never opened. */
+  /** Reserved Session id; its log may be absent when creation failed. */
   readonly sessionId: string
   /** Final assistant text of the run; empty when there was none. */
   readonly text: string
+}
+
+/** A settled run retained until delivery listeners durably accept its outcome. */
+export interface CronRunFinished extends CronRunResult {
+  /** Name of the job whose run settled. */
+  readonly jobName: string
+  /** Epoch milliseconds of the fire that started the run. */
+  readonly firedAt: number
+  /** Channel destination; absent means no channel delivery. */
+  readonly deliverChannelId?: string
+  /** Whether an empty answer should produce an outcome notice. */
+  readonly reportOutcome: boolean
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -70,25 +84,12 @@ declare module '@deepseek-ai/cordis' {
      * One cron run settled, carrying the text a delivery lane may forward. The scheduler emits it
      * after recording the run in the job's history; delivering to a channel belongs to whichever
      * listener owns one.
-     * @param payload.jobName - Name of the job whose run settled.
-     * @param payload.sessionId - Session the run executed in; empty when it never opened.
-     * @param payload.firedAt - Epoch milliseconds of the fire that started the run.
-     * @param payload.outcome - How the run ended.
-     * @param payload.text - Final assistant text; empty when there was none.
-     * @param payload.deliverChannelId - Channel a finished run's text should reach; absent when the
-     * job delivers nowhere.
-     * @param payload.reportOutcome - Whether listeners announce an outcome line when `text` is
-     * empty, per the scheduler's `deliverOutcomes` configuration.
-     * @mode emit
+     * Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome
+     * pending for another handoff; listeners must deduplicate by Session id and fire time.
+     * @param payload - Persisted run result, job identity, fire time, and delivery policy.
+     * @returns `true` after durable delivery acceptance, or undefined when the listener does not own delivery.
+     * @mode serial
      */
-    'cron/run-finished'(payload: {
-      jobName: string
-      sessionId: string
-      firedAt: number
-      outcome: CronRunOutcome
-      text: string
-      deliverChannelId?: string
-      reportOutcome: boolean
-    }): void
+    'cron/run-finished'(payload: CronRunFinished): true | undefined | Promise<true | undefined>
   }
 }

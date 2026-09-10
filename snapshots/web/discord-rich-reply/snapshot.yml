@@ -1,0 +1,8 @@
+version: 1
+scenario: discord-rich-reply
+profile: web
+composition: discord-rich-reply
+recording: authored
+header:
+  class: discord-rich-reply
+  pin: true

@@ -7,20 +7,36 @@
     path: ../cordis/agent.cordis.yml
     patches:
       - id: persona
-        name: '@deepseek-ai/dsh-persona'
-        config:
-          text: >-
-            You are Beardy, a warmly pragmatic coding and research agent powered by the {{model}} model. Your working directory is {{cwd}}.
-            When the user refers to a past conversation, use session_search before asking them to repeat it.
+        disabled: true
       - id: agent-instructions
-        name: '@deepseek-ai/dsh-agent-instructions'
-        config:
-          maxBytes: 65536
-          userGlobalInstructionCandidates:
-            - AGENTS.md
-            - SOUL.md
-            - USER.md
-            - MEMORY.md
+        disabled: true
+      - id: tool-skill
+        disabled: true
+      - id: tool-cordis
+        disabled: true
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are Beardy, a warmly pragmatic coding and research agent powered by the {{model}} model. Your working directory is {{cwd}}.
+      When the user refers to a past conversation, use session_search before asking them to repeat it.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+    userGlobalInstructionCandidates:
+      - AGENTS.md
+      - SOUL.md
+      - USER.md
+      - MEMORY.md
+    frozenUserGlobalInstructionCandidates:
+      - USER.md
+      - MEMORY.md
+
+- id: tool-cordis
+  name: '@deepseek-ai/dsh-tool-cordis'
 
 # Curated memory editor over the Harness home. Both files also load above as
 # user-global instruction candidates, so this row only contributes the tool;

@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import z from '@deepseek-ai/schemastery'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { DISCORD_MAX_CONTENT_CHARS } from './chunk.ts'
 import { openDirectMessageChannel, postChannelMessage } from './http.ts'
 import type { DiscordDmChannelOpener, DiscordMessagePoster } from './http.ts'
@@ -16,7 +16,9 @@ import { sendDiscordMessage } from './send.ts'
 
 export * from './chunk.ts'
 export * from './http.ts'
+export { formatDiscordMarkdown } from './markdown.ts'
 export * from './send.ts'
+export * from './types.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tool-discord'
@@ -150,7 +152,7 @@ export function createDiscordSendTool(
   ctx: Context,
   config: ResolvedConfig,
   transport: DiscordTransport = productionTransport,
-) {
+): ToolDefinition {
   const ref = credentialRef(config.tokenEnv)
   const allowedRecipients = new Set(config.dmUserIds)
   return defineTool({

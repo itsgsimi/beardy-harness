@@ -15,6 +15,7 @@ import { readToolview } from './tool/toolviews/read-row.tsx'
 import { readImageToolview } from './tool/toolviews/read-image-row.tsx'
 import { searchToolview } from './tool/toolviews/search-row.tsx'
 import { todoToolview } from './tool/toolviews/todo-row.tsx'
+import { researchToolview } from './tool/toolviews/research-row.tsx'
 import { webToolview } from './tool/toolviews/web-row.tsx'
 
 /** Required services: the slot registry and the Remote face carrying the Host home used for POSIX `~`. */
@@ -46,6 +47,7 @@ export function apply(ctx: ClientContext): void {
   ctx.plugin(fileMutationToolview)
   ctx.plugin(searchToolview)
   ctx.plugin(webToolview)
+  ctx.plugin(researchToolview)
   ctx.plugin(todoToolview)
   ctx.plugin(askQuestionToolview)
 }

@@ -45,6 +45,7 @@
     "@deepseek-ai/dsh-time-context": "workspace:^",
     "@deepseek-ai/dsh-tool-discord": "workspace:^",
     "@deepseek-ai/dsh-tool-memory": "workspace:^",
+    "@deepseek-ai/dsh-tool-odysseus-research": "workspace:^",
     "@deepseek-ai/dsh-tool-session-query": "workspace:^",
     "@deepseek-ai/dsh-web-search-searxng": "workspace:^"
   },

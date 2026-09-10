@@ -1,0 +1,9 @@
+version: 1
+scenario: cron-delivery-guidance
+profile: headless
+composition: cron-delivery-guidance
+recording: authored
+header:
+  class: cron-delivery-guidance
+  pin: true
+  toolSchemasSource: text-turn

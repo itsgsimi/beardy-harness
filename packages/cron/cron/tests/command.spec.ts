@@ -60,10 +60,22 @@ describe('/cron subcommands', () => {
     expect(jobsTable.rows.has('pr-check')).toBe(false)
   })
 
+  it('pauses and resumes a configured job through the command', async () => {
+    const { registry, jobsTable, stateTable } = makeRegistry([CONFIG_JOB])
+    expect(await runCronSubcommand('pause morning-brief', registry, deps)).toEqual({
+      kind: 'success', text: 'Paused "morning-brief"; its definition and notes stay.',
+    })
+    expect(jobsTable.rows.has('morning-brief')).toBe(false)
+    expect(stateTable.rows.get('morning-brief')?.enabled).toBe(false)
+    const paused = await runCronSubcommand('list', registry, deps)
+    expect(paused).toEqual({ kind: 'success', text: 'morning-brief: paused (0 7 * * * Europe/Zagreb, config)' })
+    expect((await runCronSubcommand('resume morning-brief', registry, deps)).kind).toBe('success')
+  })
+
   it('turns guardrail refusals into error results instead of throwing', async () => {
     const { registry } = makeRegistry([CONFIG_JOB])
-    expect(await runCronSubcommand('pause morning-brief', registry, deps)).toEqual({
-      kind: 'error', text: 'dsh-cron: job "morning-brief" comes from configuration; pause applies to stored jobs only',
+    expect(await runCronSubcommand('delete morning-brief', registry, deps)).toEqual({
+      kind: 'error', text: 'dsh-cron: job "morning-brief" comes from configuration; delete applies to stored jobs only',
     })
   })
 

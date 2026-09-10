@@ -84,13 +84,12 @@ describe('dsh-beardy bundle', () => {
       isRecord(value) && typeof value.id === 'string' ? [value.id] : [],
     )
     expect(patchIds).toEqual(expect.arrayContaining(['persona', 'agent-instructions']))
-    // The agent-instructions patch loads the curated memory files as user-global
-    // instruction candidates, and a sibling row mounts their editor.
-    const patches: readonly unknown[] = entry.config.patches as readonly unknown[]
-    const instructions = patches.find(value => isRecord(value) && value.id === 'agent-instructions')
-    if (!isRecord(instructions) || !isRecord(instructions.config)) throw new TypeError('agent-instructions patch config')
+    const instructions: unknown = parsed.find(value => isRecord(value) && value.id === 'agent-instructions')
+    if (!isRecord(instructions) || !isRecord(instructions.config)) throw new TypeError('agent-instructions row config')
     expect(instructions.config.userGlobalInstructionCandidates)
       .toEqual(['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'])
+    expect(instructions.config.frozenUserGlobalInstructionCandidates)
+      .toEqual(['USER.md', 'MEMORY.md'])
     const rows = parsed.filter(isRecord)
     expect(rows).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'tool-memory', name: '@deepseek-ai/dsh-tool-memory' }),

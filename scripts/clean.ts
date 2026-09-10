@@ -6,6 +6,10 @@ import { repositoryConfigHost } from './ts-project.ts'
 
 const knownOrphanEntries = new Set(['node_modules', 'lib', '.typecheck'])
 
+// What tsc writes for one `.ts`/`.tsx` root file when a program's rootDir or
+// outDir is wrong and the emit lands beside the source instead of under lib/.
+const sourceEmitSuffixes = ['.js', '.js.map', '.d.ts', '.d.ts.map'] as const
+
 function isMissing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
@@ -68,7 +72,6 @@ export class RepositoryCleaner {
     const canonicalRoot = await realpath(this.root)
 
     await this.addIfPresent(targets, join(this.root, '.dsh-build'), canonicalRoot)
-    await this.addIfPresent(targets, join(this.root, 'apps/desktop/.desktop-build'), canonicalRoot)
 
     // These checks cover legacy root-level incremental state emitted by older configs.
     await this.addIfPresent(targets, join(this.root, '.typecheck'), canonicalRoot)
@@ -77,15 +80,19 @@ export class RepositoryCleaner {
     }
     await this.addIfPresent(
       targets,
-      join(this.root, 'native/system/tsconfig.tsbuildinfo'),
+      join(this.root, 'native/landlock-run/tsconfig.tsbuildinfo'),
       canonicalRoot,
     )
 
     // The root project-reference graph is the source of truth for live build targets.
     // Each emitting project declares lib/types as outDir; its parent lib also owns
     // the sibling runtime bundles, so the complete build output root is removed.
-    for (const outputDirectory of this.buildOutputDirectories()) {
+    const projects = this.projects()
+    for (const outputDirectory of this.buildOutputDirectories(projects)) {
       await this.addIfPresent(targets, outputDirectory, canonicalRoot)
+    }
+    for (const residue of await this.sourceEmitTargets(projects)) {
+      await this.addIfPresent(targets, residue, canonicalRoot)
     }
 
     for (const groupDirectory of await childDirectories(join(this.root, 'packages'))) {
@@ -118,11 +125,40 @@ export class RepositoryCleaner {
     return [...targets].sort()
   }
 
-  private buildOutputDirectories(): string[] {
-    const outputs = new Set<string>()
+  /**
+   * Find tsc emit written beside project sources: for every `.ts`/`.tsx` root
+   * file of every project in the reference graph, a sibling `.js`, `.js.map`,
+   * `.d.ts`, or `.d.ts.map` that no project declares as a root file. Module
+   * resolution through tsconfig `paths` and Vite prefers such a `.js` over the
+   * `.ts` beside it, so one stray emit loads a second copy of the module.
+   * @returns Repository-relative paths of the stray emit, sorted.
+   */
+  async sourceEmitResidue(): Promise<string[]> {
+    return (await this.sourceEmitTargets(this.projects())).map(path => repositoryPath(this.root, path))
+  }
+
+  private async sourceEmitTargets(projects: readonly ts.ParsedCommandLine[]): Promise<string[]> {
+    const roots = new Set<string>()
+    for (const project of projects) for (const file of project.fileNames) roots.add(resolve(file))
+    const residue = new Set<string>()
+    for (const file of roots) {
+      const source = /\.(ts|tsx)$/.exec(file)
+      if (source === null || file.endsWith('.d.ts')) continue
+      const base = file.slice(0, -source[0].length)
+      for (const suffix of sourceEmitSuffixes) {
+        const candidate = `${base}${suffix}`
+        if (roots.has(candidate) || !await exists(candidate)) continue
+        this.assertRepositoryTarget(candidate)
+        residue.add(candidate)
+      }
+    }
+    return [...residue].sort()
+  }
+
+  private projects(): ts.ParsedCommandLine[] {
+    const projects: ts.ParsedCommandLine[] = []
     const pending = [join(this.root, 'tsconfig.json')]
     const visited = new Set<string>()
-    const nativeEntryOutput = join(this.root, 'native/system/packages/entry/lib')
 
     while (pending.length > 0) {
       const nextConfigPath = pending.pop()
@@ -132,23 +168,32 @@ export class RepositoryCleaner {
       visited.add(configPath)
 
       const parsed = parseConfig(configPath)
-      if (parsed.options.outDir !== undefined) {
-        const typesDirectory = resolve(parsed.options.outDir)
-        const outputDirectory = basename(typesDirectory) === 'types'
-          ? dirname(typesDirectory)
-          : typesDirectory === nativeEntryOutput
-            ? typesDirectory
-            : undefined
-        if (outputDirectory === undefined) {
-          throw new Error(`clean: expected TypeScript outDir to end in /types: ${repositoryPath(this.root, typesDirectory)}`)
-        }
-        this.assertRepositoryTarget(outputDirectory)
-        outputs.add(outputDirectory)
-      }
-
+      projects.push(parsed)
       for (const reference of parsed.projectReferences ?? []) {
         pending.push(ts.resolveProjectReferencePath(reference))
       }
+    }
+
+    return projects
+  }
+
+  private buildOutputDirectories(projects: readonly ts.ParsedCommandLine[]): string[] {
+    const outputs = new Set<string>()
+    const nativeEntryOutput = join(this.root, 'native/system/packages/entry/lib')
+
+    for (const parsed of projects) {
+      if (parsed.options.outDir === undefined) continue
+      const typesDirectory = resolve(parsed.options.outDir)
+      const outputDirectory = basename(typesDirectory) === 'types'
+        ? dirname(typesDirectory)
+        : typesDirectory === nativeEntryOutput
+          ? typesDirectory
+          : undefined
+      if (outputDirectory === undefined) {
+        throw new Error(`clean: expected TypeScript outDir to end in /types: ${repositoryPath(this.root, typesDirectory)}`)
+      }
+      this.assertRepositoryTarget(outputDirectory)
+      outputs.add(outputDirectory)
     }
 
     return [...outputs]

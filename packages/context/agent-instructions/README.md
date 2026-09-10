@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-agent-instructions` gives agents workspace guidance from user-global and project-level `AGENTS.md`-compatible files. It loads the applicable chain for the first request. It does not watch external edits continuously: successful filesystem operations discover newly relevant nested files and make later changes or removals visible, while session resume reconciles the baseline. `dsh-base` enables this behavior by default, while profiles can disable it. A byte budget bounds the injected context: broader files are omitted before the most specific file is truncated, and an empty chain adds nothing.
+`dsh-agent-instructions` loads configured user-global files and the project instruction chain into the first model request as one durable baseline. Later requests reconcile changed files, and successful filesystem operations discover newly relevant nested instructions. Selected user-global files can retain their initial contents across the session, including resume and compaction. `dsh-base` enables this behavior by default. A byte budget omits broader files before truncating the most specific file.
 
 ## Table of Contents
 
@@ -29,7 +29,9 @@ Mount this plugin when agents should work from the workspace's own instruction f
 
 ### What the agent gets
 
-The first request includes one durable baseline message with the user-global `$DSH_HOME/AGENTS.md` followed by the project chain — every existing candidate file from the project root down to the session working directory, in broad-to-specific order. Sibling files whose content matches after trimming render once, so a `CLAUDE.md` that duplicates its `AGENTS.md` is not repeated. After a successful `read`, `write`, or `edit` call reaches a deeper directory, the next request includes the newly applicable instruction file; a changed file replaces its content, and a file that disappears or duplicates an earlier candidate produces a removal notice.
+The first request includes one durable baseline message with configured user-global files followed by the project chain — every existing candidate file from the project root down to the session working directory, in broad-to-specific order. Sibling files whose content matches after trimming render once. After a successful filesystem operation reaches a deeper directory, the next request includes the newly applicable instruction file; a changed file replaces its content, and a removed or duplicate file produces a removal notice.
+
+`frozenUserGlobalInstructionCandidates` selects configured global files whose baseline content stays fixed for the session. A missing or budget-omitted file stays absent even if it appears later. Resume and compaction reuse the captured text or absence; a new session reads current files. Unlisted global files and project instructions continue to refresh. Beardy freezes `USER.md` and `MEMORY.md` while keeping `AGENTS.md` and `SOUL.md` live.
 
 ### Configuration
 
@@ -49,6 +51,8 @@ The accepted fields, at a glance:
 export interface Config {
   dshHome?: string
   projectRootMarkers?: string[]
+  userGlobalInstructionCandidates?: string[]
+  frozenUserGlobalInstructionCandidates?: string[]
   maxBytes: number
   maxSourceBytes?: number
   instructionFileCandidates?: string[]
@@ -61,9 +65,11 @@ export interface Config {
 | `maxBytes` | required | Cap on the complete rendered baseline message, in bytes |
 | `maxSourceBytes` | `1048576` | Cap on one source instruction file before rendering |
 | `projectRootMarkers` | `['.git']` | Directory names that mark the project root |
+| `userGlobalInstructionCandidates` | `['AGENTS.md']` | Ordered file names loaded from `$DSH_HOME` before project files |
+| `frozenUserGlobalInstructionCandidates` | `[]` | Configured global candidates whose captured text or absence persists for the session; other names fail at load |
 | `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | Base file names loaded in each project directory |
 | `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | Local overlay file names loaded after the base files |
-| `dshHome` | `$DSH_HOME` or `~/.dsh` | Directory containing the user-global `AGENTS.md` |
+| `dshHome` | `$DSH_HOME` or `~/.dsh` | Directory containing user-global instruction files |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-instructions) is the exhaustive source for every accepted field and its JSDoc.
 

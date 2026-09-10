@@ -1,16 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { assertConfig, resolveBotToken, startListener } from '../src/index.ts'
+import { apply, assertConfig, resolveBotToken, startListener } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
 import type { ConversationRouter } from '../src/conversation.ts'
 import type { DiscordGatewayOptions } from '../src/gateway.ts'
 import type { DiscordInboundMessage, GatewayStatus } from '../src/types.ts'
+import { record } from './support.ts'
 
 const USER = '138391763999129600'
 const CHANNEL = '1472404859679670455'
 
 function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
   return {
+    excludedPresetCommands: ['export'], richMessages: false, accentColor: 0x5865f2, reactionStatus: false,
+    replyRequestTimeoutMs: 15000, replyMaxRetries: 2, replyMaxRetryWaitMs: 30000, replyMaxChunksPerCall: 10,
+    interactionMaxPending: 100, interactionReceiptLimit: 1000, nativeCommands: false, commandSyncRetryMs: 30000,
     tokenEnv: 'DSH_DISCORD_BOT_TOKEN',
     allowedUserIds: [USER],
     allowedChannelIds: [],
@@ -31,6 +35,8 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     questionTimeoutMs: 60_000,
     answerers: ['reaction', 'text'],
     enabled: true,
+    outboxMaxPending: 100, outboxMaxChars: 20000, outboxRetryMs: 1000,
+    outboxMaxRetryMs: 60000, outboxMaxReceipts: 1000, wakeRetryMs: 30000,
     ...overrides,
   }
 }
@@ -38,6 +44,11 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
 describe('assertConfig', () => {
   it('accepts a complete configuration', () => {
     expect(() => { assertConfig(config()) }).not.toThrow()
+  })
+
+  it('rejects an initial outbox retry above its ceiling', () => {
+    expect(() => { assertConfig(config({ outboxRetryMs: 10000, outboxMaxRetryMs: 1000 })) })
+      .toThrow('outboxRetryMs must not exceed outboxMaxRetryMs')
   })
 
   it('rejects an allowlist that would answer nobody', () => {
@@ -78,7 +89,7 @@ describe('assertConfig', () => {
   it('rejects an empty or unknown answerers list', () => {
     expect(() => { assertConfig(config({ answerers: [] })) }).toThrow(/answerers must name at least one/)
     expect(() => { assertConfig(config({ answerers: ['reaction', 'buttons'] })) })
-      .toThrow(/must each be "reaction" or "text", got "buttons"/)
+      .toThrow(/must each be "reaction", "text", or "component", got "buttons"/)
   })
 
   it('accepts a zero debounce window, which answers every message at once', () => {
@@ -95,6 +106,7 @@ function contextStub(options: { token?: string; unknownPreset?: boolean } = {}) 
       resolve: async (ref: unknown) => (options.token === undefined ? undefined : { value: options.token, ref }),
     },
     agentPresets: {
+      standingKeyFor: async () => ({}),
       resolve: async (name: string) => {
         if (options.unknownPreset) throw new Error(`agent preset "${name}" is not registered`)
         return { id: name }
@@ -110,6 +122,48 @@ const reacted = vi.fn()
 const ROUTER = { handle: handled, handleReaction: reacted, dispose: vi.fn() } as unknown as ConversationRouter
 
 describe('startListener', () => {
+  it('cancels a startup reminder read before waiting for recovery to finish during disposal', async () => {
+    const { ctx } = contextStub()
+    const entered = Promise.withResolvers<undefined>()
+    const readClosed = vi.fn(async () => {})
+    const domainClosed = vi.fn(async () => {})
+    const cleanup: (() => unknown)[] = []
+    const routes = new Map([[CHANNEL, record({ deliveredThrough: 0 })]])
+    let reads = 0
+    const owner = {
+      logger: ctx.logger,
+      credentials: ctx.credentials,
+      agentPresets: ctx.agentPresets,
+      permissionPresets: ctx.permissionPresets,
+      on: () => () => {},
+      effect: (effect: () => (() => unknown), label: string) => {
+        const dispose = effect()
+        if (label === 'discord-gateway listener') cleanup.push(dispose)
+        return dispose
+      },
+      storageDomain: { open: async () => ({
+        table: (name: string) => name === 'conversations' ? routes : new Map(),
+        close: domainClosed,
+      }) },
+      sessionPersistence: { open: async (_id: string, _mode: string, options: { signal: AbortSignal }) => ({
+        inheritedEventCount: 0,
+        read: async () => {
+          if (++reads === 1) return []
+          entered.resolve(undefined)
+          return await new Promise<never>((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => { reject(new Error('read aborted')) }, { once: true })
+          })
+        },
+        close: readClosed,
+      }) },
+    } as unknown as Context
+    await apply(owner, config())
+    await entered.promise
+    await cleanup[0]?.()
+    expect(readClosed).toHaveBeenCalledTimes(2)
+    expect(domainClosed).toHaveBeenCalledTimes(1)
+  })
+
   it('connects with the resolved token and routes gateway events', async () => {
     const { ctx, logger } = contextStub({ token: 'secret-token' })
     let captured: DiscordGatewayOptions | undefined
@@ -123,7 +177,7 @@ describe('startListener', () => {
         { kind: 'connecting' }, { kind: 'ready' }, { kind: 'disconnected', reason: 'socket closed' },
       ]
       for (const status of statuses) options.onStatus?.(status)
-      options.onReady?.('bot-user-1')
+      options.onReady?.('bot-user-1', 'bot-application-1')
       options.onMessage(message)
       options.onReaction?.({ userId: USER, channelId: CHANNEL, messageId: 'm1', emojiName: '✅' })
     }

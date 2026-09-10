@@ -98,7 +98,8 @@ This section explains the design behind the roster and the standing mount; obser
 
 - **One standing composition per preset.** A preset is mounted once per process under a standing scope; agents join by parenting their scope key to the mount, so the mount's registrations and listeners cover every joined agent and no sibling preset's.
 - **Generations keyed on the composition file.** The mount records the composition file's stamp (mtime and size); a session that finds the stamp stale starts the next generation, while sessions already joined keep the generation they run on — a running session outlives its file changing or disappearing.
-- **The preset file is an input, never a persistence target.** The mounted subtree overrides `write()` as a no-op, so a loader-initiated write-back never rewrites a shared preset file.
+- **Preset files are inputs, never persistence targets.** The mounted subtree and the package's include row override `write()` as a no-op, so a loader-initiated write-back never rewrites a shared preset file.
+- **Includes share the enclosing scope.** Include an inherited capability roster once; repeating its rows causes duplicate registrations. Patches reach the included file's direct rows and groups, but do not traverse another file include. Creator and Beardy disable inherited role-specific rows before supplying direct replacements that their derived presets can patch.
 - **Discovery owns health.** A directory whose composition is missing or unloadable is a broken roster row with a reason, not a skip — a skipped directory would still occupy its id while no surface shows anything to delete.
 
 ### Source map

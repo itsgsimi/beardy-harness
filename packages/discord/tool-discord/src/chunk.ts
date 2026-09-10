@@ -3,6 +3,8 @@
  * @module @deepseek-ai/dsh-tool-discord/chunk
  */
 
+import { discordCodeBlocks, formatDiscordMarkdown } from './markdown.ts'
+
 /**
  * Discord's per-message content limit, counted in UTF-16 code units.
  *
@@ -125,21 +127,8 @@ function packBlock(block: string, limit: number): string[] {
   return packSegments(lines, '\n', limit)
 }
 
-/**
- * Split a message body into chunks that each satisfy {@link DISCORD_MAX_CONTENT_CHARS}.
- *
- * Packing prefers the coarsest boundary it can: whole paragraphs while they fit, then lines within
- * one over-long block, then tokens, and only a token longer than the limit is cut mid-word. The
- * whitespace at a join is dropped — it would otherwise be the first or last character of a message.
- * Lengths are measured on the `content` value Discord counts, so any wrapper text must already be
- * part of `content`.
- *
- * @param content - the complete body to deliver; leading whitespace is not preserved.
- * @param limit - per-chunk UTF-16 unit cap; defaults to the Discord protocol limit.
- * @returns every chunk in order, or an empty array when `content` holds no text.
- */
-export function chunkContent(content: string, limit: number = DISCORD_MAX_CONTENT_CHARS): string[] {
-  assertChunkLimit(limit)
+/** Pack prose at paragraph, line, or word boundaries, omitting whitespace at message joins. */
+function chunkPlainContent(content: string, limit: number): string[] {
   const blocks: string[] = []
   for (const paragraph of content.split('\n\n')) {
     // A paragraph with no text carries nothing a message could show.
@@ -147,4 +136,59 @@ export function chunkContent(content: string, limit: number = DISCORD_MAX_CONTEN
     blocks.push(...(paragraph.length <= limit ? [paragraph] : packBlock(paragraph, limit)))
   }
   return packSegments(blocks, '\n\n', limit)
+}
+
+/** Split a parsed fenced block with space for the complete opening and closing fences. */
+function chunkCode(text: string, limit: number): string[] {
+  if (text.length <= limit) return [text]
+  const firstBreak = text.indexOf('\n')
+  const opening = firstBreak < 0 ? text + '\n' : text.slice(0, firstBreak + 1)
+  const marker = /^(`{3,}|~{3,})/.exec(opening)?.[0]
+  if (marker === undefined) return sliceUnits(text, limit)
+  const lastBreak = text.lastIndexOf('\n')
+  const closing = text.slice(lastBreak + 1).trim()
+  const isClosed = closing.length >= marker.length && closing.split(marker.charAt(0)).every(part => part === '')
+  let remaining = text.slice(firstBreak + 1, isClosed ? lastBreak + 1 : undefined)
+  const budget = limit - opening.length - marker.length - 1
+  if (budget < 2) throw new RangeError('discord content chunk limit cannot hold the code fence and its language')
+  const result: string[] = []
+  while (remaining !== '') {
+    let cut = Math.min(remaining.length, budget)
+    if (cut < remaining.length) {
+      const lineBreak = remaining.lastIndexOf('\n', cut - 1)
+      if (lineBreak >= 0) cut = lineBreak + 1
+      else if (/^[\uDC00-\uDFFF]$/.test(remaining.charAt(cut))) cut -= 1
+    }
+    const piece = remaining.slice(0, cut)
+    remaining = remaining.slice(cut)
+    result.push(opening + piece + (piece.endsWith('\n') ? '' : '\n') + marker)
+  }
+  return result
+}
+
+/**
+ * Format and split Markdown into Discord messages, counting UTF-16 units including code fences.
+ *
+ * Tables become labeled bullet groups. Prose splits at paragraphs, lines, or words; whitespace at
+ * prose joins is omitted. Split fenced code preserves its language, indentation, and source newlines
+ * and closes each message's fence. A custom limit too small for its fence and text is rejected.
+ *
+ * @param content - complete model-authored Markdown.
+ * @param limit - per-message UTF-16 cap, including every added fence; defaults to 2000.
+ * @returns ordered messages, or no messages for whitespace-only content.
+ * @throws RangeError when the limit cannot hold text or the required code wrapper.
+ */
+export function chunkContent(content: string, limit: number = DISCORD_MAX_CONTENT_CHARS): string[] {
+  assertChunkLimit(limit)
+  const formatted = formatDiscordMarkdown(content)
+  if (formatted.trim() === '') return []
+  if (formatted.length <= limit) return [formatted]
+  const chunks: string[] = []
+  let offset = 0
+  for (const code of discordCodeBlocks(formatted)) {
+    chunks.push(...chunkPlainContent(formatted.slice(offset, code.start), limit), ...chunkCode(code.text, limit))
+    offset = code.end
+  }
+  chunks.push(...chunkPlainContent(formatted.slice(offset), limit))
+  return chunks
 }

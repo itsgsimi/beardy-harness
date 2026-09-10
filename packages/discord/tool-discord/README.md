@@ -9,7 +9,9 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The package gives an agent one way to write into Discord: the `discord_send` tool posts a message to the channel named in configuration, or to a direct-message channel with an allowlisted user when `dmUserIds` lists ids. It speaks the Discord REST API directly — no SDK, no gateway connection, no cached Discord state — and resolves the bot token from a credential reference at send time. Bodies longer than Discord's 2000-character limit are split into consecutive messages, HTTP 429 replies are waited out up to a configured ceiling, and `@everyone`, `@here`, and role pings in the body are rewritten before posting so an agent cannot broadcast to a guild. Mount it beside a credential provider; the plugin registers nothing else.
+The package gives an agent one way to write into Discord: the `discord_send` tool posts a message to the channel named in configuration, or to a direct-message channel with an allowlisted user when `dmUserIds` lists ids. It speaks the Discord REST API directly — no SDK, no gateway connection, no cached Discord state — and resolves the bot token from a credential reference at send time. Bodies longer than Discord's 2000-character limit are split into consecutive messages, HTTP 429 replies are waited out up to a configured ceiling, and `@everyone` and `@here` are rewritten before posting. The transport disables every mention type, including user and role pings. Mount it beside a credential provider; the plugin registers nothing else.
+
+Replies retain Discord's native headings, emphasis, lists, links, and code. Markdown tables become labeled bullet groups. Long fenced code blocks keep their language, indentation, and source newlines across messages; each message closes its fence and counts that wrapper toward the 2000 UTF-16-unit limit.
 
 ## Table of Contents
 
@@ -43,7 +45,7 @@ Prefix-stable while the tool definition and visibility are unchanged. Shadowing,
 - **One destination per mount** — the channel comes from configuration, so posting to several channels needs one row per channel; the model cannot choose a destination that configuration did not name.
 - **Delivery is best-effort at call time** — a send that exhausts its retries fails the tool call and is not queued for later; nothing redelivers it if Discord stays down.
 - **No inbound messages** — reading Discord requires `@deepseek-ai/dsh-discord-gateway`; this package only writes.
-- **Chunking splits at word boundaries** — a body longer than 2000 characters becomes several messages, and Discord renders them as separate posts rather than one embed or thread.
+- **Long answers use several posts** — prose splits at paragraph, line, or word boundaries; oversized code lines can split within a word. The configured chunk cap rejects an oversized answer before any part is posted.
 
 
 <a id="dev-note"></a>
@@ -52,7 +54,7 @@ Prefix-stable while the tool definition and visibility are unchanged. Shadowing,
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-`DISCORD_MAX_CONTENT_CHARS`, `chunkContent`, `postChannelMessage`, `openDirectMessageChannel`, `sendDiscordMessage`, and `defangBroadcastMentions` are exported so the gateway and tests reuse one delivery path. The transport is a constructor parameter, which is how tests assert request bodies and rate-limit handling without a network.
+The gateway reuses the package's Markdown formatter, chunker, and REST transport. Typed message bodies support embeds, buttons, and string selectors; message posts and edits always disable mentions. The shared request helper accepts bot-authenticated and interaction-token endpoints, refuses redirects, bounds responses to 2 MiB, and omits credential-bearing URLs and causes from transport errors. `postDiscordMessageBody` applies the sender’s bounded rate-limit retries and per-attempt timeout to an already-formatted message and returns the accepted response. Other REST callers own response-status handling and retry timing.
 
 </details>
 

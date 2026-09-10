@@ -1,0 +1,240 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v10/applications/@me"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v10/applications/1472404859679670456/commands"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v10/applications/1472404859679670456/commands",
+    "body": [
+      {
+        "type": 1,
+        "name": "compact",
+        "description": "Compact older conversation history",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": []
+      },
+      {
+        "type": 1,
+        "name": "feedback",
+        "description": "record feedback about this session",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": [
+          {
+            "type": 3,
+            "name": "arguments",
+            "description": "<text>",
+            "required": false,
+            "name_localizations": null,
+            "description_localizations": null
+          }
+        ]
+      },
+      {
+        "type": 1,
+        "name": "goal",
+        "description": "set or view the goal for a long-running task",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": [
+          {
+            "type": 3,
+            "name": "arguments",
+            "description": "[<objective>|clear|edit <objective>|pause|resume]",
+            "required": false,
+            "name_localizations": null,
+            "description_localizations": null
+          }
+        ]
+      },
+      {
+        "type": 1,
+        "name": "help",
+        "description": "Show the commands available in this Discord conversation",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": []
+      },
+      {
+        "type": 1,
+        "name": "new",
+        "description": "Start a fresh session with your next message",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": []
+      },
+      {
+        "type": 1,
+        "name": "permission",
+        "description": "Switch the permission preset (sandbox mode + approval policy)",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": [
+          {
+            "type": 3,
+            "name": "arguments",
+            "description": "<preset>",
+            "required": false,
+            "name_localizations": null,
+            "description_localizations": null
+          }
+        ]
+      },
+      {
+        "type": 1,
+        "name": "plan",
+        "description": "Enter or leave plan mode",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": [
+          {
+            "type": 3,
+            "name": "arguments",
+            "description": "[off|message]",
+            "required": false,
+            "name_localizations": null,
+            "description_localizations": null
+          }
+        ]
+      },
+      {
+        "type": 1,
+        "name": "status",
+        "description": "Show this conversation's session, presets, and activity",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": []
+      },
+      {
+        "type": 1,
+        "name": "stop",
+        "description": "Cancel the turn currently running in this conversation",
+        "contexts": [
+          0,
+          1
+        ],
+        "default_member_permissions": null,
+        "nsfw": false,
+        "name_localizations": null,
+        "description_localizations": null,
+        "options": []
+      }
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v10/channels/1472404859679670455/messages",
+    "body": {
+      "content": "## Gateway ready\n\n**Discord** supports headings, links, and code.\n\n**DMs**\n• Result: Responding\n\n**Native commands**\n• Result: Registered\n\n```ts\nconst status = \"ready\"\nconsole.log(status)\n```\n\n[Discord documentation](https://discord.com/developers/docs/intro)\n\nDISCORD_RICH_REPLY_OK",
+      "allowed_mentions": {
+        "parse": []
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v10/interactions/1472404859679670458/snapshot-status-token/callback",
+    "body": {
+      "type": 5,
+      "data": {
+        "flags": 64
+      }
+    }
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v10/webhooks/1472404859679670456/snapshot-status-token/messages/@original",
+    "body": {
+      "content": "",
+      "embeds": [
+        {
+          "title": "/status",
+          "description": "Session: {{session:1}}\nAgent preset: beardy-discord\nPermission preset: workspace-write\nState: live\nDelivering the reply.\nQueued deliveries: 1",
+          "color": 5793266
+        }
+      ],
+      "components": [
+        {
+          "type": 1,
+          "components": [
+            {
+              "type": 2,
+              "style": 2,
+              "custom_id": "dsh:command:status",
+              "label": "Current status"
+            },
+            {
+              "type": 2,
+              "style": 4,
+              "custom_id": "dsh:command:stop",
+              "label": "Stop current turn"
+            },
+            {
+              "type": 2,
+              "style": 1,
+              "custom_id": "dsh:command:new",
+              "label": "New conversation"
+            }
+          ]
+        }
+      ],
+      "allowed_mentions": {
+        "parse": []
+      }
+    }
+  }
+]

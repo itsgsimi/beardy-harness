@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-cron 分组在无人到场时让 agent 按时间表运行。任务在配置中声明——一个 cron 表达式、一个 IANA 时区、一段提示词，以及塑造该次运行的 agent 预设与权限预设组合——每次触发都开启自己的会话，因此事后可以搜索到这次运行，其日志也能重建每一步。配置在加载时校验：重复的任务名、不可用的表达式或时区、相对的工作区路径都会让启动失败，而不是留下一个永不触发的任务。本组不做投递；一次运行通过其预设挂载的任意工具影响外部世界，例如 [`discord_send`](../discord/tool-discord/README.zh.md)。带持久规则的会话作用域提醒属于 [`dsh-schedule`](../schedule/schedule/README.zh.md)，不属于这里。
+cron 分组在无人到场时让 agent 按时间表运行。任务来自配置，或通过 `cron_manage` 与 `/cron` 持久管理。每次接受触发后，调度器使用任务的计划、时区、提示词、预设、工作区和当前连续性笔记开启全新 Session。持久预留记录和运行结果可以在重启后识别未完成的工作；完成的文本会等待[Discord 网关](../discord/discord-gateway/README.zh.md)等投递监听器接受。[cron 包](cron/README.zh.md)负责配置、恢复与投递的详细说明。会话作用域的提醒属于 [`dsh-schedule`](../schedule/schedule/README.zh.md)。
 
 ## 目录
 
@@ -23,11 +23,12 @@ cron 分组在无人到场时让 agent 按时间表运行。任务在配置中�
 
 | 包 | 职责 | ctx key |
 |---|---|---|
-| [`cron/`](cron/README.zh.md) | 挂载配置中的 cron 任务，并为每次触发开启一个无人值守的会话 | consumes `ctx.agents`、`ctx.agentPresets`、`ctx.permissionPresets`、`ctx.workspaceRegistry`、`ctx.sessionTitle` |
+| [`cron/`](cron/README.zh.md) | 管理配置任务与存储任务，运行无人值守 Session，并保存结果直到投递方接受 | consumes `ctx.agents`、`ctx.agentPresets`、`ctx.permissionPresets`、`ctx.workspaceRegistry`、`ctx.sessionTitle` |
 
 -----
 
 <a id="related-documentation"></a>
 ## 相关文档
 
+- [Cron 子系统参考](../../docs/subsystems/cron.zh.md) — 运行结果与交付确认事件。
 - [本机级 cron 与 Discord 投递 Agent Note](../../.agents/notes/implemented/feature/2026-09-05-host-cron-with-discord-delivery.zh.md) —— 为什么本机级调度器与 `dsh-schedule` 分开，以及它推迟了什么。

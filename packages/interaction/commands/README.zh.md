@@ -59,7 +59,7 @@ ctx.commands.register({
 
 ### 从适配器分派
 
-交互式适配器调用 `execute(agent, line, attachments, signal)`，传入确切的接收 agent、完整命令行与本次提交的有序附件。它返回已结算的 `CommandExecution`——规范化结果加生命周期配对 `commandId`——语法无效或名称未知时返回 `undefined`。`list(agent)` 与 `find(agent, name)` 在应用 agent 作用域遮蔽后服务发现。
+交互式适配器调用 `execute(agent, line, attachments, signal)`，传入确切的接收 agent、完整命令行与本次提交的有序附件。它返回已结算的 `CommandExecution`——规范化结果加生命周期配对 `commandId`——语法无效或名称未知时返回 `undefined`。`list(agent)` 与 `find(agent, name)` 在应用 agent 作用域遮蔽后服务发现。宿主适配器可将预设的 `standingKeyFor()` 结果传给 `listForScope(scope)`，发布其继承的命令描述符，无需创建 Agent 或 Session。
 
 ### 取消
 

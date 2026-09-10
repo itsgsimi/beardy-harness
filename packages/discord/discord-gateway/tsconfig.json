@@ -24,6 +24,12 @@
       "path": "../../core/agent-default-model"
     },
     {
+      "path": "../../util/brand"
+    },
+    {
+      "path": "../../interaction/commands"
+    },
+    {
       "path": "../../cron/cron"
     },
     {
@@ -61,6 +67,15 @@
     },
     {
       "path": "../../interaction/user-questions"
+    },
+    {
+      "path": "../../schedule/schedule"
+    },
+    {
+      "path": "../../storage/storage-domain"
+    },
+    {
+      "path": "../../session/session-persistence"
     }
   ]
 }

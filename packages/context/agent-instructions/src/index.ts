@@ -11,9 +11,11 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { isDeepStrictEqual } from 'node:util'
+import { join } from 'node:path'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
+import { SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import { Config, resolveConfig, workspaceBaselineIdentity, type ResolvedConfig } from './config.ts'
@@ -57,6 +59,33 @@ function visibleBaselineSource(
     if (event?.type === 'user/message'
       && event.data.source.kind === 'agent-instructions'
       && event.data.source.baseline === true) return event.data.source
+  }
+  return undefined
+}
+
+function frozenInstructionsFromHistory(
+  session: Session,
+  messages: readonly UserMessage[],
+): Record<string, string | null> | undefined {
+  const read = (message: UserMessage): Record<string, string | null> | undefined => {
+    if (message.source.kind !== 'agent-instructions') return undefined
+    const value: unknown = message.source.frozenUserGlobalInstructions
+    if (value === undefined) return undefined
+    if (typeof value !== 'object' || value === null || Array.isArray(value)
+      || Object.values(value).some(content => content !== null && typeof content !== 'string')) {
+      throw new Error('agent-instructions: session contains invalid frozen user-global instructions')
+    }
+    return value as Record<string, string | null>
+  }
+  for (const message of messages.toReversed()) {
+    const frozen = read(message)
+    if (frozen !== undefined) return frozen
+  }
+  for (let index = session.seq - 1; index >= 0; index -= 1) {
+    const event = session.eventAt(SessionSeq(index))
+    if (event?.type !== 'user/message') continue
+    const frozen = read(event.data)
+    if (frozen !== undefined) return frozen
   }
   return undefined
 }
@@ -121,6 +150,7 @@ export function apply(ctx: Context, config: Config): void {
     const content: UserMessage['content'][number][] = []
     const changes: AgentInstructionChange[] = []
     let desiredBaseline = false
+    let frozenUserGlobalInstructions: Record<string, string | null> | undefined
     const authorityMessages = [...claimed]
     /* v8 ignore next -- normal agents carry an absolute session cwd. */
     const cwd = agent.session.header.cwd ?? process.cwd()
@@ -136,18 +166,37 @@ export function apply(ctx: Context, config: Config): void {
     let nextPreparation: { identity: string; excludedScopes: ReadonlySet<string> } | undefined
     if (!baselinePresent || !keepVisibleBaseline || excludedBaselineScopes === undefined) {
       const replacePreviousBaseline = baselinePresent && !keepVisibleBaseline
+      const freezesFiles = resolved.frozenUserGlobalInstructionCandidates.length > 0
+      const frozen = freezesFiles ? frozenInstructionsFromHistory(agent.session, authorityMessages) : undefined
+      const currentFrozen = frozen === undefined ? undefined : Object.fromEntries(
+        Object.entries(frozen).filter(([candidate]) => resolved.frozenUserGlobalInstructionCandidates.includes(candidate)),
+      )
       const instructions = await loadBaselineInstructionSet({
         cwd,
         dshHome: resolved.dshHome,
         projectRootMarkers: resolved.projectRootMarkers,
         maxBytes: resolved.maxBytes,
         maxSourceBytes: resolved.maxSourceBytes,
+        userGlobalInstructionCandidates: resolved.userGlobalInstructionCandidates,
         instructionFileCandidates: resolved.instructionFileCandidates,
         localInstructionFileCandidates: resolved.localInstructionFileCandidates,
         projectRoot,
         replacePreviousBaseline,
+        ...currentFrozen === undefined ? {} : { frozenUserGlobalInstructions: currentFrozen },
+        ...freezesFiles ? { retainEmptyBaseline: true } : {},
         signal,
       }, fileSystem)
+      if (freezesFiles) {
+        if (instructions?.rendered.text.length === 0) {
+          throw new Error('agent-instructions: maxBytes cannot retain an empty frozen baseline')
+        }
+        frozenUserGlobalInstructions = { ...frozen }
+        for (const candidate of resolved.frozenUserGlobalInstructionCandidates) {
+          if (Object.hasOwn(frozenUserGlobalInstructions, candidate)) continue
+          const captured = instructions?.included.find(file => file.absolutePath === join(resolved.dshHome, candidate))
+          frozenUserGlobalInstructions[candidate] = captured?.content ?? null
+        }
+      }
       const baseline = baselineInstructionState(instructions?.included ?? [])
       const observedBaseline = baselineInstructionState(instructions?.observed ?? [])
       const excludedScopes = new Set(observedBaseline.changes.keys())
@@ -180,6 +229,7 @@ export function apply(ctx: Context, config: Config): void {
             form: 'instructions',
             baseline: true,
             baselineIdentity: identity,
+            ...frozenUserGlobalInstructions === undefined ? {} : { frozenUserGlobalInstructions },
             changes: baselineChanges,
           },
         }))
@@ -218,6 +268,7 @@ export function apply(ctx: Context, config: Config): void {
         form: 'instructions',
         ...desiredBaseline ? { baseline: true } : {},
         ...desiredBaseline ? { baselineIdentity: identity } : {},
+        ...desiredBaseline && frozenUserGlobalInstructions !== undefined ? { frozenUserGlobalInstructions } : {},
         changes,
       },
     })

@@ -129,8 +129,8 @@ describe('the shipped preset root', () => {
     expect(minimal?.path.startsWith(SYSTEM_ROOT)).toBe(true)
   })
 
-  it('enables web_fetch in each tool-bearing Web app preset', async () => {
-    for (const id of ['cordis', 'ptc', 'standard']) {
+  it('enables web_fetch in presets that own the Web tool row', async () => {
+    for (const id of ['ptc', 'standard']) {
       const entries = await shippedEntries(id)
       const toolWeb: unknown = entries.find((entry: unknown) =>
         typeof entry === 'object' && entry !== null && 'id' in entry && entry.id === 'tool-web')

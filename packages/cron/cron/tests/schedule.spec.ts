@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { assertSchedule, cronerScheduler } from '../src/schedule.ts'
 
 describe('assertSchedule', () => {
@@ -16,6 +16,27 @@ describe('assertSchedule', () => {
 })
 
 describe('cronerScheduler', () => {
+  it('resumes at the next future occurrence without making up offline fires', async () => {
+    vi.useFakeTimers()
+    const fired: number[] = []
+    let job: ReturnType<typeof cronerScheduler> | undefined
+    try {
+      vi.setSystemTime(new Date('2026-09-07T06:00:00Z'))
+      job = cronerScheduler({ expression: '0 7 * * *', timezone: 'UTC' }, (at) => { fired.push(at) })
+      expect(job.nextRunAt()).toBe(Date.parse('2026-09-07T07:00:00Z'))
+      job.stop()
+      vi.setSystemTime(new Date('2026-09-08T08:00:00Z'))
+      job = cronerScheduler({ expression: '0 7 * * *', timezone: 'UTC' }, (at) => { fired.push(at) })
+      expect(job.nextRunAt()).toBe(Date.parse('2026-09-09T07:00:00Z'))
+      expect(fired).toEqual([])
+      await vi.advanceTimersByTimeAsync(23 * 60 * 60 * 1000)
+      expect(fired).toEqual([Date.parse('2026-09-09T07:00:00Z')])
+    } finally {
+      job?.stop()
+      vi.useRealTimers()
+    }
+  })
+
   it('fires with the wall-clock time of the match and reports the next run', async () => {
     const fired: number[] = []
     const job = cronerScheduler({ expression: '* * * * * *', timezone: 'UTC' }, (firedAt) => {

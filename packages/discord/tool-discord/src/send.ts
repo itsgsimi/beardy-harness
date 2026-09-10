@@ -8,6 +8,7 @@ import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { chunkContent } from './chunk.ts'
 import { discordReplyMessage, discordReplyObject } from './http.ts'
 import type { DiscordMessagePoster, DiscordPostReply } from './http.ts'
+import type { DiscordMessageBody } from './types.ts'
 
 /** Timeout code stamped on the per-attempt deadline. */
 const TIMEOUT_CODE = 'DISCORD_TIMEOUT'
@@ -81,26 +82,26 @@ function failureMessage(reply: DiscordPostReply): string {
 }
 
 /**
- * Post one already-bounded chunk, waiting out at most {@link DiscordSendLimits.maxRetries} rate-limit
- * replies.
+ * Post one already-formatted message, preserving its body while retrying bounded rate-limit replies.
  *
  * @param options - channel, limits, transport, and delay seams.
  * @param token - bot token resolved for this operation.
- * @param content - one message body within the protocol limit.
+ * @param body - Complete message body already within Discord's text, embed, and component limits.
  * @param signal - cancellation for the whole call; each attempt also carries its own timeout.
+ * @returns the accepted Discord response, including the message id when supplied.
  * @throws Error on a non-2xx reply, an expired deadline, or a rate-limit delay above the configured cap.
  */
-async function postChunk(
-  options: DiscordSenderOptions,
+export async function postDiscordMessageBody(
+  options: Omit<DiscordSenderOptions, 'maxChunksPerCall'>,
   token: string,
-  content: string,
+  body: DiscordMessageBody,
   signal: AbortSignal,
-): Promise<void> {
+): Promise<DiscordPostReply> {
   for (let attempt = 0; ; attempt++) {
     const timeout = deadline(signal, options.requestTimeoutMs, TIMEOUT_CODE)
     let reply: DiscordPostReply
     try {
-      reply = await options.post({ channelId: options.channel, token, content }, timeout.signal)
+      reply = await options.post({ channelId: options.channel, token, ...body }, timeout.signal)
     } catch (error: unknown) {
       if (timeoutOf(timeout.signal, TIMEOUT_CODE) !== undefined) {
         throw new Error(`discord_send timed out after ${String(options.requestTimeoutMs)}ms`)
@@ -109,7 +110,7 @@ async function postChunk(
     } finally {
       timeout[Symbol.dispose]()
     }
-    if (reply.status >= 200 && reply.status < 300) return
+    if (reply.status >= 200 && reply.status < 300) return reply
     if (reply.status !== 429 || attempt >= options.maxRetries) throw new Error(failureMessage(reply))
     const delay = retryDelayMs(reply)
     if (delay === undefined) throw new Error('discord rate limit reply carried no retry delay')
@@ -151,7 +152,7 @@ export async function sendDiscordMessage(
   }
   let characters = 0
   for (const chunk of chunks) {
-    await postChunk(options, token, chunk, signal)
+    await postDiscordMessageBody(options, token, { content: chunk }, signal)
     characters += chunk.length
   }
   return { chunks: chunks.length, characters, suppressedBroadcastMentions: defanged.count }

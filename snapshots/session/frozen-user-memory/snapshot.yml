@@ -1,0 +1,12 @@
+version: 1
+scenario: frozen-user-memory
+profile: headless
+composition: frozen-user-memory
+recording: authored
+header:
+  class: frozen-user-memory
+  pin: true
+  systemPromptSource: text-turn
+  toolSchemasSource: text-turn
+workspace:
+  final: true

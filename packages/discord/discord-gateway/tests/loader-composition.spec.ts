@@ -52,6 +52,7 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
                 type: 'assistant/message',
                 data: { message: { content: [{ type: 'text', text: 'Morning brief is ready.' }] } },
               })
+              events.push({ seq: events.length, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
             },
             whenIdle: async () => {},
           },
@@ -59,7 +60,9 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
         }
       }
       const compositionSetup = (options: { setup?: (agentCtx: unknown) => Promise<void> }) =>
-        options.setup?.({ commands: { register: () => () => {} } })
+        options.setup?.({ inject: (_services: string[], apply: (ctx: unknown) => void) => {
+          apply({ commands: { register: () => () => {} } })
+        } })
       ctx.provide('agents' as never, {
         create: async (options: { sessionId: string; setup?: (agentCtx: unknown) => Promise<void> }) => {
           record.created.push(options.sessionId)
@@ -76,23 +79,31 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
         execute: async () => undefined,
         register: () => () => {},
       } as never)
-      const conversations = new Map<string, Record<string, unknown>>()
+      ctx.provide('sessions' as never, { flush: async () => true } as never)
+      ctx.provide('sessionPersistence' as never, { open: async (id: string) => ({
+        inheritedEventCount: 0, read: async () => sessions.get(id) ?? [], close: async () => {},
+      }) } as never)
+      const tables = new Map<string, Map<string, Record<string, unknown>>>()
       ctx.provide('storageDomain' as never, {
         open: async () => ({
           name: 'discord-gateway',
-          table: () => ({
-            get: (key: string) => conversations.get(key),
-            entries: () => conversations.entries(),
-            keys: () => conversations.keys(),
-            size: conversations.size,
-            put: async (key: string, value: Record<string, unknown>) => { conversations.set(key, value) },
-            delete: async (key: string) => conversations.delete(key),
-            update: async (key: string, fn: (current: never) => never) => {
-              const next = fn(conversations.get(key) as never)
-              conversations.set(key, next)
-              return next
-            },
-          }),
+          table: (name: string) => {
+            let conversations = tables.get(name)
+            if (conversations === undefined) { conversations = new Map(); tables.set(name, conversations) }
+            return {
+              get: (key: string) => conversations.get(key),
+              entries: () => conversations.entries(),
+              keys: () => conversations.keys(),
+              size: conversations.size,
+              put: async (key: string, value: Record<string, unknown>) => { conversations.set(key, value) },
+              delete: async (key: string) => conversations.delete(key),
+              update: async (key: string, fn: (current: never) => never) => {
+                const next = fn(conversations.get(key) as never)
+                conversations.set(key, next)
+                return next
+              },
+            }
+          },
           global: { get: () => ({}) },
           close: async () => {},
         }),
@@ -166,6 +177,10 @@ const GATEWAY_ROWS = [
   "- name: '@deepseek-ai/dsh-discord-gateway'",
   '  config:',
   '    tokenEnv: DSH_DISCORD_BOT_TOKEN',
+  '    nativeCommands: false',
+  '    richMessages: false',
+  '    reactionStatus: false',
+  '    answerers: [reaction, text]',
   `    workspacePath: ${process.cwd()}`,
   '    agentPreset: beardy',
   '    permissionPreset: danger-full-access',
@@ -271,7 +286,7 @@ describe('discord-gateway real Loader composition', () => {
       }
       expect(StubSocket.instance).toBeDefined()
       StubSocket.instance?.fire('message', {
-        data: JSON.stringify({ op: 0, t: 'READY', s: 2, d: { application: { id: 'bot-9' } } }),
+        data: JSON.stringify({ op: 0, t: 'READY', s: 2, d: { user: { id: '111111111111111111' }, application: { id: '111111111111111111' } } }),
       })
       StubSocket.instance?.fire('message', {
         data: JSON.stringify({
@@ -281,9 +296,7 @@ describe('discord-gateway real Loader composition', () => {
           d: { id: 'm1', channel_id: CHANNEL, channel_type: 1, author: { id: USER }, content: 'good morning' },
         }),
       })
-      for (let round = 0; round < 20 && posts.length === 0; round += 1) {
-        await new Promise(resolve => setTimeout(resolve, 5))
-      }
+      await vi.waitFor(() => { expect(posts.some(body => body.includes('Morning brief is ready.'))).toBe(true) })
       expect(record.created).toHaveLength(1)
       expect(record.followedUp).toEqual(['discord'])
       expect(posts.some(body => body.includes('Morning brief is ready.'))).toBe(true)
@@ -295,7 +308,7 @@ describe('discord-gateway real Loader composition', () => {
           s: 4,
           d: {
             id: 'm2', channel_id: '12345678901234567', channel_type: 0, guild_id: 'g1',
-            author: { id: USER }, content: 'beardy-bot hello', mentions: [{ id: 'bot-9' }],
+            author: { id: USER }, content: 'beardy-bot hello', mentions: [{ id: '111111111111111111' }],
           },
         }),
       })
@@ -357,6 +370,9 @@ describe('discord-gateway real Loader composition', () => {
 
   it('admits an allowed user through the mounted router without touching the network', async () => {
     const { settings, policy } = DiscordGateway.toSettings({
+      richMessages: false, excludedPresetCommands: ['export'], accentColor: 0x5865f2, reactionStatus: false,
+      replyRequestTimeoutMs: 15000, replyMaxRetries: 2, replyMaxRetryWaitMs: 30000, replyMaxChunksPerCall: 10,
+      interactionMaxPending: 100, interactionReceiptLimit: 1000, nativeCommands: false, commandSyncRetryMs: 30000,
       tokenEnv: 'DSH_DISCORD_BOT_TOKEN',
       allowedUserIds: [USER],
       allowedChannelIds: [],
@@ -377,6 +393,12 @@ describe('discord-gateway real Loader composition', () => {
       questionTimeoutMs: 60_000,
       answerers: ['reaction', 'text'],
       enabled: true,
+      outboxMaxPending: 100,
+      outboxMaxChars: 20_000,
+      outboxRetryMs: 1_000,
+      outboxMaxRetryMs: 60_000,
+      outboxMaxReceipts: 1_000,
+      wakeRetryMs: 30_000,
     }, () => '')
     expect(settings.agentPreset).toBe('beardy')
     expect(policy.allowedUserIds.has(USER)).toBe(true)

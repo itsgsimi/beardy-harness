@@ -153,6 +153,13 @@ registerFileReceiptResolver(resolver: CommandFileReceiptResolver): () => void
 @Remote list(agent: Agent): readonly CommandDescriptor[]
 
 /**
+ * Read effective command descriptors for a standing preset without creating an Agent.
+ * @param scope - Standing preset scope obtained from the preset registry.
+ * @returns name-sorted immutable descriptors after inherited and exact-scope shadowing.
+ */
+listForScope(scope: ScopeKey): readonly CommandDescriptor[]
+
+/**
  * Resolve one effective command definition.
  * @param agent - exact receiving agent and scoped-layer key.
  * @param name - command name without a slash.
@@ -191,7 +198,7 @@ find(agent: Agent, name: string): CommandDefinition | undefined
 @Remote async execute( agent: Agent, line: string, submittedAttachments: readonly CommandSubmitAttachment[], signal: AbortSignal, ): Promise<CommandExecution | undefined>
 ```
 
-Types: [Agent](core.md)
+Types: [Agent](core.md) · [ScopeKey](scope.md)
 
 Source: [`packages/interaction/commands/src/index.ts`](../../packages/interaction/commands/src/index.ts)
 

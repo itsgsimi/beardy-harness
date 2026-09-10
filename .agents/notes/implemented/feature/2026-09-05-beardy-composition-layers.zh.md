@@ -12,9 +12,11 @@ Beardy profile 把三类值混在同一个 patch 文件里。部署数据（`cha
 
 三层，每层只携带一类值。组合包 patch（`packages/bundle/beardy/cordis.patch.yml`）只保留机器无关的组装：provider 选择、`$DSH_HOME` 下的搜索索引路径、带每小时注入节流的 `time-context`，以及按 `DISCORD_BOT_TOKEN` 是否存在门控的三个具备 Discord 能力的行——不携带任何目的地、白名单、时区、工作区或任务数据。被启用却没有 profile 配置的行会在加载时因 schema 失败并点名缺失字段（`$.channelId missing required value`），这是刻意的：半配置的部署停在加载期，而不是按不属于任何人的默认值运行。
 
-角色行为住在 preset 家族里。`beardy` 仍是交互式默认，并接过了 `memory` 行（从组合包移出）；`beardy-unattended` 经 include 接缝由它派生，persona 追加一句话——自行决策、用 `discord_send` 投递、单条不超过 2000 字符——并禁用 `tool-cordis` 与 `skill_manage`、把 `memory` 设为 `requireApproval: true`；`beardy-discord` 追加简短纯文本回复那句与同样的审批姿态，同时保留完整的 standard 工具清单。由于 `- id:` patch 行会整体替换条目的字段，派生 preset 的 patch 必须携带 `persona` 与 `tool-memory` 配置的完整替换文本；展示文案沿用既有内置 preset 路径（`display.ts` 的键加两侧 client locale 字典）。
+角色行为住在 preset 家族里。`beardy` 仍是交互式默认，并接过了 `memory` 行（从组合包移出）；`beardy-unattended` 经 include 接缝由它派生，persona 追加一句话——自行决策、用 `discord_send` 投递、单条不超过 2000 字符——并禁用 `tool-cordis` 与 `skill_manage`、把 `memory` 设为 `requireApproval: true`；`beardy-discord` 追加简洁 Markdown 回复指令与同样的审批姿态，同时保留完整的 standard 工具清单；其消息展示遵循[Discord 交互决策](2026-09-07-discord-native-interactions-and-presentation.zh.md)。由于 `- id:` patch 行会整体替换条目的字段，派生 preset 的 patch 必须携带 `persona` 与 `tool-memory` 配置的完整替换文本；展示文案沿用既有内置 preset 路径（`display.ts` 的键加两侧 client locale 字典）。
 
 个人数据移入 `$DSH_HOME/profiles/beardy/cordis.patch.yml`：tool-discord 目的地行、网关带 `agentPreset: beardy-discord` 的白名单与工作区，以及现在以 `workspace-write` 运行 `beardy-unattended` 的 morning-brief 任务。仓库里的组合包 patch 不含部署信息；私人的 home 文件承载这台机器需要的内容。
+
+standard 能力清单只引入一次。Creator 与 Beardy 先禁用继承的 persona、指令和创作工具行，再提供各自的直接替代行。include patch 会遍历所选文件中的 group，但不会穿透另一层文件 include；直接角色行让 Discord 与无人值守 preset 能替换 persona 和审批配置、禁用创作工具，而不必复制编码工具。随包 Web 组装测试挂载全部三种 Beardy 角色，浏览器启动测试则打开并重新加载 Beardy 工作区会话。
 
 ## 考虑过的替代方案
 

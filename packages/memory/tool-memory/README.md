@@ -31,6 +31,8 @@ The package gives an agent a durable record of cross-session facts in exactly tw
 | `entryMaxChars` | 400 | Character cap for one entry; must fit inside both file caps |
 | `requireApproval` | false | Ask the approval service before every write |
 
+The instruction loader must name `USER.md` and `MEMORY.md` in both `userGlobalInstructionCandidates` and `frozenUserGlobalInstructionCandidates`, using the same Harness home as this tool. Beardy supplies this configuration. The first request captures both files or their absence; existing sessions retain that snapshot through resume and compaction, while new sessions receive later writes.
+
 -----
 
 <a id="dev-note"></a>
@@ -55,7 +57,7 @@ Fixed schema cost per request where the tool is visible, plus one registered pro
 
 #### KV Cache effect
 
-The prompt section is static per composition, so it sits in the stable prefix. A memory write changes no current-session prompt: user-global scopes load once at session start and are skipped by the dynamic re-render path, which keeps the running prefix cache intact. Later sessions see new baseline text; their prefix changes only at that first assembly.
+The prompt section is static per composition. With the required frozen-candidate configuration, memory writes leave existing sessions' instruction snapshots unchanged. Later sessions capture new baseline text; compaction restores the captured memory from the session log.
 
 ## Known Limitations and Deferred Work
 

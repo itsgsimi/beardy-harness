@@ -123,12 +123,12 @@ describe('conversation router', () => {
     expect(h.calls).not.toContain('post')
   })
 
-  it('warns and posts nothing when a turn outlives its bound, releasing the live handle', async () => {
+  it('reports a timed-out turn and releases its live handle', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
     h.router.handle(inbound())
     await drain()
     expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
-    expect(h.posted).toEqual([])
+    expect(h.posted[0]?.content).toContain('request timed out')
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     h.releaseIdle()
   })
@@ -193,7 +193,7 @@ describe('conversation router', () => {
     h.router.handle(inbound())
     await drain()
     expect(h.warnings.some(message => message.includes('did not settle within'))).toBe(true)
-    expect(h.posted).toEqual([])
+    expect(h.posted[0]?.content).toContain('request timed out')
   })
 
   it('treats a turn that fails outright as one that did not settle', async () => {

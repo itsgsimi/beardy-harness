@@ -26,11 +26,13 @@ Letting stored jobs override or edit configured ones was rejected: configuration
 
 Approving at the registry (so every writer pays) was rejected in favor of gating in the management tool: the registry also serves internal callers (`/cron` verbs are operator intent already), and the approval service may be absent, which is a refusal reason rather than a construction-time dependency.
 
-Cron posting to Discord directly was rejected: delivery belongs to whoever owns the channel. The typed event keeps cron platform-neutral — the gateway listener is 30 lines — and leaves room for Web or other listeners without touching this package.
+Cron posting to Discord directly was rejected: delivery belongs to whoever owns the channel. The typed event keeps cron platform-neutral and leaves room for Web or other listeners without touching this package.
 
 Making notes free-form session memory (curated memory, `dsh-memory`) was rejected for this seam: continuity here is one bounded string per job that every fire reads verbatim, not recall across sessions; a search step would add cost and nondeterminism to an unattended run.
 
 ## Consequences
+
+Automatic outcome delivery and cold reminder recovery follow the [durable delivery decision](2026-09-07-durable-personal-agent-delivery.md).
 
 A model can now restructure the timetable, so blast radius is configuration-bounded: presets, workspace roots, count, frequency, and (by default) one approval per mutation. The empty-default allowlists mean runtime creation is dead until a profile opens it — deliberate, and stated in the README's Known Limitations.
 
@@ -38,4 +40,4 @@ Unattended runs have no answerer, so `cron_manage` writes from an unattended ses
 
 Notes make a job's first message vary between fires: two fires of the same job share no cached prefix, and changing notes changes that prefix again. The cap bounds the cost.
 
-Delivery inherits the gateway's best-effort posting: a failed delivery post is logged, not retried, and only the final assistant text travels. `run_now` on a paused job refuses with its own message rather than silently arming it. Sessions still accumulate — deleting a job leaves its past run sessions on disk, as before.
+Only the final assistant text or an enabled outcome notice travels through the gateway's durable delivery queue. `run_now` on a paused job refuses with its own message rather than silently arming it. Sessions still accumulate — deleting a job leaves its past run sessions on disk, as before.
