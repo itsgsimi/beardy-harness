@@ -8,6 +8,12 @@ Public APIs are pre-stable; update every consumer. [Session version/status](docs
 
 **Application launch.** Only `dsh` profiles launch supported Node apps; package bins, demos, and public SDK argv escapes are forbidden ([rule](docs/architecture.md#application-launch)).
 
+## Fork workflow
+
+`fork/downstream/main` is the shared integration branch for non-iOS work. Base feature branches on it and target PRs to it. Keep `master` aligned with `origin/master`; leave iOS worktrees and branches separate unless explicitly requested.
+
+Sync by merge-forwarding `origin/master` through a temporary `sync/upstream-YYYY-MM-DD` branch, validate the combined branch, then fast-forward `downstream/main` and push `fork`. Never rebase published integration history; follow [the upstream-sync procedure](.agents/skills/dsh-upstream-sync/SKILL.md).
+
 ## Repository layout
 
 ```
@@ -85,7 +91,7 @@ pnpm run demo:ptc -- "task"  # headless PTC mode run (needs key)
 
 ### Host sandbox failures
 
-If a required `gh`, `pnpm`, build, test, or generator command fails because the sandbox blocks credentials, network, IPC, watching, or nested `sandbox-exec`, retry unchanged with the narrowest host escalation. Require sandbox evidence; never bypass test failures or the product sandbox.
+Retry a required `gh`, `pnpm`, build, test, or generator command with the narrowest host escalation only when a sandbox failure proves the need; never bypass test failures or the product sandbox.
 
 ### Run relevant checks locally
 
@@ -140,11 +146,11 @@ Read [docs/defensive-patterns.md](docs/defensive-patterns.md) before lifecycle, 
 
 ## Type safety and documentation
 
-Everything compiles under `strict: true` with `noImplicitAny`; every remaining `any` explains why narrowing is infeasible. Every module and export has concise JSDoc for its non-obvious contract; function-like exports include `@param`/`@returns`, as enforced by `verify-export-jsdoc`. Heritage-declared members, plugin-protocol slots, and constructors keep their docs at the declaring Service Definition, protocol, or class.
+`strict: true` and `noImplicitAny` apply everywhere; every remaining `any` explains why narrowing is infeasible. Every module and export documents its non-obvious contract; function-like exports include `@param`/`@returns` ([check](scripts/verify-export-jsdoc.ts)). Heritage-declared members, plugin-protocol slots, and constructors keep documentation at their declaration.
 
-Comments and docs state complete contracts and context, not reasoning transcripts. Use direct, concrete terms. Do not use metaphors. Before writing `contract`, `boundary`, or `shape`, ask whether a more exact term names the subject: write `response fields`, `JSON validation`, or `ESM exports` instead of `response shape`, `validation boundary`, or `module shape`. Keep `contract` for preconditions, postconditions, invariants, compatibility promises, and other obligations that callers, callees, implementers, providers, producers, or consumers rely on. Keep a literal process, wire, security, transaction, or lifecycle boundary. Do not narrate control flow or tests, preserve review history, or restate code. Keep behavior, failure, timing, ownership, and safe-use facts; link the rationale. Use [dsh-prose-standard](.agents/skills/dsh-prose-standard/SKILL.md) for decisions. Wire mechanically checkable invariants into an executed top-level gate and prove each changed acceptance path rejects an invalid case. Use narrow, justified exceptions instead of disabling a rule globally.
+Comments and docs state complete contracts and context, not reasoning transcripts, review history, control flow, tests, or code restatement. Name behavior, failure, timing, ownership, safe use, and rationale links; use [dsh-prose-standard](.agents/skills/dsh-prose-standard/SKILL.md). Prefer exact terms such as `response fields`, `JSON validation`, and `ESM exports`; reserve `contract` for obligations and `boundary` for literal process, wire, security, transaction, or lifecycle boundaries. Wire mechanically checkable invariants into an executed top-level gate with an invalid-case test; use narrow exceptions instead of global disables.
 
-Docs accompany every code change: update affected README and JSDoc contracts together. Routine bilingual work follows [docs/AGENTS.md](docs/AGENTS.md); only explicit user invocation may run `dsh-translate-docs`. Current-state prose, one physical line per paragraph, one home per fact, and word budgets live there.
+Code changes update affected README and JSDoc contracts. Bilingual work follows [docs/AGENTS.md](docs/AGENTS.md); only explicit user invocation may run `dsh-translate-docs`. That standard owns current-state prose, one physical line per paragraph, fact ownership, and word budgets.
 
 ## Editing these instructions
 
