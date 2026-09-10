@@ -4,7 +4,6 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { registerGatewayCommands } from '../src/commands.ts'
 import { CHANNEL, drain, harness, inbound } from './support.ts'
 
@@ -19,7 +18,6 @@ describe('registerGatewayCommands', () => {
     const ctx = new Context()
     contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
-    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(CommandRuntime)
     await ctx.plugin(AgentLoop, { agents: [] })
     return ctx

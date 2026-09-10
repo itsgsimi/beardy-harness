@@ -1201,7 +1201,7 @@ describe('workspace context request injection', () => {
         userGlobalInstructionCandidates: ['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
       })
-      const original = stubAgent(root)
+      const original = await stubAgent(root)
       await composeBaselinePrefix(ctx, original)
       await write(join(root, 'AGENTS.md'), 'edited project rules')
       await write(join(home, 'AGENTS.md'), 'edited global rules')
@@ -1216,14 +1216,14 @@ describe('workspace context request injection', () => {
       expect(refreshed).not.toContain('edited user facts')
       expect(refreshed).not.toContain('new memory facts')
 
-      const resumed = stubAgent(root, original.session.snapshotEvents())
+      const resumed = await stubAgent(root, original.session.snapshotEvents())
       await composeBaselinePrefix(ctx, resumed)
       expect(resumed.session.deriveMessages()).toEqual(original.session.deriveMessages())
       const baseline = baselineEvents(resumed)[0]!
       resumed.session.append('user/message', createUserMessage({
         content: [{ type: 'text', text: 'compacted summary' }], source: { kind: 'plugin', plugin: 'compact' },
       }), {
-        surfaceOp: { op: 'replace', start: baseline.seq, end: baseline.seq },
+        surfaceOp: { op: 'replace', startSeq: baseline.seq, endSeq: baseline.seq },
         sourceEventSeqs: [baseline.seq],
       })
       await composeBaselinePrefix(ctx, resumed)
@@ -1233,7 +1233,7 @@ describe('workspace context request injection', () => {
       expect(restored).not.toContain('edited user facts')
       expect(restored).not.toContain('new memory facts')
 
-      const fresh = stubAgent(root)
+      const fresh = await stubAgent(root)
       await composeBaselinePrefix(ctx, fresh)
       expect(derivedText(fresh)).toContain('edited user facts')
       expect(derivedText(fresh)).toContain('new memory facts')
@@ -1255,16 +1255,16 @@ describe('workspace context request injection', () => {
         userGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
       })
-      const original = stubAgent(root)
+      const original = await stubAgent(root)
       await composeBaselinePrefix(ctx, original)
       expect(baselineEvents(original)[0]).toMatchObject({ data: { source: {
         changes: [], frozenUserGlobalInstructions: { 'USER.md': null, 'MEMORY.md': null },
       } } })
       await write(join(home, 'USER.md'), 'newly created user facts')
-      const resumed = stubAgent(root, original.session.snapshotEvents())
+      const resumed = await stubAgent(root, original.session.snapshotEvents())
       await composeBaselinePrefix(ctx, resumed)
       expect(resumed.session.deriveMessages()).toEqual(original.session.deriveMessages())
-      const fresh = stubAgent(root)
+      const fresh = await stubAgent(root)
       await composeBaselinePrefix(ctx, fresh)
       expect(derivedText(fresh)).toContain('newly created user facts')
     } finally {
@@ -1285,12 +1285,12 @@ describe('workspace context request injection', () => {
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
       })
-      const original = stubAgent(root)
+      const original = await stubAgent(root)
       await syncWorkspaceContext(ctx, original)
       expect(baselineEvents(original)).toHaveLength(0)
       expect(original.inbox.nextStep).toHaveLength(1)
       await write(join(home, 'USER.md'), 'changed user facts')
-      const resumed = stubAgent(root, original.session.snapshotEvents())
+      const resumed = await stubAgent(root, original.session.snapshotEvents())
       await composeBaselinePrefix(ctx, resumed)
       expect(derivedText(resumed)).toContain('queued user facts')
       expect(derivedText(resumed)).not.toContain('changed user facts')
@@ -1318,7 +1318,7 @@ describe('workspace context request injection', () => {
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
       })
-      await expect(composeBaselinePrefix(ctx, stubAgent(root))).rejects
+      await expect(composeBaselinePrefix(ctx, await stubAgent(root))).rejects
         .toThrow('maxBytes cannot retain an empty frozen baseline')
     } finally {
       await ctx.fiber.dispose()
@@ -1343,14 +1343,14 @@ describe('workspace context request injection', () => {
       await mountWorkspaceContext(originalCtx, {
         ...config, frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
       })
-      const original = stubAgent(root)
+      const original = await stubAgent(root)
       await composeBaselinePrefix(originalCtx, original)
       await write(join(home, 'USER.md'), 'current user facts')
       await write(join(home, 'MEMORY.md'), 'current memory facts')
       await mountWorkspaceContext(resumedCtx, {
         ...config, frozenUserGlobalInstructionCandidates: ['MEMORY.md'],
       })
-      const resumed = stubAgent(root, original.session.snapshotEvents())
+      const resumed = await stubAgent(root, original.session.snapshotEvents())
       await composeBaselinePrefix(resumedCtx, resumed)
       const baseline = baselineEvents(resumed).at(-1)
       const text = baseline?.type === 'user/message' ? blocksText(baseline.data.content) : ''
@@ -1361,7 +1361,7 @@ describe('workspace context request injection', () => {
       await mountWorkspaceContext(refrozenCtx, {
         ...config, frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
       })
-      const refrozen = stubAgent(root, resumed.session.snapshotEvents())
+      const refrozen = await stubAgent(root, resumed.session.snapshotEvents())
       await composeBaselinePrefix(refrozenCtx, refrozen)
       const refrozenBaseline = baselineEvents(refrozen).at(-1)
       const refrozenText = refrozenBaseline?.type === 'user/message' ? blocksText(refrozenBaseline.data.content) : ''
@@ -1389,7 +1389,7 @@ describe('workspace context request injection', () => {
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
       })
-      const original = stubAgent(root)
+      const original = await stubAgent(root)
       await composeBaselinePrefix(ctx, original)
       const baseline = baselineEvents(original)[0]!
       expect(baseline).toMatchObject({ data: { source: { frozenUserGlobalInstructions: { 'USER.md': null } } } })
@@ -1397,7 +1397,7 @@ describe('workspace context request injection', () => {
       original.session.append('user/message', createUserMessage({
         content: [{ type: 'text', text: 'compacted summary' }], source: { kind: 'plugin', plugin: 'compact' },
       }), {
-        surfaceOp: { op: 'replace', start: baseline.seq, end: baseline.seq },
+        surfaceOp: { op: 'replace', startSeq: baseline.seq, endSeq: baseline.seq },
         sourceEventSeqs: [baseline.seq],
       })
       await composeBaselinePrefix(ctx, original)
@@ -1422,7 +1422,7 @@ describe('workspace context request injection', () => {
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
       })
-      const agent = stubAgent(root)
+      const agent = await stubAgent(root)
       const message = createUserMessage({
         content: [{ type: 'text', text: 'unreadable captured memory' }],
         source: { kind: 'agent-instructions', form: 'instructions', changes: [],

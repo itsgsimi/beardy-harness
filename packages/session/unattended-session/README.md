@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-unattended-session` opens one root Agent Session from an entry point that has no human waiting in front of it, through a single transaction: permission resolve, agent-preset resolve and its standing key, workspace create, Agent creation bound to the caller's cancellation signal with the preset mounted, attach, permission-preset application, and titling — with rollback of whatever steps a failure or cancellation lands in. It is a library, not a Cordis plugin: webhook ingress, the cron scheduler, and the Discord gateway call `openUnattendedSession()` with their own Session id prefix, title, model options, and extra setup, so resolution order, cancellation checks, and rollback cannot drift between them. Prompt admission stays with each caller because provenance differs per ingress. Turn-boundary helpers (`awaitTurn`, `sleep`, `lastAssistantText`) bound each turn's wait without re-racing it by hand. The transaction contract comes first; the internals live in a collapsible developer section below.
+`dsh-unattended-session` opens a root Agent Session for webhook, cron, and Discord entry points in one rollback-safe transaction. It resolves presets, creates the workspace and Agent, binds cancellation, attaches, applies permissions, and titles the Session. Each caller retains prompt admission and supplies its Session id prefix, title, model options, and extra setup. Shared helpers (`awaitTurn`, `sleep`, and `lastAssistantText`) bound turn waits. This is a library, not a Cordis plugin.
 
 ## Table of Contents
 

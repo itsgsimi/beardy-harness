@@ -57,6 +57,8 @@ export interface Config {
   pageChars?: number
 }
 
+type ResolvedConfig = Required<Omit<Config, 'workerLabel'>> & Pick<Config, 'workerLabel'>
+
 export const Config: z<Config> = z.object({
   baseURL: z.string().required(),
   tokenEnv: z.string().role('credential-ref').required(),
@@ -81,7 +83,7 @@ export const Config: z<Config> = z.object({
  * @param config - validated deployment choices and request bounds.
  */
 export function apply(ctx: Context, config: Config): void {
-  const resolved = Config(config) as Required<Config>
+  const resolved = Config(config) as ResolvedConfig
   const url = new URL(resolved.baseURL)
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new Error('tool-odysseus-research: baseURL must be an HTTP(S) URL without credentials, query, or fragment')

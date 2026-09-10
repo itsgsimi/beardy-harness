@@ -71,6 +71,8 @@ export function record(overrides: Partial<ConversationRecord> = {}): Conversatio
 }
 
 export interface HarnessOptions {
+  /** Real dispatcher for tests that exercise listener ordering and disposal. */
+  readonly eventContext?: Context
   readonly richMessages?: boolean
   readonly reactionStatus?: boolean
   readonly outboxStorage?: KvTable<string, OutboxRecord>
@@ -182,10 +184,21 @@ export function harness(options: HarnessOptions = {}) {
   }
   const ctx = {
     sessions: { flush: async () => true },
-    sessionPersistence: { open: async () => ({ inheritedEventCount: 0, read: async () => events, close: async () => {} }) },
+    sessionPersistence: {
+      open: async () => ({ inheritedEventCount: 0, read: async () => ({ events }), close: async () => {} }),
+    },
     logger: { info: vi.fn(), warn: (message: string) => { warnings.push(message) }, error: vi.fn(), debug: vi.fn() },
-    effect: (fn: () => (() => unknown) | undefined) => fn(),
-    on: (event: string, handler: (payload: Record<string, unknown>, next: () => Promise<never>) => unknown) => {
+    effect: (fn: () => (() => void | Promise<void>)) => options.eventContext === undefined
+      ? fn()
+      : options.eventContext.effect(fn),
+    on: (
+      event: string,
+      handler: (payload: Record<string, unknown>, next: () => Promise<never>) => unknown,
+      listenerOptions?: { prepend?: boolean },
+    ) => {
+      if (options.eventContext !== undefined) {
+        return options.eventContext.on(event as never, handler as never, listenerOptions)
+      }
       const list = eventHandlers.get(event) ?? []
       list.push(handler)
       eventHandlers.set(event, list)

@@ -59,8 +59,8 @@ describe('dsh-beardy bundle', () => {
     expect(rows.find(row => row.id === 'web-search-deepseek')?.disabled).toBe(true)
     expect(rows.find(row => row.id === 'web-search-searxng')).toEqual(expect.objectContaining({
       name: '@deepseek-ai/dsh-web-search-searxng',
-      config: { baseURL: { __jsExpr: "process.env.SEARXNG_BASE_URL ?? 'http://127.0.0.1:8080'" } },
     }))
+    expect(rows.find(row => row.id === 'web-search-searxng')).not.toHaveProperty('config')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-session-query-sqlite')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-session-query')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-search-searxng')

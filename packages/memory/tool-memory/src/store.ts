@@ -36,7 +36,12 @@ export class MemoryDriftError extends Error {
 /** Control characters a stored entry may not contain; newline is included because entries are one line. */
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/
 
-/** Parse memory file text into entries. Empty text yields no entries; every other line must be a `- ` bullet. */
+/**
+ * Parse memory file text into entries. Empty text yields no entries; every other line must be a `- ` bullet.
+ * @param text - complete memory file contents.
+ * @param fileName - file name used in drift diagnostics.
+ * @returns validated entry text without bullet prefixes.
+ */
 export function parseEntries(text: string, fileName: string): string[] {
   if (text === '') return []
   const lines = text.split('\n')
@@ -54,13 +59,22 @@ export function parseEntries(text: string, fileName: string): string[] {
   return entries
 }
 
-/** Serialize entries back to file text: one `- ` bullet per line, exactly one trailing newline. */
+/**
+ * Serialize entries back to file text: one `- ` bullet per line, exactly one trailing newline.
+ * @param entries - validated entry text without bullet prefixes.
+ * @returns complete memory file contents.
+ */
 export function serializeEntries(entries: readonly string[]): string {
   if (entries.length === 0) return ''
   return entries.map(entry => `- ${entry}\n`).join('')
 }
 
-/** Validate and normalize one new entry text against the entry cap and the flat format. */
+/**
+ * Validate and normalize one new entry text against the entry cap and the flat format.
+ * @param content - model-supplied entry text.
+ * @param entryMaxChars - maximum normalized entry length.
+ * @returns normalized entry text.
+ */
 export function validateEntry(content: string, entryMaxChars: number): string {
   const entry = content.trim()
   if (entry.length === 0) throw new Error('memory entry is empty after trimming whitespace')
@@ -82,7 +96,13 @@ export function validateEntry(content: string, entryMaxChars: number): string {
   return entry
 }
 
-/** Find the single entry matching `old_text`; zero or multiple matches are model-actionable errors. */
+/**
+ * Find the single entry matching `old_text`; zero or multiple matches are model-actionable errors.
+ * @param entries - current validated entries.
+ * @param oldText - substring that must identify one entry.
+ * @param action - operation name used in diagnostics.
+ * @returns the unique matching entry index.
+ */
 export function findEntry(entries: readonly string[], oldText: string, action: string): number {
   const needle = oldText.trim()
   if (needle.length === 0) throw new Error(`memory ${action} requires a non-empty old_text`)
@@ -107,7 +127,13 @@ export function findEntry(entries: readonly string[], oldText: string, action: s
   return foundIndex
 }
 
-/** Apply one operation to the entry list, returning the new list. Throws on any rejection the model can act on. */
+/**
+ * Apply one operation to the entry list, returning the new list. Throws on any rejection the model can act on.
+ * @param entries - current validated entries.
+ * @param operation - requested add, replace, or remove operation.
+ * @param entryMaxChars - maximum normalized entry length.
+ * @returns the updated entry list.
+ */
 export function applyOperation(
   entries: readonly string[],
   operation: MemoryOperation,
@@ -127,7 +153,12 @@ export function applyOperation(
   return entries.map((entry, at) => (at === index ? replacement : entry))
 }
 
-/** Reject a serialized document over the target cap, naming the overage and the way out. */
+/**
+ * Reject a serialized document over the target cap, naming the overage and the way out.
+ * @param serialized - complete candidate file contents.
+ * @param limit - maximum file length in characters.
+ * @param fileName - file name used in the rejection message.
+ */
 export function assertWithinCap(serialized: string, limit: number, fileName: string): void {
   if (serialized.length <= limit) return
   throw new Error(

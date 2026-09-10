@@ -73,13 +73,14 @@ SearXNG 实例必须在 `settings.yml` 中启用 JSON 响应格式，例如在 `
 | [`src/index.ts`](src/index.ts) | 插件入口：配置 schema、环境变量回退、提供方注册 |
 | [`src/provider.ts`](src/provider.ts) | `SearxngSearchProvider`：请求分发、JSON 校验、中止分类与结果映射 |
 | [`src/types.ts`](src/types.ts) | SearXNG 协议类型：`SearxngSearchResponse`、`SearxngResult` 与 `SearxngError` |
-| [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；约定在服务处强制执行） |
 
 ### 请求与映射流程
 
 `search()` 将一个编码后的查询发送到 `{baseURL}/search`，并附带 `format=json`、`redirect: 'error'` 与 `Accept: application/json` header。适配器校验响应封套与所消费字段，映射来源元数据，并将最终结果截断交给 `ctx.web`。它不发送凭证，因此 SearXNG 部署在本提供方之外负责访问控制。
 
 </details>
+
+**运行时不变量：**不发布 companion，因为除 Web 服务强制执行的行为外，该提供方不提供独立事件序列或可变数据关系。
 
 -----
 

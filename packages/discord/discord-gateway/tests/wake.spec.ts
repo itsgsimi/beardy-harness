@@ -21,7 +21,7 @@ function reminder(seconds: number, seq = 0): SessionEvent {
 
 function fixture(events: SessionEvent[] = [reminder(1)]) {
   const records = new Map([['channel', record({ channelId: 'channel' })]])
-  const read = vi.fn(async () => events)
+  const read = vi.fn(async () => ({ events }))
   const close = vi.fn(async () => {})
   const ctx = { logger: { warn: vi.fn() }, sessionPersistence: {
     open: vi.fn(async () => ({ read, close, inheritedEventCount: 0 })),
@@ -81,13 +81,13 @@ describe('Discord cold reminder timers', () => {
   it('does not arm a session whose conversation was replaced while its log was read', async () => {
     vi.useFakeTimers()
     const h = fixture()
-    const waiting = Promise.withResolvers<SessionEvent[]>()
+    const waiting = Promise.withResolvers<{ events: SessionEvent[] }>()
     const started = Promise.withResolvers<undefined>()
     h.read.mockImplementationOnce(async () => { started.resolve(undefined); return waiting.promise })
     const refresh = h.owner.refresh('channel')
     await started.promise
     h.records.delete('channel')
-    waiting.resolve([reminder(1)])
+    waiting.resolve({ events: [reminder(1)] })
     await refresh
     await vi.advanceTimersByTimeAsync(2000)
     expect(h.wake).not.toHaveBeenCalled()
@@ -96,7 +96,7 @@ describe('Discord cold reminder timers', () => {
   it('waits for an aborted read to close and leaves no retry after disposal', async () => {
     vi.useFakeTimers()
     const h = fixture()
-    const waiting = Promise.withResolvers<SessionEvent[]>()
+    const waiting = Promise.withResolvers<{ events: SessionEvent[] }>()
     const started = Promise.withResolvers<undefined>()
     h.read.mockImplementationOnce(async () => { started.resolve(undefined); return waiting.promise })
     const refresh = h.owner.refresh('channel')

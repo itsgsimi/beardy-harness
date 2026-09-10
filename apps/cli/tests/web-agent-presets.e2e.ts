@@ -224,7 +224,9 @@ describe('the shipped Web composition', () => {
   it('supplies every shipped preset, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['beardy', 'cordis', 'minimal', 'ptc', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual([
+      'beardy', 'beardy-discord', 'beardy-unattended', 'cordis', 'minimal', 'ptc', 'standard',
+    ])
     expect(listed.every(preset => preset.trust === 'system')).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
   })
@@ -277,7 +279,7 @@ describe('the shipped Web composition', () => {
       }
 
       const persona = (await ctx.systemPrompt.assemble({ scope: handle.agent })).sections
-        .find(section => section.name === 'deployment:persona')?.text
+        .find(section => section.name === 'deployment:persona-prefix')?.text
       expect(persona).toContain('You are Beardy')
       expect(persona).toContain('warmly pragmatic')
     } finally {
@@ -451,6 +453,7 @@ describe('the shipped Web composition', () => {
 
   it('merges the global skill layer into a preset agent\'s catalog, keeping local discovery preset-side', async () => {
     const proj = await mkdtemp(join(tmpdir(), 'dsh-preset-skill-proj-'))
+    await mkdir(join(proj, '.git'))
     await mkdir(join(proj, '.dsh', 'skills', 'project-proof'), { recursive: true })
     await writeFile(join(proj, '.dsh', 'skills', 'project-proof', 'SKILL.md'), [
       '---',
@@ -466,6 +469,7 @@ describe('the shipped Web composition', () => {
       // Unique per run: the composition persists into the ambient DSH home,
       // and a fixed id would collide with a log an earlier run left there.
       sessionId: SessionId(`preset-skills-standard-${randomUUID()}`),
+      meta: { cwd: proj },
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'standard').then(() => undefined),
     })
     try {
@@ -1002,7 +1006,9 @@ describe('a composition that configures its own preset roots', () => {
     ])
 
     const listed = await rootsCtx.agentPresets.list()
-    expect(listed.map(preset => preset.id).sort()).toEqual(['beardy', 'cordis', 'minimal', 'ptc', 'standard', 'team-spec'])
+    expect(listed.map(preset => preset.id).sort()).toEqual([
+      'beardy', 'beardy-discord', 'beardy-unattended', 'cordis', 'minimal', 'ptc', 'standard', 'team-spec',
+    ])
     expect(listed.every(preset => preset.broken === undefined)).toBe(true)
     // The shipped root comes first: a configured directory claiming a shipped
     // id is shadowed, never the other way around.

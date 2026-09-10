@@ -1,8 +1,7 @@
 /**
  * On-disk vocabulary for the `dsh-training-export` sidecar. Contract source:
- * `docs/training-export-format.md` in the halorun checkout (version 1; both
- * this writer and the `halorun dataset` reader validate `version` and refuse
- * anything else).
+ * The matching halorun checkout owns the version 1 wire format; both this
+ * writer and the `halorun dataset` reader reject every other version.
  * @module @deepseek-ai/dsh-experimental-training-export/types
  */
 

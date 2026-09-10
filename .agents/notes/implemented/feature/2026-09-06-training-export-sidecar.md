@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-06-training-export-sidecar.zh.md)
+
 ## Problem
 
 Nightly distillation needs the teacher's real derived requests and their outcomes, captured where the request is actually assembled — `deepseek-harness` — not reconstructed later from the session log. The session log has messages, tool calls/results, and turn outcomes, but not the exact post-compaction, post-splice `messages[]` an adapter saw, and re-deriving that offline means reimplementing dsh's context assembly. `SessionEventMap` is also fail-closed on read: a log containing new `train/*` events would be refused by any build without the owning plugin, so the export cannot be session-log events.

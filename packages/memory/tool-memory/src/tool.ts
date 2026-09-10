@@ -10,7 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import {
   applyOperation,
   assertWithinCap,
@@ -99,7 +99,7 @@ export function createMemoryTool(
   ctx: Context,
   config: MemoryToolConfig,
   fs: FileSystem,
-) {
+): ToolDefinition {
   return defineTool({
     name: 'memory',
     description:

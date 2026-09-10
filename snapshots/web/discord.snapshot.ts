@@ -165,7 +165,7 @@ it.skipIf(mode === 'record')(`${mode} Discord rich replies and native status thr
   }
   expect(normalizeSessionSnapshots([actual.content], context).map(records))
     .toEqual(normalizeSessionSnapshots([expected], { sessionIds: ['{{session:1}}'], cwd: '{{cwd}}' }).map(records))
-  expect(normalizedHeaders(actual.content, context).map(value => ({ ...value as object, system: '{{system}}', tools: '{{tools}}' })))
+  expect(normalizedHeaders(actual.content, context).map(value => ({ ...value as object, tools: '{{tools}}' })))
     .toEqual(normalizedHeaders(expected, { sessionIds: [], cwd: '{{cwd}}' }))
   expect(prompt).toBe(await readFile(join(scenarioDir, 'system-prompt.expected.md'), 'utf8'))
   expect(schema).toBe(await readFile(join(scenarioDir, 'tool-schemas.expected.json'), 'utf8'))

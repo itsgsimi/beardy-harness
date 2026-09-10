@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-unattended-session` 通过单一事务，从没有人在前等待的入口开启一个根 Agent Session：解析权限预设、解析 Agent 预设并取其 standing key、创建工作区、在绑定调用方取消信号的条件下创建 Agent 并挂载预设、附加、应用权限预设、设置标题——并对失败或取消落入的任何步骤执行回滚。它是普通库而非 Cordis 插件：webhook 入口、cron 调度器与 Discord 网关以各自的 Session id 前缀、标题、模型选项与额外 setup 调用 `openUnattendedSession()`，因此解析顺序、取消检查与回滚不会在它们之间漂移。提示词准入留给各调用方，因为每个入口的溯源不同。回合边界辅助函数（`awaitTurn`、`sleep`、`lastAssistantText`）为每次回合等待设界，而无需手工重新竞速。事务约定在前；内部细节放在下方可折叠的开发者章节中。
+`dsh-unattended-session` 通过一个可安全回滚的事务，为 webhook、cron 和 Discord 入口开启根 Agent Session。它解析预设、创建工作区和 Agent、绑定取消、附加、应用权限，并为 Session 设置标题。各调用方保留提示词准入职责，并提供 Session id 前缀、标题、模型选项和额外 setup。共享辅助函数（`awaitTurn`、`sleep` 和 `lastAssistantText`）为轮次等待设界。这是一个库，而非 Cordis 插件。
 
 ## 目录
 

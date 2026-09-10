@@ -43,7 +43,10 @@ export class ResearchCardController {
     }))
   }
 
-  /** @returns Model picker state and revision-fenced form actions. */
+  /**
+   * Expose the model picker state and revision-fenced form actions.
+   * @returns Model picker state and revision-fenced form actions.
+   */
   inject(): ResearchCardFace {
     return { hooks: { researchCard: this.store }, ...this.form.actions() }
   }

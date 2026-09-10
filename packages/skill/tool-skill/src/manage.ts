@@ -80,7 +80,12 @@ async function approvedForMutation(
   }
 }
 
-/** Register the skill-management tool over the supplied filesystem. */
+/**
+ * Register the skill-management tool over the supplied filesystem.
+ * @param ctx - context carrying tool and optional approval services.
+ * @param fs - filesystem used for skill reads and mutations.
+ * @param options - resolved management scopes, paths, and approval policy.
+ */
 export function applySkillManageTool(
   ctx: Context,
   fs: FileSystem,

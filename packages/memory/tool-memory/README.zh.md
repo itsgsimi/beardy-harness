@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包让 agent 用恰好两个文件持久记录跨会话事实：`$DSH_HOME/USER.md`（用户是谁——姓名、角色、环境、长期偏好）与 `$DSH_HOME/MEMORY.md`（agent 自身笔记——没有任务归属的约定、环境事实、适用于每个会话的经验）。`memory` 工具每次调用增加、替换或删除一个单行条目，拒绝任何无法通过严格 bullet-list 格式 round-trip 的内容，并在每次写入后报告剩余字符预算。后续会话经由 `dsh-agent-instructions` 把两个文件作为 user-global instruction candidate 接收；本包从不自行注入，因此一次记忆写入不会改变任何运行中会话的 prompt prefix。设置 `requireApproval: true` 后，每次写入先向 approval service 提问，使无人值守 preset 能把记忆变更交给人工 answerer 裁决——没有挂载 answerer 时即拒绝。
+本包把跨会话事实保存在 `$DSH_HOME/USER.md` 和 `$DSH_HOME/MEMORY.md` 中：前者记录用户信息，后者保存 agent 笔记。每次 `memory` 调用增加、替换或删除一个单行条目，拒绝无法通过严格项目符号列表 round trip 的内容，并报告剩余字符预算。`dsh-agent-instructions` 把两个文件加载到后续会话；本包不会注入它们，因此写入不会改变运行中的 prompt prefix。设置 `requireApproval: true` 后，每次写入都需要 approval answerer。
 
 ## 目录
 
@@ -65,5 +65,5 @@ prompt section 随 composition 固定。采用必需的冻结候选配置后，�
 
 - **写入是单操作的**——每次调用一个条目；多条编辑依赖带版本校验的写入失败后由模型重试，而不是批量事务。
 - **当前会话不会即时刷新**——记忆写入只对后续会话可见；当前会话通过 tool result 看到它。实时 re-probe 属于 `dsh-agent-instructions`，不在本包。
-- **没有 invariant companion**——本包不追加自己的事件，除两个文件外不拥有持久记录；每次调用已被 tool registry 记为 `tool/call` 与 `tool/result` 配对，不存在可供 `./invariant` 检查的分歧观测。
+- **Invariant companion**——不发布运行时 invariant companion，因为本包不追加自己的事件，除两个文件外不拥有持久记录；每次调用已被 tool registry 记为 `tool/call` 与 `tool/result` 配对，不存在可供 `./invariant` 检查的分歧观测。
 - **没有 recall 或搜索**——不在两个文件里的内容归 `session_search`；本包只策展这两个文件。

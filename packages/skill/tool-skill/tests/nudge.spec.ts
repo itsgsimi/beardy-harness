@@ -4,7 +4,8 @@ import { SESSION_FORMAT_VERSION, Session, SessionId, type UserMessage } from '@d
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import AgentRegistry, { emitAgentEvent, Inbox, type Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry, { emitAgentEvent, type Agent } from '@deepseek-ai/dsh-agent'
+import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
 
@@ -34,7 +35,7 @@ async function harness(nudgeAfterToolCalls?: number): Promise<Harness> {
     id,
     options: {},
     session,
-    inbox: new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }),
+    inbox: unsupportedInbox(),
     status: 'running',
     ctx: new Context(),
     send: () => {},

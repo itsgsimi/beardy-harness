@@ -1005,7 +1005,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         try {
           const handle = await ctx.sessionPersistence.open(SessionId(record.sessionId), 'read', { signal })
           try {
-            const events = await handle.read(undefined, undefined, { signal })
+            const { events } = await handle.read(undefined, undefined, { signal })
             if (record.deliveredThrough === undefined) {
               await deps.table.put(channelId, { ...record, deliveredThrough: events.length })
             } else {

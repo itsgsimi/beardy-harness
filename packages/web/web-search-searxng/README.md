@@ -73,13 +73,14 @@ This section explains the adapter's observable design; the package contract is f
 | [`src/index.ts`](src/index.ts) | Plugin entry: config schema, environment fallback, provider registration |
 | [`src/provider.ts`](src/provider.ts) | The `SearxngSearchProvider`: request dispatch, JSON validation, abort classification, and result mapping |
 | [`src/types.ts`](src/types.ts) | SearXNG wire types: `SearxngSearchResponse`, `SearxngResult`, and `SearxngError` |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; contracts are enforced at the service) |
 
 ### Request and mapping flow
 
 `search()` sends one encoded query to `{baseURL}/search` with `format=json`, `redirect: 'error'`, and an `Accept: application/json` header. The adapter validates the response envelope and consumed fields, maps source metadata, and leaves final result truncation to `ctx.web`. It sends no credential, so the SearXNG deployment owns any access control outside this provider.
 
 </details>
+
+**Runtime invariant:** No companion is published because the provider contributes no independent event sequence or mutable data relationship beyond behavior enforced by the Web service.
 
 -----
 

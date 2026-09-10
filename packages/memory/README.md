@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The memory group gives an agent a durable, human-editable record of facts that apply to every session. One package owns it: a model-facing `memory` tool that edits two small Markdown files under the Harness home — `USER.md` for who the user is and `MEMORY.md` for the agent's own notes — with strict caps, a single-line entry format, and an optional approval gate for unattended writes. Delivery into future sessions is not this group's job: the files are ordinary user-global instruction candidates that `dsh-agent-instructions` loads into each new session's baseline, so memory needs no context plugin of its own and keeps the prompt prefix cache intact.
+The memory group gives an agent a durable, human-editable record of facts shared by every session. Its model-facing `memory` tool edits two capped Markdown files under the Harness home: `USER.md` describes the user, and `MEMORY.md` holds the agent's notes. Entries use a strict single-line format, with optional approval for unattended writes. `dsh-agent-instructions` loads both files into each new session's baseline, so memory needs no context plugin and preserves the prompt prefix cache.
 
 ## Table of Contents
 

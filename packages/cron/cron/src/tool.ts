@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type { JobRegistry, RegistryJob } from './registry.ts'
 
 /** Actions the tool exposes. */
@@ -101,7 +101,7 @@ export function createCronManageTool(
   ctx: Context,
   registry: JobRegistry,
   deps: CronManageToolDeps,
-) {
+): ToolDefinition {
   return defineTool({
     name: 'cron_manage',
     description:

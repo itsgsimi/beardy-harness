@@ -32,7 +32,7 @@
 
 # Beardy uses the local SearXNG JSON API for search, so no DeepSeek search
 # credential is needed. Set SEARXNG_BASE_URL to use another instance; the
-# default matches the local container documented by the SearXNG provider.
+# The SearXNG provider resolves its endpoint through the launch-environment snapshot.
 - id: web
   config:
     searchProvider: searxng
@@ -44,8 +44,6 @@
 - insert:
     - id: web-search-searxng
       name: '@deepseek-ai/dsh-web-search-searxng'
-      config:
-        baseURL: !!js process.env.SEARXNG_BASE_URL ?? 'http://127.0.0.1:8080'
 
 # The base profile keeps fetching off; Beardy's research profile enables it.
 - id: tool-web

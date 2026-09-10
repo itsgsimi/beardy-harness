@@ -19,7 +19,6 @@
     { "path": "../../core/agent-default-model" },
     { "path": "../../preset/agent-presets" },
     { "path": "../../interaction/permission-presets" },
-    { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../../session/session-title" },
     { "path": "../../session/unattended-session" },
     { "path": "../../core/session" },

@@ -66,6 +66,8 @@ export interface Config {
   projectRootMarkers?: string[]
   /** Ordered instruction files read from the Harness home before project files. */
   userGlobalInstructionCandidates?: string[]
+  /** User-global candidates captured once per session, including absence; must name configured candidates. */
+  frozenUserGlobalInstructionCandidates?: string[]
   /** UTF-8 byte cap for one rendered baseline or dynamic batch; non-positive or non-finite disables loading. */
   maxBytes: number
   /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
@@ -548,26 +550,52 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-cron`
 
-需要：`agentDefaultModel` · `agentPresets` · `agents` · `permissionPresets` · `sessionTitle` · `workspaceRegistry`
+需要：`agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
 export interface ResolvedConfig {
-  /** Jobs to mount at load; an empty list mounts nothing. */
-  readonly jobs: CronJobConfig[]
+  /** Jobs to mount at load; an empty list still mounts the management surfaces. */
+  readonly jobs: ConfiguredCronJob[]
   /** Longest wait for one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted per process before the oldest are released. */
   readonly maxLiveRuns: number
+  /** Agent presets a stored job may name; empty refuses every create. */
+  readonly allowedAgentPresets: string[]
+  /** Permission presets a stored job may name; empty refuses every create. */
+  readonly allowedPermissionPresets: string[]
+  /** Absolute roots a stored job's workspace path must sit inside. */
+  readonly allowedWorkspaceRoots: string[]
+  /** Most jobs the durable store may hold. */
+  readonly maxStoredJobs: number
+  /** Two consecutive fires of a stored schedule must be at least this far apart, in milliseconds. */
+  readonly minIntervalMs: number
+  /** Character cap for one job's continuity notes. */
+  readonly notesMaxChars: number
+  /** Run outcomes retained per job. */
+  readonly keepRunHistory: number
+  /** Create, update, and delete ask the approval service before they land. */
+  readonly requireApproval: boolean
+  /** Finished runs announce an outcome line when there is no text to deliver. */
+  readonly deliverOutcomes: boolean
+  /** Delay between retries of finished output awaiting durable delivery acceptance. */
+  readonly deliveryRetryMs: number
 }
 
-/** One configured job. Every field is deployment-owned; a model cannot add or edit jobs. */
-export interface CronJobConfig {
-  /** Unique name, used in logs, titles, and run provenance. */
+/** One configured job plus its channel-delivery target from plugin configuration. */
+export interface ConfiguredCronJob extends CronJobSpec {
+  /** Channel id where a finished run's final text is delivered; absent means none. */
+  readonly deliverChannel?: string
+}
+
+/** One configured job, as validated plugin configuration delivers it. */
+export interface CronJobSpec {
+  /** Unique name, used in logs, Session titles, and the run's provenance. */
   readonly name: string
   /** Cron expression, 5 or 6 fields as croner accepts them. */
   readonly expression: string
-  /** IANA timezone the expression is evaluated in. */
+  /** IANA timezone the expression is evaluated in, such as `Europe/Zagreb`. */
   readonly timezone: string
   /** Prompt handed to the agent on every fire. */
   readonly prompt: string
@@ -577,22 +605,46 @@ export interface CronJobConfig {
   readonly permissionPreset: string
   /** Absolute workspace path the run works in. */
   readonly workspacePath: string
-  /** Session title; defaults to the job name and fire time. */
+  /** Session title; defaults to the job name followed by the fire time. */
   readonly title?: string
 }
 ```
 
-Source: [`packages/cron/cron/src/index.ts:75`](../packages/cron/cron/src/index.ts)
+来源：[`packages/cron/cron/src/index.ts:111`](../packages/cron/cron/src/index.ts)
 
 <a id="deepseek-aidsh-discord-gateway"></a>
 
 ## `@deepseek-ai/dsh-discord-gateway`
 
-需要：`agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `workspaceRegistry`
+需要：`agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
 export interface Config {
+  /** Render command and lifecycle notices as Discord cards. */
+  readonly richMessages?: boolean
+  /** Preset commands unavailable in Discord. Defaults to the Web-only export command. */
+  readonly excludedPresetCommands?: string[]
+  /** Accent color of Discord cards. */
+  readonly accentColor?: number
+  /** Mark admitted messages with processing and completion reactions. */
+  readonly reactionStatus?: boolean
+  /** Per-attempt outbound HTTP bound. */
+  readonly replyRequestTimeoutMs?: number
+  /** Additional rate-limit retries for immediate replies. */
+  readonly replyMaxRetries?: number
+  /** Longest accepted server-requested retry delay. */
+  readonly replyMaxRetryWaitMs?: number
+  /** Maximum chunks of an immediate reply. */
+  readonly replyMaxChunksPerCall?: number
+  /** Maximum simultaneous native interactions. */
+  readonly interactionMaxPending?: number
+  /** Completed native interaction ids retained to suppress duplicate delivery. */
+  readonly interactionReceiptLimit?: number
+  /** Own and synchronize this application's global command menu. Defaults to true. */
+  readonly nativeCommands?: boolean
+  /** Delay before retrying a failed command-menu sync. Defaults to 30000. */
+  readonly commandSyncRetryMs?: number
   /** Credential reference holding the bot token, such as `DISCORD_BOT_TOKEN`. */
   readonly tokenEnv: string
   /** User ids allowed to converse. Must be non-empty: an open listener is not a supported mode. */
@@ -629,14 +681,26 @@ export interface Config {
   readonly approvalTimeoutMs?: number
   /** Longest wait for one question's answer in milliseconds. Defaults to 600000. */
   readonly questionTimeoutMs?: number
-  /** Reply forms that answer approvals and questions: `reaction`, `text`. Defaults to both. */
+  /** Reply forms: `component`, `reaction`, and `text`. Defaults to all three. */
   readonly answerers?: string[]
   /** Connect at mount. Set false to mount the plugin without dialing out. Defaults to true. */
   readonly enabled?: boolean
+  /** Maximum queued, unfinished deliveries. Defaults to 100. */
+  readonly outboxMaxPending?: number
+  /** Maximum UTF-16 units per delivery: rewritten text or serialized rich message bodies. Defaults to 20000. */
+  readonly outboxMaxChars?: number
+  /** Initial delivery retry delay in milliseconds. Defaults to 1000. */
+  readonly outboxRetryMs?: number
+  /** Maximum delivery retry delay in milliseconds. Defaults to 60000. */
+  readonly outboxMaxRetryMs?: number
+  /** Completed delivery ids retained to suppress replays. Defaults to 1000. */
+  readonly outboxMaxReceipts?: number
+  /** Retry delay for a failed reminder read or resume. Defaults to 30000. */
+  readonly wakeRetryMs?: number
 }
 ```
 
-Source: [`packages/discord/discord-gateway/src/index.ts:70`](../packages/discord/discord-gateway/src/index.ts)
+来源：[`packages/discord/discord-gateway/src/index.ts:79`](../packages/discord/discord-gateway/src/index.ts)
 
 <a id="deepseek-aidsh-e2b"></a>
 
@@ -833,6 +897,31 @@ export interface Config {
 
 来源：[`packages/experimental/tool-agent-team/src/index.ts:17`](../packages/experimental/tool-agent-team/src/index.ts)
 
+<a id="deepseek-aidsh-experimental-training-export"></a>
+
+## `@deepseek-ai/dsh-experimental-training-export`
+
+需要：`llm` · `sessions`
+
+```ts config-catalog
+/** Required, no-hidden-default plugin configuration. */
+export interface Config {
+  /** Absolute directory for every session's sidecar; created on first write. */
+  readonly root: string
+  /**
+   * Non-empty allow-list matched against `GenerateOptions.provider`. Gates
+   * only the per-turn workspace `git` reads: every provider's samples are
+   * written regardless, and the `halorun dataset` reader applies its own
+   * provider filter.
+   */
+  readonly providers: string[]
+  /** Whether this plugin's listeners are active; no default — an omitted value fails to load, not silently off. */
+  readonly enabled: boolean
+}
+```
+
+来源：[`packages/experimental/training-export/src/index.ts:26`](../packages/experimental/training-export/src/index.ts)
+
 <a id="deepseek-aidsh-file-reference-local"></a>
 
 ## `@deepseek-ai/dsh-file-reference-local`
@@ -870,7 +959,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/fs/fs-local/src/index.ts:42`](../packages/fs/fs-local/src/index.ts)
+来源：[`packages/fs/fs-local/src/index.ts:43`](../packages/fs/fs-local/src/index.ts)
 
 <a id="deepseek-aidsh-fs-sandbox"></a>
 
@@ -2705,7 +2794,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/core/system-prompt/src/index.ts:242`](../packages/core/system-prompt/src/index.ts)
+来源：[`packages/core/system-prompt/src/index.ts:243`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2868,7 +2957,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/discord/tool-discord/src/index.ts:40`](../packages/discord/tool-discord/src/index.ts)
+来源：[`packages/discord/tool-discord/src/index.ts:42`](../packages/discord/tool-discord/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 
@@ -2996,6 +3085,82 @@ export interface Config {
 ```
 
 来源：[`packages/lsp/tool-lsp/src/index.ts:57`](../packages/lsp/tool-lsp/src/index.ts)
+
+<a id="deepseek-aidsh-tool-memory"></a>
+
+## `@deepseek-ai/dsh-tool-memory`
+
+需要：`tools` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin configuration; every tunable is a validated field changeable from cordis.yml. */
+export interface Config {
+  /** Harness home holding the two files. Defaults to `$DSH_HOME` or `~/.dsh`. */
+  readonly dshHome?: string
+  /** Character cap for USER.md. Defaults to 1375. */
+  readonly userMaxChars?: number
+  /** Character cap for MEMORY.md. Defaults to 2200. */
+  readonly memoryMaxChars?: number
+  /** Character cap for one entry. Defaults to 400. */
+  readonly entryMaxChars?: number
+  /** Ask the approval service before every write. Defaults to false; set true for unattended presets. */
+  readonly requireApproval?: boolean
+}
+```
+
+来源：[`packages/memory/tool-memory/src/index.ts:35`](../packages/memory/tool-memory/src/index.ts)
+
+<a id="deepseek-aidsh-tool-odysseus-research"></a>
+
+## `@deepseek-ai/dsh-tool-odysseus-research`
+
+需要：`tools` · `credentials` · `settings`
+
+```ts config-catalog
+/** Deployment-selected server, worker, and request bounds. */
+export interface Config {
+  /** Odysseus origin, including an optional reverse-proxy path prefix. */
+  baseURL: string
+  /** Credential reference for an Odysseus token with research:read and research:run scopes. */
+  tokenEnv: string
+  /** Owner-accessible Odysseus endpoint id used for every new job. */
+  endpointId: string
+  /** Exact model id on that endpoint; no model selection is delegated to the caller. */
+  model: string
+  /** Disable worker thinking through the OpenAI-compatible chat template option. Defaults to false. */
+  disableThinking?: boolean
+  /** Label of the main configured worker. Defaults to its model id. */
+  workerLabel?: string
+  /** Additional models available to the user; defaults to none. */
+  workers?: ResearchWorker[]
+  /** Research rounds, from 1 to 20. */
+  maxRounds: number
+  /** Odysseus research time budget in seconds, from 60 to 1800. */
+  maxTimeSeconds: number
+  /** Deadline for one HTTP operation, including its response body. Defaults to 30000. */
+  requestTimeoutMs?: number
+  /** Maximum complete HTTP response body in bytes. Defaults to 1048576. */
+  maxResponseBytes?: number
+  /** Maximum Unicode characters per returned report or status page. Defaults to 16000. */
+  pageChars?: number
+}
+
+/** One operator-configured research model offered in the picker. */
+export interface ResearchWorker {
+  /** Stable picker id; `default` is reserved for the main configured worker. */
+  id: string
+  /** User-facing model name. */
+  label: string
+  /** Owner-accessible Odysseus endpoint id. */
+  endpointId: string
+  /** Exact model id on that endpoint. */
+  model: string
+  /** Whether to suppress thinking for this worker. */
+  disableThinking: boolean
+}
+```
+
+来源：[`packages/web/tool-odysseus-research/src/index.ts:33`](../packages/web/tool-odysseus-research/src/index.ts)
 
 <a id="deepseek-aidsh-tool-present"></a>
 
@@ -3747,6 +3912,7 @@ export interface Config {
 - `@deepseek-ai/dsh-typert-generator`（[`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts)）
 - `@deepseek-ai/dsh-typert-protocol`（[`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts)）
 - `@deepseek-ai/dsh-typert-registry`（[`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts)）
+- `@deepseek-ai/dsh-unattended-session`（[`packages/session/unattended-session/src/index.ts`](../packages/session/unattended-session/src/index.ts)）
 - `@deepseek-ai/dsh-util-crypto`（[`packages/util/crypto/src/index.ts`](../packages/util/crypto/src/index.ts)）
 - `@deepseek-ai/dsh-util-time`（[`packages/util/time/src/index.ts`](../packages/util/time/src/index.ts)）
 - `@deepseek-ai/dsh-util-values`（[`packages/util/values/src/index.ts`](../packages/util/values/src/index.ts)）

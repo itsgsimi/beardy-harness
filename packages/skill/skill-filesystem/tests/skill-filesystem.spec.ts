@@ -202,7 +202,23 @@ describe('FileSystemSkillProvider', () => {
     const bundled = await tempDir('skill-bundled')
     await writeSkill(bundled, 'bundled-only', 'bundled skill')
     await writeSkill(bundled, 'same', 'bundled skill')
-    const ctx = await setupLocal(home, { customSkillDirs: [custom], bundledSkillDir: bundled })
+    const noGit = await tempDir('skill-no-git')
+    await writeSkill(join(noGit, '.dsh/skills'), 'fallback-root', 'Fallback root')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(TestFileSystem)
+    const fs = ctx.fs as TestFileSystem
+    let ancestor = noGit
+    while (true) {
+      fs.failStatPaths.add(join(ancestor, '.git'))
+      const parent = dirname(ancestor)
+      if (parent === ancestor) break
+      ancestor = parent
+    }
+    await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false,
+      customSkillDirs: [custom], bundledSkillDir: bundled,
+    })
 
     const skills = await ctx.skills.list({ cwd: join(project, 'src') })
     expect(skills.map(skill => skill.name)).toEqual([
@@ -217,8 +233,6 @@ describe('FileSystemSkillProvider', () => {
     expect(skills.find(skill => skill.name === 'bundled-only')).toMatchObject({ source: 'bundled' })
     expect((await ctx.skills.get('bundled-only'))?.content).toBe('Use the skill.')
 
-    const noGit = await tempDir('skill-no-git')
-    await writeSkill(join(noGit, '.dsh/skills'), 'fallback-root', 'Fallback root')
     expect((await ctx.skills.list({ cwd: noGit })).map(skill => skill.name)).toContain('fallback-root')
   })
 

@@ -45,9 +45,6 @@
       "path": "../../preset/agent-presets"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../session/session-title"
     },
     {

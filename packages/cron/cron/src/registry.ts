@@ -246,7 +246,10 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
   const registry: JobRegistry = {
     list(): JobListing[] {
       return all()
-        .map(job => ({ ...job, ...stateOf(job.name) }))
+        .map((job) => {
+          const state = stateOf(job.name)
+          return { ...job, ...state, enabled: state.enabled ?? job.enabled }
+        })
         .sort((left, right) => left.name.localeCompare(right.name))
     },
     scheduled(): RegistryJob[] {
@@ -254,7 +257,9 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
     },
     find(name: string): JobListing | undefined {
       const job = all().find(job => job.name === name)
-      return job === undefined ? undefined : { ...job, ...stateOf(name) }
+      if (job === undefined) return undefined
+      const state = stateOf(name)
+      return { ...job, ...state, enabled: state.enabled ?? job.enabled }
     },
     async create(input: CreateJobInput): Promise<RegistryJob> {
       if (isConfigured(input.name)) {

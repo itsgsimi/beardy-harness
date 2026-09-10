@@ -1,6 +1,7 @@
 /** Beardy's inherited composition must open and resume a browser session. */
 import { chromium } from 'playwright'
 import { expect, it } from 'vitest'
+import type {} from '@deepseek-ai/dsh-settings'
 import { launchWebScaffold, watchConsole } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage } from './support.ts'
 

@@ -639,12 +639,19 @@ describe('headless recorded-session snapshots', () => {
     const fixture = await readFile(join(dir, await primaryFixtureFile(dir)), 'utf8')
     const preset = loadYaml(await readFile(join(
       repoRoot, 'packages/preset/agent-presets/presets/beardy-unattended/agent.cordis.yml',
-    ), 'utf8')) as Array<{ config: { patches: Array<{ id: string; config?: { text?: string } }> } }>
-    const persona = preset[0]?.config.patches.find(row => row.id === 'persona')?.config?.text
-    expect(persona).toContain("Follow the run's delivery instructions; if none are provided, deliver with discord_send.")
+    ), 'utf8')) as Array<{ config: { patches: Array<{
+      id: string
+      config?: { prefix?: string; suffix?: string }
+    }> } }>
+    const persona = preset[0]?.config.patches.find(row => row.id === 'persona')?.config
+    expect(persona?.prefix).toContain(
+      "Follow the run's delivery instructions; if none are provided, deliver with discord_send.",
+    )
+    expect(persona?.suffix).toBe('Your working directory is {{cwd}}.')
     const patch = await readFile(join(dir, 'cordis.yml'), 'utf8')
-    const composition = loadYaml(patch) as Array<{ config: { persona: string } }>
-    expect(composition[0]?.config.persona).toBe(persona)
+    const composition = loadYaml(patch) as Array<{ config: { personaPrefix: string; personaSuffix: string } }>
+    expect(composition[0]?.config.personaPrefix).toBe(persona?.prefix)
+    expect(composition[0]?.config.personaSuffix).toBe(persona?.suffix)
     expect(await readFile(join(dir, 'cordis.snapshot.yml'), 'utf8')).toContain(patch.trim())
     expect(taskFromSession(fixture)).toBe(runPrompt({
       name: 'morning-brief',

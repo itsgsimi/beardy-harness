@@ -77,9 +77,9 @@ export async function openUnattendedSession(
     signal,
     meta: { cwd: workspace.path, agentPreset: preset.id },
     agentOptions: spec.agentOptions,
-    setup: async (agentCtx) => {
+    setup: async (agentCtx, agent) => {
       await ctx.agentPresets.mount(agentCtx, preset.id)
-      return spec.setup?.(agentCtx)
+      return spec.setup?.(agentCtx, agent)
     },
   })
 
@@ -157,9 +157,9 @@ export async function resumeUnattendedSession(
     resumeSessionId: spec.sessionId,
     agentOptions: spec.agentOptions,
     signal,
-    setup: async (agentCtx) => {
+    setup: async (agentCtx, agent) => {
       await ctx.agentPresets.mount(agentCtx, preset.id)
-      return spec.setup?.(agentCtx)
+      return spec.setup?.(agentCtx, agent)
     },
   })
 

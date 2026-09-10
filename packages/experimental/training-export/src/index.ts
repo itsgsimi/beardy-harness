@@ -2,7 +2,7 @@
  * Sidecar training-data capture: folds every `llm/stream` call whose
  * `sessionId` is set into a `train/sample` line, and every `turn/end` into a
  * `train/label` line, beside (never inside) the session log. Contract:
- * `docs/training-export-format.md` in the halorun checkout.
+ * The matching halorun checkout owns the version 1 wire format.
  * @module @deepseek-ai/dsh-experimental-training-export
  */
 

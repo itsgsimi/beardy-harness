@@ -108,7 +108,12 @@ export class SandboxedFileSystem extends LocalFileSystem {
     return super.editText(await this.checkedTarget(target, sandboxPolicy), edit, expected, signal)
   }
 
-  /** Fence directory creation with the per-call sandbox policy. */
+  /**
+   * Fence directory creation with the per-call sandbox policy.
+   * @param target - resolved directory target.
+   * @param signal - aborts before directory creation takes effect.
+   * @param sandboxPolicy - per-call mode and workspace root; omit to use the deployment fallback.
+   */
   override async makeDirectory(
     target: FsTarget,
     signal?: AbortSignal,
@@ -117,7 +122,12 @@ export class SandboxedFileSystem extends LocalFileSystem {
     return super.makeDirectory(await this.checkedTarget(target, sandboxPolicy), signal)
   }
 
-  /** Fence regular-file removal with the per-call sandbox policy. */
+  /**
+   * Fence regular-file removal with the per-call sandbox policy.
+   * @param target - resolved regular-file target.
+   * @param signal - aborts before file removal takes effect.
+   * @param sandboxPolicy - per-call mode and workspace root; omit to use the deployment fallback.
+   */
   override async removeFile(
     target: FsTarget,
     signal?: AbortSignal,

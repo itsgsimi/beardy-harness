@@ -68,7 +68,7 @@ export class DiscordWakeCoordinator {
       const handle = await this.ctx.sessionPersistence.open(SessionId(record.sessionId), 'read', { signal: this.controller.signal })
       let next: number | undefined
       try {
-        const events = await handle.read(handle.inheritedEventCount, undefined, { signal: this.controller.signal })
+        const { events } = await handle.read(handle.inheritedEventCount, undefined, { signal: this.controller.signal })
         next = foldScheduleEvents(events).active.reduce<number | undefined>((earliest, item) => {
           const time = Date.parse(item.scheduledAt)
           return earliest === undefined ? time : Math.min(earliest, time)

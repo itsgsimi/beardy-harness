@@ -111,8 +111,8 @@ export function reopenRegistry(
   return createJobRegistry({
     configJobs,
     configDelivery: new Map(),
-    jobsTable: fakeTable(tables.jobsTable) as never,
-    stateTable: fakeTable(tables.stateTable) as never,
+    jobsTable: fakeTable(tables.jobsTable),
+    stateTable: fakeTable(tables.stateTable),
     guardrails: GUARDRAILS,
   })
 }

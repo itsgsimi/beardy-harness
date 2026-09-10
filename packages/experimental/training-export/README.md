@@ -5,9 +5,11 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-experimental-training-export
 
+English | [中文](README.zh.md)
+
 ## Summary
 
-`dsh-training-export` writes a training-data sidecar beside each persisted session: one `train/sample` line per `llm/stream` call and one `train/label` line per completed turn, in the format `halorun dataset` reads (`docs/training-export-format.md` in the halorun checkout). It is listener-only — no prompt, no tool schema, no session-log event — so a build without this plugin reads an unaffected session log. Samples carry the exact request the adapter saw, the folded response, SHA-256 hashes of the system prompt and tool schemas, and a best-effort workspace snapshot; labels carry per-turn outcome counts (tool calls/errors and, per call, whether it errored, how long it took, and its result size; hooks; approvals; a `git diff --shortstat`; turn timing; total assistant text length; and any per-message ratings). `meta.json` also carries the session's agent preset and its latest known title. The package lives under `packages/experimental/`: its contract can change without notice and no released product may depend on it.
+`dsh-training-export` writes sidecar training data beside each persisted session: one `train/sample` per `llm/stream` call, one `train/label` per completed turn, and session metadata. Samples preserve the adapter request, folded response, hashes, and a best-effort workspace snapshot; labels summarize tool, hook, approval, timing, diff, assistant-text, and rating outcomes. The listener adds no prompt, tool schema, or session event, so sessions remain readable without it. This private experimental package follows the version 1 format consumed by `halorun dataset`; its contract may change without notice.
 
 ## Table of Contents
 
@@ -89,6 +91,8 @@ None, as the model sees nothing this plugin adds — no prompt text, tool schema
 The plugin never constructs or rewrites a request, so it cannot invalidate, extend, or replace any provider-side cache; every effect happens strictly after a response is already assembled.
 
 ## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
 
 - **Ratings only at label time** — `train/label.ratings` is a snapshot taken when the turn ends; a rating added afterward is not picked up by this plugin. The format doc reserves `halorun dataset --refresh-ratings` for that case; this plugin does not implement it.
 - **No cross-restart seq/turn recovery beyond the `samples.jsonl` line count** — the per-session `seq` counter resumes correctly across a process restart (it counts existing lines), but in-memory turn/step tracking and the open turn's running aggregate do not survive a restart or HMR reload: a turn already open when the plugin (re)loads produces no label for that turn.

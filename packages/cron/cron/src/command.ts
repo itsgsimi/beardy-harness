@@ -25,7 +25,13 @@ function nextFireLine(job: JobListing): string {
     + (next === null ? '' : `, next ${new Date(next).toISOString()}`)
 }
 
-/** Run one subcommand against the registry, translating guardrail rejections into error results. */
+/**
+ * Run one subcommand against the registry, translating guardrail rejections into error results.
+ * @param rawInput - command text after the `/cron` prefix.
+ * @param registry - merged configured and stored job view.
+ * @param deps - live scheduler operations unavailable through the registry.
+ * @returns the user-facing command result.
+ */
 export async function runCronSubcommand(
   rawInput: string,
   registry: JobRegistry,

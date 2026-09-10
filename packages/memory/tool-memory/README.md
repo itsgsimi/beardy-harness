@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The package gives an agent a durable record of cross-session facts in exactly two files: `$DSH_HOME/USER.md` (who the user is — name, role, environment, standing preferences) and `$DSH_HOME/MEMORY.md` (the agent's own notes — conventions with no task home, environment facts, things learned that apply everywhere). The `memory` tool adds, replaces, or removes one single-line entry per call, refuses anything that would not round-trip through its strict bullet-list format, and reports the remaining character budget after every write. Later sessions receive both files through `dsh-agent-instructions` as user-global instruction candidates; this package never injects them itself, so a memory write changes no running session's prompt prefix. With `requireApproval: true` every write first asks the approval service, which lets an unattended preset stage memory changes for a human answerer — or refuse them when none is mounted.
+The package stores cross-session facts in `$DSH_HOME/USER.md` for user details and `$DSH_HOME/MEMORY.md` for the agent's notes. Each `memory` call adds, replaces, or removes one single-line entry, rejects content that fails its strict bullet-list round trip, and reports the remaining character budget. `dsh-agent-instructions` loads both files into later sessions; this package does not inject them, so writes do not change a running prompt prefix. With `requireApproval: true`, every write requires an approval answerer.
 
 ## Table of Contents
 
@@ -65,5 +65,5 @@ The prompt section is static per composition. With the required frozen-candidate
 
 - **Writes are single-operation** — one entry per call; multi-entry edits rely on the version-checked write failing and the model retrying, not on a batch transaction.
 - **No live refresh of the current session** — a memory write is visible to later sessions only; the current session sees it through the tool result. A live re-probe would belong to `dsh-agent-instructions`, not here.
-- **No invariant companion** — this package appends no event of its own and owns no durable record beyond the two files; every call is already logged as a `tool/call` and `tool/result` pair by the tool registry, so there is no diverging observation for `./invariant` to check.
+- **Invariant companion** — No runtime invariant companion is published because this package appends no event of its own and owns no durable record beyond the two files; every call is already logged as a `tool/call` and `tool/result` pair by the tool registry, so there is no diverging observation for `./invariant` to check.
 - **No recall or search** — anything not in the two files belongs to `session_search`; this package only curates the files.

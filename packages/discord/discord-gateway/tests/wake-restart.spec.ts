@@ -10,7 +10,6 @@ import type { ConversationRecord } from '../src/domain.ts'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -55,7 +54,6 @@ async function mountRuntime(root: string, adapter: RecordingAdapter): Promise<Co
   const ctx = new Context()
   contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
-  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -85,7 +83,11 @@ function waitForDispatch(ctx: Context, sessionId: SessionId): Promise<void> {
 async function readStored(ctx: Context, id: SessionId) {
   const handle = await ctx.sessionPersistence.open(id, 'read')
   try {
-    return { header: handle.header, inheritedEventCount: handle.inheritedEventCount, events: await handle.read() }
+    return {
+      header: handle.header,
+      inheritedEventCount: handle.inheritedEventCount,
+      events: (await handle.read()).events,
+    }
   } finally {
     await handle.close()
   }

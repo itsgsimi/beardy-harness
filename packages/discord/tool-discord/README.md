@@ -9,9 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The package gives an agent one way to write into Discord: the `discord_send` tool posts a message to the channel named in configuration, or to a direct-message channel with an allowlisted user when `dmUserIds` lists ids. It speaks the Discord REST API directly — no SDK, no gateway connection, no cached Discord state — and resolves the bot token from a credential reference at send time. Bodies longer than Discord's 2000-character limit are split into consecutive messages, HTTP 429 replies are waited out up to a configured ceiling, and `@everyone` and `@here` are rewritten before posting. The transport disables every mention type, including user and role pings. Mount it beside a credential provider; the plugin registers nothing else.
-
-Replies retain Discord's native headings, emphasis, lists, links, and code. Markdown tables become labeled bullet groups. Long fenced code blocks keep their language, indentation, and source newlines across messages; each message closes its fence and counts that wrapper toward the 2000 UTF-16-unit limit.
+The `discord_send` tool posts to a configured Discord channel or an allowlisted user's direct messages. It uses the REST API, resolves its bot token from a credential reference, splits bodies above 2000 UTF-16 units, waits through bounded rate limits, neutralizes broadcast mentions, and disables all other mentions. Replies preserve native Markdown; tables become labeled bullet groups, and split fenced code blocks retain their language, indentation, and newlines. Mount it beside a credential provider.
 
 ## Table of Contents
 

@@ -61,7 +61,7 @@ function record(value: unknown): Record<string, unknown> {
  * @returns a complete JSON response page with an explicit continuation offset.
  */
 export async function requestResearch(
-  config: Required<Config>, token: string, args: ResearchRequest, signal: AbortSignal,
+  config: Required<Omit<Config, 'workerLabel'>>, token: string, args: ResearchRequest, signal: AbortSignal,
 ): Promise<ResearchResponse> {
   const offset = args.offset ?? 0
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('offset must be a non-negative safe integer')

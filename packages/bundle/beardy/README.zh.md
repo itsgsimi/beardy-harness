@@ -11,7 +11,7 @@ Odysseus 深度研究需显式启用：在个人配置档补丁中启用默认�
 
 ## 概述
 
-Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。随发行版交付的 `beardy` profile 会自动包含它，并在 Harness home 下保存专用的会话搜索索引。Beardy 继承完整的 Creator mode 能力清单，包括 standard 编码工具与 Cordis 实时创作工具，再增加自己的身份、`$DSH_HOME/SOUL.md` 个性文件、跨会话的策展记忆（由单一 `memory` 工具管理的 `$DSH_HOME/USER.md` 与 `MEMORY.md`）、会话搜索、对话时钟、SearXNG 支持的 Web 搜索与 Web 抓取。定时运行与 Discord 投递来自 `dsh-cron`、`dsh-tool-discord` 与 `dsh-discord-gateway`；patch 把这三行挡在 `DISCORD_BOT_TOKEN` 凭据之后，且不随包交付任何 cron 任务。你自己的简报、渠道目的地、网关工作区与权限预设由你的 profile patch（`$DSH_HOME/profiles/<profile>/cordis.patch.yml`）提供；被启用却缺少该配置的行会在 schema 检查处响亮失败，而不是按默认值运行。
+Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。它保留 Creator mode 工具，并增加身份、`$DSH_HOME/SOUL.md` 个性文件、跨会话策展记忆、会话搜索、对话时钟以及 Web 搜索和抓取。可选的定时运行与 Discord 投递需要 `DISCORD_BOT_TOKEN`；组合包不附带 cron 任务。在 `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 中配置简报、目的地、工作区和权限。已启用但缺少配置的条目会在 schema 校验时失败。
 
 ## 目录
 
@@ -142,13 +142,12 @@ patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-
 |---|---|
 | [`cordis.patch.yml`](cordis.patch.yml) | Beardy 在 base 与 Web 组合包之上的 patch 层 |
 | [`src/index.ts`](src/index.ts) | 包入口；不携带运行时 API |
-| [`src/invariant.ts`](src/invariant.ts) | 静态 patch 载体对应的空 invariant companion |
 | [`tests/beardy.spec.ts`](tests/beardy.spec.ts) | manifest、patch、依赖与默认值检查 |
 | [`tests/composition.spec.ts`](tests/composition.spec.ts) | token 门控、零部署数据与必填字段失败检查 |
 
 ### Invariant 归属
 
-组合包不注册任何运行时 invariant，因为它只替换和插入由其他包拥有的行。每个运行时包各自检查自己的服务、事件与持久化关系。
+不发布运行时 invariant companion，因为该组合包只替换和插入由其他包拥有的行。每个运行时包各自检查自己的服务、事件与持久化关系。
 
 </details>
 

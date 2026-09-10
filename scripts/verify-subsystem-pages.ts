@@ -18,7 +18,9 @@ export const GROUPS_WITHOUT_SUBSYSTEM_PAGE: Readonly<Record<string, string>> = {
   acp: 'Protocol transport entry point; the server package README owns its interoperability contract.',
   boot: 'Shared application-bin boot library rather than a runtime subsystem.',
   bundle: 'Composition patch carriers whose mounted packages own all runtime contracts.',
+  discord: 'Two transport adapters whose package READMEs fully own the outbound tool and inbound gateway contracts.',
   hooks: 'External hook-protocol bridges over existing interception points, not a new Harness service.',
+  memory: 'One tool package over the existing filesystem and instruction-loading services, not a standalone service.',
   sdk: 'Out-of-process protocol and client packages whose package READMEs own the SDK contracts.',
   util: 'Low-level primitives whose business semantics remain with their consuming subsystems.',
 }

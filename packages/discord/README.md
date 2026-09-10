@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The Discord group connects an agent to Discord in both directions with two independent packages. Delivery is one model-facing `discord_send` tool that posts to a configured channel or to an allowlisted user's direct messages, splitting long bodies and rewriting broadcast mentions; it speaks the REST API directly and holds no Discord state. Conversations run the other way: a gateway websocket reads direct messages from allowlisted users, opens a session per channel on the Host, and posts each answer back where the message came from. Either half can be mounted alone — delivery needs only a credential provider, and inbound conversation reuses the same delivery path for its replies. Both resolve the bot token from a credential reference, so no token appears in a composition file, and exactly one process may identify with a given bot token.
+The Discord group connects an agent in both directions through two independent packages. The model-facing `discord_send` tool posts to a configured channel or an allowlisted user's direct messages, splitting long bodies and neutralizing broadcast mentions through the REST API. The gateway reads allowlisted direct messages, opens one Host session per channel, and sends answers through the same delivery path. Either half can run alone. Both resolve the bot token from a credential reference, and only one process may identify with a given token.
 
 ## Table of Contents
 

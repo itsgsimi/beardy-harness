@@ -80,7 +80,7 @@ export class RepositoryCleaner {
     }
     await this.addIfPresent(
       targets,
-      join(this.root, 'native/landlock-run/tsconfig.tsbuildinfo'),
+      join(this.root, 'native/system/tsconfig.tsbuildinfo'),
       canonicalRoot,
     )
 

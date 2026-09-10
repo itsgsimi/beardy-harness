@@ -11,7 +11,7 @@ Odysseus deep research is opt-in: enable the disabled `tool-odysseus-research` r
 
 ## Summary
 
-The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. The shipped `beardy` profile includes it automatically and stores a dedicated session-search index under the Harness home. Beardy inherits the complete Creator mode capability roster, including the standard coding tools and live Cordis authoring tools, then adds its identity, `$DSH_HOME/SOUL.md` personality file, curated cross-session memory (`$DSH_HOME/USER.md` and `MEMORY.md` behind one `memory` tool), session search, a conversation clock, SearXNG-backed Web search, and Web fetching. Scheduled runs and Discord delivery come from `dsh-cron`, `dsh-tool-discord`, and `dsh-discord-gateway`; the patch gates those three rows behind a `DISCORD_BOT_TOKEN` credential and ships no cron jobs. Your own briefs, channel destination, gateway workspace, and permission preset come from your profile patch (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`); an enabled row without that configuration fails its schema check loudly rather than running on defaults.
+The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. It keeps the Creator mode tools and adds identity, a `$DSH_HOME/SOUL.md` personality file, curated cross-session memory, session search, a conversation clock, and Web search and fetching. Optional scheduled runs and Discord delivery require `DISCORD_BOT_TOKEN`; the bundle ships no cron jobs. Configure briefs, destinations, workspace, and permissions in `$DSH_HOME/profiles/<profile>/cordis.patch.yml`. An enabled entry with missing configuration fails schema validation.
 
 ## Table of Contents
 
@@ -142,13 +142,12 @@ The patch selects the shipped `beardy` agent preset, overrides `session-query-sq
 |---|---|
 | [`cordis.patch.yml`](cordis.patch.yml) | Beardy's patch layer over the base and Web bundles |
 | [`src/index.ts`](src/index.ts) | Package entry; carries no runtime API |
-| [`src/invariant.ts`](src/invariant.ts) | Empty invariant companion for the static patch carrier |
 | [`tests/beardy.spec.ts`](tests/beardy.spec.ts) | Manifest, patch, dependency, and default checks |
 | [`tests/composition.spec.ts`](tests/composition.spec.ts) | Token gating, no-deployment-data, and required-field failure checks |
 
 ### Invariant ownership
 
-The bundle registers no runtime invariant because it only replaces and inserts rows owned by other packages. Each runtime package checks its own services, events, and persistence relationships.
+No runtime invariant companion is published because the bundle only replaces and inserts rows owned by other packages. Each runtime package checks its own services, events, and persistence relationships.
 
 </details>
 

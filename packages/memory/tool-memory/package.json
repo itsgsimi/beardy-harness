@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-memory",
   "description": "Model-facing curated memory tool editing USER.md and MEMORY.md under the Harness home",
-  "version": "0.1.3-alpha.1",
+  "version": "0.1.5-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -40,6 +40,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
+    "@deepseek-ai/dsh-agent-loop-testkit": "workspace:^",
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-fs-local": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
