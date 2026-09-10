@@ -3,7 +3,7 @@ import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationLocationDataStore, ConversationTurnDataMap } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ChatNode } from '../contract/chat-nodes.ts'
-import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
+import { isProcessIndependent } from '../contract/turn-process.ts'
 import { storedTurnProcessEntry } from '../stores.ts'
 import { useSearchableHidden } from './searchable-hidden.ts'
 import css from './ChatView.module.css'
@@ -68,7 +68,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     && !historyIncomplete
   const processMember = routedNode !== undefined
     && processWindowReady
-    && !TURN_PROCESS_INDEPENDENT_KINDS.has(routedNode.kind)
+    && !isProcessIndependent(routedNode)
     && routedNode.anchorSeq >= processSpec.processStartSeq
     && routedNode.anchorSeq < processSpec.answerAnchorSeq
   const processAnswer = routedNode !== undefined

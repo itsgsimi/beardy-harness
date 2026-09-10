@@ -51,7 +51,7 @@ async function agent(ctx: Context, cwd: string | undefined): Promise<Agent> {
 }
 
 
-async function setup() {
+async function setup(maxVisualBytes = 8192) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-present-minimal-'))
   cleanups.push(() => rm(root, { recursive: true, force: true }))
   const ctx = new Context()
@@ -62,7 +62,7 @@ async function setup() {
   await ctx.plugin(LocalFileSystem, { cwd: root })
   await ctx.plugin(SessionProjectionRegistry)
   ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
-  const fiber = ctx.plugin(Present, { maxFiles: 2 })
+  const fiber = ctx.plugin(Present, { maxFiles: 2, maxVisualBytes })
   await fiber
   const owner = await agent(ctx, root)
   owner.session.append('turn/start', { turn: 1 })
@@ -70,7 +70,11 @@ async function setup() {
     signal: new AbortController().signal, callId: ToolCallId(`call-${++callNumber}`),
     name: 'present', arguments: { files }, agent: owner,
   })
-  return { ctx, owner, root, fiber, execute }
+  const visual = (path: string, description = 'The chart explains the measured results.') => ctx.tools.execute({
+    signal: new AbortController().signal, callId: ToolCallId(`call-${++callNumber}`),
+    name: 'present_visual', arguments: { path, title: 'Measured results', description }, agent: owner,
+  })
+  return { ctx, owner, root, fiber, execute, visual }
 }
 
 describe('present', () => {
@@ -114,7 +118,7 @@ describe('present', () => {
 
   it('records once when ancestor and agent scopes both mount present', async () => {
     const { owner, root, execute } = await setup()
-    await owner.ctx.plugin(Present, { maxFiles: 2 })
+    await owner.ctx.plugin(Present, { maxFiles: 2, maxVisualBytes: 8192 })
     await writeFile(join(root, 'a'), 'a')
     expect((await execute([{ path: 'a' }])).isError).toBe(false)
     const deliveries = owner.session.snapshotEvents().filter(event => event.type === 'deliverables/presented')
@@ -150,8 +154,89 @@ describe('present', () => {
 
 it('validates deployment limits before registering the tool', () => {
   for (const config of [{ maxFiles: 0 }, { maxFiles: 1.5 }, { maxFiles: Number.POSITIVE_INFINITY }]) {
-    expect(() => { Present.apply(new Context(), config) }).toThrow('positive integer maxFiles')
+    expect(() => { Present.apply(new Context(), { ...config, maxVisualBytes: 8192 }) }).toThrow('positive integer maxFiles')
   }
+  for (const maxVisualBytes of [0, 1.5, Number.POSITIVE_INFINITY]) {
+    expect(() => { Present.apply(new Context(), { maxFiles: 2, maxVisualBytes }) }).toThrow('positive integer maxVisualBytes')
+  }
+})
+
+describe('present_visual', () => {
+  it('requires nonblank presentation details and a workspace in an open agent turn', async () => {
+    const { ctx, owner, root } = await setup()
+    await writeFile(join(root, 'chart.svg'), '<svg/>')
+    const args = { path: 'chart.svg', title: 'Measured results', description: 'Findings.' }
+    const invoke = (arguments_: typeof args, agent_: Agent | undefined = owner) => ctx.tools.execute({
+      signal: new AbortController().signal, callId: ToolCallId(`visual-context-${++callNumber}`),
+      name: 'present_visual', arguments: arguments_, ...agent_ === undefined ? {} : { agent: agent_ },
+    })
+    for (const field of ['path', 'title', 'description']) {
+      expect((await invoke({ ...args, [field]: ' ' })).isError).toBe(true)
+    }
+    const detached = await ctx.tools.execute({
+      signal: new AbortController().signal, callId: ToolCallId('visual-detached'),
+      name: 'present_visual', arguments: args,
+    })
+    expect(detached.isError).toBe(true)
+    const noWorkspace = await agent(ctx, undefined)
+    noWorkspace.session.append('turn/start', { turn: 1 })
+    expect((await invoke(args, noWorkspace)).isError).toBe(true)
+    const noTurn = await agent(ctx, root)
+    expect((await invoke(args, noTurn)).isError).toBe(true)
+    owner.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    expect((await invoke(args)).isError).toBe(true)
+    expect(owner.session.snapshotEvents().some(event => event.type === 'deliverables/presented')).toBe(false)
+  })
+
+  it.each(['chart.svg', 'mockup.html', 'animation.gif', 'screenshot.png', 'photo.jpg', 'chart.webp'])(
+    'preserves original %s bytes outside model content and survives source deletion', async (path) => {
+      const { root, visual, owner, ctx, fiber } = await setup()
+      const bytes = Buffer.from(path.endsWith('.svg') ? '<svg xmlns="http://www.w3.org/2000/svg"><text>图表</text></svg>' : 'original bytes')
+      await writeFile(join(root, path), bytes)
+      const result = await visual(path)
+      expect(result.isError).toBe(false)
+      expect(result.content).toEqual([{ type: 'text', text: `Presented visual: Measured results (${path})` }])
+      const events = owner.session.snapshotEvents()
+      const delivery = events.find(event => event.type === 'deliverables/presented')
+      expect(delivery?.data.files[0]?.visual?.data).toBe(bytes.toString('base64'))
+      expect(JSON.stringify(result)).not.toContain(bytes.toString('base64'))
+      await rm(join(root, path))
+      expect(Session.create(SessionId('visual-replay'), events).snapshotEvents().find(event => event.type === 'deliverables/presented')).toEqual(delivery)
+      await fiber.dispose()
+      expect(ctx.tools.get('present_visual', owner)).toBeUndefined()
+    },
+  )
+
+  it('bounds the complete serialized delivery including base64 and multibyte captions', async () => {
+    const { root, visual, owner } = await setup(256)
+    await writeFile(join(root, 'chart.svg'), '<svg/>')
+    expect((await visual('chart.svg', '图'.repeat(100))).isError).toBe(true)
+    expect(owner.session.snapshotEvents().some(event => event.type === 'deliverables/presented')).toBe(false)
+  })
+
+  it('rejects oversized, unsupported, empty, and invalid UTF-8 files', async () => {
+    const { root, visual, owner } = await setup(256)
+    for (const [path, data] of [['large.gif', Buffer.alloc(257)], ['code.js', Buffer.from('x')],
+      ['empty.svg', Buffer.alloc(0)], ['invalid.html', Buffer.from([0xff])]] as const) {
+      await writeFile(join(root, path), data)
+      expect((await visual(path)).isError).toBe(true)
+    }
+    expect((await visual('missing.svg')).isError).toBe(true)
+    await symlink(join(root, 'large.gif'), join(root, 'link.gif'))
+    expect((await visual('link.gif')).isError).toBe(true)
+    expect(owner.session.snapshotEvents().some(event => event.type === 'deliverables/presented')).toBe(false)
+  })
+
+  it('publishes nothing when final policy blocks the visual result', async () => {
+    const { ctx, root, owner, visual } = await setup()
+    await writeFile(join(root, 'chart.svg'), '<svg/>')
+    ctx.on('tools/post-execute', async (_exec, _result, next) => {
+      await next()
+      return { kind: 'block', feedback: [{ type: 'text', text: 'blocked' }] }
+    })
+    expect((await visual('chart.svg')).isError).toBe(true)
+    expect(owner.session.snapshotEvents().some(event => event.type === 'deliverables/presented')).toBe(false)
+  })
 })
 
 it('requires an agent, an open turn, and a workspace', async () => {

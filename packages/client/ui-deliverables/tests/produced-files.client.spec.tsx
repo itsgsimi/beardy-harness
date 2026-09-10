@@ -515,7 +515,11 @@ describe('plugin registration', () => {
     // The owning view's child declaration, stood up by a bench root entry.
     ctx.slots.register({
       name: 'root',
-      children: { 'conversation.chat.turnTail': { kind: 'chain', scope: 'session' }, 'tool.call.toolview': { kind: 'keyed', scope: 'session' } },
+      children: {
+        'conversation.chat.turnTail': { kind: 'chain', scope: 'session' },
+        'conversation.chat.node': { kind: 'keyed', scope: 'session' },
+        'tool.call.toolview': { kind: 'keyed', scope: 'session' },
+      },
     } as never, () => null)
     // ui-theme's Appearance row binds a durable scope through these two.
     const session = {
@@ -534,7 +538,8 @@ describe('plugin registration', () => {
     await fiber.await()
     const [entry] = ctx.slots.entries('conversation.chat.turnTail')
     expect(entry).toBeDefined()
-    expect(ctx.slots.entries('tool.call.toolview')).toHaveLength(1)
+    expect(ctx.slots.entries('tool.call.toolview')).toHaveLength(2)
+    expect(ctx.slots.entries('conversation.chat.node')).toHaveLength(1)
     expect(entry?.inject).toBeDefined()
 
     // The prose face is live while the plugin is: a produced turn yields a
@@ -575,6 +580,7 @@ describe('plugin registration', () => {
     unsubscribe()
     expect(ctx.slots.entries('conversation.chat.turnTail')).toHaveLength(0)
     expect(ctx.slots.entries('tool.call.toolview')).toHaveLength(0)
+    expect(ctx.slots.entries('conversation.chat.node')).toHaveLength(0)
     // Fiber teardown retracts the service: the consumer's ctx.get sees the off state.
     expect((ctx as unknown as { get(name: string): unknown }).get('chatFileMentions')).toBeUndefined()
   })

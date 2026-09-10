@@ -5,6 +5,11 @@ export const NS = 'deliverables'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'visual.expand': '放大查看',
+  'visual.download': '下载原始文件',
+  'visual.close': '关闭视觉预览',
+  'visual.failed': '无法显示此视觉内容，请下载原始文件查看。',
+  'visual.isolated': '隔离的交互原型',
   'presented.nativeUnavailable': '此文件没有可用的主机路径，请在侧边栏预览',
   'presented.revealError': '无法在文件管理器中显示，请重试',
   'presented.directoryError': '无法打开所在文件夹，请重试',
@@ -47,6 +52,11 @@ export const zh = {
 
 /** English dictionary (same key set). */
 export const en: Record<DeliverablesKey, string> = {
+  'visual.expand': 'Expand view',
+  'visual.download': 'Download original',
+  'visual.close': 'Close visual preview',
+  'visual.failed': 'This visual could not be displayed. Download the original to inspect it.',
+  'visual.isolated': 'Isolated interactive mockup',
   'presented.nativeUnavailable': 'This file has no available Host path. Preview it in the sidebar.',
   'presented.revealError': 'Could not show in file manager. Try again.',
   'presented.directoryError': 'Could not open containing folder. Try again.',

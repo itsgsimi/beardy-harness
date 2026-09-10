@@ -222,6 +222,8 @@ export function apply(ctx: ClientContext): void {
 
 `target` and `buildViewNode(context)` declare one target-owned rendering contribution and must appear together. Preserve `context.key` as the React-facing identity, choose `anchorSeq` from durable ordering evidence, and return only renderer-ready data. Once a target Node has been published, keep returning the same key; use `visibility: 'hidden'` when it must temporarily leave the visible flow rather than withdrawing it with `null`.
 
+Chat-target nodes may set `processDisclosure: 'independent'` to keep published results visible outside the completed-Turn process disclosure. The Chat renderer and ordering projector honor this field without requiring a feature-specific kind registration in the Chat package.
+
 ## Predecessor reads
 
 Some Definitions need the latest earlier State of another business kind. `start` receives a `ConversationContextReader`; call `reader.previous<State>(kind)` there instead of accepting a Context collection or scanning events. The reader returns the nearest started Context before the current start `seq` as read-only data.

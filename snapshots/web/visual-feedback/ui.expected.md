@@ -1,0 +1,75 @@
+- button "System prompt":
+  - img
+  - img
+  - text: System prompt
+- text: Show the chart, screenshot, animation, and interactive mockup in this conversation with a brief explanation of each. The files chart.svg, screenshot.png, interaction.gif, and mockup.html already exist. All data is illustrative. {{clock}}
+- button "Copy":
+  - img
+- button "4 tool calls · 1 message":
+  - text: 4 tool calls · 1 message
+  - img
+- 'figure "Response time comparison Illustrative data: latency falls from {{duration}} to {{duration}}."':
+  - strong: Response time comparison
+  - paragraph: "Illustrative data: latency falls from {{duration}} to {{duration}}."
+  - img "Response time comparison"
+  - button "Expand view"
+  - link "Download original":
+    - /url: data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3MjAiIGhlaWdodD0iMzIwIiB2aWV3Qm94PSIwIDAgNzIwIDMyMCI+PHJlY3Qgd2lkdGg9IjcyMCIgaGVpZ2h0PSIzMjAiIGZpbGw9IiMxMDE4MjgiIHJ4PSIxNiIvPjxnIGZpbGw9IiNmOWZhZmIiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIj48dGV4dCB4PSIzMiIgeT0iNDgiIGZvbnQtc2l6ZT0iMjQiPlJlc3BvbnNlIHRpbWUgwrcgaWxsdXN0cmF0aXZlIGRhdGE8L3RleHQ+PHRleHQgeD0iMzIiIHk9IjEyMCI+QmVmb3JlPC90ZXh0Pjx0ZXh0IHg9IjMyIiB5PSIyMTAiPkFmdGVyPC90ZXh0Pjx0ZXh0IHg9IjYyNCIgeT0iMTIwIj44MDAgbXM8L3RleHQ+PHRleHQgeD0iNDA0IiB5PSIyMTAiPjQwMCBtczwvdGV4dD48dGV4dCB4PSIzMiIgeT0iMjgyIiBmb250LXNpemU9IjE2Ij41MCUgbGVzcyB3YWl0aW5nIGFmdGVyIHRoZSBwcm9wb3NlZCBjaGFuZ2U8L3RleHQ+PC9nPjxyZWN0IHg9IjEzMiIgeT0iOTAiIHdpZHRoPSI0NjAiIGhlaWdodD0iNDIiIHJ4PSI2IiBmaWxsPSIjNjY3MDg1Ii8+PHJlY3QgeD0iMTMyIiB5PSIxODAiIHdpZHRoPSIyMzAiIGhlaWdodD0iNDIiIHJ4PSI2IiBmaWxsPSIjMzRkMzk5Ii8+PC9zdmc+Cg==
+- figure "Browser finding Example screenshot illustrating the status bar.":
+  - strong: Browser finding
+  - paragraph: Example screenshot illustrating the status bar.
+  - img "Browser finding"
+  - button "Expand view"
+  - link "Download original":
+    - /url: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAABkCAIAAAB4uH5pAAABsUlEQVR4nO3dsU3FMBRAUYIY4Jd/AIq/CAMxCQOxCsNQ0FMQi/jqnTOAFVnvxlEaH7f74wloer76AYC/EzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoawl7XLvX6+r10Qfvf19nH1I1zpWHW9qHS50NiM13xCq5drjZ3ABQGP3Tu2MnMOzwY8c9fY08Bp9Bcawk4FPPCFx+amzaQTGMIEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ9ipgMdei862ps2kExjCzgY87YXHzgZO44ITeOCusaGZc7jmE3rm3rGPsRN43O6PhctNux+dy41N98figIH/5C80hAkYwgQMYQKGMAFDmIAhTMAQJmAIEzCECRjCBAxhAoYwAUOYgCFMwBAmYAgTMIQJGMIEDGEChjABQ5iAIUzAECZgCBMwhAkYwgQMYQKGsG9/VSMHH88QoQAAAABJRU5ErkJggg==
+- figure "Interaction recording Example animation showing a shrinking response-time bar.":
+  - strong: Interaction recording
+  - paragraph: Example animation showing a shrinking response-time bar.
+  - img "Interaction recording"
+  - button "Expand view"
+  - link "Download original":
+    - /url: data:image/gif;base64,R0lGODlhQAFkAIEAADTTmRAYKAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQALQAAACwAAAAAQAFkAAAI/wADCBxIsKDBgwgTKlzIsKHDhxAjSpxIsaLFixgzatzIsaPHjyBDihxJsqTJkyhTqlzJsqXLlzBjypxJs6bNmzhz6tzJs6fPn0CDCh1KtKjRo0iTKl3KtKnTp1CjSp1KtarVq1izat3KtavXr2DDih1LtqzZs2jTql3Ltq3bt3Djyp1Lt67du3jz6t3Lt6/fv4ADCx5MuLDhw4gTKx4JoLHjx5AjS55MubLly5gza97MubNnz20/ix5NurTp06hNq03NurXr17Bfo41Nu7bt27bN4t7Nu7fvzGV/Cx9OPPfY4siTKyd9fLnz59AjN49OvXrx6daza7+Nfbv376m7g80fT76z+PLo008+r769evbu44+HL7++dvr280fHr7+/cv7+BTgcgAIWyBuBBiZYG4IKNugagw5GeBqEElYoGoUWZrgZhhp2aBmHHoYonVgiljgaiCaKiGKKHq7IooYuvmhhjDJKSGONDt6Io4Jk7ehjY8H9uKNuQso4W5EproakimwtCeNiUEYp5ZRUVmnllVhmqeWWXHbp5ZdghinmmGSWaeaZaKap5ppstunmm3DGKeecdNZp55145qnnnnz26eefgAYq6KCEFmooSgEBACH5BAEtAAIALH0AHgB0ACkAgTTTmRAYKAAAAAAAAAi9AAMIHEiwoMGDCBMqXMiwocOCAiJKjPiwosWLGDNCnEhRo8ePIDFy7BiypMmTAkcKQMmyZcaRLmPKXKhyps2bKTni3BkTJs+fJ30CHfpRKNGjF40iXdpQKdOnCJ1CnTpQKtWpVq8+zap1KdeuR7+CHSp27M+yZneiTXtzLduZbt/21CnXK926Ye/iJat379m+ftUCDtx2MGG4hg/PnaiYZ9zGHh9Dfsl4sk3Jli0mzlxyM2eQnj9Hlija5ciAADs=
+- figure "Interactive chart mockup Illustrative UI proposal. Toggle the data to explore the chart.":
+  - strong: Interactive chart mockup
+  - paragraph: Illustrative UI proposal. Toggle the data to explore the chart.
+  - iframe
+  - button "Expand view"
+  - link "Download original":
+    - /url: data:text/html;base64,PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGhlYWQ+PHN0eWxlPmJvZHl7bWFyZ2luOjA7cGFkZGluZzoyOHB4O2JhY2tncm91bmQ6I2Y4ZmFmYztjb2xvcjojMTgyMjMwO2ZvbnQ6MTZweCBzeXN0ZW0tdWl9aDF7Zm9udC1zaXplOjI0cHh9YnV0dG9ue3BhZGRpbmc6MTJweCAyMHB4O2JvcmRlcjowO2JvcmRlci1yYWRpdXM6OHB4O2JhY2tncm91bmQ6IzA0Nzg1Nztjb2xvcjp3aGl0ZTtmb250OmluaGVyaXR9LmJhcntoZWlnaHQ6NDhweDtiYWNrZ3JvdW5kOiMzNGQzOTk7Ym9yZGVyLXJhZGl1czo4cHg7dHJhbnNpdGlvbjp3aWR0aCAuMnN9c21hbGx7ZGlzcGxheTpibG9jazttYXJnaW46MjBweCAwO2NvbG9yOiM0NzU0Njd9PC9zdHlsZT48L2hlYWQ+PGJvZHk+PGgxPkludGVyYWN0aXZlIGNoYXJ0IG1vY2t1cDwvaDE+PHA+SWxsdXN0cmF0aXZlIGxhdGVuY3k6IDxzdHJvbmcgaWQ9InZhbHVlIj40MDAgbXM8L3N0cm9uZz48L3A+PGRpdiBjbGFzcz0iYmFyIiBpZD0iYmFyIiBzdHlsZT0id2lkdGg6NTAlIj48L2Rpdj48c21hbGw+VG9nZ2xlIHRoZSBkYXRhc2V0IHRvIGNvbXBhcmUgdGhlIHByb3Bvc2VkIGJlaGF2aW9yLjwvc21hbGw+PGJ1dHRvbiBpZD0idG9nZ2xlIiBvbmNsaWNrPSJjb25zdCBmYXN0ZXI9dGhpcy5kYXRhc2V0LmZhc3QhPT0neWVzJzt0aGlzLmRhdGFzZXQuZmFzdD1mYXN0ZXI/J3llcyc6J25vJztkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgndmFsdWUnKS50ZXh0Q29udGVudD1mYXN0ZXI/JzIwMCBtcyc6JzQwMCBtcyc7ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2JhcicpLnN0eWxlLndpZHRoPWZhc3Rlcj8nMjUlJzonNTAlJyI+VG9nZ2xlIGRhdGE8L2J1dHRvbj48cCBpZD0iaXNvbGF0aW9uIj48L3A+PHNjcmlwdD50cnl7cGFyZW50LmRvY3VtZW50LmJvZHk7ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2lzb2xhdGlvbicpLnRleHRDb250ZW50PSdQYXJlbnQgYWNjZXNzaWJsZSd9Y2F0Y2h7ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2lzb2xhdGlvbicpLnRleHRDb250ZW50PSdQYXJlbnQgaXNvbGF0ZWQnfWZldGNoKCdodHRwczovL3Zpc3VhbC1maXh0dXJlLmludmFsaWQvcHJvYmUnKS5jYXRjaCgoKT0+e2RvY3VtZW50LmJvZHkuZGF0YXNldC5uZXR3b3JrPSdibG9ja2VkJ30pPC9zY3JpcHQ+PC9ib2R5PjwvaHRtbD4K
+  - text: Isolated interactive mockup
+- paragraph: The illustrative chart shows a 50% reduction in response time. The screenshot and GIF show the visual state and motion; the mockup lets you toggle its data. These are examples, not measured browser-test results.
+- button "Preview chart.svg in sidebar"
+- text: "chart.svg Illustrative data: latency falls from {{duration}} to {{duration}}."
+- button "Open chart.svg in sidebar": Open
+- button "More file actions for chart.svg":
+  - img
+- button "Preview screenshot.png in sidebar"
+- text: screenshot.png Example screenshot illustrating the status bar.
+- button "Open screenshot.png in sidebar": Open
+- button "More file actions for screenshot.png":
+  - img
+- button "Preview interaction.gif in sidebar"
+- text: interaction.gif Example animation showing a shrinking response-time bar.
+- button "Open interaction.gif in sidebar": Open
+- button "More file actions for interaction.gif":
+  - img
+- button "Preview mockup.html in sidebar"
+- text: mockup.html Illustrative UI proposal. Toggle the data to explore the chart.
+- button "Open mockup.html in sidebar": Open
+- button "More file actions for mockup.html":
+  - img
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Usage 400 tok":
+  - img
+  - text: Usage 400 tok
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}

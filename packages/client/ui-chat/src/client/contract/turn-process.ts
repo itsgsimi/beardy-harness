@@ -1,4 +1,4 @@
-import type { ChatNode } from './chat-nodes.ts'
+import type { ChatConversationViewNode, ChatNode } from './chat-nodes.ts'
 
 /** Current process range and finalized answer boundary derived from one Turn. */
 export interface TurnProcessSpec {
@@ -31,6 +31,15 @@ const TURN_PROCESS_INDEPENDENT_KIND_LIST = [
 export const TURN_PROCESS_INDEPENDENT_KINDS: ReadonlySet<string> = new Set(
   TURN_PROCESS_INDEPENDENT_KIND_LIST,
 )
+
+/**
+ * Recognize built-in standalone rows and feature-owned user-facing results.
+ * @param node - current Chat render unit.
+ * @returns whether collapsing intermediate process must leave this row visible.
+ */
+export function isProcessIndependent(node: ChatConversationViewNode): boolean {
+  return node.processDisclosure === 'independent' || TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)
+}
 
 /**
  * Compare immutable Turn-process specifications by their published fields.

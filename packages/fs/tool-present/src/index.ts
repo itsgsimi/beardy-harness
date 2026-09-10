@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { PresentedFile } from './types.ts'
+import { registerVisualTool } from './visual.ts'
 
 /** Stable Loader identity. */
 export const name = 'tool-present'
@@ -15,11 +16,14 @@ export const name = 'tool-present'
 export interface Config {
   /** Maximum number of files in one call. */
   maxFiles: number
+  /** Maximum serialized bytes of a visual delivery, including base64 and descriptive text. */
+  maxVisualBytes: number
 }
 
 /** Validated delivery limit. */
 export const Config: z<Config> = z.object({
   maxFiles: z.number().default(8),
+  maxVisualBytes: z.number().default(8 * 1024 * 1024),
 })
 
 /** Services used by the scoped delivery tool. */
@@ -34,7 +38,11 @@ export function apply(ctx: Context, config: Config): void {
   if (!Number.isSafeInteger(config.maxFiles) || config.maxFiles < 1) {
     throw new Error('present requires a positive integer maxFiles')
   }
+  if (!Number.isSafeInteger(config.maxVisualBytes) || config.maxVisualBytes < 1) {
+    throw new Error('present requires a positive integer maxVisualBytes')
+  }
   const pending = new WeakMap<ToolExecution, { session: Session; turn: number; files: PresentedFile[] }>()
+  registerVisualTool(ctx, config.maxVisualBytes, (exec, delivery) => { pending.set(exec, delivery) })
   ctx.tools.register(defineTool({
     name: 'present',
     description: 'Declare existing files accessible through the Session filesystem as final deliverables. '

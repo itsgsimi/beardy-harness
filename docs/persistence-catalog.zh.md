@@ -405,13 +405,13 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `deliverables/presented` — 仅日志
 
 ```ts persistence-catalog
-/** Declared filesystem files from a successful final present result, including nested calls. */
+/** Source files and optional visual snapshots from successful final delivery results, including nested calls. */
 'deliverables/presented': { turn: number; callId: ToolCallId; files: PresentedFile[] }
 ```
 
 类型： [ToolCallId](subsystems/core.zh.md)
 
-来源： [`packages/fs/tool-present/src/types.ts:15`](../packages/fs/tool-present/src/types.ts)
+来源： [`packages/fs/tool-present/src/types.ts:27`](../packages/fs/tool-present/src/types.ts)
 
 ### `feedback/*`
 

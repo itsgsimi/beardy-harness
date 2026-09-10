@@ -222,6 +222,8 @@ export function apply(ctx: ClientContext): void {
 
 `target` 与 `buildViewNode(context)` 必须同时声明一项由 target 拥有的渲染贡献。把 `context.key` 保留为 React 侧身份，根据持久排序证据选择 `anchorSeq`，并且只返回 renderer 可以直接使用的数据。某个 target Node 一旦发布，就要继续返回同一个 key；需要暂时离开可见流时使用 `visibility: 'hidden'`，不要改为返回 `null` 撤回它。
 
+面向 Chat 的节点可设置 `processDisclosure: 'independent'`，使已发布结果留在已完成轮次的过程折叠区域之外。Chat 渲染器和排序投影器处理这一字段，无需在 Chat 包中注册具体功能的节点种类。
+
 ## Predecessor read
 
 有些 Definition 需要另一个业务 kind 在当前位置之前的最新 State。`start` 会收到 `ConversationContextReader`；应在这里调用 `reader.previous<State>(kind)`，不要接收 Context 集合或扫描事件。Reader 返回当前 start `seq` 之前最近一个已启动 Context 的只读数据。

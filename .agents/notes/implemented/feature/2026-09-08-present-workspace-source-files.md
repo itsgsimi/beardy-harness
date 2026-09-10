@@ -10,6 +10,8 @@ Users need to open and edit the files produced in their workspace, including she
 
 ## Decision
 
+This decision governs editable source-file delivery through `present`. [Inline visual feedback](2026-09-10-inline-visual-feedback.md) separately preserves bounded visual snapshots for conversation display and download.
+
 The [present tool](../../../../packages/fs/tool-present/README.md) declares existing regular source files under the [Session filesystem access policy](2026-09-09-present-filesystem-access.md). It records paths and optional descriptions without reading or copying contents. The [deliverables plugin](../../../../packages/client/ui-deliverables/README.md) opens current workspace sources in the Host's default application. Edits are visible on the next open; deletion or movement makes the declaration unavailable. File-content preservation and copy-on-write storage are deferred until a persistence design owns them.
 
 The tool description requires `present` after writing a file the user asked to receive and before the final response, including files created through Bash or code execution. A prose path reference does not replace the call. The recorded [SVG delivery scenario](../../../../snapshots/web/present-svg/snapshot.yml) uses a user request that does not name `present`, and checks the resulting file, delivery event, and card. Its UI snapshot covers the expanded Chat transcript; navigation and composer controls belong to their own scenarios, so unrelated chrome changes cannot invalidate file-delivery expectations.

@@ -41,10 +41,16 @@ it.each([
   expect(view.queryByText('Delivered')).toBeNull()
 })
 
-it.each(['', '{', 'null', '[]', '{"files":null}', '{"files":[null,{},1,{"path":false},{"path":"good.txt"}]}'])('tolerates partial arguments %s', (argsRaw) => {
+it.each(['', '{', 'null', '[]', '{"path":false}', '{"files":null}', '{"files":[null,{},1,{"path":false},{"path":"good.txt"}]}'])('tolerates partial arguments %s', (argsRaw) => {
   const view = render(<PresentRow {...props({ ...running, argsRaw })} />)
   expect(view.getByText('Delivering')).toBeTruthy()
   expect(view.queryByRole('button')).toBeNull()
+})
+
+it('shows the saved visual path while its snapshot is being published', () => {
+  const view = render(<PresentRow {...props({ ...running, name: 'present_visual', argsRaw: '{"path":"chart.svg","title":"Chart"}' })} toolName="present_visual" />)
+  expect(view.getByText('chart.svg')).toBeTruthy()
+  expect(view.container.querySelector('[data-tool="present_visual"]')?.getAttribute('data-state')).toBe('running')
 })
 
 it('shows orphaned error details and non-text results', () => {

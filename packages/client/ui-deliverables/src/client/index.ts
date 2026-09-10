@@ -16,6 +16,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { PresentedOpenController } from './present-open.ts'
 import { PresentRow } from './PresentRow.tsx'
+import { Visuals } from './Visuals.tsx'
+import { visualsDefinition } from './visuals.ts'
 import { Deliverables, selectDeliverables, type DeliverablesInjected } from './Deliverables.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
 import {
@@ -44,6 +46,10 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => () => opener.dispose())
   ctx.on('connection/reset', () => { opener.resetHost() })
   ctx.uiConversation.events.register(deliverablesDefinition)
+  ctx.uiConversation.events.register(visualsDefinition)
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
+    name: 'conversation.chat.node', key: 'presented-visual', locale: NS,
+  }, Visuals))
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-deliverables: dictionaries')
   ctx.slots.inject(
     'conversation.chat.turnTail',
@@ -60,6 +66,9 @@ export function apply(ctx: ClientContext): void {
   )
   ctx.slots.inject('tool.call.toolview', () => ctx.slots.register(
     { name: 'tool.call.toolview', key: 'present', locale: NS }, PresentRow,
+  ))
+  ctx.slots.inject('tool.call.toolview', () => ctx.slots.register(
+    { name: 'tool.call.toolview', key: 'present_visual', locale: NS }, PresentRow,
   ))
   // The prose side of the same vocabulary: the chat view reaches this face
   // via ctx.get, so its absence — this plugin composed out — is the off state.

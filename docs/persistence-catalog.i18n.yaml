@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/persistence-catalog.md
-persistence-catalog.md: 46e91f23a7aad053791df190f769ad911f334b68
-persistence-catalog.zh.md: 087915b83d4dfd5c45a1583658d6ebe091904a3f
+persistence-catalog.md: 29f9f0ee25904fb77e19033ec38b4cae688cdfab
+persistence-catalog.zh.md: 44931d2de700b0518397c91fe7b27f0889773a27

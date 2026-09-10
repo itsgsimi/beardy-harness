@@ -10,7 +10,7 @@ import type {
   ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore, ChatSnapshot,
   ChatTurnNavigationIndex, ChatTurnProcessPresentation, LegacyConversationSlice, TurnNavigationItem,
 } from '../contract/snapshot.ts'
-import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
+import { isProcessIndependent } from '../contract/turn-process.ts'
 import { sessionRecallLabels, skillInvocationName } from './event-projection.ts'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
 import { ChatTurnProcessProjector } from './turn-process-presentation.ts'
@@ -344,7 +344,7 @@ function turnProcessPresentations(
       })
       continue
     }
-    if (TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)) continue
+    if (isProcessIndependent(node)) continue
     presentations.set(location.turn.turn, {
       ...current,
       earliestProcessAnchor: Math.min(current.earliestProcessAnchor ?? node.anchorSeq, node.anchorSeq),
@@ -375,7 +375,7 @@ function presentationPosition(
   const openingHumanAnchor = presentation.openingHumanAnchor
   if (openingHumanAnchor !== undefined
     && node.anchorSeq < openingHumanAnchor
-    && !TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)) {
+    && !isProcessIndependent(node)) {
     return { anchor: openingHumanAnchor, rank: 2, originalAnchor: node.anchorSeq }
   }
   if (presentation.control !== undefined && node.key === presentation.control.key) {
@@ -1000,6 +1000,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     for (const node of upserts) {
       const previous = this.store.get(node.key)
       const nodeStructural = previous === undefined
+        || previous.processDisclosure !== node.processDisclosure
         || previous.kind !== node.kind
         || previous.anchorSeq !== node.anchorSeq
         || previous.visibility !== node.visibility

@@ -3,6 +3,9 @@
   disabled: true
 - id: llm-pi-ai
   disabled: true
+# Keyless replay has no provider HTTP request to receive package inventory.
+- id: plugin-package-inventory-deepseek
+  disabled: true
 - id: agent-default-model
   config:
     provider: deepseek-official

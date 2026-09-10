@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `present` to declare final files accessible through the Session filesystem, including files created through shell commands. Users open the current source files in their default application. The tool records paths and optional descriptions without copying file contents.
+Use `present` to declare final files accessible through the Session filesystem, including files created through shell commands. Users open the current source files in their default application. The tool records paths and optional descriptions without copying file contents. Use `present_visual` for inline charts, screenshots, animations, diagrams, and interactive mockups with preserved bytes.
 
 ## Table of Contents
 
@@ -27,6 +27,8 @@ Use `present` to declare final files accessible through the Session filesystem, 
 
 The `standard`, `ptc`, and `cordis` agent presets mount this plugin. Call `present` with `files: [{ path, description? }]` after creating the files. Files must be regular files accessible through the Session filesystem. Relative paths resolve against the Session working directory; absolute paths may name files outside it, including `/tmp` or Downloads. Missing files, directories, final symbolic links, and provider-denied paths fail the call. Files in a shell sandbox’s private `/tmp` must first be written somewhere the Session filesystem can access.
 
+Call `present_visual` with `{ path, title, description }` to show a saved visual while working. The title serves as alternative text; the description carries findings alongside the visual. PNG, JPEG, WebP, GIF, SVG, and UTF-8 HTML are accepted by extension. HTML must embed its scripts, styles, and assets. The tool displays bytes for the user without claiming to inspect them or requiring an image-capable model.
+
 Mount it in an agent's Cordis composition with `tools`, `fs`, and the `turnBoundary` Session projection available:
 
 ```yaml
@@ -38,8 +40,9 @@ Mount it in an agent's Cordis composition with `tools`, `fs`, and the `turnBound
 | Field | Default | Meaning |
 |---|---|---|
 | `maxFiles` | `8` | Positive maximum file count per call |
+| `maxVisualBytes` | `8388608` | Maximum serialized visual delivery bytes, including base64, title, description, and declaration fields |
 
-The file-count limit is validated at mount. The tool requires an agent Session with a workspace and an open turn. Delivery belongs to the calling Session; a parent must call `present` itself to declare files created by a subagent.
+Both delivery limits are validated at mount. The tool requires an agent Session with a workspace and an open turn. Delivery belongs to the calling Session; a parent must call `present` itself to declare files created by a subagent.
 
 -----
 
@@ -49,7 +52,7 @@ The file-count limit is validated at mount. The tool requires an agent Session w
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The tool resolves paths through the configured filesystem provider and checks regular-file metadata without reading contents. Successful final `tools/result` notifications append `deliverables/presented`, including nested calls. A later enclosing program failure does not revoke an already completed declaration. Blocked results publish none. Each plugin instance records only calls it executed; scoped tools with the same name cannot publish through another instance.
+`present` resolves paths through the configured filesystem provider and checks regular-file metadata without reading contents. `present_visual` reads bounded bytes through that same provider and retains an immutable snapshot in the delivery event; oversized complete deliveries fail before publication. Successful final `tools/result` notifications append `deliverables/presented`, including nested calls. A later enclosing program failure does not revoke an already completed declaration. Blocked results publish none. Each plugin instance records only calls it executed; scoped tools with the same name cannot publish through another instance.
 
 The pure `./types` entry declares `PresentedFile` and the Session event without importing Host runtime code. The Web consumer validates persisted declarations before displaying or opening them. The event stores no Session ID, so forked history resolves relative paths against the viewed Session's workspace.
 
@@ -77,7 +80,7 @@ The [present schema](../../../docs/tool-catalog.md#present) asks for existing ac
 
 #### Token effect
 
-One tool schema per mounted agent and one result line per delivered file. File bytes do not enter model messages.
+Two tool schemas per mounted agent and one receipt per delivery. `present_visual` returns `Presented visual: <title> (<path>)`; its schema asks for charts alongside data explanations and visuals during browser testing. File bytes remain in the display-only delivery event and do not enter model messages or programmatic return values.
 
 #### KV Cache effect
 
@@ -89,7 +92,8 @@ The tool schema is static for the mount lifetime. Delivery result text extends t
 
 - Metadata and Host-path checks cannot atomically prevent replacement before a desktop application opens a file.
 - Edits change what opens. Deleted or moved source files cannot be opened from their declarations.
-- Session ZIP exports contain declarations, not file contents. Persistent delivery versions and copy-on-write storage are deferred.
+- Ordinary `present` declarations retain no bytes. Visual snapshots travel with the Session log and increase its size; configurable per-call bounds do not impose a total Session quota.
+- Format extensions select rendering; the browser reports undecodable images. HTML and SVG require valid UTF-8. External mockup assets, server-backed applications, and video are unsupported.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -2,7 +2,7 @@ import type { ChatNode } from '../contract/chat-nodes.ts'
 import type {
   ChatLocationNodeIndex, ChatNodeStore, ChatTurnProcessPresentation,
 } from '../contract/snapshot.ts'
-import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
+import { isProcessIndependent } from '../contract/turn-process.ts'
 
 function nodeTurn(node: ChatNode | undefined): number | undefined {
   const location = node?.location
@@ -54,7 +54,7 @@ function derivePresentation(
       && (spec.answerAnchorSeq === null || node.anchorSeq < spec.answerAnchorSeq)) {
       compactAnswer = false
     }
-    if (TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)
+    if (isProcessIndependent(node)
       || node.anchorSeq < spec.processStartSeq
       || (spec.answerAnchorSeq !== null && node.anchorSeq >= spec.answerAnchorSeq)) continue
     if (node.kind !== 'assistant-step' || spec.answerStep === null || node.data.step !== spec.answerStep) {

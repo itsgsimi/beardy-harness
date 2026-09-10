@@ -3175,10 +3175,12 @@ export interface ResearchWorker {
 export interface Config {
   /** Maximum number of files in one call. */
   maxFiles: number
+  /** Maximum serialized bytes of a visual delivery, including base64 and descriptive text. */
+  maxVisualBytes: number
 }
 ```
 
-来源： [`packages/fs/tool-present/src/index.ts:15`](../packages/fs/tool-present/src/index.ts)
+来源： [`packages/fs/tool-present/src/index.ts:16`](../packages/fs/tool-present/src/index.ts)
 
 <a id="deepseek-aidsh-tool-pwsh"></a>
 

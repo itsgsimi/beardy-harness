@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useEffect } from 'react'
 import type {
-  AssistantMessageNode, ChatNode, ChatNodeOwnerProps, ChatNodeViewProps, ChatSnapshot,
+  AssistantMessageNode, ChatConversationViewNode, ChatNode, ChatNodeOwnerProps, ChatNodeViewProps, ChatSnapshot,
   ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
   LegacyConversationSlice, ModelRetryNode, RunningToolCall, SteeringMessageNode,
   ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, UseChatNodeTurnData,
@@ -1502,6 +1502,31 @@ describe('ChatView', () => {
 
     expect(view.getByText('also mention safety')).toBeTruthy()
     expect(answer?.hasAttribute('data-turn-process-answer')).toBe(false)
+  })
+
+  it('keeps feature-owned results visible when their node opts out of completed-Turn process folding', () => {
+    const seed = chatSnapshotFixture({
+      nodes: [user(1, 'question'), assistant(2, 'inspect', 1, 1), assistant(4, 'final answer', 1, 2)],
+      turnEnds: new Map([[1, 5]]),
+    })
+    const turn = seed.timeline.turns.get(1)!
+    const result: ChatConversationViewNode = {
+      key: 'feature-result:3', id: '3', kind: 'feature-result', target: 'chat',
+      anchorSeq: 3, location: { kind: 'turn', turn }, visibility: 'visible', data: {},
+    }
+    const builder = new ChatSnapshotBuilder()
+    const initial = builder.replace({ nodes: [...seed.nodes.values(), result], timeline: seed.timeline })
+    const h = makeHarness({}, {}, initial)
+    const view = render(<h.ChatView {...h.props} />)
+    const row = view.container.querySelector<HTMLElement>('[data-chat-flow-kind="feature-result"]')!
+    expect(row.getAttribute('hidden')).toBe('until-found')
+    act(() => { h.set({ chat: builder.apply({
+      upserts: [{ ...result, processDisclosure: 'independent' }], timeline: seed.timeline,
+    }) }) })
+    expect(view.container.querySelector('[data-chat-flow-kind="feature-result"]')).toBe(row)
+    expect(row.hasAttribute('hidden')).toBe(false)
+    expect(turnProcessControl(view.container)?.getAttribute('aria-expanded')).toBe('false')
+    expect(view.getByText('inspect').closest('[data-chat-flow-kind="assistant-step"]')?.hasAttribute('hidden')).toBe(true)
   })
 
   it('keeps ordinary spacing when steering precedes the first process evidence', () => {

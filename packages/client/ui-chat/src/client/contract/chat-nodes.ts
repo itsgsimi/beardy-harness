@@ -10,6 +10,8 @@ export interface ChatConversationViewNode extends ConversationViewNode {
   readonly anchorSeq: number
   readonly location: ConversationLocation
   readonly visibility: 'visible' | 'hidden'
+  /** Keep user-facing results visible when the Turn's intermediate process is collapsed. */
+  readonly processDisclosure?: 'independent'
 }
 
 /** Merge-extensible payload registry keyed by final Chat renderer kind. */
