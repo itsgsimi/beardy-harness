@@ -3,6 +3,7 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 
 import {
   parseRemoteStreamServerMessage,
+  REMOTE_STREAM_MISSED_HEARTBEATS,
   REMOTE_STREAM_MUX_PATH,
   type RemoteStreamClientMessage,
   type RemoteStreamServerMessage,
@@ -30,7 +31,24 @@ interface SocketWaiter {
   reject(error: unknown): void
 }
 
-/** Keep one physical WebSocket and share it among independently cancellable Remote streams. */
+/** Page visibility source the heartbeat watchdog consults; absent outside a browser document. */
+interface VisibilityDocument {
+  readonly visibilityState: string
+  addEventListener(type: 'visibilitychange', listener: () => void): void
+  removeEventListener(type: 'visibilitychange', listener: () => void): void
+}
+
+/**
+ * Keep one physical WebSocket and share it among independently cancellable Remote streams.
+ *
+ * Liveness: the Host sends a `heartbeat` frame every `intervalMs`; after
+ * {@link REMOTE_STREAM_MISSED_HEARTBEATS} silent intervals the socket is
+ * declared lost even though it reports OPEN, which is how a socket frozen by
+ * a mobile OS during screen lock or tab suspension surfaces. Because a
+ * suspended page also freezes timers, the deadline is re-checked the moment
+ * the document becomes visible again, so recovery does not wait for a late
+ * timer.
+ */
 export class RemoteStreamMuxClient {
   private socket: WebSocket | undefined
   private cancelCandidate: ((error: Error) => void) | undefined
@@ -40,6 +58,21 @@ export class RemoteStreamMuxClient {
   private readonly waiters = new Set<SocketWaiter>()
   private running = false
   private disposed = false
+  private heartbeatTimer: ReturnType<typeof setTimeout> | undefined
+  private heartbeatDueAt: number | undefined
+  private readonly visibility: VisibilityDocument | undefined
+  private readonly onVisible = (): void => {
+    if (this.visibility?.visibilityState !== 'visible') return
+    const socket = this.socket
+    if (socket === undefined || this.heartbeatDueAt === undefined || Date.now() < this.heartbeatDueAt) return
+    this.heartbeatMissed(socket)
+  }
+
+  constructor() {
+    const document = (globalThis as { readonly document?: VisibilityDocument }).document
+    this.visibility = document !== undefined && typeof document.addEventListener === 'function' ? document : undefined
+    this.visibility?.addEventListener('visibilitychange', this.onVisible)
+  }
 
   /** Ensure a physical attempt exists, following the current attempt once if needed. */
   start(): void {
@@ -61,6 +94,7 @@ export class RemoteStreamMuxClient {
     const socket = this.socket
     if (socket !== undefined) {
       this.socket = undefined
+      this.disarmHeartbeat()
       this.failAll(failure)
       socket.close(4000, 'reconnect requested')
     }
@@ -134,6 +168,8 @@ export class RemoteStreamMuxClient {
       this.cancelCandidate?.(error)
       const socket = this.socket
       this.socket = undefined
+      this.disarmHeartbeat()
+      this.visibility?.removeEventListener('visibilitychange', this.onVisible)
       socket?.close(1000, 'disposed')
     }
     await this.keepAlive
@@ -224,6 +260,10 @@ export class RemoteStreamMuxClient {
     try {
       if (typeof data !== 'string') throw new Error('api gateway: Remote stream WebSocket requires text messages')
       const frame = parseRemoteStreamServerMessage(data)
+      if (frame.type === 'heartbeat') {
+        this.armHeartbeat(socket, frame.intervalMs * REMOTE_STREAM_MISSED_HEARTBEATS)
+        return
+      }
       this.streams.get(frame.streamId)?.push(frame)
     } catch (error) {
       const failure = new RemoteStreamCarrierError('api gateway: invalid Remote stream frame', { cause: error })
@@ -241,7 +281,31 @@ export class RemoteStreamMuxClient {
   ): void {
     if (this.socket !== socket) return
     this.socket = undefined
+    this.disarmHeartbeat()
     this.failAll(error)
+  }
+
+  private armHeartbeat(socket: WebSocket, timeoutMs: number): void {
+    this.disarmHeartbeat()
+    this.heartbeatDueAt = Date.now() + timeoutMs
+    const timer = setTimeout(() => { this.heartbeatMissed(socket) }, timeoutMs)
+    // `unref` (Node-only) keeps the watchdog from holding a Node host of this client open.
+    ;(timer as { unref?: () => void }).unref?.()
+    this.heartbeatTimer = timer
+  }
+
+  private disarmHeartbeat(): void {
+    if (this.heartbeatTimer !== undefined) clearTimeout(this.heartbeatTimer)
+    this.heartbeatTimer = undefined
+    this.heartbeatDueAt = undefined
+  }
+
+  /** Abandon a socket that reports OPEN but has carried no heartbeat for the full deadline. */
+  private heartbeatMissed(socket: WebSocket): void {
+    /* v8 ignore next -- the watchdog is disarmed whenever the socket it guards is replaced. */
+    if (this.socket !== socket) return
+    this.lost(socket, new RemoteStreamCarrierError('api gateway: Remote stream heartbeat missed'))
+    socket.close(4001, 'heartbeat missed')
   }
 
   private maintain(): void {

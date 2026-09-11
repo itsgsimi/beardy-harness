@@ -84,6 +84,11 @@ export async function serveStatic(
   }
   let body: string | Buffer
   let type: string
+  // Revalidate everything a browser may hold across builds; only the Vite
+  // asset directory, whose file names carry a content hash, is immutable. A
+  // phone that cached an unqualified index kept an old asset list past a
+  // rebuild, which is the failure this header set exists to prevent.
+  let cacheControl = 'no-cache'
   try {
     if (target === distRoot || target === distIndex) {
       if (!authorizeIndex()) return
@@ -92,6 +97,7 @@ export async function serveStatic(
     } else {
       body = await readFile(target)
       type = MIME[extname(target)] ?? 'application/octet-stream'
+      if (target.startsWith(join(distRoot, 'assets') + sep)) cacheControl = 'public, max-age=31536000, immutable'
     }
   } catch (error) {
     // Only absent or non-file targets are 404; other filesystem failures reach
@@ -101,7 +107,7 @@ export async function serveStatic(
     res.end()
     return
   }
-  res.writeHead(200, { 'content-type': type })
+  res.writeHead(200, { 'content-type': type, 'cache-control': cacheControl })
   res.end(body)
 }
 

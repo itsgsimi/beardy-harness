@@ -256,11 +256,26 @@ export interface RemoteStreamFailure {
   readonly details: object
 }
 
+/**
+ * Socket-level liveness frame the Host sends beside each Ping control frame.
+ * Browsers cannot observe Ping/Pong, so this text frame is the Client's only
+ * evidence that a socket which reports OPEN still carries data.
+ */
+export interface RemoteStreamHeartbeatFrame {
+  readonly type: 'heartbeat'
+  /** Host Ping cadence; the Client declares the socket lost after {@link REMOTE_STREAM_MISSED_HEARTBEATS} silent intervals. */
+  readonly intervalMs: number
+}
+
+/** Silent heartbeat intervals after which the Client abandons an OPEN socket. */
+export const REMOTE_STREAM_MISSED_HEARTBEATS = 3
+
 /** One logical stream frame sent from the Host. */
 export type RemoteStreamServerMessage =
   | { readonly type: 'item'; readonly streamId: string; readonly value?: unknown }
   | { readonly type: 'error'; readonly streamId: string; readonly error: RemoteStreamFailure }
   | { readonly type: 'end'; readonly streamId: string }
+  | RemoteStreamHeartbeatFrame
 
 /**
  * Parse and validate one browser-to-Host text message.
@@ -290,6 +305,13 @@ export function parseRemoteStreamClientMessage(text: string): RemoteStreamClient
  */
 export function parseRemoteStreamServerMessage(text: string): RemoteStreamServerMessage {
   return parseMessage(text, (value) => {
+    if (value.type === 'heartbeat'
+      && exactKeys(value, ['type', 'intervalMs'])
+      && typeof value.intervalMs === 'number'
+      && Number.isInteger(value.intervalMs)
+      && value.intervalMs > 0) {
+      return value as unknown as RemoteStreamServerMessage
+    }
     if (value.type === 'item'
       && (exactKeys(value, ['type', 'streamId']) || exactKeys(value, ['type', 'streamId', 'value']))
       && validId(value.streamId)) {

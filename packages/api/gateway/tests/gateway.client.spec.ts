@@ -2554,6 +2554,84 @@ describe('Remote stream client carrier lifecycle', () => {
     })
   })
 
+  it('abandons an OPEN socket that carries no heartbeat for three intervals', async () => {
+    await withFakeWebSocket('https://harness.example', async () => {
+      const client = new RemoteStreamMuxClient()
+      client.start()
+      const stream = client.open('feed/follow', {}, new AbortController().signal)[Symbol.asyncIterator]()
+      const pending = stream.next()
+      await vi.waitFor(() => { expect(FakeWebSocket.sockets[0]?.sent).toHaveLength(1) })
+      const socket = FakeWebSocket.sockets[0]!
+      const { streamId } = JSON.parse(socket.sent[0]!) as { streamId: string }
+      vi.useFakeTimers()
+      try {
+        socket.receive({ type: 'heartbeat', intervalMs: 10 })
+        await vi.advanceTimersByTimeAsync(29)
+        // A fresh heartbeat inside the deadline re-arms it from that moment.
+        socket.receive({ type: 'heartbeat', intervalMs: 10 })
+        await vi.advanceTimersByTimeAsync(29)
+        expect(socket.closedWith).toEqual([])
+        socket.receive({ type: 'item', streamId, value: 'still alive' })
+        await expect(pending).resolves.toEqual({ done: false, value: 'still alive' })
+        // Data frames are not heartbeats: the deadline armed by the last heartbeat still runs out.
+        const lost = expect(stream.next()).rejects.toMatchObject({
+          name: 'RemoteStreamCarrierError', message: 'api gateway: Remote stream heartbeat missed',
+        })
+        await vi.advanceTimersByTimeAsync(1)
+        await lost
+        expect(socket.closedWith).toEqual([{ code: 4001, reason: 'heartbeat missed' }])
+      } finally {
+        vi.useRealTimers()
+      }
+      await client.close()
+    })
+  })
+
+  it('re-checks the heartbeat deadline when the page becomes visible', async () => {
+    await withFakeWebSocket('https://harness.example', async () => {
+      const listeners = new Set<() => void>()
+      const document = {
+        visibilityState: 'hidden',
+        addEventListener: (_type: 'visibilitychange', listener: () => void) => { listeners.add(listener) },
+        removeEventListener: (_type: 'visibilitychange', listener: () => void) => { listeners.delete(listener) },
+      }
+      vi.stubGlobal('document', document)
+      try {
+        const client = new RemoteStreamMuxClient()
+        expect(listeners.size).toBe(1)
+        client.start()
+        const stream = client.open('feed/follow', {}, new AbortController().signal)[Symbol.asyncIterator]()
+        const pending = stream.next()
+        await vi.waitFor(() => { expect(FakeWebSocket.sockets[0]?.sent).toHaveLength(1) })
+        const socket = FakeWebSocket.sockets[0]!
+        vi.useFakeTimers()
+        try {
+          socket.receive({ type: 'heartbeat', intervalMs: 1_000 })
+          // Wall-clock time passes while the page is suspended; the armed timer does not fire.
+          vi.setSystemTime(Date.now() + 2_999)
+          for (const listener of listeners) listener()
+          document.visibilityState = 'visible'
+          for (const listener of listeners) listener()
+          expect(socket.closedWith).toEqual([])
+          vi.setSystemTime(Date.now() + 1)
+          for (const listener of listeners) listener()
+          await expect(pending).rejects.toMatchObject({
+            name: 'RemoteStreamCarrierError', message: 'api gateway: Remote stream heartbeat missed',
+          })
+          expect(socket.closedWith).toEqual([{ code: 4001, reason: 'heartbeat missed' }])
+          // The replacement socket has no deadline until its first heartbeat.
+          for (const listener of listeners) listener()
+        } finally {
+          vi.useRealTimers()
+        }
+        await client.close()
+        expect(listeners.size).toBe(0)
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  })
+
   it('completes a stream and drops a frame racing with cancellation', async () => {
     await withFakeWebSocket('https://harness.example', async () => {
       const client = new RemoteStreamMuxClient()

@@ -25,18 +25,19 @@ afterEach(async () => {
 })
 
 describe('Remote stream mux server carrier lifecycle', () => {
-  it('sends WebSocket Ping control frames without application messages', async () => {
+  it('sends a WebSocket Ping control frame and a heartbeat text frame each interval', async () => {
     const entry = await startMux(async (_endpoint, _payload, signal) => waitForAbort(signal), 20)
     const client = await connect(entry.url)
     const serverSocket = acceptedSocket(entry.mux)
-    const messages = vi.fn()
-    client.on('message', messages)
+    const messages: string[] = []
+    client.on('message', (data) => { messages.push((data as Buffer).toString('utf8')) })
 
     const ping = once(client, 'ping')
     const pong = once(serverSocket, 'pong')
     expect((await ping)[0]).toEqual(Buffer.alloc(0))
     expect((await pong)[0]).toEqual(Buffer.alloc(0))
-    expect(messages).not.toHaveBeenCalled()
+    await vi.waitFor(() => { expect(messages.length).toBeGreaterThanOrEqual(1) })
+    expect(new Set(messages)).toEqual(new Set([JSON.stringify({ type: 'heartbeat', intervalMs: 20 })]))
 
     const closingPing = vi.spyOn(serverSocket, 'ping')
     client.pause()

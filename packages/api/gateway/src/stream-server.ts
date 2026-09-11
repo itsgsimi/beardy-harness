@@ -6,6 +6,7 @@ import WebSocket, { WebSocketServer, type RawData } from 'ws'
 import {
   parseRemoteStreamClientMessage,
   type RemoteStreamFailure,
+  type RemoteStreamHeartbeatFrame,
   type RemoteStreamServerMessage,
 } from './stream-protocol.ts'
 
@@ -71,9 +72,15 @@ export class RemoteStreamMuxServer {
     await Promise.all(this.connections)
   }
 
-  /** Start one `unref()` timer after the first upgrade; it spans empty-client periods until close(). */
+  /**
+   * Start one `unref()` timer after the first upgrade; it spans empty-client
+   * periods until close(). Each tick sends a Ping control frame (the Host's
+   * liveness check) and a `heartbeat` text frame (the Client's: browsers
+   * never see Ping/Pong, so a suspended socket looks OPEN without it).
+   */
   private startHeartbeat(): void {
     if (this.heartbeatTimer !== undefined) return
+    const heartbeat = JSON.stringify({ type: 'heartbeat', intervalMs: this.heartbeatIntervalMs } satisfies RemoteStreamHeartbeatFrame)
     this.heartbeatTimer = setInterval(() => {
       for (const socket of this.server.clients) {
         if (socket.readyState !== WebSocket.OPEN) continue
@@ -88,6 +95,7 @@ export class RemoteStreamMuxServer {
         }
         this.missedHeartbeats.set(socket, missed + 1)
         socket.ping()
+        socket.send(heartbeat)
       }
     }, this.heartbeatIntervalMs)
     this.heartbeatTimer.unref()

@@ -46,9 +46,16 @@ describe('Remote stream wire protocol', () => {
     expect(parseRemoteStreamServerMessage(JSON.stringify({
       type: 'end', streamId: 'stream-1',
     }))).toEqual({ type: 'end', streamId: 'stream-1' })
+    expect(parseRemoteStreamServerMessage(JSON.stringify({
+      type: 'heartbeat', intervalMs: 2000,
+    }))).toEqual({ type: 'heartbeat', intervalMs: 2000 })
   })
 
   it.each([
+    { type: 'heartbeat', intervalMs: 0 },
+    { type: 'heartbeat', intervalMs: 1.5 },
+    { type: 'heartbeat', intervalMs: '2000' },
+    { type: 'heartbeat', intervalMs: 2000, streamId: 'stream-1' },
     { type: 'item', streamId: '', value: 'item' },
     { type: 'item', streamId: 'stream-1', extra: true },
     { type: 'end', streamId: 'stream-1', extra: true },
