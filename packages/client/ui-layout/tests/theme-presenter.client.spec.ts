@@ -94,3 +94,49 @@ describe('ThemePresenter', () => {
     expect(meta?.isConnected).toBe(false)
   })
 })
+
+describe('ThemePresenter phone type floor', () => {
+  let matches: boolean
+  let listeners: Set<() => void>
+
+  beforeEach(() => {
+    matches = true
+    listeners = new Set()
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        get matches() { return query === '(pointer: coarse)' && matches },
+        addEventListener: (_type: 'change', listener: () => void) => { listeners.add(listener) },
+        removeEventListener: (_type: 'change', listener: () => void) => { listeners.delete(listener) },
+      }),
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'matchMedia')
+  })
+
+  it('floors the axis at 16px on a coarse pointer and follows the query while applied', () => {
+    const presenter = new ThemePresenter()
+    presenter.apply(snapshot('light', {}, 14))
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('max(16px, 14px)')
+    presenter.apply(snapshot('light', {}, 18))
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('max(16px, 18px)')
+    matches = false
+    for (const listener of listeners) listener()
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('18px')
+    presenter.dispose()
+    expect(listeners.size).toBe(0)
+    matches = true
+    presenter.apply(snapshot('light', {}, 14))
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('max(16px, 14px)')
+    presenter.dispose()
+  })
+
+  it('ignores a pointer change before the first snapshot', () => {
+    const presenter = new ThemePresenter()
+    for (const listener of listeners) listener()
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('')
+    presenter.dispose()
+  })
+})

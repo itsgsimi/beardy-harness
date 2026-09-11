@@ -68,6 +68,15 @@
   cursor: pointer;
 }
 
+/* Finger-sized hit boxes: the strip's 28px buttons grow to 36px where the
+   primary pointer is coarse; the glyph keeps its size. */
+@media (pointer: coarse) {
+  .action {
+    width: calc(36px + var(--dsh-content-font-delta, 0px));
+    height: calc(36px + var(--dsh-content-font-delta, 0px));
+  }
+}
+
 /* The 15px action glyphs follow the same px delta as the text they serve;
    the CSS edge overrides each svg's own width/height attributes. */
 .action svg {

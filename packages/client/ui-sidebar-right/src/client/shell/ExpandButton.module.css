@@ -31,3 +31,11 @@
 .icon {
   transform: scaleX(-1);
 }
+
+/* Finger-sized hit box where the primary pointer is coarse; the glyph keeps its size. */
+@media (pointer: coarse) {
+  .button {
+    width: 36px;
+    height: 36px;
+  }
+}

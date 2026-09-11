@@ -7,14 +7,29 @@
      the sides narrow with the shared width axis); the bottom gradient mask
      is owned by the chat scroller. No top pad: the composer stack's gap owns
      the space above; the status strip still carries its own margin. */
-  padding: 0 var(--dsh-composer-side-clearance) 8px;
+  padding: 0 var(--dsh-composer-side-clearance) calc(8px + env(safe-area-inset-bottom, 0px));
 }
 
 /* A mounted stats row in the composer dock (data-composer-stats, ui-chat
    StatsPills) brings its own 4px top pad, so the root's bottom clearance
    tightens to keep the drawn B8 rhythm. */
 .root:has([data-composer-stats]) {
-  padding-bottom: 4px;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Touch targets: the 28px attach circle and 34px send circle grow toward the
+   44px guideline where the primary pointer is a finger; the row's height
+   follows the send circle, so the rhythm above it is unchanged. */
+@media (pointer: coarse) {
+  .add {
+    width: 36px;
+    height: 36px;
+  }
+
+  .primary {
+    width: 40px;
+    height: 40px;
+  }
 }
 
 .hero {

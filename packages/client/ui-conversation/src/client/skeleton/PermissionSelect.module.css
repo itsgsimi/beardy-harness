@@ -74,3 +74,10 @@
 .chevronOpen {
   transform: rotate(180deg);
 }
+
+/* Finger-sized trigger where the primary pointer is coarse; the chip keeps its width rules. */
+@media (pointer: coarse) {
+  .trigger {
+    height: 36px;
+  }
+}

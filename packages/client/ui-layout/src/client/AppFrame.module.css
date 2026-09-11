@@ -87,6 +87,71 @@
   overflow: visible;
 }
 
+/*
+ * Phone mode (frame narrower than PHONE_MAX): the left column has no rail, so
+ * the frame publishes the inset its open control needs and column occupants
+ * that draw a leading title row read it (ui-conversation's session header).
+ */
+.frame[data-phone] {
+  --dsh-frame-leading-inset: 56px;
+}
+
+/* The drawer's open control, over the centre column's top-left corner. Sits
+   under the overlay layer (20) and the fullscreen right panel (40), which
+   both carry their own controls. 44px touch target. */
+.phoneMenu {
+  position: absolute;
+  top: 16px;
+  left: 8px;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.phoneMenu:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Drawer scrim and panel sit above the columns and the phone control, below
+   the overlay layer (toasts stay visible) and the fullscreen right panel. */
+.drawerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 17;
+  max-width: calc(100% - 48px);
+  overflow: hidden;
+  background: var(--dsw-specific-sidebar-fill);
+  border-right: 0.5px solid var(--dsw-alias-border-l3);
+  box-shadow: var(--dsw-elevation-prominent);
+  animation: drawer-in var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation: none;
+  }
+}
+
 .overlayLayer {
   position: absolute;
   inset: 0;

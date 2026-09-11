@@ -109,6 +109,8 @@
   min-width: min(240px, calc(100vw - 32px));
   max-width: min(420px, calc(100vw - 32px));
   max-height: min(360px, calc(100vh - 96px));
+  /* The dynamic viewport excludes a phone browser's collapsing toolbars. */
+  max-height: min(360px, calc(100dvh - 96px));
   overflow: hidden;
   padding: 4px;
   /* Surface tokens match the Menu primitive card (ui-primitives
@@ -290,4 +292,11 @@
 .cellChevron {
   flex: 0 0 auto;
   color: var(--dsw-alias-label-tertiary);
+}
+
+/* Finger-sized trigger where the primary pointer is coarse; the chip keeps its width rules. */
+@media (pointer: coarse) {
+  .trigger {
+    height: 36px;
+  }
 }

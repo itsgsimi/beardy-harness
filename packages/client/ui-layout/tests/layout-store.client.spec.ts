@@ -75,6 +75,18 @@ describe('createLayoutStore', () => {
     actions.setViewportWidth(980)
     expect(store.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
   })
+
+  it('closes only the narrow override and keeps the wide preference', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setSidebar(400)
+    actions.setViewportWidth(390)
+    actions.toggleSidebar()
+    expect(store.getSnapshot().layoutInfo.narrowExpanded).toBe(true)
+    actions.closeNarrowSidebar()
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 400, narrowExpanded: false })
+    actions.closeNarrowSidebar()
+    expect(store.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+  })
 })
 
 describe('main panel selection', () => {

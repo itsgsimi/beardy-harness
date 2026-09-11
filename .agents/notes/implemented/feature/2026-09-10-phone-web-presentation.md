@@ -1,0 +1,25 @@
+# Agent Note: Phone presentation of the Web surface
+
+Status: implemented
+
+English | [中文](2026-09-10-phone-web-presentation.zh.md)
+
+## Problem
+
+The Web surface was composed for a desktop window. On a phone browser three things made it barely usable: the frame kept a 56px rail plus a 264px-minimum sidebar, so opening navigation left about 110px for the conversation; editable text sat at 13–14px, so iOS Safari zoomed the page into the composer on focus and stayed zoomed; and a socket frozen by screen lock or tab suspension still reported OPEN, so the transcript stopped streaming until a manual reload because the browser cannot observe the Host's Ping/Pong liveness check.
+
+## Decision
+
+Below 768px the layout frame runs in phone mode. The left grid track is zero, the frame draws its own "Open sidebar" control over the centre's top-left corner and publishes `--dsh-frame-leading-inset` so the conversation header clears it, and the sidebar occupant renders only inside a 300px drawer over the centre behind a scrim. The drawer closes on a scrim tap or when a Session or global panel is picked; the pick subscriber is its own component so the column frame does not re-render on those changes. The 768px figure is the one ui-sidebar-right already uses to derive fullscreen, so both columns change presentation at the same width ([ui-layout](../../../../packages/client/ui-layout/README.md)).
+
+The Gateway sends a `heartbeat` text frame beside every Ping. The browser stream client abandons a socket that reports OPEN but has carried no heartbeat for three intervals, and re-checks that deadline the instant the document becomes visible, because a suspended page also freezes timers. The abandoned socket fails its logical streams as a carrier error, so the existing Connection retry and the Session follow's reconnect baseline, which already carries the in-progress assistant attempt, restore the transcript without a reload ([gateway](../../../../packages/api/gateway/README.md)).
+
+Touch-first browsers get a 16px floor on every editable control from the shell's base stylesheet, keyed on `(pointer: coarse)` so desktop composition keeps its 13–14px chrome, and the theme presenter publishes the content font-size axis as `max(16px, preference)` on the same query so conversation type reflows at phone size rather than relying on the browser's focus zoom, which magnifies without reflowing and crops the page; the static server sends `Cache-Control: no-cache` on everything but the hashed asset directory so a phone revalidates after a rebuild; the composer's attach and send circles, the message action strip, the sidebar's icon controls, the model and permission triggers, and the right-sidebar expand control grow toward the 44px guideline under the same query. Wide Markdown tables stay pannable where there is no hover, filling tables may break long cells on phone columns, the page declares `viewport-fit=cover` and the composer pads for the bottom safe area, and the portaled model, lineage, and primitive menus size against the dynamic viewport. The question composer wraps its footer below 720px so Skip and Submit stay inside the card instead of running past its right edge, which is what hid them in portrait, and the Settings dialog fills the screen below 768px with its section rail as a horizontally scrolling row above the content ([ui-user-questions](../../../../packages/client/ui-user-questions/README.md), [ui-settings-general](../../../../packages/client/ui-settings-general/README.md)).
+
+## Alternatives considered
+
+Disabling pinch zoom through `maximum-scale` also stops the focus zoom but removes a reader's accessibility control; the 16px floor removes the trigger instead. A per-session server-side replay buffer would let the Host resend frames lost during suspension, but the follow's opening baseline already re-delivers the in-progress attempt, so the missing piece was only detecting the dead socket. Rendering the phone open control inside the conversation header would have needed a new root-scoped slot and left the hero without one; the frame owns the column geometry and draws the control itself. Keeping a narrower rail on phones was rejected because the rail's only affordance is opening the sidebar, which one corner control provides at no column cost.
+
+## Consequences
+
+The frame owns one more presentation mode and a header inset variable that column occupants must honour when they draw a leading control. Every Client receives a small text frame every heartbeat interval; a deployment that raises `websocketHeartbeatIntervalMs` also lengthens how long a suspended socket goes unnoticed, which the README states. Desktop presentation is unchanged. The keyless phone e2e ([mobile-viewport](../../../../apps/web/tests/mobile-viewport.e2e.ts)) records the frame geometry, drawer behaviour, pending-question controls, header menu placement, Settings sheet, composer font floor, and table pannability at 390px as a golden; header actions that still crowd a 390px title row and the trajectory table's fixed columns remain desktop-shaped and are the natural next cuts.

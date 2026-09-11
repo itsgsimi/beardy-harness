@@ -690,3 +690,15 @@ select.input {
   line-height: 20px;
   text-align: center;
 }
+
+/* Phone widths: a model row's two inputs cannot share a 326px column with the
+   two action glyphs, so the second input takes its own line. */
+@media (max-width: 767px) {
+  .modelRow {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .modelRow > input:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+}

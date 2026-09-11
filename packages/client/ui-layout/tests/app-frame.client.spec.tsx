@@ -276,7 +276,7 @@ describe('AppFrame normal width concessions', () => {
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ rightbarShown: true, rightbar: 864 })
     act(() => { instance.actions.closeRightbar() })
     resize(455)
-    expect(tracks(frame)).toEqual([56, 0])
+    expect(tracks(frame)).toEqual([0, 0])
     resize(1920)
     expect(tracks(frame)).toEqual([420, 0])
   })
@@ -420,7 +420,7 @@ describe('AppFrame right panel presentation', () => {
     frameWidth = 700
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(false, true) })
-    expect(tracks(frame)).toEqual([56, 0])
+    expect(tracks(frame)).toEqual([0, 0])
     expect(rightOwner()).toEqual({ width: 0, viewportWidth: 700, canShow: false })
     expect(instance.getSnapshot().layoutInfo.rightbarShown).toBe(true)
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
@@ -588,5 +588,63 @@ describe('AppFrame frame measurement lifecycle', () => {
     act(() => { observer.fire(); flushFrames() })
     expect(instance.getSnapshot().layoutInfo.viewportWidth).toBe(1920)
     expect(animationFrames.size).toBe(0)
+  })
+})
+
+describe('AppFrame phone mode', () => {
+  it('drops the rail below 768px and draws the drawer control instead', () => {
+    frameWidth = 390
+    const { frame, queryByTestId, getByLabelText } = mountFrame()
+    expect(frame.dataset.phone).toBe('true')
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(queryByTestId('sidebar-content')).toBeNull()
+    expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
+    expect(getByLabelText('sidebar.open').hasAttribute('data-sidebar-drawer-open')).toBe(true)
+  })
+
+  it('opens the sidebar as an expanded drawer and closes it from the scrim', () => {
+    frameWidth = 390
+    const { frame, instance, getByLabelText, sidebarOwner, queryByTestId } = mountFrame()
+    act(() => { getByLabelText('sidebar.open').click() })
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(true)
+    expect(frame.querySelector('[data-sidebar-drawer]')?.contains(queryByTestId('sidebar-content'))).toBe(true)
+    expect(sidebarOwner()).toEqual({ collapsed: false, width: 300 })
+    expect(frame.querySelector('[data-sidebar-drawer-open]')).toBeNull()
+    expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
+    act(() => { (frame.querySelector('[data-sidebar-drawer-scrim]') as HTMLElement).click() })
+    expect(instance.getSnapshot().layoutInfo.narrowExpanded).toBe(false)
+    expect(frame.querySelector('[data-sidebar-drawer]')).toBeNull()
+    expect(queryByTestId('sidebar-content')).toBeNull()
+  })
+
+  it('closes the drawer after a Session or panel pick and leaves the wide frame alone', () => {
+    frameWidth = 390
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(frame.querySelector('[data-sidebar-drawer]')).not.toBeNull()
+    selectedSession = 's-next' as SessionId
+    rerenderFrame()
+    expect(frame.querySelector('[data-sidebar-drawer]')).toBeNull()
+    act(() => { instance.actions.toggleSidebar() })
+    act(() => { instance.actions.selectPanel('settings' as MainPanelId) })
+    expect(frame.querySelector('[data-sidebar-drawer]')).toBeNull()
+    // Wide frames keep the column open across picks: the pick is not an exit there.
+    resize(1920)
+    expect(tracks(frame)).toEqual([280, 0])
+    selectedSession = 's-third' as SessionId
+    rerenderFrame()
+    expect(tracks(frame)).toEqual([280, 0])
+  })
+
+  it('carries an open drawer into the narrow column when the frame widens past 768px', () => {
+    frameWidth = 390
+    const { frame, instance, sidebarOwner } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    resize(800)
+    expect(frame.dataset.phone).toBeUndefined()
+    expect(frame.querySelector('[data-sidebar-drawer]')).toBeNull()
+    expect(tracks(frame)).toEqual([280, 0])
+    expect(sidebarOwner()).toEqual({ collapsed: false, width: 280 })
+    expect(frame.querySelector('[data-side="sidebar"]')).not.toBeNull()
   })
 })

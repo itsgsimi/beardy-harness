@@ -57,6 +57,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      *
      * The occupant receives the frame's live column state (collapsed, width)
      * and is expected to render the compact control rail while collapsed.
+     * Below 768px the frame renders the occupant only inside its open drawer,
+     * always expanded, and draws the drawer's open control itself.
      */
     'sidebar': { kind: 'single'; scope: 'root'; owner: SidebarOwnerProps }
     /**

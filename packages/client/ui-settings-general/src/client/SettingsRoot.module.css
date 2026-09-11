@@ -234,3 +234,63 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Phone widths: the dialog takes the whole screen and the nav rail becomes a
+   horizontally scrolling row of cells above the content, so the section keeps
+   the full column instead of the 154px a 188px rail would leave it. */
+@media (max-width: 767px) {
+  .panel {
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .nav {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    width: auto;
+    padding: 12px 12px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navTitle {
+    flex: none;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+
+  .navList {
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .navCell {
+    flex: none;
+    height: 36px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .header {
+    height: auto;
+    padding: 8px 12px;
+  }
+
+  /* 44px close target in place of the 28px desktop circle. */
+  .close {
+    width: 40px;
+    height: 40px;
+  }
+
+  .options {
+    padding: 0 16px 24px;
+  }
+}

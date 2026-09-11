@@ -213,6 +213,15 @@
   padding-bottom: 0;
 }
 
+/* No hover means no reveal: touch readers pan the table directly, so the
+   scroller stays live and the resting pad is not needed. */
+@media (hover: none) {
+  .tableScroll:global(.md-table-wide) {
+    overflow-x: auto;
+    padding-bottom: 0;
+  }
+}
+
 /* Chromium keyboard-focuses scrollable containers by default; the ring uses
    the sheet's link focus color. */
 .tableScroll:focus-visible {
@@ -265,6 +274,23 @@
 
 .tableScroll td:last-child {
   padding-right: 0;
+}
+
+/* Phone columns: the 100px cell floor above plus 16px side pads needs 396px
+   for three columns, more than the column holds, so cells drop to a 64px
+   floor with 10px pads (three columns in 252px) and a filling table's
+   unbreakable cell (a path, an identifier) may break anywhere rather than
+   push the table past the column. */
+@media (max-width: 767px) {
+  .tableScroll :is(td, th) {
+    padding-left: 10px;
+    padding-right: 10px;
+    min-width: 64px;
+  }
+
+  .tableFill :is(td, th) {
+    overflow-wrap: anywhere;
+  }
 }
 
 .tableScroll table code {

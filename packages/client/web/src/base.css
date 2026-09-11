@@ -51,3 +51,17 @@ select,
 textarea {
   font-family: inherit;
 }
+
+/* Touch-first browsers (iOS Safari, Chrome Android) zoom the page to an
+   editable control whose text is under 16px and leave it zoomed, which reads
+   as a broken layout. The floor applies only where the primary pointer is
+   coarse, so desktop composition keeps its 13–14px controls. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  [contenteditable='true'] {
+    /* A floor, not a style: it must outrank every component's own size rule. */
+    font-size: max(16px, 1em) !important;
+  }
+}

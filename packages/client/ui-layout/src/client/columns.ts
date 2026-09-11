@@ -21,6 +21,15 @@ export const SIDEBAR_COLLAPSED = 56
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */
 export const SIDEBAR_AUTO_COLLAPSE = 1024
+/**
+ * Viewport width below which the frame is a single column (phone mode): the
+ * left column keeps no rail, the sidebar opens as a drawer over the centre,
+ * and the frame draws the drawer's open control itself. ui-sidebar-right
+ * derives its automatic fullscreen from the same figure.
+ */
+export const PHONE_MAX = 768
+/** Drawer width in phone mode; narrower frames leave a 48px strip of the centre visible. */
+export const SIDEBAR_DRAWER = 300
 /** Right column drag clamp floor. */
 export const RIGHTBAR_MIN = 300
 /** Maximum normal right panel width as a fraction of the frame. */

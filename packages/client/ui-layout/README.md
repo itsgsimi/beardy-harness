@@ -25,13 +25,13 @@ This package provides the Web GUI's three-column AppFrame, edge-column widths, a
 <a id="use-this-package"></a>
 ## Use this package
 
-The root slot composes the sidebar, main content, and right column. The sidebar spans 264–420px, defaults to 280px, and retains a 56px rail when collapsed; below 1024px it collapses automatically, and opening the right panel collapses a manually expanded sidebar. The right panel first opens at 45% of the viewport, then retains the user's pixel preference, capped at 70%. To protect 400px for the center, the frame first reduces the right panel to 300px, then reports insufficient room so its occupant closes it, and only then compresses the center further. Dragging has no transition delay; the right handle is absent while closed or fullscreen.
+The root slot composes the sidebar, main content, and right column. The sidebar spans 264–420px, defaults to 280px, and retains a 56px rail when collapsed; below 1024px it collapses automatically, and opening the right panel collapses a manually expanded sidebar. Below 768px (phone mode) the left column keeps no rail: the frame draws an "Open sidebar" control over the centre's top-left corner and publishes `--dsh-frame-leading-inset` so a column header can clear it, the sidebar opens as a 300px drawer over the centre behind a scrim, and the drawer closes on a scrim tap or when a Session or global panel is picked. The right panel first opens at 45% of the viewport, then retains the user's pixel preference, capped at 70%. To protect 400px for the center, the frame first reduces the right panel to 300px, then reports insufficient room so its occupant closes it, and only then compresses the center further. Dragging has no transition delay; the right handle is absent while closed or fullscreen.
 
 Global panels occupy the root-scoped `main` keyed slot; `conversation` is the reserved key for the Conversation. `ctx.layout.selectPanel(id)` selects a registered panel, and `null` selects the Conversation without changing the current Session. No global panel is registered by the shipped composition.
 
 ### Theme presentation
 
-The presenter consumes resolved theme snapshots and projects them onto the document: `html { color-scheme }` for native UA chrome, `body[data-ds-dark-theme]` from the active color scheme, the theme's alias tokens and `--dsh-content-font-size` as inline variables on body, and one owned `<meta name="theme-color">` whose content follows the computed body background. Disposing the presenter removes its metadata node with its other global writes.
+The presenter consumes resolved theme snapshots and projects them onto the document: `html { color-scheme }` for native UA chrome, `body[data-ds-dark-theme]` from the active color scheme, the theme's alias tokens and `--dsh-content-font-size` as inline variables on body (on a coarse-pointer device the axis is published as `max(16px, <preference>px)`, so phone type never drops below 16px and the content ladder reflows at that size instead of relying on the browser's cropping focus zoom), and one owned `<meta name="theme-color">` whose content follows the computed body background. Disposing the presenter removes its metadata node with its other global writes.
 
 -----
 
@@ -79,7 +79,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define the current layout behavior. They are current package constraints, not a general window-manager comparison or a task backlog.
 
 - **Panel geometry is transient** — reload restores the sidebar default and the right panel hidden; each dragged width is one frame-wide preference, not a per-Session fact.
-- **Extremely narrow windows** — after the right panel closes, the center may still fall below 400px; the left 56px rail remains.
+- **Narrow windows between 768px and 1024px** — after the right panel closes, the center may still fall below 400px; the left 56px rail remains. Below 768px the rail is gone but the phone open control covers the centre's top-left corner, so a column occupant that draws its own leading control there must read `--dsh-frame-leading-inset`.
 - **Track and panel travel on one shared curve** — the frame's track transition and the occupant's slide read the same duration and easing variables; an occupant that used its own would detach the panel's edge from the conversation's while squeezing.
 - **No scroll anchoring during squeeze reflow** — layout changes may move the reader's viewport.
 

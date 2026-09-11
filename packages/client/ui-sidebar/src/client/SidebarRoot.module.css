@@ -217,6 +217,26 @@
   display: none;
 }
 
+/* Without hover (tablets between 768px and 1024px) the rail's expand
+   affordance is always the panel icon: the whale mark would never swap. */
+@media (hover: none) {
+  .collapsed .toggle .panelIcon {
+    display: inline;
+  }
+
+  .collapsed .toggle .railMark {
+    display: none;
+  }
+}
+
+/* Finger-sized hit boxes for the header's 28px icon controls. */
+@media (pointer: coarse) {
+  .iconButton {
+    width: 36px;
+    height: 36px;
+  }
+}
+
 .railMark {
   display: inline-flex;
   align-items: center;

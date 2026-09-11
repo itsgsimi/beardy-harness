@@ -43,8 +43,22 @@
   flex: none;
   box-sizing: border-box;
   min-height: 76px;
-  padding: 10px 28px 0 20px;
+  /* The leading pad yields to the frame's inset when the frame draws a
+     control over this corner (ui-layout phone mode publishes it). */
+  padding: 10px 28px 0 var(--dsh-frame-leading-inset, 20px);
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+/* Phone widths: the trailing pad shrinks so the corner seat's -16px reach
+   ends flush with the column edge, and the utilities keep the 8px gap. */
+@media (max-width: 767px) {
+  .header {
+    padding-right: 16px;
+  }
+
+  .headerUtilities {
+    margin-left: 8px;
+  }
 }
 
 /* Blank hero/settling: keep the strict Session header mounted without taking

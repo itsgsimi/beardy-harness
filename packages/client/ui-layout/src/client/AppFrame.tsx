@@ -19,7 +19,9 @@ import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import {
+  computeColumns, PHONE_MAX, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_DRAWER,
+} from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
@@ -117,6 +119,32 @@ function DragHandle(props: { side: 'sidebar' | 'rightbar'; left: number; onStart
   )
 }
 
+/**
+ * A pick inside the open drawer (a Session, a global panel) is the drawer's
+ * exit: the centre now shows what was picked, so the drawer would only cover
+ * it. Mounted only while the drawer is open, as its own subscriber, so the
+ * column frame never re-renders on Session or panel changes.
+ */
+function DrawerExit({ useSessions, usePanelInfo, onPick }: Pick<AppFrameProps, 'useSessions' | 'usePanelInfo'> & { onPick: () => void }) {
+  const currentSession = useSessions(s => s.current)
+  const activePanelId = usePanelInfo(info => info.activePanelId)
+  const opened = useRef(true)
+  useEffect(() => {
+    if (opened.current) { opened.current = false; return }
+    onPick()
+  }, [onPick, currentSession, activePanelId])
+  return null
+}
+
+/** Phone-mode open control: three bars, drawn inline so the frame owes ui-primitives nothing. */
+function MenuGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 /** The three-column frame (see module doc). */
 export function AppFrame({
   useStore,
@@ -158,6 +186,11 @@ export function AppFrame({
   }, [actions])
 
   const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
+  // Phone mode: no left rail at all. The narrow override that re-expands the
+  // sidebar over the centre becomes a drawer above it, and the frame draws
+  // the open control the rail used to carry.
+  const phone = viewport < PHONE_MAX
+  const drawerOpen = phone && layoutInfo.narrowExpanded
   const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
   const sidebarPreference = sidebarCollapsed
     ? 0
@@ -166,7 +199,11 @@ export function AppFrame({
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
   const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference)
-  const cols = computeColumns(viewport, sidebarPreference, layoutInfo.rightbarTrack ? rightbarPreference : 0)
+  const cols = phone
+    ? { sidebar: 0, center: viewport, rightbar: 0 }
+    : computeColumns(viewport, sidebarPreference, layoutInfo.rightbarTrack ? rightbarPreference : 0)
+
+  const closeDrawer = useCallback(() => { actions.closeNarrowSidebar() }, [actions])
   const colsRef = useRef(cols)
   colsRef.current = cols
   const rightbarWidth = useRef(normal.rightbar)
@@ -190,10 +227,12 @@ export function AppFrame({
     actions.setRightbar(rightbarBase.current - dx)
   }, [actions])
   const productTitle = process.env.DSH_CLIENT_TITLE ?? t('brand.localBuild')
-  const sidebar = useMemo(() => renderSlot('sidebar', {
-    collapsed: sidebarCollapsed,
-    width: cols.sidebar,
-  }), [renderSlot, sidebarCollapsed, cols.sidebar])
+  // Phone mode renders the occupant only inside the open drawer, always
+  // expanded at the drawer width; the column itself stays empty.
+  const sidebar = useMemo(() => phone
+    ? drawerOpen ? renderSlot('sidebar', { collapsed: false, width: SIDEBAR_DRAWER }) : null
+    : renderSlot('sidebar', { collapsed: sidebarCollapsed, width: cols.sidebar }),
+  [renderSlot, phone, drawerOpen, sidebarCollapsed, cols.sidebar])
   const main = useMemo(() => (
     <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
   ), [usePanelInfo, renderSlot])
@@ -208,6 +247,7 @@ export function AppFrame({
           `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px`,
       }}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
+      data-phone={phone || undefined}
       data-rightbar-collapsed={cols.rightbar === 0 || undefined}
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
@@ -219,7 +259,7 @@ export function AppFrame({
         usePanelInfo={usePanelInfo}
       />
       <div className={css.sidebarCol}>
-        {sidebar}
+        {phone ? null : sidebar}
       </div>
       <>
         <CenterColumn>{main}</CenterColumn>
@@ -227,11 +267,31 @@ export function AppFrame({
           {renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
         </RightbarColumn>
       </>
+      {phone && !drawerOpen && (
+        <button
+          type="button"
+          className={css.phoneMenu}
+          aria-label={t('sidebar.open')}
+          data-sidebar-drawer-open
+          onClick={() => { actions.toggleSidebar() }}
+        >
+          <MenuGlyph />
+        </button>
+      )}
+      {drawerOpen && (
+        <>
+          <div className={css.drawerScrim} data-sidebar-drawer-scrim onClick={closeDrawer} />
+          <div className={css.drawer} data-sidebar-drawer style={{ width: SIDEBAR_DRAWER }}>
+            {sidebar}
+          </div>
+          <DrawerExit useSessions={useSessions} usePanelInfo={usePanelInfo} onPick={closeDrawer} />
+        </>
+      )}
       <div className={css.overlayLayer} data-shell-overlay>
         {overlays}
       </div>
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {/* The collapsed rail is fixed-width: no resize handle while closed; a phone drawer has no handle either. */}
+      {!sidebarCollapsed && !phone && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
         <DragHandle side="rightbar" left={viewport - normal.rightbar} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
       )}

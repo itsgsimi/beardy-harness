@@ -66,6 +66,8 @@
  * staying short. */
 .scrollable {
   max-height: calc(100vh - 24px);
+  /* The dynamic viewport excludes a phone browser's collapsing toolbars. */
+  max-height: calc(100dvh - 24px);
 }
 
 .viewport {

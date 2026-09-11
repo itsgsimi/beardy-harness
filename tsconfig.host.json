@@ -99,6 +99,7 @@
     "apps/web/tests/goal-multi-turn-actions.e2e.ts",
     "apps/web/tests/agent-team-panel.e2e.ts",
     "apps/web/tests/sidebar-right.e2e.ts",
+    "apps/web/tests/mobile-viewport.e2e.ts",
     "apps/web/tests/chat-scroll-fixture.ts",
     "apps/web/tests/chat-scroll-contract.e2e.ts",
     "apps/web/tests/chat-long-interactions.e2e.ts",
