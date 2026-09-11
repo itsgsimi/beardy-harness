@@ -37,6 +37,19 @@ import { SessionAssistantStreamAccumulator } from './assistant-stream.ts'
 
 const DEFAULT_MAX_MESSAGES = 50
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
+/**
+ * Second bound on one page, measured in serialized characters across the
+ * page's events. The message count alone does not bound the payload: a page
+ * holds every event between its messages, and one turn's tool results carry
+ * far more text than the messages around them, so a long session opened at the
+ * default count can serialize into a single multi-megabyte frame. That frame
+ * is written ahead of the same follow's Assistant frames, so until it drains
+ * the reader sees neither history nor streaming.
+ *
+ * A page that trips this bound reports `hasMore`, which is the same signal the
+ * reader already follows backwards, so the whole transcript stays reachable.
+ */
+const MAX_PAGE_CHARACTERS = 1_000_000
 
 /** Implements cold-safe history operations delegated by the Session Controller. */
 export class SessionHistoryController {
@@ -388,9 +401,11 @@ function paginate(
 ): { readonly events: SessionEvent[]; readonly hasMore: boolean } {
   const end = SessionLogOffset(Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1))
   let count = 0
+  let characters = 0
   let cut = SessionLogOffset(0)
   for (let index = end - 1; index >= 0; index--) {
     const event = events[index] as SessionEvent
+    characters += serializedCharacters(event)
     if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
     count++
     const sources = event.sourceEventSeqs
@@ -400,12 +415,29 @@ function paginate(
         if (source < groupStart) groupStart = source
       }
     }
-    if (count >= maxMessages) {
+    // The newest message always ships with its group, however large that group
+    // serializes: a page the reader cannot read is worse than one long frame.
+    // Past it, either bound ends the page at this same group boundary, so a
+    // page never splits a message from the events it was assembled from.
+    if (count >= maxMessages || (count > 1 && characters >= MAX_PAGE_CHARACTERS)) {
       cut = SessionLogOffset(groupStart)
       break
     }
   }
   return { events: events.slice(cut, end), hasMore: cut > 0 }
+}
+
+/**
+ * Measure one event the way the page will carry it.
+ * @param event - a logical Session event bound for a page.
+ * @returns its serialized length in JSON characters, which tracks the wire
+ *   frame's byte count exactly for ASCII transcripts and understates it for
+ *   text outside the Basic Latin block; the page bound treats it as an
+ *   estimate, never as an exact frame size.
+ */
+function serializedCharacters(event: SessionEvent): number {
+  // Session.append validates and freezes event data as JSON before publication.
+  return JSON.stringify(event).length
 }
 
 /** Translate current logical Session metadata to the browser wire. */

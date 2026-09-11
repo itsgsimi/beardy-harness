@@ -795,6 +795,57 @@ describe('Session history raw journal', () => {
     expect(page.map(event => event.seq)).toEqual(page.map((_event, index) => third.seq + index))
   })
 
+  it('ends a page at a message boundary once its events outgrow the size bound', async () => {
+    const { ctx } = await harness()
+    const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+    const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+    session.append('turn/start', { turn: 1 })
+    // Four replies of 400k characters: the message count never binds, so only
+    // the size bound can end this page.
+    const bulk = 'x'.repeat(400_000)
+    const messages: SessionEvent[] = []
+    for (let turn = 1; turn <= 4; turn++) {
+      messages.push(appendUserText(session, `prompt ${String(turn)}`))
+      messages.push(appendAssistantText(session, bulk, turn))
+    }
+    const newest = messages.at(-1)
+    if (newest === undefined) throw new Error('expected appended messages')
+
+    const response = await remote.page({
+      address: { kind: 'session', sessionId: session.id },
+      throughSeq: newest.seq,
+      maxMessages: 50,
+    })
+    if (!response.ok) throw new Error(response.error.message)
+    const page = pageEvents(response.value)
+    // The newest message is on the page and the oldest is not, so the reader
+    // opens at the live end and pages backwards for the rest.
+    expect(page.some(event => event.seq === newest.seq)).toBe(true)
+    expect(page.some(event => event.seq === messages[0]?.seq)).toBe(false)
+    expect(response.value.hasMore).toBe(true)
+    // Every page is whole events in order, so the bound cannot split a record.
+    expect(page.map(event => event.seq)).toEqual([...page].map(event => event.seq).sort((left, right) => left - right))
+    await ctx.fiber.dispose()
+  })
+
+  it('ships one oversized message whole rather than serving an unreadable page', async () => {
+    const { ctx } = await harness()
+    const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+    const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+    session.append('turn/start', { turn: 1 })
+    const only = appendAssistantText(session, 'x'.repeat(2_000_000), 1)
+
+    const response = await remote.page({
+      address: { kind: 'session', sessionId: session.id },
+      throughSeq: only.seq,
+      maxMessages: 50,
+    })
+    if (!response.ok) throw new Error(response.error.message)
+    expect(pageEvents(response.value).some(event => event.seq === only.seq)).toBe(true)
+    expect(response.value.hasMore).toBe(false)
+    await ctx.fiber.dispose()
+  })
+
   it('paginates a message with a large embedded stream without expanding physical records', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
