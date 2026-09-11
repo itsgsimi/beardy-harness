@@ -27,6 +27,15 @@
       "path": "../../fs/fs"
     },
     {
+      "path": "../../fs/fs-sandbox"
+    },
+    {
+      "path": "../../sandbox/sandbox-policy"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
       "path": "../../interaction/user-approval"
     },
     {

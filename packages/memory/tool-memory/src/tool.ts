@@ -8,6 +8,7 @@
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
+import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
@@ -169,13 +170,20 @@ export function createMemoryTool(
 
       if (config.requireApproval) await approvedForWrite(ctx, exec, fileName, args)
 
+      // Carry THIS session's policy on the write. Omitting it makes the sandboxed
+      // filesystem fall back to the deployment default (its mode plus the fallback
+      // workspace root) instead of the session's own mode and cwd, so a session
+      // holding full access was still refused here.
+      const policyService: SandboxPolicyService | undefined = ctx.get('sandboxPolicy')
+      const sandboxPolicy = policyService?.resolve(exec.agent === undefined ? {} : { session: exec.agent.session })
+
       const expected = existing === undefined
         ? { kind: 'createIfAbsent' as const }
         : { kind: 'replaceIfVersion' as const, version: existing.version }
       ctx.emit('fs/observed', target, existing === undefined
         ? { kind: 'absent' }
         : { kind: 'present', version: existing.version }, exec)
-      const outcome = await fs.writeText(target, serialized, expected, exec.signal)
+      const outcome = await fs.writeText(target, serialized, expected, exec.signal, sandboxPolicy)
       ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
       return {
         target: args.target,

@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
+import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -126,7 +127,12 @@ export function applySkillManageTool(
       if (options.requireApproval) await approvedForMutation(ctx, exec, args, scope)
       const paths = scopePaths(exec, scope)
       const rootPath = paths.rootPath
-      await fs.makeDirectory(await fs.resolve(rootPath, { signal: exec.signal }), exec.signal)
+      // Carry THIS session's policy on every mutation. Without it the sandboxed
+      // filesystem falls back to the deployment default (its mode plus the
+      // fallback workspace root), which refused paths inside the calling
+      // session's own workspace — the standing bug this closes.
+      const sandboxPolicy = sessionPolicy(ctx, exec)
+      await fs.makeDirectory(await fs.resolve(rootPath, { signal: exec.signal }), exec.signal, sandboxPolicy)
       const filePath = join(rootPath, `${args.name}.md`)
       const filePathInfo = await fs.lstat(filePath, undefined, exec.signal)
       if (filePathInfo?.type === 'symlink') throw new Error(`skill "${args.name}" is a symbolic link and cannot be managed`)
@@ -142,7 +148,7 @@ export function applySkillManageTool(
       if (args.action === 'delete') {
         if (existing === undefined) throw new Error(`skill "${args.name}" does not exist in the ${scope} skill directory`)
         if (existing.type !== 'file') throw new Error(`skill "${args.name}" is not a regular file`)
-        await fs.removeFile(target, exec.signal)
+        await fs.removeFile(target, exec.signal, sandboxPolicy)
         ctx.emit('fs/observed', target, { kind: 'absent' }, exec)
         return { action: args.action, name: args.name, path: target.displayPath, status: 'deleted' }
       }
@@ -163,7 +169,7 @@ export function applySkillManageTool(
       ctx.emit('fs/observed', target, existing === undefined
         ? { kind: 'absent' }
         : { kind: 'present', version: existing.version }, exec)
-      const outcome = await fs.writeText(target, content, expected, exec.signal)
+      const outcome = await fs.writeText(target, content, expected, exec.signal, sandboxPolicy)
       ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
       return {
         action: args.action,
@@ -181,6 +187,17 @@ export function applySkillManageTool(
 function requireAgent(exec: ToolExecution): Agent {
   if (exec.agent === undefined) throw new Error('skill_manage requires an Agent-backed session')
   return exec.agent
+}
+
+/**
+ * The calling session's standing sandbox policy, resolved the way `write` and
+ * `edit` resolve it: the session supplies both its mode override and its
+ * immutable cwd as the workspace boundary. An agentless call keeps the
+ * deployment fallback, exactly as before.
+ */
+function sessionPolicy(ctx: Context, exec: ToolExecution): ReturnType<SandboxPolicyService['resolve']> | undefined {
+  const policyService: SandboxPolicyService | undefined = ctx.get('sandboxPolicy')
+  return policyService?.resolve(exec.agent === undefined ? {} : { session: exec.agent.session })
 }
 
 /** The scope's skill root and the directory it must stay inside; workspace scope is the only one needing a cwd. */
