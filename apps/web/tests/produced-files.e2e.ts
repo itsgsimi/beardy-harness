@@ -146,14 +146,17 @@ describe('web e2e: a finished turn ends with the files it produced', () => {
     await expect.poll(() => chips.count()).toBe(6)
     await expect.poll(() => row.getByText('+ 4 files', { exact: true }).isVisible()).toBe(true)
 
-    await page.setViewportSize({ width: 750, height: 900 })
+    // The lane bounds below are tuned to one centre-column width, not to one
+    // window: phone mode drops the 56px rail, so the window that leaves the
+    // centre at 694px is now 694 rather than 750.
+    await page.setViewportSize({ width: 694, height: 900 })
     await page.evaluate(async () => { await document.fonts.ready })
     await page.waitForFunction(() => {
       const frame = document.querySelector('[data-sidebar-collapsed][data-rightbar-collapsed]')
       if (frame === null) return false
       const tracks = getComputedStyle(frame).gridTemplateColumns.split(' ').map(Number.parseFloat)
-      // The responsive sidebar's settled collapsed track is 56px.
-      return tracks[0] === 56 && tracks.at(-1) === 0
+      // Phone mode's settled collapsed track is zero: the drawer replaces the rail.
+      return tracks[0] === 0 && tracks.at(-1) === 0
         && frame.getAnimations().every(animation =>
           animation.playState === 'finished' || animation.playState === 'idle')
     }, undefined, { timeout: 10_000 })

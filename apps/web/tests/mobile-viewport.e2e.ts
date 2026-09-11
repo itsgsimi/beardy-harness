@@ -332,7 +332,7 @@ describe('web e2e: phone viewport', () => {
   })
 
   it('records the geometry golden and stays free of console noise', async () => {
-    await compareOrRefreshGolden(`${EXPECTED_DIR}/${GOLDEN}`, report.join('\n'), webSnapshotMode())
+    await compareOrRefreshGolden(`${EXPECTED_DIR}/${GOLDEN}`, report.join('\n').trimEnd(), webSnapshotMode())
     await assertFixtureInventory(EXPECTED_DIR, [GOLDEN])
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])

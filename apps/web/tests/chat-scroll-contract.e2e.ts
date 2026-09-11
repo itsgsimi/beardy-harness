@@ -773,7 +773,10 @@ describe('web e2e: long Chat scroll contract', () => {
 
       await world.page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
       await world.page.getByLabel('Trajectory timeline').waitFor({ timeout: 30_000 })
-      await world.page.setViewportSize({ width: 700, height: 900 })
+      // 800px is the narrow COLUMN band: wide enough to stay out of phone mode,
+      // where the sidebar is a drawer over the centre rather than a column that
+      // squeezes it, and this scenario is about the squeezed owner.
+      await world.page.setViewportSize({ width: 800, height: 900 })
       // The narrow breakpoint auto-collapses the sidebar. Re-open it because
       // this scenario switches sessions while pinning the narrow Chat scroll owner.
       await world.page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
