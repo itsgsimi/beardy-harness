@@ -57,29 +57,24 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * namespace carries this scope's writes (reads ride the mirror).
    * @param spec - namespace identity and optional narrowing decoder.
    * @param mirror - the shared describe mirror this scope derives from.
-   * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    * @param schema - settings-owned schema operations.
    */
   constructor(
     private readonly ctx: Context,
     private readonly spec: SettingsScopeSpec<T>,
     private readonly mirror: SettingsDescribeMirror,
-    private readonly persistence: 'host' | 'memory',
     private readonly schema: SettingsSchemaService,
   ) {
     this.store = createSnapshotStore<SettingsScopeSnapshot<T>>({
-      status: persistence === 'host' ? 'loading' : 'unavailable',
+      status: 'loading',
       value: undefined,
       base: undefined,
       user: undefined,
       revision: undefined,
       writable: false,
-      mode: persistence,
     })
-    if (persistence === 'host') {
-      this.unsubscribe = mirror.subscribe(() => { this.derive() })
-      this.derive()
-    }
+    this.unsubscribe = mirror.subscribe(() => { this.derive() })
+    this.derive()
   }
 
   /** @returns the current sync snapshot (stable reference until the next change). */
@@ -163,7 +158,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
   }
 
   private enqueue(operation: () => Promise<void>): Promise<void> {
-    if (this.persistence === 'memory' || this.disposed) return Promise.resolve()
+    if (this.disposed) return Promise.resolve()
     const task = this.tail.then(async () => {
       if (this.disposed) return
       await operation()
@@ -232,7 +227,6 @@ declare module '@deepseek-ai/cordis' {
 export class SettingsScopeBinder extends Service {
   private readonly mirror: SettingsDescribeMirror
   private readonly schema: SettingsSchemaService
-  private readonly persistence: 'host' | 'memory'
   /**
    * The PROVIDING fiber, kept because a Service reads `ctx` as its *consumer's*
    * fiber: letting a bound scope write through the caller's context would make
@@ -242,19 +236,16 @@ export class SettingsScopeBinder extends Service {
 
   /**
    * @param ctx - the providing plugin's context.
-   * @param config - the shared describe mirror every bound scope derives from,
-   * the settings-owned schema operations, and the Host persistence the provider
-   * resolved from `remote.$host`.
+   * @param config - the shared describe mirror every bound scope derives from
+   * and the settings-owned schema operations.
    */
   constructor(ctx: Context, config: {
     mirror: SettingsDescribeMirror
     schema: SettingsSchemaService
-    persistence: 'host' | 'memory'
   }) {
     super(ctx, 'settingsScope')
     this.mirror = config.mirror
     this.schema = config.schema
-    this.persistence = config.persistence
     this.owner = ctx
   }
 
@@ -285,7 +276,6 @@ export class SettingsScopeBinder extends Service {
       this.owner,
       spec,
       this.mirror,
-      this.persistence,
       this.schema,
     )
     ctx.effect(() => {

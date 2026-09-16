@@ -189,7 +189,8 @@ export class ModelsSettingsStore {
     if (!declared.ok) { this.failLoad(generation, declared.error.message); return }
     const mirrored = this.describeFace.getSnapshot()
     if (mirrored.view === undefined) {
-      this.failLoad(generation, mirrored.error ?? 'settings are unavailable in this browser')
+      /* v8 ignore next -- ensure() settles only once the mirror holds a view or recorded why it has none */
+      this.failLoad(generation, mirrored.error ?? 'the settings mirror holds no answer')
       return
     }
     const providers = joinProviderDirectory(registered.value, declared.value)

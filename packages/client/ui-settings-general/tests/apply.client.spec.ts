@@ -173,13 +173,16 @@ describe('ui-settings-general apply', () => {
     await vi.waitFor(() => { expect(b.settingsDescribe).toHaveBeenCalledTimes(2) })
   })
 
-  it('withholds the Host document action off-loopback', async () => {
+  it('withholds the Host document action off-loopback while settings still read', async () => {
     const b = await bench(false)
     declare(b.slots)
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
+    // The action opens the document on the HOST's screen, so it stays keyed to
+    // the page authority. Reading the document does not, so the settings
+    // surfaces work on a LAN or Tailscale page.
     expect(b.slots.entries('settings.action')).toEqual([])
-    expect(b.settingsDescribe).not.toHaveBeenCalled()
+    await vi.waitFor(() => { expect(b.settingsDescribe).toHaveBeenCalled() })
     await fiber.dispose()
     for (const [name] of SEATS) expect(b.slots.entries(name)).toEqual([])
   })

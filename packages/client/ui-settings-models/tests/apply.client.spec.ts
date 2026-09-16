@@ -195,8 +195,28 @@ describe('ui-settings-models apply', () => {
     expect(() => b.locale.register('settings.models', 'en', {})).not.toThrow()
   })
 
-  it('keeps remote-browser acknowledgement in process memory', async () => {
-    const b = await bench(false)
+  it('reads the durable acknowledgement on a non-loopback page', async () => {
+    // Page authority selects no settings mode: the Host fence and Connection
+    // authentication decide who may call, so a LAN or Tailscale browser reads
+    // the same document a loopback one does.
+    const settings = {
+      describe: vi.fn(() => Promise.resolve({
+        ok: true as const,
+        value: {
+          writable: true,
+          hasDocument: false,
+          namespaces: [{
+            ns: WELCOME_NOTICE_SETTINGS_NAMESPACE,
+            schema: {},
+            value: { [WELCOME_NOTICE_ACK_FIELD]: WELCOME_NOTICE_VERSION },
+            applies: 'live' as const,
+            secrets: [],
+            revision: 0,
+          }],
+        },
+      })),
+    }
+    const b = await bench(false, settings)
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const entry = b.slots.entries('settings.onboarding')
@@ -206,8 +226,9 @@ describe('ui-settings-models apply', () => {
     )()
 
     await injected.controller.load()
+    expect(settings.describe).toHaveBeenCalled()
     expect(injected.controller.store.getSnapshot()).toEqual({
-      status: 'ready', acknowledged: false, error: null,
+      status: 'ready', acknowledged: true, error: null,
     })
   })
 })
