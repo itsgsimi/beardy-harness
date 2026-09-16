@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package renders the deliverables row a finished turn ends with — the files the mutation tools created or modified — and links matching inline-code references in the closing prose, so a mentioned file opens in the right Sidebar. It also presents visual findings inline — charts, screenshots, GIFs, SVG diagrams, and interactive HTML mockups with explanatory captions, expanded previews, and original downloads — and saved visuals survive source-file changes and reloads. The linked paths come from successful mutations and explicit deliveries, never from the closing prose — a produced file is listed whether or not the model remembered to name it. The shipped Web patch is the only composition that loads this package; removing its cordis.yml entry removes the guidance, row, prose links, and visuals together.
+This package renders the deliverables row a finished turn ends with — the files the mutation tools created or modified — and links matching inline-code references in the closing prose, so a mentioned file opens in the right Sidebar. It also presents visual findings inline: charts, screenshots, diagrams, and interactive HTML mockups with captions, expanded previews, and downloads that survive source changes and reloads. Linked paths come from successful mutations and explicit deliveries, never the prose, so a produced file is listed whether or not the model named it. Only the shipped Web patch loads this package.
 
 ## Table of Contents
 

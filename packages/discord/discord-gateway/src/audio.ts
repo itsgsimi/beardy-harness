@@ -2,7 +2,13 @@
 import type { SpeechWhisper } from '@deepseek-ai/dsh-speech-whisper'
 import type { DiscordInboundMessage } from './types.ts'
 
-/** Transcribe admitted attachments without forwarding credentials or following CDN redirects. */
+/**
+ * Transcribe admitted attachments without forwarding credentials or following CDN redirects.
+ * @param message - an already-admitted inbound message carrying audio attachments.
+ * @param speech - the transcription service this gateway resolved.
+ * @param signal - caller cancellation covering every attachment fetch and decode.
+ * @returns the message with each transcript appended to its text; unchanged when it carries no audio.
+ */
 export async function transcribeDiscordAudio(
   message: DiscordInboundMessage, speech: SpeechWhisper, signal: AbortSignal,
 ): Promise<DiscordInboundMessage> {

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-16-discord-attachment-references.md
-2026-09-16-discord-attachment-references.md: fa729ba15a5043ddb2a15f34865a56e53104dfd0
-2026-09-16-discord-attachment-references.zh.md: fbb0110e563678c963ff47cb0bcc5b7968bdd549
+2026-09-16-discord-attachment-references.md: c876b9448d11f47aeae19990df53e12a8c25e8ba
+2026-09-16-discord-attachment-references.zh.md: 903796ec9cb50938a74f99847f17277a8827c70e

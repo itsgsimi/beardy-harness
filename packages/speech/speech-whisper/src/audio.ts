@@ -3,7 +3,12 @@ import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 
-/** Collect bytes while enforcing the complete stream's limit. */
+/**
+ * Collect bytes while enforcing the complete stream's limit.
+ * @param data - encoded audio chunks; consumed to completion or to the first overflow.
+ * @param limit - byte ceiling for the whole stream, not one chunk.
+ * @returns the concatenated bytes.
+ */
 export async function collectBytes(data: AsyncIterable<Uint8Array>, limit: number): Promise<Buffer> {
   const chunks: Uint8Array[] = []
   let size = 0
@@ -15,7 +20,15 @@ export async function collectBytes(data: AsyncIterable<Uint8Array>, limit: numbe
   return Buffer.concat(chunks, size)
 }
 
-/** Decode a single audio track to 16 kHz PCM, rejecting recordings over the limit. */
+/**
+ * Decode a single audio track to 16 kHz PCM, rejecting recordings over the limit.
+ * @param subprocess - managed process runtime that owns the decoder's lifetime.
+ * @param bytes - the encoded recording, written to the decoder's stdin.
+ * @param executable - FFmpeg executable resolved from deployment configuration.
+ * @param maxSeconds - decoded-duration ceiling; the decoder stops one second past it.
+ * @param signal - caller cancellation, combined with the decoder's own teardown.
+ * @returns a WAV buffer carrying the decoded PCM.
+ */
 export async function decodeAudio(
   subprocess: SubprocessRuntime, bytes: Uint8Array, executable: string,
   maxSeconds: number, signal: AbortSignal,

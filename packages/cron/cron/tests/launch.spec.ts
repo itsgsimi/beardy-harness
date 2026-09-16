@@ -154,7 +154,7 @@ describe('job runner', () => {
     expect(h.calls).toContain(`followup:${runPrompt({ ...JOB, notes: 'Second run.' })}`)
   })
 
-  it('starts a session, hands over the prompt with cron provenance, and reports the answer', async () => {
+  it('starts a session, hands over the prompt carrying its job name and fire time, and reports the answer', async () => {
     const h = harness({ replyText: 'Brief posted.' })
     const result = await h.runner.run(JOB, FIRED_AT)
     expect(result.outcome).toBe('answered')

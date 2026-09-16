@@ -54,7 +54,7 @@ The base profile supplies the values shown above but leaves speech disabled. Bro
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The provider decodes one track into bounded 16 kHz mono PCM with a pipe-only FFmpeg protocol allowlist, wraps it in WAV, and sends it to whisper.cpp. Aborting a request or unloading the plugin terminates the subprocess and drains pending work. The optional attachment consumer adds the transcript beside the durable file reference; the Discord consumer validates CDN URLs and preserves message provenance.
+The provider decodes one track into bounded 16 kHz mono PCM with a pipe-only FFmpeg protocol allowlist, wraps it in WAV, and sends it to whisper.cpp. Aborting a request or unloading the plugin terminates the subprocess and drains pending work. The optional attachment consumer adds the transcript beside the durable file reference; the Discord consumer validates CDN URLs and preserves the sender and channel identity.
 
 </details>
 

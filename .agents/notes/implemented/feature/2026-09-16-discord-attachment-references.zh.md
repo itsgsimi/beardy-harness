@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-[Discord 网关](../../../../packages/discord/discord-gateway/README.zh.md)将 JSON 编码的附件引用附加到已准入的消息正文。引用包含文件名、URL、媒体类型和字节数，并明确标记为不可信数据。仅含附件的消息使用普通会话路径，保留 Discord 来源信息。现有输入长度上限约束最终传给模型的文本。
+[Discord 网关](../../../../packages/discord/discord-gateway/README.zh.md)将 JSON 编码的附件引用附加到已准入的消息正文。引用包含文件名、URL、媒体类型和字节数，并明确标记为不可信数据。仅含附件的消息使用普通会话路径，保留其 Discord 频道与作者标识。现有输入长度上限约束最终传给模型的文本。
 
 网关不获取文件。agent 选择的工具负责下载限制、文件校验、保存和图像解读。带签名的附件 URL 可能过期，因此需要持久保存的流程会及时归档文件。
 

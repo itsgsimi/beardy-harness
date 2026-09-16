@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/speech/speech-whisper/README.md
-README.md: 6e1a6e7a53b27af2c64553b3bfddfa9744bfbd65
-README.zh.md: 14dc52bc8072ce964dbbc857ba68c076d0076ddc
+README.md: 7ac382b81815acfb1166e4309f9f111f9588b714
+README.zh.md: 5ea0dbd47bd6c4a85a2b5f3658f4c6fdcb0b568a

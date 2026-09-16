@@ -10,14 +10,14 @@ Webhook ingress, the cron scheduler, and the Discord gateway each hand-rolled th
 
 ## Decision
 
-**One library owns the open.** New package `packages/session/unattended-session/` exports `openUnattendedSession(ctx, spec, signal)`: the full ordered transaction with standing key, signal binding, cancellation checks after standing/workspace/create/attach, and reported rollback (detach when attached, then dispose, each in its own `try`, warnings prefixed `unattended session:`). The spec carries the caller-chosen branded `sessionId`, preset names, workspace path, title, resolved `agentOptions`, and an optional extra `AgentSetup` composed after the preset mounts — webhook's creation-time model selection pins through it. Prompt admission deliberately stays with each ingress: provenance (`webhook`/`cron`/`discord` source blocks) is ingress-owned, so pulling it in would force a discriminated spec for no shared benefit.
+**One library owns the open.** New package `packages/session/unattended-session/` exports `openUnattendedSession(ctx, spec, signal)`: the full ordered transaction with standing key, signal binding, cancellation checks after standing/workspace/create/attach, and reported rollback (detach when attached, then dispose, each in its own `try`, warnings prefixed `unattended session:`). The spec carries the caller-chosen branded `sessionId`, preset names, workspace path, title, resolved `agentOptions`, and an optional extra `AgentSetup` composed after the preset mounts — webhook's creation-time model selection pins through it. Prompt admission deliberately stays with each ingress: the `webhook`/`cron`/`discord` source blocks are ingress-owned, so pulling it in would force a discriminated spec for no shared benefit.
 
 **Turn helpers move too.** `sleep(ms, signal)`, `awaitTurn(agent, { timeoutMs, signal, wait? })` returning `'idle' | 'timeout'`, and `lastAssistantText(events, firstSeq)` replace the three local copies; the Discord poster keeps its resolved `wait` seam. Consumers keep their own outcome logging and disposal bookkeeping (cron's live-run cap, the gateway's per-channel map) because those are ingress policy, not open mechanics.
 
 ## Alternatives considered
 
 - **Keep three copies and patch the drift.** Rejected: the review found the same class of miss in each copy (standing key, signal binding, cancellation checks), so the next addition would drift again; the copies differ only in spec values, which is exactly what a parameterized helper owns.
-- **Pull prompt admission into the helper too.** Rejected: provenance blocks (`webhook`/`cron`/`discord`) are ingress-owned and shaped differently, so a shared admit would need a discriminated union with one member per caller — a layer that only forwards.
+- **Pull prompt admission into the helper too.** Rejected: the source blocks (`webhook`/`cron`/`discord`) are ingress-owned and shaped differently, so a shared admit would need a discriminated union with one member per caller — a layer that only forwards.
 - **Place the helper in `dsh-agent` or `dsh-workspace`.** Rejected: neither owns the composition of presets, permission, workspace, title, and Agent creation; a dedicated leaf under `session/` names the role that exists.
 
 ## Consequences

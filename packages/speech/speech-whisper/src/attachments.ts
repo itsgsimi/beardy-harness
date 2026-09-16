@@ -5,7 +5,11 @@ import type {} from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SpeechWhisper } from './index.ts'
 
-/** Register the standard file-attachment consumer for any input transport. */
+/**
+ * Register the standard file-attachment consumer for any input transport.
+ * @param ctx - plugin context; the listener is disposed with the fiber.
+ * @param speech - the provider that decodes and transcribes admitted audio blocks.
+ */
 export function installAttachmentSpeech(ctx: Context, speech: SpeechWhisper): void {
   ctx.inject(['attachments'], (c) => {
     c.on('agent/pre-step', async ({ signal }, next) => {

@@ -10,14 +10,14 @@ Webhook 入口、cron 调度器与 Discord 网关各自手写了相同的根 Ses
 
 ## Decision
 
-**由一个库拥有开启流程。** 新包 `packages/session/unattended-session/` 导出 `openUnattendedSession(ctx, spec, signal)`：完整的有序事务，含 standing key、信号绑定、在 standing/workspace/create/attach 之后的取消检查，以及带报告的回滚（已附加时先分离，再处置，各自独立 `try`，警告以 `unattended session:` 为前缀）。spec 携带调用方选定的带品牌 `sessionId`、预设名、工作区路径、标题、解析后的 `agentOptions`，以及在预设挂载后组合的可选额外 `AgentSetup`——webhook 的创建时模型选择即经此固定。提示词准入刻意留在各入口：溯源（`webhook`/`cron`/`discord` source block）由入口拥有，纳入 helper 只会为无共享收益的事强制引入判别式 spec。
+**由一个库拥有开启流程。** 新包 `packages/session/unattended-session/` 导出 `openUnattendedSession(ctx, spec, signal)`：完整的有序事务，含 standing key、信号绑定、在 standing/workspace/create/attach 之后的取消检查，以及带报告的回滚（已附加时先分离，再处置，各自独立 `try`，警告以 `unattended session:` 为前缀）。spec 携带调用方选定的带品牌 `sessionId`、预设名、工作区路径、标题、解析后的 `agentOptions`，以及在预设挂载后组合的可选额外 `AgentSetup`——webhook 的创建时模型选择即经此固定。提示词准入刻意留在各入口：`webhook`/`cron`/`discord` source block 由入口拥有，纳入 helper 只会为无共享收益的事强制引入判别式 spec。
 
 **回合辅助函数一并迁移。** `sleep(ms, signal)`、返回 `'idle' | 'timeout'` 的 `awaitTurn(agent, { timeoutMs, signal, wait? })`，以及 `lastAssistantText(events, firstSeq)` 取代三份本地副本；Discord 回发器保留其已解析的 `wait` 接缝。消费方保留各自的结果日志与处置簿记（cron 的在跑上限、网关的按频道映射），因为这些是入口策略而非开启机制。
 
 ## Alternatives considered
 
 - **保留三份副本、修补漂移。** 已否决：审查发现每份副本都漏了同类项（standing key、信号绑定、取消检查），下次新增还会再漂；副本之间只差 spec 取值，而这正是参数化辅助函数该拥有的东西。
-- **把提示词准入也拉进 helper。** 已否决：溯源块（`webhook`/`cron`/`discord`）由入口拥有且形态不同，共享准入需要为每个调用方准备一个判别联合——那是一层纯转发的壳。
+- **把提示词准入也拉进 helper。** 已否决：`webhook`/`cron`/`discord` 的 source block 由入口拥有且形态不同，共享准入需要为每个调用方准备一个判别联合——那是一层纯转发的壳。
 - **把 helper 放进 `dsh-agent` 或 `dsh-workspace`。** 已否决：两者都不拥有预设、权限、工作区、标题与 Agent 创建的组合；`session/` 下的专用叶子包名如其职。
 
 ## Consequences

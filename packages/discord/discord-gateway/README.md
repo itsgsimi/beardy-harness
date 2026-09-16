@@ -43,7 +43,7 @@ With the optional [speech provider](../../speech/speech-whisper/README.md), admi
 
 #### What the model sees
 
-Each admitted Discord message arrives as one user-role message whose text is the message body, bounded by `maxInputChars`; messages joined by the debounce window arrive as one message with newline-joined lines. The message carries provenance the surfaces render as a notice: the sender's Discord user id, the channel id, the message id, and a summary naming the channel. Attachments append JSON-encoded filenames, URLs, media types, and byte counts marked as untrusted metadata; attachment-only posts also start a turn. The model receives references, not file contents. Member roles and other channel messages are absent, so earlier conversation content comes from this package’s session history.
+Each admitted Discord message arrives as one user-role message whose text is the message body, bounded by `maxInputChars`; messages joined by the debounce window arrive as one message with newline-joined lines. The message carries the identifiers the surfaces render as a notice: the sender's Discord user id, the channel id, the message id, and a summary naming the channel. Attachments append JSON-encoded filenames, URLs, media types, and byte counts marked as untrusted metadata; attachment-only posts also start a turn. The model receives references, not file contents. Member roles and other channel messages are absent, so earlier conversation content comes from this package’s session history.
 
 #### Token effect
 

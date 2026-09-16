@@ -10,7 +10,7 @@ Weekly score uploads can contain only screenshots. Discarding attachment metadat
 
 ## Decision
 
-The [Discord gateway](../../../../packages/discord/discord-gateway/README.md) appends JSON-encoded attachment references to admitted message text. A reference carries the filename, URL, media type, and byte count, with an explicit untrusted-data label. Attachment-only messages use the ordinary conversation path and retain Discord provenance. The existing input limit bounds the resulting model text.
+The [Discord gateway](../../../../packages/discord/discord-gateway/README.md) appends JSON-encoded attachment references to admitted message text. A reference carries the filename, URL, media type, and byte count, with an explicit untrusted-data label. Attachment-only messages use the ordinary conversation path and retain their Discord channel and author identity. The existing input limit bounds the resulting model text.
 
 The gateway does not retrieve files. Tools selected by the agent own download restrictions, file validation, retention, and image interpretation. Signed attachment URLs may expire, so durable workflows archive files promptly.
 

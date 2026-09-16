@@ -1,5 +1,5 @@
 /**
- * Running one fired job as an unattended Agent Session: the prompt arrives with cron provenance, the
+ * Running one fired job as an unattended Agent Session: the prompt arrives carrying its job name and fire time, the
  * turn runs to completion without a human in front of it, and the Session stays mounted so the run
  * remains readable afterwards. A run that outlives its bound is cancelled and released instead of
  * staying mounted.
@@ -145,6 +145,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
           return { outcome: 'timed-out', sessionId, text: '' }
         }
         signal.throwIfAborted()
+        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         const answer = lastAssistantText(agent.session.ownEvents(), firstSeq)
         completed.add(session)
         if (answer === '') {

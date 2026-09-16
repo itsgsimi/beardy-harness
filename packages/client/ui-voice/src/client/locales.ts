@@ -6,7 +6,9 @@ export const en = {
   failed: 'Could not transcribe. Check microphone access and try again.',
   empty: 'No speech detected. Try again.', insert: 'Insert transcript',
 } as const
+/** Copy keys the voice control renders; every locale supplies all of them. */
 export type VoiceKey = keyof typeof en
+/** Chinese voice-control copy. */
 export const zh: Record<VoiceKey, string> = {
   start: '语音输入', stop: '停止录音', cancel: '取消录音', recording: '正在录音',
   transcribing: '正在转录…', requesting: '请允许访问麦克风…',

@@ -2,7 +2,7 @@
  * The shared transaction that opens one unattended root Session: permission and preset resolution,
  * the preset's standing key, workspace creation, Agent creation bound to a cancellation signal,
  * attach, permission-preset application, and titling, with reported rollback of any step a failure
- * lands in. Prompt admission stays with the caller so each ingress keeps its own provenance.
+ * lands in. Prompt admission stays with the caller so each ingress keeps its own source block.
  * @module @deepseek-ai/dsh-unattended-session/open
  */
 

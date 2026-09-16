@@ -9,7 +9,7 @@ function message(url = 'https://cdn.discordapp.com/attachments/1/2/voice.ogg') {
     attachments: [{ filename: 'voice-message.ogg', content_type: 'audio/ogg', size: 4, url }] })!
 }
 describe('Discord voice messages', () => {
-  it('retains audio-only voice notes and creates text with provenance', async () => {
+  it('retains audio-only voice notes and creates text carrying the sender and channel identity', async () => {
     const transcribe = vi.fn(async () => 'Please inspect the failing tests.')
     const speech = { maxAudioBytes: 100, timeoutMs: 1000, transcribe } as unknown as SpeechWhisper
     const fetcher = vi.fn(async (_url: URL, _init: RequestInit) => new Response('ogg!'))

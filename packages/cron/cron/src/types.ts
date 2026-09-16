@@ -1,5 +1,5 @@
 /**
- * Types of the global scheduler: the cron provenance a fired job carries into its Session log, and
+ * Types of the global scheduler: the job name and fire time a fired job carries into its Session log, and
  * the outcome of one run.
  * @module @deepseek-ai/dsh-cron/types
  */
@@ -21,7 +21,7 @@ declare module '@deepseek-ai/dsh-llm' {
 
 /** One configured job, as validated plugin configuration delivers it. */
 export interface CronJobSpec {
-  /** Unique name, used in logs, Session titles, and the run's provenance. */
+  /** Unique name, used in logs, Session titles, and the run's recorded source. */
   readonly name: string
   /** Cron expression, 5 or 6 fields as croner accepts them. */
   readonly expression: string

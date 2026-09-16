@@ -1,6 +1,6 @@
 /**
  * Types of the Discord Gateway listener: the inbound message the protocol layer hands up, the
- * validated settings the conversation router needs, and the message provenance a routed message
+ * validated settings the conversation router needs, and the sender and channel identity a routed message
  * carries into the Session log.
  * @module @deepseek-ai/dsh-discord-gateway/types
  */

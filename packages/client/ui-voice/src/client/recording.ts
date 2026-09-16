@@ -4,7 +4,13 @@ export interface RecordingLimits {
   readonly maxDurationSeconds: number
 }
 
-/** Capture one recording and release every track on stop, failure, or cancellation. */
+/**
+ * Capture one recording and release every track on stop, failure, or cancellation.
+ * @param signal - caller cancellation; aborting discards the capture.
+ * @param limits - encoded-byte and duration ceilings enforced during capture.
+ * @param ready - receives the stop function once the recorder is running.
+ * @returns the captured clip in the first container the browser supports.
+ */
 export async function recordAudio(
   signal: AbortSignal, limits: RecordingLimits, ready: (stop: () => void) => void,
 ): Promise<Blob> {
@@ -17,9 +23,12 @@ export async function recordAudio(
     return await new Promise<Blob>((resolve, reject) => {
       const chunks: Blob[] = []
       let size = 0
-      let failure: unknown
+      let failure: Error | undefined
       const stop = (): void => { if (recorder.state !== 'inactive') recorder.stop() }
-      const abort = (): void => { failure = signal.reason; stop() }
+      const abort = (): void => {
+        failure = signal.reason instanceof Error ? signal.reason : new Error('recording-aborted')
+        stop()
+      }
       const timer = setTimeout(stop, limits.maxDurationSeconds * 1000)
       signal.addEventListener('abort', abort, { once: true })
       recorder.ondataavailable = ({ data }) => {
@@ -42,7 +51,7 @@ export async function recordAudio(
       } catch (error) {
         clearTimeout(timer)
         signal.removeEventListener('abort', abort)
-        reject(error)
+        reject(error instanceof Error ? error : new Error('recording-failed'))
       }
     })
   } finally {
@@ -50,7 +59,12 @@ export async function recordAudio(
   }
 }
 
-/** Upload a completed clip to the authenticated connection's binary route. */
+/**
+ * Upload a completed clip to the authenticated connection's binary route.
+ * @param audio - the captured clip; its media type becomes the request content type.
+ * @param signal - caller cancellation for the upload and the wait for text.
+ * @returns the recognized text, empty when the backend detected no speech.
+ */
 export async function transcribeAudio(audio: Blob, signal: AbortSignal): Promise<string> {
   const response = await fetch('/api/speech', {
     method: 'POST', body: audio, signal,

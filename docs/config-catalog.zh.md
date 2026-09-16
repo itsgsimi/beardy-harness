@@ -595,7 +595,7 @@ export interface ConfiguredCronJob extends CronJobSpec {
 
 /** One configured job, as validated plugin configuration delivers it. */
 export interface CronJobSpec {
-  /** Unique name, used in logs, Session titles, and the run's provenance. */
+  /** Unique name, used in logs, Session titles, and the run's recorded source. */
   readonly name: string
   /** Cron expression, 5 or 6 fields as croner accepts them. */
   readonly expression: string

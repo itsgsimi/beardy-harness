@@ -56,7 +56,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节</summary>
 
-提供程序通过仅允许管道协议的 FFmpeg 将单条音轨解码为有界的 16 kHz 单声道 PCM，再封装为 WAV 并发送给 whisper.cpp。取消请求或卸载插件会终止子进程并等待正在进行的工作结束。可选的附件消费者在持久文件引用旁追加转写文本；Discord 消费者验证 CDN URL 并保留消息来源。
+提供程序通过仅允许管道协议的 FFmpeg 将单条音轨解码为有界的 16 kHz 单声道 PCM，再封装为 WAV 并发送给 whisper.cpp。取消请求或卸载插件会终止子进程并等待正在进行的工作结束。可选的附件消费者在持久文件引用旁追加转写文本；Discord 消费者验证 CDN URL 并保留发送者与频道标识。
 
 </details>
 

@@ -84,7 +84,7 @@ Read these pages when the open transaction is not enough. They move from the con
 
 #### What the model sees
 
-Nothing directly from this package. It issues no model request and writes no session event; the opened Session logs its ordinary events through `ctx.agents.create()`, and each ingress admits its own prompt with `followup()` as a `user/message` carrying that ingress's provenance. Rollback failures reach `ctx.logger.warn`, never the Session log or the model surface.
+Nothing directly from this package. It issues no model request and writes no session event; the opened Session logs its ordinary events through `ctx.agents.create()`, and each ingress admits its own prompt with `followup()` as a `user/message` carrying that ingress's own source block. Rollback failures reach `ctx.logger.warn`, never the Session log or the model surface.
 
 #### Token effect
 

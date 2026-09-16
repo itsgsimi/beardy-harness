@@ -84,7 +84,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-没有直接内容。本包不发起任何模型请求、不写入任何会话事件；被开启的 Session 经 `ctx.agents.create()` 记录其常规事件，各入口用 `followup()` 准入提示词，落为携带该入口溯源的 `user/message`。回滚失败只进入 `ctx.logger.warn`，绝不进入 Session 日志或模型表面。
+没有直接内容。本包不发起任何模型请求、不写入任何会话事件；被开启的 Session 经 `ctx.agents.create()` 记录其常规事件，各入口用 `followup()` 准入提示词，落为携带该入口自身 source block 的 `user/message`。回滚失败只进入 `ctx.logger.warn`，绝不进入 Session 日志或模型表面。
 
 #### Token 影响
 
