@@ -20,7 +20,10 @@ interface Harness {
 }
 
 /** Boot the plugin with a counting-friendly dummy tool and an inject-capturing Agent. */
-async function harness(nudgeAfterToolCalls?: number): Promise<Harness> {
+async function harness(
+  nudgeAfterToolCalls?: number,
+  headerExtra?: { readonly origin?: 'subagent' },
+): Promise<Harness> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
@@ -30,6 +33,7 @@ async function harness(nudgeAfterToolCalls?: number): Promise<Harness> {
   const id = SessionId('nudge-agent')
   const session = Session.create(id, [], {
     version: SESSION_FORMAT_VERSION, id, createdAt: 0, cwd: '/workspace', isSeeded: false,
+    ...(headerExtra ?? {}),
   })
   const agent: Agent = {
     id,
@@ -148,6 +152,13 @@ describe('skill nudge', () => {
       arguments: {},
     })
     expect(result.isError).toBe(false)
+    stopTurn(h)
+    expect(h.injected).toEqual([])
+  })
+
+  it('never tallies or nudges a delegated subagent session', async () => {
+    const h = await harness(2, { origin: 'subagent' })
+    for (let i = 0; i < 5; i += 1) await h.call()
     stopTurn(h)
     expect(h.injected).toEqual([])
   })

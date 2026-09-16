@@ -23,10 +23,23 @@ function nudgeText(toolCalls: number): string {
 }
 
 /**
+ * Whether this Agent drives a delegated subagent child session. Skill authorship
+ * belongs to the top-level session: a child runs a task its caller wrote, often
+ * under an explicit read-only contract, so inviting it to save a procedure would
+ * put the nudge in conflict with instructions that outrank it. The durable header
+ * `origin` marker is used rather than runtime depth, so a resumed child keeps its
+ * exclusion.
+ */
+function isDelegated(agent: Agent): boolean {
+  return agent.session.header.origin === 'subagent'
+}
+
+/**
  * Install the nudge listeners: count completed tool calls per Agent through the
  * post-execute chain, and inject the notice when a turn stops at or above the
  * threshold without a `skill_manage` call. The tally is consumed at the stop, so
- * every turn starts fresh; no notice lands unless one was owed.
+ * every turn starts fresh; no notice lands unless one was owed. Delegated subagent
+ * children are never tallied, so they are never nudged and hold no state to leak.
  * @param ctx - plugin context; listeners are disposed with the fiber.
  * @param threshold - tool calls that trigger the notice; installation itself is the caller's decision.
  */
@@ -36,7 +49,7 @@ export function installSkillNudge(ctx: Context, threshold: number): void {
   ctx.effect(() => {
     const stopCounting = ctx.on('tools/post-execute', async (exec, _result, next) => {
       const decision = await next()
-      if (exec.agent !== undefined) {
+      if (exec.agent !== undefined && !isDelegated(exec.agent)) {
         const tally = tallies.get(exec.agent) ?? { toolCalls: 0, skillManaged: false }
         tally.toolCalls += 1
         if (exec.name === 'skill_manage') tally.skillManaged = true

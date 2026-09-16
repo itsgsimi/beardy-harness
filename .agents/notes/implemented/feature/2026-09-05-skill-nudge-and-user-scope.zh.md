@@ -12,7 +12,7 @@ Status: implemented
 
 `skill_manage` 新增了 `scope` 参数。默认的 `workspace` 作用域保持不变；`user` 在 `resolveDshHome()/skills` 下写入扁平文件——文件系统 skill 提供方已把该根目录作为其 `user-dsh` 来源扫描，因此无需改动提供方配置，用户作用域的 skill 在每个会话中都会加载。`enableUserSkillManagement`（默认 false）按调用把关该作用域；被禁用的请求会以模型可见的消息拒绝。`requireApproval`（默认 false）在调用时把创建、更新和删除路由给审批服务，沿用 memory 工具的模式：未挂载应答者即拒绝而不是回退，只有 `allowed-once` 才继续。
 
-提醒按 Agent 统计当前轮次内完成的工具调用：用 WeakMap 计数，由 `tools/post-execute` 瀑布喂数——监听器始终向 `next()` 委托——并在 `agent/turn-stopping` 检查。当某个轮次结束时的调用数达到 `nudgeAfterToolCalls`（默认 0，即关闭）且没有调用过 `skill_manage`，就通过 `agent.inject()` 向下一条被准入的请求注入一条提示，携带含次数的类型化 `skill-nudge` 消息来源；计数在轮次结束处被消费，因此一个轮次至多欠一条提示。`skill_manage` 的工具描述把沉淀列为预期行为。启用管理功能或提醒后，两个目录模板都会告诉模型：若已加载 skill 的结果中含有压缩裁剪标记 `[... tool result middle pruned ...]`，其步骤不完整，必须先按名称重新加载再照做。
+提醒按 Agent 统计当前轮次内完成的工具调用：用 WeakMap 计数，由 `tools/post-execute` 瀑布喂数——监听器始终向 `next()` 委托——并在 `agent/turn-stopping` 检查。被委派的子 agent 会话从不被计数：计数前先检验其持久 header 的 `origin` 标记，因此子会话既不欠、也不会收到提示，也不留下计数状态。skill 的编写权归属于派发工作的顶层会话，因为子会话执行的是调用方撰写的任务，常常带有明确的只读约定，此时注入一条建议创建文件的邀请只会诱使它破坏该约定；采用持久 header 标记而非运行时深度，是为了让恢复的子会话同样保持豁免。当某个轮次结束时的调用数达到 `nudgeAfterToolCalls`（默认 0，即关闭）且没有调用过 `skill_manage`，就通过 `agent.inject()` 向下一条被准入的请求注入一条提示，携带含次数的类型化 `skill-nudge` 消息来源；计数在轮次结束处被消费，因此一个轮次至多欠一条提示。`skill_manage` 的工具描述把沉淀列为预期行为。启用管理功能或提醒后，两个目录模板都会告诉模型：若已加载 skill 的结果中含有压缩裁剪标记 `[... tool result middle pruned ...]`，其步骤不完整，必须先按名称重新加载再照做。
 
 ## 备选方案
 

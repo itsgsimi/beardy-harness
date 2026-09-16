@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-skill-nudge-and-user-scope.md
-2026-09-05-skill-nudge-and-user-scope.md: 00c32f64c128b0929f308588c46ac17d79f419b0
-2026-09-05-skill-nudge-and-user-scope.zh.md: 300a5476de10d36401facc345c6a32bba70d922c
+2026-09-05-skill-nudge-and-user-scope.md: 5ac61b3286cc82aa9fad82fda853c924c1143014
+2026-09-05-skill-nudge-and-user-scope.zh.md: 91d75a6d4d93894bb13a6261c75afe2c46f99b76
