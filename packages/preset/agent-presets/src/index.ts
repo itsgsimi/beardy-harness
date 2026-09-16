@@ -29,6 +29,7 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@deepseek-ai/dsh-scope'
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
 import type {} from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-app-boot'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { AgentPresetDocument, AgentPresetRoster, PresetPickerPlacement } from './types.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -51,7 +52,7 @@ export type {
   AgentPresetComposition, AgentPresetCompositionRow, CompositionRowEnablement,
 } from './composition-inventory.ts'
 
-/** Settings namespace carrying the user's default preset and picker placements. */
+/** Settings namespace carrying the user's preset-picker preference, chosen default, and picker placements. */
 export const SETTINGS_NAMESPACE = 'agent-presets'
 
 /** Refuse an empty preset id before invoking a domain operation. */
@@ -61,10 +62,12 @@ function validatePresetId(value: string, field: 'agentPreset' | 'from'): void {
   }
 }
 
-/** The user-writable slice of this plugin's config. */
+/** Resolved preset-selection settings; the registration base supplies the default and the mode-selection flag. */
 export interface AgentPresetSettings {
-  /** Preset mounted when a session names none. */
-  default?: string
+  /** Saved default used when mode selection is enabled. */
+  default: string
+  /** Whether visible mode selection and the saved user default govern unnamed new sessions. */
+  modeSelectionEnabled: boolean
   /** Per-preset picker placements overriding display metadata without changing availability. */
   picker?: Record<string, PresetPickerPlacement>
 }
@@ -72,6 +75,7 @@ export interface AgentPresetSettings {
 /** Runtime schema for the user-writable slice. */
 export const AgentPresetSettingsSchema: z<AgentPresetSettings> = z.object({
   default: z.string(),
+  modeSelectionEnabled: z.boolean(),
   picker: z.dict(z.union(['main', 'more', 'hidden'] as const).required()),
 })
 
@@ -140,7 +144,6 @@ export class AgentPresets extends TypertRemoteService {
    * base here is what lets health answer the question before a session does.
    */
   private readonly harnessBase: string
-
   /**
    * The user layer for defaults and picker placements, present only while a settings
    * provider is composed. Held rather than snapshotted so a hot-reloaded
@@ -193,7 +196,7 @@ export class AgentPresets extends TypertRemoteService {
       this.settings = settingsCtx.settings.register(
         SETTINGS_NAMESPACE,
         AgentPresetSettingsSchema,
-        { base: { default: config.default } },
+        { base: { default: config.default, modeSelectionEnabled: true } },
       )
       this.settingsService = settingsCtx.settings
       settingsCtx.effect(() => () => {
@@ -242,7 +245,21 @@ export class AgentPresets extends TypertRemoteService {
    * every running session on the preset it was composed from.
    */
   get defaultId(): string {
-    return this.settings?.get().default ?? this.config.default
+    // Hiding the picker is also the product's safe-default boundary: a stale
+    // user choice from an older build must not silently compose a non-standard
+    // new session while there is no control that reports that choice.
+    return this.selectionPolicy().defaultId
+  }
+
+  /** Read one internally consistent snapshot of the selection policy. */
+  private selectionPolicy(): { enabled: boolean; defaultId: string } {
+    const settings = this.settings?.get()
+    if (settings === undefined) return { enabled: true, defaultId: this.config.default }
+    const enabled = settings.modeSelectionEnabled
+    return {
+      enabled,
+      defaultId: enabled ? settings.default : this.config.default,
+    }
   }
 
   /**
@@ -250,30 +267,41 @@ export class AgentPresets extends TypertRemoteService {
    * @returns the presets, first-root-wins per id.
    */
   async list(): Promise<AgentPreset[]> {
-    return await discoverPresets(this.resolvedRoots, this.harnessBase)
+    const packages = this.ctx.get('pluginPackages')
+    return packages === undefined
+      ? await discoverPresets(this.resolvedRoots, this.harnessBase)
+      : await discoverPresets(
+        this.resolvedRoots,
+        this.harnessBase,
+        (specifier, base) => packages.packageOf(specifier, base) !== undefined,
+      )
   }
 
   /**
    * The roster off the Host: {@link list} projected to path-free rows, with
-   * the default marked and this deployment's authoring capability beside it.
+   * the policy-effective default marked, this deployment's authoring
+   * capability, and its mode-selection policy beside it.
    *
    * Whether a client can open a preset's directory is the Host's own opener
    * capability, not a roster property — a caller needing both joins them.
-   * @returns the rows and the authoring capability.
+   * @returns the rows, authoring capability, and effective selection policy.
    */
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
-    const defaultId = this.defaultId
+    // Keep the visible policy, marked default, and placements from the same
+    // settings snapshot even when discovery yields while settings are hot-reloaded.
+    const policy = this.selectionPolicy()
     const pickerOverrides = this.settings?.get().picker
+    const presets = await this.list()
     return {
-      presets: (await this.list()).map((preset) => {
+      presets: presets.map((preset) => {
         const picker = pickerOverrides !== undefined && Object.hasOwn(pickerOverrides, preset.id)
           ? pickerOverrides[preset.id]
           : preset.picker
         return {
           id: preset.id,
           trust: preset.trust,
-          isDefault: preset.id === defaultId,
+          isDefault: preset.id === policy.defaultId,
           ...preset.name === undefined ? {} : { name: preset.name },
           ...preset.description === undefined ? {} : { description: preset.description },
           ...picker === undefined ? {} : { picker },
@@ -281,6 +309,7 @@ export class AgentPresets extends TypertRemoteService {
         }
       }),
       authorable: this.authorable,
+      modeSelectionEnabled: policy.enabled,
     }
   }
 

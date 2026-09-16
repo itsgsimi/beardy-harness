@@ -25,7 +25,7 @@ import {
   baselineInstructionState,
   name,
   reconcileInstructionContext,
-  workspaceContextMessage,
+  agentInstructionsMessage,
   type InstructionVersionCache,
   type AgentInstructionSource,
 } from './state.ts'
@@ -42,8 +42,8 @@ export type {
   InstructionFile,
   LoadedInstructionFile,
 } from './files.ts'
-export { renderWorkspaceContext } from './render.ts'
-export type { RenderedWorkspaceContext, TruncatedInstruction } from './render.ts'
+export { renderAgentInstructions } from './render.ts'
+export type { RenderedAgentInstructions, TruncatedInstruction } from './render.ts'
 
 function visibleBaselineSource(
   agent: Agent,
@@ -55,6 +55,7 @@ function visibleBaselineSource(
     }
   }
   for (const seq of agent.session.surface.nodes.toReversed()) {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     const event = agent.session.eventAt(seq)
     if (event?.type === 'user/message'
       && event.data.source.kind === 'agent-instructions'
@@ -90,7 +91,7 @@ function frozenInstructionsFromHistory(
   return undefined
 }
 
-function isWorkspaceContext(message: UserMessage): boolean {
+function isAgentInstructionsMessage(message: UserMessage): boolean {
   return message.source.kind === 'agent-instructions'
 }
 
@@ -210,7 +211,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       for (const [scope, state] of baseline.versions) versionStates?.set(scope, state)
       if (!keepVisibleBaseline && instructions !== undefined && instructions.rendered.text.length > 0) {
-        const baselineContent = workspaceContextMessage(instructions.rendered.text).content
+        const baselineContent = agentInstructionsMessage(instructions.rendered.text).content
         content.push(...baselineContent)
         const replacementScopes = new Set(baseline.changes.keys())
         const replacementRemovals = replacePreviousBaseline
@@ -275,10 +276,11 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   const syncInbox = (agent: Agent, claimed: readonly UserMessage[], desired: UserMessage | undefined): void => {
-    const pending = agent.inbox.nextStep.filter(isWorkspaceContext)
+    const pending = agent.inbox.nextStep.filter(isAgentInstructionsMessage)
     const alreadySupplied = desired !== undefined && (
       claimed.some(message => sameContextPayload(message, desired))
       || agent.session.surface.nodes.some((seq) => {
+        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         const event = agent.session.eventAt(seq)
         return event?.type === 'user/message' && sameContextPayload(event.data, desired)
       })
@@ -306,7 +308,7 @@ export function apply(ctx: Context, config: Config): void {
     claimed: readonly UserMessage[],
     touchedPaths: readonly string[] = [],
   ): Promise<void> => {
-    const pending = agent.inbox.nextStep.filter(isWorkspaceContext)
+    const pending = agent.inbox.nextStep.filter(isAgentInstructionsMessage)
     const desired = await compose(agent, signal, claimed, pending, touchedPaths)
     signal.throwIfAborted()
     syncInbox(agent, claimed, desired)
@@ -367,7 +369,7 @@ export function apply(ctx: Context, config: Config): void {
   ): Promise<PreStepDecision> => {
     const decision = await next()
     await waitForProjections(agent)
-    const pending = agent.inbox.nextStep.filter(isWorkspaceContext)
+    const pending = agent.inbox.nextStep.filter(isAgentInstructionsMessage)
     const desired = await compose(agent, signal, messages, pending)
     signal.throwIfAborted()
     // An empty first entry owns a no-step turn; keep context pending instead

@@ -110,7 +110,7 @@ function installInitialModelSelection(agentCtx: Context, selection: ModelSelecti
  * the operation, and the Agent remains lifecycle-owned by `ctx` and follows normal Session behavior.
  *
  * @param ctx - untraced runtime context that owns the resulting Agent.
- * @param delivery - exact verified provider delivery used for provenance.
+ * @param delivery - exact verified provider delivery recorded in the message source.
  * @param ruleId - rule that returned the request.
  * @param request - same-process rule result.
  * @param signal - registration lifetime cancellation through publication.

@@ -35,8 +35,6 @@ export const en = {
   'unknown': 'Unknown',
   'none': 'None',
   'truncated': 'Truncated',
-  'json.collapseNode': 'Collapse JSON node',
-  'json.expandNode': 'Expand JSON node',
   'json.label': 'JSON',
   'markdown.footnotes': 'Footnotes',
   'markdown.preview.graphviz': 'Graphviz diagram',

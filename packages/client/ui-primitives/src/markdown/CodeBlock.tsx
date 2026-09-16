@@ -31,6 +31,8 @@ export interface CodeBlockProps {
   contentRef?: Ref<HTMLDivElement> | undefined
   /** Show a numbered gutter without adding numbers to copied source. Defaults to false. */
   lineNumbers?: boolean | undefined
+  /** Show the language and copy header; false when the caller supplies a toolbar. Defaults to true. */
+  showHeader?: boolean | undefined
   /** Copy-button idle label; the owner passes localized copy (this package is cordis-free, so copy arrives via props). */
   copyLabel: string
   /** Copy-button label during the post-copy confirmation window. */
@@ -66,7 +68,7 @@ function renderLine(line: readonly HighlightSpan[], index: number): ReactNode {
 }
 
 export function CodeBlock({
-  code, lang, streaming, className, contentRef, lineNumbers = false, copyLabel, copiedLabel, preview,
+  code, lang, streaming, className, contentRef, lineNumbers = false, showHeader = true, copyLabel, copiedLabel, preview,
 }: CodeBlockProps) {
   const trimmed = code.endsWith('\n') ? code.slice(0, -1) : code
   const sourceLines = lineNumbers ? trimmed.split('\n') : undefined
@@ -200,7 +202,7 @@ export function CodeBlock({
         '--dsl-code-block-line-number-width': `${Math.max(2, String(sourceLines.length).length)}ch`,
       } as CSSProperties}>
       {/* These paired attributes are stable semantic hooks for owner styling and DOM tests. */}
-      <div className={css.bannerWrap}>
+      {showHeader && <div className={css.bannerWrap}>
         <div className={css.banner} data-code-block-banner>
           {!previewAvailable && <div className={css.infostring}>{lang ?? ''}</div>}
           <div className={css.action}>
@@ -221,7 +223,7 @@ export function CodeBlock({
               : copyAction}
           </div>
         </div>
-      </div>
+      </div>}
       {previewAvailable && <div hidden={!showingPreview}>{preview.content}</div>}
       {!showingPreview && <div ref={contentRef} className={css.content} data-code-block-content>{body}</div>}
     </div>
