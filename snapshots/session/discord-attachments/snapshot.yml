@@ -1,0 +1,9 @@
+version: 1
+scenario: discord-attachments
+profile: headless
+composition: discord-attachments
+recording: authored
+permission: workspace-write
+header:
+  class: discord-attachments
+  pin: true

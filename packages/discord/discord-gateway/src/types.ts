@@ -28,6 +28,8 @@ declare module '@deepseek-ai/dsh-llm' {
 
 /** One channel message the Gateway dispatched, reduced to the fields routing uses. */
 export interface DiscordInboundMessage {
+  /** Encoded audio references; fetched only after sender and channel admission. */
+  readonly audioAttachments?: readonly DiscordAudioAttachment[]
   /** Discord's id for this message. */
   readonly id: string
   /** Channel the message was posted in. */
@@ -40,12 +42,19 @@ export interface DiscordInboundMessage {
   readonly bot: boolean
   /** Discord's channel type; `1` is a direct message. */
   readonly channelType: number
-  /** Message text as Discord delivered it. */
+  /** Message text with JSON attachment references; file contents are not fetched. */
   readonly content: string
   /** User ids this message mentions, from Discord's own mention parsing. */
   readonly mentionedUserIds: readonly string[]
   /** Author id of the message this one replies to; empty when it replies to nothing. */
   readonly replyToAuthorId: string
+}
+
+/** Audio metadata supplied by Discord's attachment payload. */
+export interface DiscordAudioAttachment {
+  readonly url: string
+  readonly filename: string
+  readonly size: number
 }
 
 /** One reaction the Gateway dispatched, reduced to the fields an answerer matches on. */

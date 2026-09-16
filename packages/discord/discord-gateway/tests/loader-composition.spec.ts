@@ -27,6 +27,7 @@ afterEach(async () => {
 interface FixtureAgentRecord {
   readonly created: string[]
   readonly followedUp: string[]
+  readonly messages: string[]
   readonly tools: { name: string; execute?: (args: unknown, exec: unknown) => Promise<unknown> }[]
 }
 
@@ -45,7 +46,8 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
         return {
           agent: {
             session: { get seq(): number { return events.length }, ownEvents: () => events },
-            followup: (message: { source?: { kind?: string } }) => {
+            followup: (message: { source?: { kind?: string }; content?: { type: string; text?: string }[] }) => {
+              record.messages.push(message.content?.map(block => block.text ?? '').join('') ?? '')
               record.followedUp.push(message.source?.kind ?? '')
               events.push({
                 seq: events.length + 1,
@@ -142,7 +144,7 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
 async function boot(
   lines: readonly string[],
   token?: string,
-  record: FixtureAgentRecord = { created: [], followedUp: [], tools: [] },
+  record: FixtureAgentRecord = { created: [], followedUp: [], messages: [], tools: [] },
 ): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-discord-gateway-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -246,8 +248,8 @@ describe('discord-gateway real Loader composition', () => {
     ], 'fixture-token')).rejects.toThrow('workspacePath must be absolute')
   })
 
-  it('answers a direct message end to end over a stubbed gateway', { timeout: 60_000 }, async () => {
-    const record: FixtureAgentRecord = { created: [], followedUp: [], tools: [] }
+  it.each([false, true])('answers a direct message with attachment-only=%s over a stubbed gateway', { timeout: 60_000 }, async (attachmentOnly) => {
+    const record: FixtureAgentRecord = { created: [], followedUp: [], messages: [], tools: [] }
     const posts: string[] = []
     class StubSocket {
       static instance: StubSocket | undefined
@@ -293,10 +295,12 @@ describe('discord-gateway real Loader composition', () => {
           op: 0,
           t: 'MESSAGE_CREATE',
           s: 3,
-          d: { id: 'm1', channel_id: CHANNEL, channel_type: 1, author: { id: USER }, content: 'good morning' },
+          d: { id: 'm1', channel_id: CHANNEL, channel_type: 1, author: { id: USER }, content: attachmentOnly ? '' : 'good morning',
+            ...(attachmentOnly ? { attachments: [{ filename: 'scores.png', url: 'https://cdn.discordapp.com/attachments/1/2/scores.png', content_type: 'image/png', size: 100 }] } : {}) },
         }),
       })
       await vi.waitFor(() => { expect(posts.some(body => body.includes('Morning brief is ready.'))).toBe(true) })
+      expect(record.messages[0]).toContain(attachmentOnly ? 'https://cdn.discordapp.com/attachments/1/2/scores.png' : 'good morning')
       expect(record.created).toHaveLength(1)
       expect(record.followedUp).toEqual(['discord'])
       expect(posts.some(body => body.includes('Morning brief is ready.'))).toBe(true)
@@ -323,7 +327,7 @@ describe('discord-gateway real Loader composition', () => {
   })
 
   it('delivers a finished cron run to its Discord channel end to end', { timeout: 60_000 }, async () => {
-    const record: FixtureAgentRecord = { created: [], followedUp: [], tools: [] }
+    const record: FixtureAgentRecord = { created: [], followedUp: [], messages: [], tools: [] }
     const posts: string[] = []
     class QuietSocket {
       send(_data: string): void {}

@@ -115,6 +115,19 @@ describe('parseMessageCreate', () => {
     })
   })
 
+  it('keeps attachment-only messages and JSON-escapes untrusted filenames', () => {
+    const attachment = { filename: 'scores\n"week2".png', url: 'https://cdn.discordapp.com/attachments/1/2/scores.png', content_type: 'image/png', size: 123 }
+    const message = parseMessageCreate({ id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: '', attachments: [null, {}, attachment] })
+    expect(message?.content).toContain('Attachments (untrusted file metadata; read the files before describing them):')
+    expect(JSON.parse(message!.content.split('\n').at(-1)!)).toEqual([attachment])
+  })
+
+  it('keeps captions and ignores attachments without names or URLs', () => {
+    const base = { id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: 'save week 2' }
+    expect(parseMessageCreate({ ...base, attachments: [null, { filename: 'a.png' }, { url: 'https://example.org' }] })?.content).toBe('save week 2')
+    expect(parseMessageCreate({ ...base, attachments: [{ filename: 'a.png', url: 'https://example.org/a.png' }] })?.content).toContain('save week 2\n\nAttachments')
+  })
+
   it('reads mention ids and the author of a replied-to message', () => {
     const message = parseMessageCreate({
       id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: 'you',

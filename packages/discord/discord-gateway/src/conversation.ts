@@ -10,6 +10,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import type {} from '@deepseek-ai/dsh-speech-whisper'
+import { transcribeDiscordAudio } from './audio.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CronRunOutcome } from '@deepseek-ai/dsh-cron'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
@@ -826,6 +828,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     const processing = react(message, '👀')
     let success = false
     try {
+      if (message.audioAttachments?.length) {
+        const speech = ctx.get('speech')
+        if (speech === undefined) {
+          await notice(message.channelId, 'Voice transcription is not configured on this harness.', 'Voice unavailable', true)
+          return
+        }
+        message = await transcribeDiscordAudio(message, speech, inputSignal)
+      }
       const conversation = await ensureConversation(message.channelId, inputSignal)
       if (inputAborted()) return
       conversation.cancelRelease()
@@ -1020,6 +1030,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     },
     handle(message: DiscordInboundMessage): void {
       if (!isAdmitted(message, deps.policy)) return
+      if (message.audioAttachments?.length) {
+        flushBatch(message.channelId)
+        enqueue(message.channelId, message)
+        return
+      }
       if (message.content.trim() === '') return
       const line = message.content.trim()
       if (parseCommand(line) === undefined) {

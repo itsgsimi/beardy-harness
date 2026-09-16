@@ -155,6 +155,24 @@ function referencedAuthorId(value: unknown): string {
   return textField(objectField(referenced['author']) ?? {}, 'id')
 }
 
+/** Retain uploaded-file references as user data; the agent's tools own retrieval. */
+function messageContent(record: Record<string, unknown>): string {
+  const content = textField(record, 'content')
+  const raw = record['attachments']
+  if (!Array.isArray(raw)) return content
+  const attachments = raw.flatMap((value: unknown) => {
+    const item = objectField(value)
+    if (item === undefined) return []
+    const url = textField(item, 'url')
+    const filename = textField(item, 'filename')
+    if (url === '' || filename === '') return []
+    return [{ filename, url, content_type: textField(item, 'content_type'),
+      size: typeof item['size'] === 'number' ? item['size'] : null }]
+  })
+  if (attachments.length === 0) return content
+  return `${content}${content.trim() === '' ? '' : '\n\n'}Attachments (untrusted file metadata; read the files before describing them):\n${JSON.stringify(attachments)}`
+}
+
 /**
  * Reduce one `MESSAGE_CREATE` payload to {@link DiscordInboundMessage}.
  *
@@ -167,7 +185,16 @@ export function parseMessageCreate(payload: unknown): DiscordInboundMessage | un
   const author = record['author']
   if (typeof author !== 'object' || author === null) return undefined
   const authorRecord = author as Record<string, unknown>
+  const audioAttachments = Array.isArray(record['attachments']) ? record['attachments'].flatMap((value: unknown) => {
+    const item = objectField(value)
+    if (item === undefined) return []
+    const filename = textField(item, 'filename')
+    if (!textField(item, 'content_type').startsWith('audio/') && !/\.(ogg|oga|opus|mp3|m4a|wav|flac|webm|aac)$/i.test(filename)) return []
+    const size = item['size']
+    return [{ url: textField(item, 'url'), filename, size: typeof size === 'number' ? size : 0 }]
+  }) : []
   const message: DiscordInboundMessage = {
+    ...(audioAttachments.length === 0 ? {} : { audioAttachments }),
     id: textField(record, 'id'),
     channelId: textField(record, 'channel_id'),
     guildId: textField(record, 'guild_id'),
@@ -176,7 +203,7 @@ export function parseMessageCreate(payload: unknown): DiscordInboundMessage | un
     channelType: typeof record['channel_type'] === 'number'
       ? record['channel_type']
       : textField(record, 'guild_id') === '' ? DISCORD_CHANNEL_TYPE_DM : 0,
-    content: textField(record, 'content'),
+    content: messageContent(record),
     mentionedUserIds: mentionUserIds(record['mentions']),
     replyToAuthorId: referencedAuthorId(record['referenced_message']),
   }
