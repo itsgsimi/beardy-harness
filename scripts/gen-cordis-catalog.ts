@@ -60,6 +60,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   agents: 'core.md',
   approval: 'approval.md',
   attachments: 'attachment.md',
+  speech: 'speech.md',
   shell: 'shell.md',
   shellEnv: 'shell.md',
   clientModules: 'client-modules.md',
@@ -667,6 +668,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
 /** TypeScript lib and pinned framework types with no repository-owned data page. */
 export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
   'AbortSignal',
+  'ReadableStream',
   'AsyncIterable',
   'Context',
   'Error',

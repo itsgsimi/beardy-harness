@@ -260,6 +260,21 @@ export class SessionInputShell implements SessionInput {
 
   // ---- SessionInput face ----
 
+  /** Append a dictation result at the document end without replacing existing chips. */
+  appendDraft(text: string): boolean {
+    if (this.disposed || this.snapshot.phase !== 'plain') return false
+    const clean = text.replace(REFERENCE_PLACEHOLDER_RE, '').trim()
+    if (clean === '') return true
+    this.applyEdit(() => {
+      const root = $getRoot()
+      if (root.getChildrenSize() === 0) root.append($createParagraphNode())
+      const previous = root.getTextContent()
+      const separator = previous === '' || /\s$/.test(previous) ? '' : ' '
+      root.selectEnd().insertText(separator + clean)
+    }, PASTE_TAG)
+    return true
+  }
+
   /**
    * Replace the whole draft (persisted-draft seed and programmatic writes).
    * Placeholder-sanitized; newlines split paragraphs; the caret lands at the

@@ -33,6 +33,17 @@ function chip(shell: SessionInputShell): void {
 }
 
 describe('reference submission', () => {
+  it('appends dictation without replacing a reference chip or its identity', () => {
+    const shell = new SessionInputShell({ actx: {} as Context, defaultSink: vi.fn(), commandAttachments })
+    try {
+      chip(shell)
+      const before = shell.snapshot.occurrences
+      expect(shell.appendDraft('please summarize')).toBe(true)
+      expect(shell.snapshot.draft).toBe(`${mention} please summarize`)
+      expect(shell.snapshot.occurrences).toEqual(before)
+    } finally { shell.dispose() }
+    expect(shell.appendDraft('late result')).toBe(false)
+  })
   it('mirrors canonical reference text so a persisted draft remains resolvable after remount', async () => {
     const mirror = vi.fn()
     const first = new SessionInputShell({

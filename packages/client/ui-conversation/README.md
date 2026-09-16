@@ -100,6 +100,8 @@ try {
 
 The selector must be a pure function of the owner currency. Its non-null return is delivered to the component as `matched`; `PropsRuntime<'conversation.composer'>` supplies the standard Session and global props. Chain order remains ascending `priority`, then registration order, and the first non-null selector wins. The shell keeps the default composer mounted beneath a takeover. Request state, listeners, response encoding, and any request-specific child slots belong to the business package; they are not carried by `SessionSnapshot` or declared by this core package.
 
+Optional [voice input](../ui-voice/README.md) uses `SessionInput.appendDraft()` to append reviewed transcription without replacing existing reference chips or submitting the message. The method refuses insertion while another interaction owns the composer.
+
 <a id="model-experience"></a>
 ## Model Experience
 

@@ -187,6 +187,8 @@ export interface InputTarget {
 
 /** Per-session input facade owned by the conversation wiring layer. */
 export interface SessionInput extends InputTarget {
+  /** Append plain text without replacing reference chips; refuse locked or disposed input. */
+  appendDraft(text: string): boolean
   /** Replace the whole draft (persisted-draft seed and programmatic writes). */
   setDraft(text: string): void
   /** Append ordered browser-owned attachment ids; busy admission phases refuse. */

@@ -13,6 +13,17 @@
 # driven); the grouping is for readers.
 
 - insert:
+    - id: speech-whisper
+      name: '@deepseek-ai/dsh-speech-whisper'
+      disabled: true
+      config:
+        endpoint: http://127.0.0.1:8178/inference
+        ffmpegPath: ffmpeg
+        maxAudioBytes: 16777216
+        maxDurationSeconds: 180
+        timeoutMs: 120000
+        maxConcurrent: 2
+
     - id: timer
       name: '@deepseek-ai/cordis-plugin-timer'
 

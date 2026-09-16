@@ -100,6 +100,8 @@ try {
 
 selector 必须是 owner currency 的纯函数。非 null 返回值作为 `matched` 传给组件；`PropsRuntime<'conversation.composer'>` 提供标准 Session 与 global props。Chain 顺序仍按 `priority` 升序，再按注册顺序；首个返回非 null 的 selector 获选。Shell 会在 takeover 下保持默认 composer 挂载。Request 状态、listener、response encoding 和任何 request-specific child slot 都属于业务 package，不进入 `SessionSnapshot`，也不由 core 包声明。
 
+可选的[语音输入](../ui-voice/README.zh.md)使用 `SessionInput.appendDraft()` 追加转写文字，不替换现有引用标签或发送消息。其他交互占用输入框时，该方法会拒绝插入。
+
 <a id="model-experience"></a>
 ## 模型体验
 

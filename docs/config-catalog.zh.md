@@ -2203,7 +2203,7 @@ export type JournalMode = 'wal' | 'delete' | 'truncate' | 'persist'
 
 依赖：[`SessionQueryConfig`](../packages/session-query/session-query/src/index.ts)
 
-来源：[`packages/session-query/session-query-sqlite/src/index.ts:92`](../packages/session-query/session-query-sqlite/src/index.ts)
+来源：[`packages/session-query/session-query-sqlite/src/index.ts:94`](../packages/session-query/session-query-sqlite/src/index.ts)
 
 <a id="deepseek-aidsh-session-reference"></a>
 
@@ -2407,6 +2407,32 @@ export interface Config {
 ```
 
 来源：[`packages/skill/skill-filesystem/src/index.ts:49`](../packages/skill/skill-filesystem/src/index.ts)
+
+<a id="deepseek-aidsh-speech-whisper"></a>
+
+## `@deepseek-ai/dsh-speech-whisper`
+
+依赖： `subprocess`
+
+```ts config-catalog
+/** Deployment settings shared by every speech consumer. */
+export interface Config {
+  /** Private whisper.cpp multipart inference endpoint. */
+  readonly endpoint: string
+  /** FFmpeg executable available on the harness host. */
+  readonly ffmpegPath: string
+  /** Maximum encoded bytes accepted per transcription. */
+  readonly maxAudioBytes: number
+  /** Maximum decoded recording length in seconds. */
+  readonly maxDurationSeconds: number
+  /** Deadline in milliseconds for upload, decoding, and inference together. */
+  readonly timeoutMs: number
+  /** Maximum simultaneous transcriptions; excess requests fail promptly. */
+  readonly maxConcurrent: number
+}
+```
+
+源代码： [`packages/speech/speech-whisper/src/index.ts:10`](../packages/speech/speech-whisper/src/index.ts)
 
 <a id="deepseek-aidsh-spill-local"></a>
 
@@ -3809,6 +3835,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-tool`（[`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-trajectory`（[`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-user-questions`（[`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-voice` ([`packages/client/ui-voice/src/index.ts`](../packages/client/ui-voice/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workflow-run`（[`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-workspace`（[`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts)）
 - `@deepseek-ai/dsh-command-compact` — 需要 `commands` · `compact`（[`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts)）
