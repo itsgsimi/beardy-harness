@@ -11,6 +11,7 @@ import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Session, SessionEvent, SessionHeader, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
+import { SessionFormatUnsupportedError } from '@deepseek-ai/dsh-session-persistence'
 import type {
   SessionPersistenceRevision,
   SessionPersistenceSnapshot,
@@ -27,6 +28,7 @@ import SessionQueryEngine, {
 } from '@deepseek-ai/dsh-session-query'
 import type {
   Config as SessionQueryConfig,
+  ColdSessionLog,
   SessionEventSearchDocument,
   SessionEventSearchHit,
   SessionEventSearchPage,
@@ -455,7 +457,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         began = true
         for (const row of persistentDeletes) this._deleteSession('persisted', row.id as SessionId)
         for (const entry of persistentChanges) {
-          /* v8 ignore next -- observation loads every entry whose revision differs */
+          /* v8 ignore next -- changes already exclude entries the observation left unloaded */
           if (entry.loaded === undefined) throw new Error(`missing loaded revision for session "${entry.header.id}"`)
           this._replacePersistedSession(entry.loaded, entry.revision, nextMainGeneration)
         }
@@ -519,7 +521,16 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
             // live-preferred.
             if (initiallyLive.has(entry.header.id) || this.ctx.sessions.get(entry.header.id) !== undefined) continue
             assertNotAborted(signal)
-            const loaded = await readColdSessionLog(persistence, entry.header.id, signal)
+            let loaded: ColdSessionLog
+            try {
+              loaded = await readColdSessionLog(persistence, entry.header.id, signal)
+            } catch (error: unknown) {
+              // A stored log the format chain refuses is not a storage failure: it
+              // stays out of the index, as when its header already refused listing,
+              // instead of failing every search this process serves.
+              if (error instanceof SessionFormatUnsupportedError) continue
+              throw error
+            }
             assertNotAborted(signal)
             assertSessionHeadersCompatible(entry.header, loaded.header)
             entry.loaded = observeSession(loaded.header, loaded.inheritedEventCount, loaded.events)

@@ -9,6 +9,7 @@ import SessionStore, { SessionLogOffset, SessionSeq, SESSION_FORMAT_VERSION, Ses
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@deepseek-ai/dsh-session'
 import SessionPersistence, {
+  SessionFormatUnsupportedError,
   SessionPersistenceNotFoundError,
   SessionPersistenceRevision,
   SessionReadOnlyError,
@@ -91,6 +92,9 @@ class TestHandle implements SessionHandle {
     TestPersistence.reads.set(this.id, (TestPersistence.reads.get(this.id) ?? 0) + 1)
     TestPersistence.readSignals.push(options?.signal)
     if (TestPersistence.failure !== undefined) throw TestPersistence.failure
+    if (TestPersistence.unsupportedIds.has(this.id)) {
+      throw new SessionFormatUnsupportedError(`test format refusal for session "${this.id}"`)
+    }
     const entry = TestPersistence.entries.get(this.id)
     if (entry === undefined) throw new SessionPersistenceNotFoundError(this.id)
     await TestPersistence.readEffect?.(entry, options?.signal)
@@ -137,6 +141,8 @@ class TestPersistence extends SessionPersistence {
   static listEffect: ((signal?: AbortSignal) => void | Promise<void>) | undefined
   static listOverride: (() => SessionPersistenceSnapshot[]) | undefined
   static failure: unknown
+  /** Sessions whose stored log the format chain refuses on read. */
+  static unsupportedIds = new Set<SessionIdType>()
 
   static reset(entries: readonly { meta: SessionHeader; events: SessionEvent[] }[] = []): void {
     this.entries = new Map()
@@ -151,6 +157,7 @@ class TestPersistence extends SessionPersistence {
     this.listEffect = undefined
     this.listOverride = undefined
     this.failure = undefined
+    this.unsupportedIds = new Set()
   }
 
   static set(entry: { meta: SessionHeader; events: SessionEvent[] }): void {
@@ -1217,6 +1224,26 @@ describe('SQLite reconciliation and source lifecycle', () => {
     await ctx.sessionQuery.searchSessions({ query: 'repaired' })
     expect(TestPersistence.reads.get(durable.id)).toBe(2)
     await persistence.dispose()
+  })
+
+  it('indexes the readable logs when one stored log refuses format migration', async () => {
+    const readable = header('readable')
+    const refused = header('refused')
+    TestPersistence.reset([
+      { meta: readable, events: messageEvents('readable needle') },
+      { meta: refused, events: messageEvents('refused needle') },
+    ])
+    TestPersistence.unsupportedIds.add(refused.id)
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+
+    // A format refusal is not a storage failure: the readable corpus stays searchable.
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: readable }] })
+    // The refusal does not poison later reconciles either.
+    await expect(ctx.sessionQuery.searchSessions({ query: 'readable' }))
+      .resolves.toMatchObject({ items: [{ header: readable }] })
+    await expect(ctx.sessionQuery.searchSessions({ query: 'refused' })).resolves.toEqual({ items: [] })
   })
 
   it('recovers on the next search after source and SQLite transaction failures', async () => {
