@@ -137,7 +137,6 @@
   max-width: calc(100% - 48px);
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
-  border-right: 0.5px solid var(--dsw-alias-border-l3);
   box-shadow: var(--dsw-elevation-prominent);
   animation: drawer-in var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
