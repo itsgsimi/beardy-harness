@@ -86,6 +86,10 @@ async function bootWithDiscordRow(configLines: readonly string[]): Promise<Conte
   } as never)
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
   await ctx.loader.await()
+  // The Loader is non-transactional: an entry whose apply threw stays inactive
+  // and its failure is reported on its own fiber, so join them here to keep
+  // this helper rejecting for a composition the bundle refuses.
+  for (const entry of ctx.loader.entries()) await entry.fiber?.await()
   return ctx
 }
 

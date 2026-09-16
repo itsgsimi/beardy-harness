@@ -47,7 +47,9 @@ export function VoiceControl({ append, useInput, t }: Props) {
     setPhase('idle')
   }
   const start = async (): Promise<void> => {
-    if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    // An insecure context leaves `navigator.mediaDevices` absent at runtime, which the DOM types do not admit.
+    const mediaDevices = navigator.mediaDevices as MediaDevices | undefined
+    if (!globalThis.isSecureContext || mediaDevices?.getUserMedia === undefined || typeof MediaRecorder === 'undefined') {
       setError('unsupported'); return
     }
     const operation = new AbortController()

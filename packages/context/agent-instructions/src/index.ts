@@ -83,6 +83,7 @@ function frozenInstructionsFromHistory(
     if (frozen !== undefined) return frozen
   }
   for (let index = session.seq - 1; index >= 0; index -= 1) {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     const event = session.eventAt(SessionSeq(index))
     if (event?.type !== 'user/message') continue
     const frozen = read(event.data)

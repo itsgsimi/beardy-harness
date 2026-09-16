@@ -34,7 +34,7 @@ describe('speech transcription', () => {
     await expect(collectBytes(data(), 3)).rejects.toThrow('limit')
   })
   it('decodes a real WAV through the managed subprocess and returns the backend transcript', async () => {
-    const fetcher = vi.fn(async (_url, init) => {
+    const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
       const file = (init.body as FormData).get('file') as File
       expect(file.name).toBe('recording.wav')
       expect(Buffer.from(await file.arrayBuffer()).subarray(0, 4).toString()).toBe('RIFF')

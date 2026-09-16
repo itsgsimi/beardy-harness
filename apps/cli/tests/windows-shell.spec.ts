@@ -104,12 +104,37 @@ describe('the shipped shell composition (real bundle layers)', () => {
 describe('shipped agent presets gate both shell tools by platform', () => {
   const presetRoot = SHIPPED_PRESET_ROOT
 
+  /**
+   * Rows a shipped preset mounts, following the one read-only include a preset
+   * may inherit its roster through: the included file's rows come first with
+   * its `patches` applied by id, then the preset's own rows.
+   */
+  function presetEntries(preset: string): unknown[] {
+    const dir = join(presetRoot, preset)
+    const parsed: unknown = yaml.load(readFileSync(join(dir, 'agent.cordis.yml'), 'utf8'), { schema: entryListSchema })
+    if (!Array.isArray(parsed)) throw new TypeError(`preset ${preset} must parse to an entry array`)
+    const resolved: unknown[] = []
+    for (const entry of parsed as unknown[]) {
+      const row = entry as { name?: unknown; config?: unknown } | null
+      if (typeof row !== 'object' || row === null || row.name !== '@deepseek-ai/dsh-agent-presets/include') {
+        resolved.push(entry)
+        continue
+      }
+      const config = row.config as { path: string; patches?: readonly { id?: string }[] }
+      const included: unknown = yaml.load(readFileSync(join(dir, config.path), 'utf8'), { schema: entryListSchema })
+      if (!Array.isArray(included)) throw new TypeError(`included preset ${config.path} must parse to an entry array`)
+      const patches = new Map((config.patches ?? []).map(patch => [patch.id, patch]))
+      for (const inherited of included as unknown[]) {
+        const candidate = inherited as { id?: string }
+        const patch = typeof candidate === 'object' && candidate !== null ? patches.get(candidate.id) : undefined
+        resolved.push(patch === undefined ? inherited : { ...candidate, ...patch })
+      }
+    }
+    return resolved
+  }
+
   it.each(['standard', 'ptc', 'cordis'])('preset %s gates its shell tool rows by platform', (preset) => {
-    const entries: unknown = yaml.load(
-      readFileSync(join(presetRoot, preset, 'agent.cordis.yml'), 'utf8'),
-      { schema: entryListSchema },
-    )
-    if (!Array.isArray(entries)) throw new TypeError(`preset ${preset} must parse to an entry array`)
+    const entries = presetEntries(preset)
     for (const [id, win32] of [['tool-bash', true], ['tool-pwsh', false]] as const) {
       const row = entries.find((entry): entry is Record<string, unknown> => (
         typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>).id === id

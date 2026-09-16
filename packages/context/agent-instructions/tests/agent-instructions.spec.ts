@@ -1156,7 +1156,7 @@ describe('workspace context request injection', () => {
       await ctx.plugin(ToolRuntime)
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(LocalFileSystem, { cwd: root })
-      await mountWorkspaceContextPlugin(ctx, {
+      await mountAgentInstructionsPlugin(ctx, {
         dshHome: home,
         maxBytes: 65536,
         userGlobalInstructionCandidates: ['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'],
@@ -1196,7 +1196,7 @@ describe('workspace context request injection', () => {
       await write(join(home, 'AGENTS.md'), 'original global rules')
       await write(join(home, 'SOUL.md'), 'original personality')
       await write(join(home, 'USER.md'), 'original user facts')
-      await mountWorkspaceContext(ctx, {
+      await mountAgentInstructions(ctx, {
         dshHome: home, maxBytes: 65536,
         userGlobalInstructionCandidates: ['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
@@ -1250,7 +1250,7 @@ describe('workspace context request injection', () => {
     const ctx = new Context()
     try {
       await mkdir(join(root, '.git'))
-      await mountWorkspaceContext(ctx, {
+      await mountAgentInstructions(ctx, {
         dshHome: home, maxBytes: 65536,
         userGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
@@ -1280,13 +1280,13 @@ describe('workspace context request injection', () => {
     const ctx = new Context()
     try {
       await write(join(home, 'USER.md'), 'queued user facts')
-      await mountWorkspaceContext(ctx, {
+      await mountAgentInstructions(ctx, {
         dshHome: home, maxBytes: 65536, projectRootMarkers: [],
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
       })
       const original = await stubAgent(root)
-      await syncWorkspaceContext(ctx, original)
+      await syncAgentInstructions(ctx, original)
       expect(baselineEvents(original)).toHaveLength(0)
       expect(original.inbox.nextStep).toHaveLength(1)
       await write(join(home, 'USER.md'), 'changed user facts')
@@ -1313,7 +1313,7 @@ describe('workspace context request injection', () => {
     const home = await tempRepo()
     const ctx = new Context()
     try {
-      await mountWorkspaceContext(ctx, {
+      await mountAgentInstructions(ctx, {
         dshHome: home, maxBytes: 100, projectRootMarkers: [],
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
@@ -1340,14 +1340,14 @@ describe('workspace context request injection', () => {
       }
       await write(join(home, 'USER.md'), 'original user facts')
       await write(join(home, 'MEMORY.md'), 'original memory facts')
-      await mountWorkspaceContext(originalCtx, {
+      await mountAgentInstructions(originalCtx, {
         ...config, frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
       })
       const original = await stubAgent(root)
       await composeBaselinePrefix(originalCtx, original)
       await write(join(home, 'USER.md'), 'current user facts')
       await write(join(home, 'MEMORY.md'), 'current memory facts')
-      await mountWorkspaceContext(resumedCtx, {
+      await mountAgentInstructions(resumedCtx, {
         ...config, frozenUserGlobalInstructionCandidates: ['MEMORY.md'],
       })
       const resumed = await stubAgent(root, original.session.snapshotEvents())
@@ -1358,7 +1358,7 @@ describe('workspace context request injection', () => {
       expect(text).not.toContain('original user facts')
       expect(text).toContain('original memory facts')
       expect(text).not.toContain('current memory facts')
-      await mountWorkspaceContext(refrozenCtx, {
+      await mountAgentInstructions(refrozenCtx, {
         ...config, frozenUserGlobalInstructionCandidates: ['USER.md', 'MEMORY.md'],
       })
       const refrozen = await stubAgent(root, resumed.session.snapshotEvents())
@@ -1384,7 +1384,7 @@ describe('workspace context request injection', () => {
       await mkdir(join(root, '.git'))
       await write(join(root, 'AGENTS.md'), 'project rules')
       await write(join(home, 'USER.md'), 'old user fact '.repeat(200))
-      await mountWorkspaceContext(ctx, {
+      await mountAgentInstructions(ctx, {
         dshHome: home, maxBytes: 800,
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],
@@ -1417,7 +1417,7 @@ describe('workspace context request injection', () => {
     const ctx = new Context()
     try {
       await mkdir(join(root, '.git'))
-      await mountWorkspaceContext(ctx, {
+      await mountAgentInstructions(ctx, {
         dshHome: home, maxBytes: 65536,
         userGlobalInstructionCandidates: ['USER.md'],
         frozenUserGlobalInstructionCandidates: ['USER.md'],

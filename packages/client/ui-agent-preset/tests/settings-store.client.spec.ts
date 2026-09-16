@@ -530,7 +530,7 @@ describe('the new-session chip controller', () => {
     const controller = new AgentPresetSeatController(ctx, () => undefined)
     const first = controller.load()
     await controller.load()
-    stale.resolve({ ok: true, value: { presets: ROSTER, authorable: true } })
+    stale.resolve({ ok: true, value: { presets: ROSTER, authorable: true, modeSelectionEnabled: true } })
     await first
 
     expect(controller.store.getSnapshot().options).toEqual([{ id: 'standard', trust: 'system', picker: 'hidden' }])

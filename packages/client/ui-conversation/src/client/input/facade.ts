@@ -196,15 +196,7 @@ export class SessionInputShell implements SessionInput {
   /** Append a dictation result at the document end without replacing existing chips. */
   appendDraft(text: string): boolean {
     if (this.disposed || this.snapshot.phase !== 'plain') return false
-    const clean = text.replace(REFERENCE_PLACEHOLDER_RE, '').trim()
-    if (clean === '') return true
-    this.applyEdit(() => {
-      const root = $getRoot()
-      if (root.getChildrenSize() === 0) root.append($createParagraphNode())
-      const previous = root.getTextContent()
-      const separator = previous === '' || /\s$/.test(previous) ? '' : ' '
-      root.selectEnd().insertText(separator + clean)
-    }, PASTE_TAG)
+    this.draftEditor.appendDraft(text)
     return true
   }
 

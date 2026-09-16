@@ -422,6 +422,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     const live = conversations.get(channelId)
     if (live?.handle.agent.status === 'running') return 'Turn in progress.'
     if (live?.inboundActive === true) {
+      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       const last = live.handle.agent.session.ownEvents().findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
       return last?.type === 'turn/end' ? 'Delivering the reply.' : 'Turn in progress.'
     }
@@ -812,6 +813,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       }
       if (outbox !== undefined) await flushDelivery(conversation, outbox)
       else {
+        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         const reply = lastAssistantText(agent.session.ownEvents(), firstSeq)
         conversation.seqFloor = agent.session.seq
         if (reply !== '') await postReply(message.channelId, reply)
@@ -842,6 +844,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       const firstSeq = conversation.handle.agent.session.seq
       await runTurn(conversation, message, inputSignal)
       if (inputAborted()) return
+      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       const ending = conversation.handle.agent.session.ownEvents().filter(event => event.seq >= firstSeq).findLast(event => event.type === 'turn/end')
       success = ending?.type === 'turn/end' && ending.data.reason.kind === 'completed'
       if (ending?.type === 'turn/end' && ending.data.reason.kind === 'error' && !signal.aborted) {
@@ -895,6 +898,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           if (live.handle.agent.status !== 'running') {
             if (outbox !== undefined) await flushDelivery(live, outbox)
             else {
+              // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
               const text = lastAssistantText(live.handle.agent.session.ownEvents(), live.seqFloor)
               live.seqFloor = live.handle.agent.session.seq
               if (text !== '') await postReply(channelId, text)
@@ -962,6 +966,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         throw new Error('Discord final reply has no confirmed session persistence')
       }
       conversation.seqFloor = await enqueueReplies(queue, conversation.channelId, conversation.sessionId,
+        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         conversation.handle.agent.session.ownEvents(), conversation.seqFloor)
     })
     deliveries.set(conversation.channelId, operation.catch(() => {}))
@@ -984,6 +989,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       return
     }
     armRelease(conversation)
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     const text = lastAssistantText(agent.session.ownEvents(), conversation.seqFloor)
     conversation.seqFloor = agent.session.seq
     if (text === '') return

@@ -18,16 +18,18 @@ describe('web voice input', () => {
   let transcriptions = 0
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-voice-web-'))
-    backend = createServer(async (request, response) => {
-      const chunks: Buffer[] = []
-      for await (const chunk of request) chunks.push(chunk as Buffer)
-      const body = Buffer.concat(chunks)
-      if (!body.includes(Buffer.from('RIFF')) || !body.includes(Buffer.from('recording.wav'))) {
-        response.writeHead(400).end(); return
-      }
-      transcriptions += 1
-      response.setHeader('content-type', 'application/json')
-      response.end(JSON.stringify({ text: 'Please review the latest change.' }))
+    backend = createServer((request, response) => {
+      void (async (): Promise<void> => {
+        const chunks: Buffer[] = []
+        for await (const chunk of request) chunks.push(chunk as Buffer)
+        const body = Buffer.concat(chunks)
+        if (!body.includes(Buffer.from('RIFF')) || !body.includes(Buffer.from('recording.wav'))) {
+          response.writeHead(400).end(); return
+        }
+        transcriptions += 1
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify({ text: 'Please review the latest change.' }))
+      })()
     })
     await new Promise<void>(resolve => backend.listen(0, '127.0.0.1', resolve))
     const address = backend.address()
@@ -37,7 +39,7 @@ describe('web voice input', () => {
     scaffold = await launchWebScaffold({ extraOverlayPath: patch, replayFixture: fileURLToPath(new URL('../../../snapshots/web/voice-input/session.v3.jsonl', import.meta.url)) })
     browser = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
     page = await newEnglishPage(browser)
-    page.on('pageerror', error => console.error('VOICE PAGE', error.message))
+    page.on('pageerror', (error) => { console.error('VOICE PAGE', error.message) })
     page.on('console', (message) => { if (message.type() === 'error') console.error('VOICE CONSOLE', message.text()) })
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await connectFreshWorkspace(page, scaffold.workspaceCwd, 'voice-input')
@@ -45,7 +47,7 @@ describe('web voice input', () => {
   afterAll(async () => {
     await browser?.close()
     await scaffold?.close()
-    if (backend !== undefined) await new Promise<void>(resolve => backend.close(() => resolve()))
+    if (backend !== undefined) await new Promise<void>(resolve => backend.close(() => { resolve() }))
     if (root !== undefined) await rm(root, { recursive: true, force: true })
   })
   it('shows native microphone controls and inserts a reviewable transcript', async () => {

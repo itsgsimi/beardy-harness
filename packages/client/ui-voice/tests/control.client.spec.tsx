@@ -20,12 +20,12 @@ describe('composer voice control', () => {
   it('records, transcribes and appends without submitting the message', async () => {
     const { append } = setup()
     vi.mocked(recordAudio).mockImplementation(async (_signal, _limits, ready) => {
-      return new Promise(resolve => ready(() => resolve(new Blob(['audio']))))
+      return new Promise((resolve) => { ready(() => { resolve(new Blob(['audio'])) }) })
     })
     vi.mocked(transcribeAudio).mockResolvedValue('Inspect the last change.')
     fireEvent.click(await screen.findByRole('button', { name: en.start }))
     fireEvent.click(await screen.findByRole('button', { name: en.stop }))
-    await waitFor(() => expect(append).toHaveBeenCalledWith('Inspect the last change.'))
+    await waitFor(() => { expect(append).toHaveBeenCalledWith('Inspect the last change.') })
     expect(screen.getByRole('button', { name: en.start })).toBeTruthy()
   })
   it('cancels on session unmount and discards a late transcript', async () => {

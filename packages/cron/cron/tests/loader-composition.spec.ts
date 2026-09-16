@@ -128,6 +128,10 @@ async function boot(
     config: { path: pathToFileURL(configPath).href },
   })
   await context.loader.await()
+  // The Loader is non-transactional: an entry whose apply threw stays inactive
+  // and its failure is reported on its own fiber, so join them here to keep
+  // `boot()` rejecting for a composition this plugin refuses.
+  for (const entry of context.loader.entries()) await entry.fiber?.await()
   return { ctx: context, record }
 }
 

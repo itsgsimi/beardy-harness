@@ -185,6 +185,26 @@ export class DraftEditorRuntime {
   }
 
   /**
+   * Append recognized text at the document end, leaving existing reference
+   * chips and the caret untouched (placeholder-sanitized). Unlike {@link paste}
+   * it ignores the live selection, because dictation belongs after the whole
+   * draft; one space separates it from a draft that does not already end in
+   * whitespace.
+   * @param text - recognized text.
+   */
+  appendDraft(text: string): void {
+    const clean = text.replace(REFERENCE_PLACEHOLDER_RE, '').trim()
+    if (clean === '') return
+    this.applyEdit(() => {
+      const root = $getRoot()
+      if (root.getChildrenSize() === 0) root.append($createParagraphNode())
+      const previous = root.getTextContent()
+      const separator = previous === '' || /\s$/u.test(previous) ? '' : ' '
+      root.selectEnd().insertText(separator + clean)
+    }, PASTE_TAG)
+  }
+
+  /**
    * The live selection as a detect-coordinate span (menu-launcher synthetic
    * hits replace it on pick); an absent selection answers a collapsed span at
    * the document end.

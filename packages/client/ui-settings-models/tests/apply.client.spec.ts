@@ -199,24 +199,20 @@ describe('ui-settings-models apply', () => {
     // Page authority selects no settings mode: the Host fence and Connection
     // authentication decide who may call, so a LAN or Tailscale browser reads
     // the same document a loopback one does.
-    const settings = {
-      describe: vi.fn(() => Promise.resolve({
-        ok: true as const,
-        value: {
-          writable: true,
-          hasDocument: false,
-          namespaces: [{
-            ns: WELCOME_NOTICE_SETTINGS_NAMESPACE,
-            schema: {},
-            value: { [WELCOME_NOTICE_ACK_FIELD]: WELCOME_NOTICE_VERSION },
-            applies: 'live' as const,
-            secrets: [],
-            revision: 0,
-          }],
-        },
-      })),
-    }
-    const b = await bench(false, settings)
+    const mock = RemoteMock.create().load(remoteDefaultResponses)
+    mock.remote.settings.describe.mockResolvedValue(ok({
+      writable: true,
+      hasDocument: false,
+      namespaces: [{
+        ns: WELCOME_NOTICE_SETTINGS_NAMESPACE,
+        schema: {},
+        value: { [WELCOME_NOTICE_ACK_FIELD]: WELCOME_NOTICE_VERSION },
+        applies: 'live' as const,
+        secrets: [],
+        revision: 0,
+      }],
+    }))
+    const b = await bench(false, mock)
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const entry = b.slots.entries('settings.onboarding')
@@ -226,7 +222,7 @@ describe('ui-settings-models apply', () => {
     )()
 
     await injected.controller.load()
-    expect(settings.describe).toHaveBeenCalled()
+    expect(mock.remote.settings.describe).toHaveBeenCalled()
     expect(injected.controller.store.getSnapshot()).toEqual({
       status: 'ready', acknowledged: true, error: null,
     })

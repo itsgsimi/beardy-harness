@@ -236,6 +236,14 @@ export async function runSshHelper(transport: HelperTransport): Promise<void> {
         signal, resolved,
       )
     }
+    if (method === 'fs.mkdir' || method === 'fs.remove') {
+      const input = z.object({ target: targetSchema, policy: policySchema }).strict().parse(raw)
+      const target = asTarget(input.target)
+      const resolved = await policy(input.policy, signal)
+      if (method === 'fs.mkdir') await ctx.fs.makeDirectory(target, signal, resolved)
+      else await ctx.fs.removeFile(target, signal, resolved)
+      return null
+    }
     throw new Error(`Unknown SSH helper operation: ${method}`)
   })
   const closed = Promise.withResolvers<undefined>()

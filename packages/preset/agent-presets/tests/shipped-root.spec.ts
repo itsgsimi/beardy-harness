@@ -77,11 +77,42 @@ function findEntry(entries: unknown[], id: string): ShippedEntry | undefined {
 }
 
 /** Read and validate one shipped preset's Cordis entry list. */
+const INCLUDE_PLUGIN = '@deepseek-ai/dsh-agent-presets/include'
+
+/**
+ * Rows a shipped preset actually mounts, following the one read-only include a
+ * preset may inherit its roster through: the included file's rows come first
+ * with their `patches` applied by id, then the preset's own rows. Only the
+ * shipped tree is read, and only one include level exists in it.
+ */
+async function resolveIncludes(dir: string, entries: readonly unknown[]): Promise<unknown[]> {
+  const resolved: unknown[] = []
+  for (const entry of entries) {
+    const row = entry as { name?: unknown; config?: unknown } | null
+    if (typeof row !== 'object' || row === null || row.name !== INCLUDE_PLUGIN) {
+      resolved.push(entry)
+      continue
+    }
+    const config = row.config as { path: string; patches?: readonly { id?: string }[] }
+    const target = join(dir, config.path)
+    const included: unknown = yaml.load(await readFile(target, 'utf8'), { schema: entryListSchema })
+    if (!Array.isArray(included)) throw new TypeError(`included preset ${config.path} must contain a Cordis entry list`)
+    const patches = new Map((config.patches ?? []).map(patch => [patch.id, patch]))
+    for (const inherited of included as unknown[]) {
+      const candidate = inherited as { id?: string }
+      const patch = typeof candidate === 'object' && candidate !== null ? patches.get(candidate.id) : undefined
+      resolved.push(patch === undefined ? inherited : { ...candidate, ...patch })
+    }
+  }
+  return resolved
+}
+
 async function shippedEntries(id: string): Promise<unknown[]> {
-  const source = await readFile(join(SHIPPED_PRESET_ROOT, id, 'agent.cordis.yml'), 'utf8')
+  const dir = join(SHIPPED_PRESET_ROOT, id)
+  const source = await readFile(join(dir, 'agent.cordis.yml'), 'utf8')
   const entries: unknown = yaml.load(source, { schema: entryListSchema })
   if (!Array.isArray(entries)) throw new TypeError(`${id} preset must contain a Cordis entry list`)
-  return entries.map((entry: unknown) => entry)
+  return await resolveIncludes(dir, entries as readonly unknown[])
 }
 
 describe('the shipped preset root', () => {

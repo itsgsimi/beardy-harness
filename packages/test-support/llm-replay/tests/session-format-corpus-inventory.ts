@@ -1,5 +1,13 @@
 /** Exact historical conversion refusals; current-generation fixtures never qualify. */
 export const expectedUnsupported: Readonly<Partial<Record<string, { sourceVersion: number; reason: string }>>> = {
+  'snapshots/session/frozen-user-memory/session.v2.jsonl': {
+    sourceVersion: 2,
+    reason: 'session snapshot line 10: @deepseek-ai/dsh-session-format-v2-to-v3 refuses this format v2 Session: user/message 8 source has unexpected member "frozenUserGlobalInstructions"',
+  },
+  'snapshots/web/discord-rich-reply/session.v2.jsonl': {
+    sourceVersion: 2,
+    reason: 'session snapshot line 6: cannot safely transform unclassified message source',
+  },
   'packages/experimental/webworker-runtime/tests/fixtures/vfs-example/home/sessions/--dsh-workspace--/preview-architecture-review/session.v2.jsonl': {
     sourceVersion: 2,
     reason: 'session snapshot line 3: format v2 surface before first step cannot acquire a system head without changing chronology',

@@ -21,12 +21,12 @@ const limits = { maxAudioBytes: 100, maxDurationSeconds: 180 }
 describe('microphone lifetime', () => {
   it('returns a stopped clip and closes the microphone', async () => {
     const stopped = setup()
-    const audio = await recordAudio(new AbortController().signal, limits, stop => stop())
+    const audio = await recordAudio(new AbortController().signal, limits, (stop) => { stop() })
     expect(await audio.text()).toBe('audio'); expect(stopped).toHaveBeenCalledOnce()
   })
   it('discards cancelled recording and closes the microphone', async () => {
     const stopped = setup(); const controller = new AbortController()
-    await expect(recordAudio(controller.signal, limits, () => controller.abort())).rejects.toThrow()
+    await expect(recordAudio(controller.signal, limits, () => { controller.abort() })).rejects.toThrow()
     expect(stopped).toHaveBeenCalledOnce()
   })
   it('releases microphone permission granted after cancellation', async () => {
@@ -36,7 +36,7 @@ describe('microphone lifetime', () => {
   })
   it('rejects oversized recordings and stops at the duration limit', async () => {
     const stopped = setup()
-    await expect(recordAudio(new AbortController().signal, { ...limits, maxAudioBytes: 1 }, stop => stop())).rejects.toThrow('large')
+    await expect(recordAudio(new AbortController().signal, { ...limits, maxAudioBytes: 1 }, (stop) => { stop() })).rejects.toThrow('large')
     expect(stopped).toHaveBeenCalledOnce()
     vi.useFakeTimers()
     const pending = recordAudio(new AbortController().signal, { ...limits, maxDurationSeconds: 1 }, vi.fn())
