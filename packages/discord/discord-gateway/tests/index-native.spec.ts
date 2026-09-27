@@ -1,6 +1,6 @@
 /** Listener-owned command synchronization and native interaction lifecycle. */
 
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { discordCommands } from '../src/commands.ts'
@@ -58,7 +58,7 @@ async function listener(overrides: Partial<ResolvedConfig> = {}, scoped?: Readon
   const listForScope = vi.fn((scope: string) => scoped?.[scope] ?? descriptors)
   const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() }
   const removeObserver = vi.fn()
-  const ctx = {
+  const ctx = new Context().extend({
     logger,
     credentials: { resolve: async () => ({ value: 'private-bot-token' }) },
     agentPresets: {
@@ -72,11 +72,14 @@ async function listener(overrides: Partial<ResolvedConfig> = {}, scoped?: Readon
       observer.add(callback)
       return () => { observer.delete(callback); removeObserver() }
     },
-  } as unknown as Context
+  })
   const execute = vi.fn<ConversationRouter['execute']>(async () => ({ kind: 'success', text: 'Idle.' }))
   const component = vi.fn<ConversationRouter['component']>(async () => 'Answer accepted.')
   const handle = vi.fn()
-  const router = { execute, component, handle, handleReaction: vi.fn() } as unknown as ConversationRouter
+  const router: ConversationRouter = {
+    execute, component, handle, handleReaction: vi.fn(),
+    recover: async () => {}, deliver: async () => {}, dispose: async () => {},
+  }
   const connect: GatewayConnector = async (options, signal) => {
     connected.resolve(options)
     if (signal.aborted) return
@@ -111,9 +114,10 @@ function rest(respond: (call: RequestCall) => Response | Promise<Response>) {
     const url = new URL(input instanceof Request ? input.url : String(input))
     expect(url.origin).toBe('https://discord.com')
     if (init?.signal === undefined || init.signal === null) throw new Error('Discord request is missing cancellation')
-    const call = {
+    const body: unknown = typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+    const call: RequestCall = {
       method: init.method ?? 'GET', path: url.pathname, signal: init.signal,
-      body: typeof init.body === 'string' ? JSON.parse(init.body) as unknown : undefined,
+      body,
     }
     calls.push(call)
     return respond(call)

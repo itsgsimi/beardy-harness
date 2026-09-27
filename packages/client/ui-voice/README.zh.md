@@ -35,7 +35,7 @@ web-app 包在 `ui-conversation` 旁挂载此插件。启用主机的[语音提�
 <details>
 <summary>实现细节</summary>
 
-浏览器插件通过插槽注册表向 `conversation.input.right` 添加控件。MediaRecorder 生成有界录音，控件将其上传到主机，再通过会话输入接口追加文字。取消或卸载时会释放音轨、HTTP 请求、语言注册和插槽内容。控件不会执行发送操作。
+浏览器插件通过插槽注册表向 `conversation.input.right` 添加控件。MediaRecorder 生成有界录音，控件通过相对于文档的语音路由将其上传到主机，再通过会话输入接口追加文字。取消或卸载时会释放音轨、HTTP 请求、语言注册和插槽内容。控件不会执行发送操作。
 
 </details>
 

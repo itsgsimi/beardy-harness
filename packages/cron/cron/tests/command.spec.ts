@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { registerCronCommand, runCronSubcommand } from '../src/command.ts'
 import { CONFIG_JOB, makeRegistry, storedRow } from './support.ts'
 
@@ -103,7 +103,7 @@ describe('/cron subcommands', () => {
 
   it('registers the command with hint and dispatch through the command registry', async () => {
     const registered: { name: string; description?: string; input?: unknown; handler?: unknown }[] = []
-    const ctx = { commands: { register: (c: { name: string }) => { registered.push(c); return () => {} } } } as unknown as Context
+    const ctx = new Context().extend({ commands: { register: (c: { name: string }) => { registered.push(c); return () => {} } } })
     const { registry } = makeRegistry([CONFIG_JOB])
     registerCronCommand(ctx, registry, deps)
     expect(registered).toHaveLength(1)

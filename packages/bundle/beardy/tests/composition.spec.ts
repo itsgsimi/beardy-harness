@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as yaml from 'js-yaml'
 import { Context } from '@deepseek-ai/cordis'
-import Loader, { evaluate } from '@deepseek-ai/cordis-plugin-loader'
+import Loader, { evaluate, type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import Include, { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -77,11 +77,16 @@ async function bootWithDiscordRow(configLines: readonly string[]): Promise<Conte
   ])
   ctx.loader.internal = {
     version: 'v2',
+    loadCache: new Map(),
+    register(): never { throw new Error('unexpected module hook registration') },
+    getOrCreateModuleJob(): never { throw new Error('unexpected module job creation') },
+    resolveSync(): never { throw new Error('unexpected synchronous module resolution') },
+    load(): never { throw new Error('unexpected module load') },
     async import(specifier: string) {
       if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
       return modules.get(specifier)
     },
-  } as unknown as NonNullable<typeof ctx.loader.internal>
+  } satisfies ModuleLoaderV2
   ctx.provide('credentials' as never, {
     resolve: async () => ({ value: 'token', source: 'env' }),
   } as never)
@@ -275,12 +280,14 @@ describe('dsh-beardy composition gating', () => {
   }, 60_000)
 
   it('fails loud naming allowedUserIds when the gateway row is enabled without profile authority data', () => {
-    const parse = (): unknown => (GatewayConfig as unknown as (value: unknown) => unknown)({
+    const result: unknown = GatewayConfig['~standard'].validate({
       tokenEnv: 'DISCORD_BOT_TOKEN',
       agentPreset: 'beardy-discord',
       permissionPreset: 'danger-full-access',
       workspacePath: '/home/example/beardy',
     })
-    expect(parse).toThrow(/allowedUserIds/)
+    if (!isRecord(result) || !Array.isArray(result.issues)) throw new Error('Expected config issues')
+    expect(result.issues.some((issue: unknown) => isRecord(issue)
+      && typeof issue.message === 'string' && issue.message.includes('allowedUserIds'))).toBe(true)
   })
 })

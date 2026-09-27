@@ -5,11 +5,22 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { GlobalStandardProps, SessionStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { en } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 import { ResearchRow } from '../src/client/tool/toolviews/research-row.tsx'
 
 type Props = Parameters<typeof ResearchRow>[0]
 const t: Props['t'] = makeTranslate(en, commonEn)
+const unused = (): never => { throw new Error('ResearchRow does not use this slot fixture') }
+const standard: GlobalStandardProps & SessionStandardProps = {
+  sessionId: SessionId('research-row'), useSession: unused, useProjection: unused,
+  useConversation: unused, useInput: unused, useChat: unused, useTrajectory: unused,
+  usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
+  useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+  inputActions: { captureInsertion: unused, insertText: unused, setDraft: unused,
+    addAttachments: unused, removeAttachment: unused, pruneAttachments: unused, submit: unused },
+}
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 function props(meta: unknown, isError = false): Props {
@@ -19,9 +30,11 @@ function props(meta: unknown, isError = false): Props {
     content: [{ type: 'text', text: 'A short model page' }], isError, subCalls: [], meta,
   }
   return {
-    callId: 'research', toolName: 'odysseus_research', block, t, openFile: vi.fn(), sessionId: 's1',
-    useDisclosure: () => ({ expanded: false, toggle: vi.fn() }),
-  } as unknown as Props
+    ...standard, callId: 'research', openFile: unused, loadImage: unused,
+    useToolCallArgumentsPartial: unused,
+    phase: 'result', toolName: 'odysseus_research', block, t,
+    useDisclosure: () => ({ expanded: false, setExpanded: vi.fn(), toggle: vi.fn() }),
+  }
 }
 
 it('opens the complete saved artifact and releases its download URL on close', () => {

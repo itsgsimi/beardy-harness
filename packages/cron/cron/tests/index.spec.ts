@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { apply, assertConfig, createSchedulerHost, mountJobs } from '../src/index.ts'
 import type { CronJobSpec, CronRunFinished, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
 import { fakeTable } from './support.ts'
 import type { JobStateRecord } from '../src/domain.ts'
+import type { createCronManageTool } from '../src/tool.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -119,7 +120,7 @@ function contextStub(overrides: Record<string, unknown> = {}) {
   const disposers: (() => Promise<void> | void)[] = []
   const tables = new Map<string, ReturnType<typeof fakeTable>>()
   const emitted: { event: string; payload: unknown }[] = []
-  const tools: { name: string }[] = []
+  const tools: ReturnType<typeof createCronManageTool>[] = []
   const commands: { name: string; handler?: unknown }[] = []
   const listeners: { event: string; handler: (payload: never) => void }[] = []
   let domainClosed = false
@@ -132,7 +133,7 @@ function contextStub(overrides: Record<string, unknown> = {}) {
       listeners.push({ event, handler })
       return () => {}
     },
-    tools: { register: (tool: { name: string }) => { tools.push(tool); return () => {} } },
+    tools: { register: (tool: ReturnType<typeof createCronManageTool>) => { tools.push(tool); return () => {} } },
     commands: { register: (command: { name: string; handler?: unknown }) => { commands.push(command); return () => {} } },
     storageDomain: {
       open: async () => ({
@@ -165,7 +166,7 @@ function contextStub(overrides: Record<string, unknown> = {}) {
     for (const listener of listeners) if (listener.event === event) listener.handler(payload as never)
   }
   return {
-    ctx: { ...ctx, ...overrides } as unknown as Context,
+    ctx: new Context().extend({ ...ctx, ...overrides }),
     logger, handle, disposers, emitted, tools, commands, tables, emitTo,
     domainClosed: () => domainClosed,
   }
@@ -385,9 +386,8 @@ describe('apply', () => {
     const createAgent = vi.spyOn(h.ctx.agents, 'create')
     const scheduler = fakeScheduler()
     await apply(h.ctx, config({ jobs: [], allowedWorkspaceRoots: [root] }), scheduler.scheduler)
-    const tool = h.tools.find(item => item.name === 'cron_manage') as unknown as {
-      execute(args: Record<string, unknown>, exec: never): Promise<unknown>
-    }
+    const tool = h.tools.find(item => item.name === 'cron_manage')
+    if (tool === undefined) throw new Error('cron_manage tool was not registered')
     await tool.execute({
       action: 'create', name: 'retargeted', expression: '0 9 * * 1', timezone: 'Europe/Zagreb',
       prompt: 'Check PRs.', agent_preset: 'beardy', permission_preset: 'workspace-write', workspace_path: link,

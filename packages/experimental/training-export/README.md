@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-training-export` writes sidecar training data beside each persisted session: one `train/sample` per `llm/stream` call, one `train/label` per completed turn, and session metadata. Samples preserve the adapter request, folded response, hashes, and a best-effort workspace snapshot; labels summarize tool, hook, approval, timing, diff, assistant-text, and rating outcomes. The listener adds no prompt, tool schema, or session event, so sessions remain readable without it. This private experimental package follows the version 1 format consumed by `halorun dataset`; its contract may change without notice.
+`dsh-training-export` writes sidecar training data beside each persisted session: one `train/sample` per `llm/stream` call, one `train/label` per completed turn, and session metadata. Samples preserve the adapter request, folded response, hashes, and a best-effort workspace snapshot; labels summarize tool, hook, approval, timing, diff, assistant-text, and rating outcomes. The listener adds no prompt, tool schema, or session event, so sessions remain readable without it. This public experimental package follows the version 1 format consumed by `halorun dataset`; its contract may change without notice.
 
 ## Table of Contents
 

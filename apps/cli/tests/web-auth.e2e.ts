@@ -155,7 +155,8 @@ async function readyWithoutCookie(url: URL): Promise<unknown> {
       socket.once('message', (data) => {
         try {
           const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.isBuffer(data) ? data : Buffer.from(data)
-          resolve(JSON.parse(bytes.toString('utf8')) as unknown)
+          const frame: unknown = JSON.parse(bytes.toString('utf8'))
+          resolve(frame)
         } catch (error) {
           reject(error instanceof Error ? error : new Error(String(error)))
         }
@@ -249,7 +250,8 @@ describe('dsh web authentication through the real CLI', () => {
       expect((await rootPage.text()).includes('__DSH_BOOT__')).toBe(true)
       const rpc = await describeSettings(port, url.host)
       expect(rpc.status).toBe(200)
-      expect(JSON.parse(rpc.body) as unknown).toMatchObject({
+      const responseBody: unknown = JSON.parse(rpc.body)
+      expect(responseBody).toMatchObject({
         type: 'server-response', rpcId: 'web-auth-real-cli', result: { ok: true },
       })
       expect(await readyWithoutCookie(url)).toMatchObject({

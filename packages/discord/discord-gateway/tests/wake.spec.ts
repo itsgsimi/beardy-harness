@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { createAfterScheduleRecord, ScheduleId } from '@deepseek-ai/dsh-schedule'
 import { DiscordWakeCoordinator } from '../src/wake.ts'
 import type { ConversationRecord } from '../src/domain.ts'
-import { record } from './support.ts'
+import { record, tableFromMap } from './support.ts'
 
 const owners: DiscordWakeCoordinator[] = []
 afterEach(async () => {
@@ -28,9 +27,9 @@ function fixture(events: SessionEvent[] = [reminder(1)]) {
   } }
   const live = new Set<string>()
   const wake = vi.fn(async (value: ConversationRecord) => { live.add(value.channelId) })
-  const table = { get: (key: string) => records.get(key), entries: () => records.entries() }
-  const owner = new DiscordWakeCoordinator(ctx as unknown as Context,
-    table as unknown as KvTable<string, ConversationRecord>, wake, channel => live.has(channel), 1000)
+  const table = tableFromMap(records)
+  const owner = new DiscordWakeCoordinator(new Context().extend(ctx),
+    table, wake, channel => live.has(channel), 1000)
   owners.push(owner)
   return { owner, read, close, ctx, records, live, wake }
 }

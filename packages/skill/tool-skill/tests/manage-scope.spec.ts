@@ -7,7 +7,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import AgentRegistry, { type Inbox, type Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
@@ -35,13 +35,16 @@ async function tempDir(name: string): Promise<string> {
 
 function agentForCwd(cwd?: string): Agent {
   if (cwd === undefined) {
-    // Only session.header.cwd is read on the refusal path; a minimal stub keeps it absent.
+    const id = SessionId('manage-no-cwd')
+    const session = Session.create(id, [], {
+      version: SESSION_FORMAT_VERSION, id, createdAt: 0, isSeeded: false,
+    })
     return {
       ctx: new Context(),
-      id: SessionId('manage-no-cwd'),
+      id,
       options: {},
-      session: { header: {} } as unknown as Session,
-      inbox: {} as Inbox,
+      session,
+      inbox: unsupportedInbox(),
       status: 'idle',
       send: () => {},
       followup: () => {},
@@ -286,23 +289,19 @@ describe('skill_manage scopes and approval', () => {
   describe('containment guards', () => {
     /** Resolve with real prefix semantics but relocate the scope root or the skill file. */
     function fakeFs(escapes: { root?: boolean; target?: boolean }): FileSystem {
-      const target = (path: string): unknown => ({ displayPath: path })
-      return {
-        resolve: async (path: string) => target(
-          escapes.target !== undefined && path.endsWith('.md')
+      class EscapingFileSystem extends LocalFileSystem {
+        override async makeDirectory(..._args: Parameters<LocalFileSystem['makeDirectory']>): Promise<void> {}
+
+        override resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }) {
+          const target = escapes.target !== undefined && path.endsWith('.md')
             ? '/elsewhere/file.md'
             : escapes.root !== undefined && path.endsWith('skills')
               ? '/elsewhere/skills'
-              : path,
-        ),
-        makeDirectory: async () => undefined,
-        lstat: async () => undefined,
-        stat: async () => undefined,
-        contains: (parent: { displayPath: string }, child: { displayPath: string }) =>
-          child.displayPath === parent.displayPath || child.displayPath.startsWith(`${parent.displayPath}/`),
-        removeFile: async () => undefined,
-        writeText: async () => ({ version: 1, operation: 'create' }),
-      } as unknown as FileSystem
+              : path
+          return super.resolve(target, opts)
+        }
+      }
+      return new EscapingFileSystem(new Context(), { cwd: '/', diffBasisMaxBytes: 10 * 1024 * 1024 })
     }
 
     async function setupWithFakeFs(fs: FileSystem, config: toolSkill.Config): Promise<Context> {

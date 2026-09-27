@@ -264,6 +264,7 @@ export function expectedDshPackageFiles(manifest: PackageManifest): readonly str
     // bundle; the package-invariant gate validates the source/export pairing.
     ...manifest.exports?.['./invariant'] ? ['lib/invariant.js'] : [],
     ...manifest.bin ? ['lib/bin.js'] : [],
+    ...exportDefault(manifest, './path-segment') === './lib/path-segment.js' ? ['lib/path-segment.js'] : [],
     // Worker-thread packages ship a CJS worker entry; the browser worker
     // bundle is an ES module a page loads with `new Worker(type: 'module')`.
     // Keyed on the artifact path, like ./client below.

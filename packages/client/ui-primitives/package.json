@@ -58,8 +58,8 @@
   "files": [
     "lib/index.js",
     "lib/**/*.css",
-    "lib/types/**/*.d.ts",
-    "THIRD_PARTY_PREVIEW_NOTICES.txt"
+    "THIRD_PARTY_PREVIEW_NOTICES.txt",
+    "lib/types/**/*.d.ts"
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

@@ -1,4 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
 import { openUnattendedSession, resumeUnattendedSession } from '../src/open.ts'
@@ -100,7 +100,7 @@ function harness(options: HarnessOptions = {}) {
     },
   }
   const controller = new AbortController()
-  return { ctx: ctx as unknown as Context, calls, handle, workspace, controller }
+  return { ctx: new Context().extend(ctx), calls, handle, workspace, controller }
 }
 
 const SPEC: UnattendedSessionSpec = {

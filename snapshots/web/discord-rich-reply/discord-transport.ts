@@ -32,29 +32,53 @@ export function apply(ctx: Context): void {
       }))
     }
 
-    class FixtureSocket extends EventTarget {
+    class FixtureSocket extends EventTarget implements WebSocket {
+      static readonly CONNECTING = 0 as const
+      static readonly OPEN = 1 as const
+      static readonly CLOSING = 2 as const
+      static readonly CLOSED = 3 as const
+      readonly CONNECTING = 0 as const
+      readonly OPEN = 1 as const
+      readonly CLOSING = 2 as const
+      readonly CLOSED = 3 as const
+      readonly bufferedAmount = 0
+      readonly extensions = ''
+      readonly protocol = ''
+      readonly url: string
+      binaryType: BinaryType = 'blob'
+      readyState: 0 | 1 | 2 | 3 = 0
+      onclose: ((this: WebSocket, event: CloseEvent) => void) | null = null
+      onerror: ((this: WebSocket, event: Event) => void) | null = null
+      onmessage: ((this: WebSocket, event: MessageEvent) => void) | null = null
+      onopen: ((this: WebSocket, event: Event) => void) | null = null
+
       constructor(url: string | URL) {
         super()
         if (String(url) !== 'wss://gateway.discord.gg/?v=10&encoding=json') {
           throw new Error(`Unexpected snapshot websocket: ${String(url)}`)
         }
+        this.url = String(url)
         activeSocket = this
-        queueMicrotask(() => { this.dispatchEvent(new Event('open')) })
+        queueMicrotask(() => { this.readyState = 1; this.dispatchEvent(new Event('open')) })
       }
 
-      send(value: string): void {
-        const frame = JSON.parse(value) as { op: number }
-        if (frame.op !== 2) throw new Error(`Unexpected snapshot gateway opcode: ${frame.op}`)
+      send(value: BufferSource | Blob | string): void {
+        if (typeof value !== 'string') throw new Error('Unexpected non-text snapshot gateway frame')
+        const frame: unknown = JSON.parse(value)
+        if (typeof frame !== 'object' || frame === null || !('op' in frame) || frame.op !== 2) {
+          throw new Error('Unexpected snapshot gateway opcode')
+        }
         dispatch('READY', { application: { id: APPLICATION_ID }, user: { id: BOT_USER_ID } })
       }
 
       close(): void {
+        this.readyState = 3
         this.dispatchEvent(new Event('close'))
         if (activeSocket === this) activeSocket = undefined
       }
     }
 
-    globalThis.WebSocket = FixtureSocket as unknown as typeof WebSocket
+    globalThis.WebSocket = FixtureSocket
     globalThis.fetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input))
       if (url.origin !== 'https://discord.com') return originalFetch(input, init)

@@ -5,7 +5,7 @@ import { DiscordOutbox } from '../src/outbox.ts'
 import { outboxRecord } from '../src/domain.ts'
 import type { OutboxRecord } from '../src/domain.ts'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { CHANNEL, harness, record } from './support.ts'
+import { CHANNEL, assistantTextEvent, harness, record, stepEndEvent, tableFromMap, turnEndEvent, turnStartEvent } from './support.ts'
 
 const settings = { outboxMaxPending: 2, outboxMaxChars: 5000, outboxRetryMs: 1000,
   outboxMaxRetryMs: 8000, outboxMaxReceipts: 2 }
@@ -17,11 +17,7 @@ afterEach(async () => {
 
 function table() {
   const records = new Map<string, OutboxRecord>()
-  const storage = {
-    get: (id: string) => records.get(id), entries: () => records.entries(),
-    put: vi.fn(async (id: string, record: OutboxRecord) => { records.set(id, outboxRecord.parse(record)) }),
-    delete: async (id: string) => records.delete(id),
-  } as unknown as KvTable<string, OutboxRecord>
+  const storage = tableFromMap(records, record => outboxRecord.parse(record))
   return { records, storage }
 }
 
@@ -115,22 +111,14 @@ describe('durable Discord outbox', () => {
       channelId: 'offline', chunks: ['occupied'], cursor: 0, attempts: 0,
       ordinal: i + 1, createdAt: Date.now(), nextAttemptAt: Date.now() + 100000,
     })
-    const events = [{ seq: 0, type: 'assistant/message', data: {
-      turn: 1, step: 1, message: { content: [{ type: 'text', text: 'Turn A done.' }] },
-    } }, { seq: 1, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } }] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [assistantTextEvent(0, 1, 'Turn A done.'), turnEndEvent(1, 1)]
     const h = harness({ outboxStorage: storage, storedEvents: events,
       initialRecord: record({ deliveredThrough: 0 }), manualWait: true })
     try {
       await h.router.recover()
       expect(h.table.records.get(CHANNEL)?.deliveredThrough).toBe(0)
-      events.push({ seq: 2, type: 'turn/start', data: { turn: 2 } } as unknown as SessionEvent,
-        { seq: 3, type: 'assistant/message', data: { turn: 2, step: 1,
-          message: { content: [{ type: 'text', text: 'Turn B done.' }] } } } as unknown as SessionEvent,
-        { seq: 4, type: 'turn/end', data: { turn: 2, reason: { kind: 'completed' } } } as unknown as SessionEvent,
-        { seq: 5, type: 'turn/start', data: { turn: 3 } } as unknown as SessionEvent,
-        { seq: 6, type: 'assistant/message', data: { turn: 3, step: 1,
-          message: { content: [{ type: 'text', text: 'Still working.' }] } } } as unknown as SessionEvent,
-        { seq: 7, type: 'step/end', data: { turn: 3, step: 1 } } as unknown as SessionEvent)
+      events.push(turnStartEvent(2, 2), assistantTextEvent(3, 2, 'Turn B done.'), turnEndEvent(4, 2),
+        turnStartEvent(5, 3), assistantTextEvent(6, 3, 'Still working.'), stepEndEvent(7, 3, 1))
       records.clear()
       await h.router.recover()
       await vi.advanceTimersByTimeAsync(0)
@@ -144,9 +132,7 @@ describe('durable Discord outbox', () => {
   it('recovers a committed final reply without resuming or rerunning its agent', async () => {
     vi.useFakeTimers()
     const { storage } = table()
-    const events = [{ seq: 0, type: 'assistant/message', data: {
-      turn: 1, step: 1, message: { content: [{ type: 'text', text: 'Work completed.' }] },
-    } }, { seq: 1, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } }] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [assistantTextEvent(0, 1, 'Work completed.'), turnEndEvent(1, 1)]
     const h = harness({ outboxStorage: storage, storedEvents: events,
       initialRecord: record({ deliveredThrough: 0 }), manualWait: true })
     try {

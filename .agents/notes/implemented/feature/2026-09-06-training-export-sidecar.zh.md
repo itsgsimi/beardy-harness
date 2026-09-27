@@ -26,7 +26,7 @@ Status: implemented
 
 ### 包位置
 
-该包位于 `packages/experimental/training-export`，名为 `@deepseek-ai/dsh-experimental-training-export`（`private: true`，无 `publishConfig`），与 `packages/experimental/` 下的其他包一致：`check-workspace-constraints` 要求该目录中所有包使用 `dsh-experimental-` NPM 前缀，且发布包不得依赖它们。nightly-distill 计划为该能力使用的工作名是“`dsh-training-export`”；已交付的 NPM 名称和 Cordis 插件 `name`（`training-export`）与该简称的差异仅为强制实验前缀。
+该包位于 `packages/experimental/training-export`，以 `@deepseek-ai/dsh-experimental-training-export` 名称公开发布。`check-workspace-constraints` 要求该目录中的包使用 `dsh-experimental-` NPM 前缀，发布成员必须允许公开访问；发布包不得依赖实验包。nightly-distill 计划为该能力使用的工作名是“`dsh-training-export`”；已交付的 NPM 名称和 Cordis 插件 `name`（`training-export`）与该简称的差异仅为强制实验前缀。
 
 ## 考虑过的替代方案
 
@@ -44,4 +44,4 @@ Status: implemented
 
 ## 测试
 
-`packages/experimental/training-export/src` 的单文件分支覆盖率为 96%，在两处未达到 `test:coverage` 门禁的 100%，两者都是特意保留的缺口：`captureWorkspaceHead` 中 `git rev-parse` 成功后 `git status` 立即失败（不 mock `execFile` 时无法用测试设置重现的真实 `git` 时序），以及实际挂载 `ctx.get('messageFeedback')` 后 `resolveRatings` 的路径（为此建立其整个存储域／会话持久化栈对该包不划算；评分映射逻辑除这两次调用外没有其他分支）。其他所有分支都已覆盖，包括同一轮的两次调用复用工作区捕获、在模拟重启后恢复 seq／meta，以及开放轮次内外的每种已跟踪会话事件。附加字段没有增加缺口：匹配／报错／未匹配的 `toolCallOutcomes` 项、本轮未匹配任何已跟踪调用的 `tool/result`、排除推理和工具调用块的 `assistantChars`、首次写入中的 `agentPreset`/`title`、后续 `session/title` 触发的 `meta.json` 重写（首次写入前后均覆盖），以及 `startedAt`/`durationMs` 均使用 `vi.useFakeTimers({ toFake: ['Date'] })` 以确定性事件时间测试。
+`packages/experimental/training-export/src` 的单文件语句、分支、函数和行覆盖率均为 100%。测试覆盖工作区捕获和差异计算期间的 Git 失败（包括临时索引清理）、可选反馈查询失败和评分筛选、同一轮中多次调用复用工作区捕获、模拟重启后恢复 seq／meta，以及开放轮次内外的会话事件。测试还覆盖匹配、报错和未匹配的 `toolCallOutcomes`，排除推理和工具调用块的 `assistantChars`，首次写入的 `agentPreset`/`title` 与后续标题重写，以及使用确定性事件时间验证的 `startedAt`/`durationMs`。

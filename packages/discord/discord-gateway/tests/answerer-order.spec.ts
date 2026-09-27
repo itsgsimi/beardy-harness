@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import * as Remotes from '@deepseek-ai/dsh-api-remotes'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { afterEach, expect, it, vi } from 'vitest'
 import { harness, inbound } from './support.ts'
 
@@ -40,7 +41,7 @@ it.each(['approval/request', 'user-questions/request'] as const)(
     routers.push(h)
     h.router.handle(inbound())
     await vi.waitFor(() => { expect(h.calls.some(call => call.startsWith('followup:'))).toBe(true) })
-    const agent = Object.assign(h.agent, { ctx }) as unknown as Agent
+    const agent: Agent = Object.assign(h.agent, { ctx })
     const dispatch = (owner: Agent) => event === 'approval/request'
       ? ctx.waterfall(scopeTarget(owner, owner), event, { agent: owner, toolName: 'bash' }, async () => 'unavailable' as const)
       : ctx.waterfall(scopeTarget(owner, owner), event, {
@@ -52,7 +53,7 @@ it.each(['approval/request', 'user-questions/request'] as const)(
     h.router.handle(inbound({ id: 'answer', content: 'yes' }))
     await expect(result).resolves.toEqual(event === 'approval/request'
       ? 'allowed-once' : { answers: [{ id: 'q1', selected: [], custom: 'yes' }] })
-    await dispatch({ ctx } as Agent)
+    await dispatch({ ...agent, id: SessionId('other-agent') })
     expect(remote).toHaveBeenCalledTimes(1)
     await ctx.fiber.dispose()
     contexts.splice(contexts.indexOf(ctx), 1)

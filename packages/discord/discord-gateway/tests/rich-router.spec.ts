@@ -1,9 +1,8 @@
 /** Native controls preserve the pending request and canonical answer through Discord presentation. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { DiscordInteractionId } from '../src/interactions.ts'
 import type { DiscordInteraction } from '../src/interactions.ts'
-import { BOT_USER, CHANNEL, USER, harness, inbound } from './support.ts'
+import { BOT_USER, CHANNEL, USER, assistantTextEvent, harness, inbound, turnEndEvent, turnStartEvent } from './support.ts'
 
 const active: ReturnType<typeof harness>[] = []
 afterEach(async () => {
@@ -127,11 +126,9 @@ describe('rich Discord conversations', () => {
   it('delivers a complete assistant turn produced before an async command handler returns', async () => {
     const h = await opened()
     h.registeredCommands.set('finish', { name: 'finish', description: 'Finish a task', handler: async () => {
-      h.events.push({ seq: h.events.length, type: 'turn/start', data: { turn: 2 } } as unknown as SessionEvent)
-      h.events.push({ seq: h.events.length, type: 'assistant/message', data: {
-        turn: 2, step: 1, message: { content: [{ type: 'text', text: 'Finished inside the command.' }] },
-      } } as unknown as SessionEvent)
-      h.events.push({ seq: h.events.length, type: 'turn/end', data: { turn: 2, reason: { kind: 'completed' } } } as unknown as SessionEvent)
+      h.events.push(turnStartEvent(h.events.length, 2))
+      h.events.push(assistantTextEvent(h.events.length, 2, 'Finished inside the command.'))
+      h.events.push(turnEndEvent(h.events.length, 2))
       h.emitStatus(h.agent, 'idle')
       return { kind: 'success', text: 'Command finished.' }
     } })

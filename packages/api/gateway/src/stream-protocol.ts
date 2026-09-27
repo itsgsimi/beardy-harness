@@ -312,7 +312,7 @@ export function parseRemoteStreamServerMessage(text: string): RemoteStreamServer
       && typeof value.intervalMs === 'number'
       && Number.isInteger(value.intervalMs)
       && value.intervalMs > 0) {
-      return value as unknown as RemoteStreamServerMessage
+      return { type: 'heartbeat', intervalMs: value.intervalMs }
     }
     if (value.type === 'item'
       && (exactKeys(value, ['type', 'streamId']) || exactKeys(value, ['type', 'streamId', 'value']))

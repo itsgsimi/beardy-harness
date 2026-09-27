@@ -47,4 +47,10 @@ describe('microphone lifetime', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 422 })))
     await expect(transcribeAudio(new Blob(), new AbortController().signal)).rejects.toThrow('transcription-failed')
   })
+  it('posts a clip to the document-relative speech route', async () => {
+    const fetch = vi.fn(async () => Response.json({ text: '  Hello.  ' }))
+    vi.stubGlobal('fetch', fetch)
+    expect(await transcribeAudio(new Blob(['clip']), new AbortController().signal)).toBe('Hello.')
+    expect(fetch).toHaveBeenCalledWith('api/speech', expect.objectContaining({ method: 'POST' }))
+  })
 })

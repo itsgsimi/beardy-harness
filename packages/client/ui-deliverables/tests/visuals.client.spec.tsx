@@ -4,6 +4,8 @@ import { TextDecoder } from 'node:util'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { GlobalStandardProps, SessionStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConversationNodeContext, ConversationStartMatch } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { Visuals } from '../src/client/Visuals.tsx'
@@ -12,6 +14,15 @@ import { en } from '../src/client/locales.ts'
 
 type Props = Parameters<typeof Visuals>[0]
 const t = makeTranslate(en)
+const unused = (): never => { throw new Error('Visuals does not use this slot fixture') }
+const standard: GlobalStandardProps & SessionStandardProps = {
+  sessionId: SessionId('visuals'), useSession: unused, useProjection: unused,
+  useConversation: unused, useInput: unused, useChat: unused, useTrajectory: unused,
+  usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
+  useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+  inputActions: { captureInsertion: unused, insertText: unused, setDraft: unused,
+    addAttachments: unused, removeAttachment: unused, pruneAttachments: unused, submit: unused },
+}
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 function props(mediaType = 'image/svg+xml', source = '<svg/>'): Props {
@@ -19,7 +30,13 @@ function props(mediaType = 'image/svg+xml', source = '<svg/>'): Props {
     title: 'Latency chart', mediaType, data: Buffer.from(source).toString('base64'),
   } })
   if (file === null) throw new Error('Invalid fixture')
-  return { node: { data: { files: [file] } }, t } as unknown as Props
+  return { ...standard, useTurnData: unused, useDisclosure: unused,
+    openSkill: unused, openFile: unused, inspectCall: undefined, forkAt: unused,
+    loadImage: unused, renderMessageImages: unused, fileMentions: () => undefined, node: {
+      key: 'presented-visual:1', id: '1', kind: 'presented-visual', target: 'chat',
+      anchorSeq: 1, location: { kind: 'session' }, visibility: 'visible',
+      processDisclosure: 'independent', data: { files: [file] },
+    }, t }
 }
 
 it('shows a chart alongside its findings and offers the original bytes', () => {
@@ -83,7 +100,9 @@ it('keeps immutable delivery nodes outside process folding with their recorded o
   } } as SessionEvent<'deliverables/presented'>
   expect(visualsDefinition.match(event)).toEqual({ id: '7', role: 'start' })
   expect(visualsDefinition.match({ ...event, type: 'turn/start', data: { turn: 1 } })).toBeNull()
-  expect(visualsDefinition.match({ ...event, data: {} } as unknown as SessionEvent)).toBeNull()
+  const malformed = { ...event }
+  Reflect.set(malformed, 'data', {})
+  expect(visualsDefinition.match(malformed)).toBeNull()
   expect(visualsDefinition.match({ ...event, data: { ...event.data, files: [{ path: 'report.txt' }] } })).toBeNull()
   expect(visualsDefinition.buildViewNode?.(empty)).toBeNull()
   const match: ConversationStartMatch = { event, role: 'start', location: { kind: 'session' } }

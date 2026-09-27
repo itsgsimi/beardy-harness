@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
-import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+import { Context } from '@deepseek-ai/cordis'
+import { SessionSeq, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import { CONTINUITY_WITHOUT_NOTES, CONTINUITY_WITH_NOTES, createJobRunner, runPrompt, runTitle } from '../src/launch.ts'
 import type { ScheduledJobSpec } from '../src/types.ts'
 
@@ -49,17 +50,17 @@ function harness(options: HarnessOptions = {}) {
       calls.push(`followup:${message.content[0]?.text ?? ''}`)
       if (options.replyText !== undefined) {
         events.push({
-          seq: events.length + 1,
-          type: 'assistant/message',
-          data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: options.replyText }] } },
-        } as unknown as SessionEvent)
+          seq: SessionSeq(events.length + 1), time: Date.now(), type: 'assistant/message', surfaceOp: 'append',
+          data: { turn: 1, step: 1, message: createAssistantMessage({
+            content: [{ type: 'text', text: options.replyText }], source: { provider: 'fixture', model: 'fixture' },
+          }), stream: [] },
+        })
       }
       if (!options.omitEnding) {
         events.push({
-          seq: events.length + 1,
-          type: 'turn/end',
+          seq: SessionSeq(events.length + 1), time: Date.now(), type: 'turn/end',
           data: { turn: 1, reason: options.ending ?? { kind: 'completed' } },
-        } as SessionEvent)
+        })
       }
     },
     whenIdle: () => {
@@ -118,15 +119,16 @@ function harness(options: HarnessOptions = {}) {
     },
   }
   const controller = new AbortController()
+  const testContext = new Context().extend(ctx)
   const runner = createJobRunner({
-    ctx: ctx as unknown as Context,
+    ctx: testContext,
     signal: controller.signal,
     turnTimeoutMs: options.turnTimeoutMs ?? 1_000,
     ...(options.rejectWait === true ? { wait: () => Promise.reject(new Error('scheduler gone')) }
       : options.wait === undefined ? {} : { wait: options.wait }),
   })
   return {
-    runner, calls, events, handle, controller, ctx: ctx as unknown as Context,
+    runner, calls, events, handle, controller, ctx: testContext,
     releaseIdle: () => { idleResolve() },
   }
 }
@@ -246,7 +248,8 @@ describe('job runner', () => {
   })
 
   it('refuses a merge-extended terminal reason it does not recognize', async () => {
-    const ending = { kind: 'future-ending' } as unknown as TurnEndReason
+    const ending: TurnEndReason = { kind: 'completed' }
+    Reflect.set(ending, 'kind', 'future-ending')
     const h = harness({ replyText: 'partial', ending })
     expect(await h.runner.run(JOB, FIRED_AT)).toMatchObject({
       outcome: 'failed', text: '', failure: { code: 'UNKNOWN_TURN_END' },

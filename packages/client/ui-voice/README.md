@@ -35,7 +35,7 @@ There are no plugin configuration fields.
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The browser plugin contributes to `conversation.input.right` through the slot registry. MediaRecorder produces a bounded recording; the control posts it to the host and calls the session input facade to append text. Capture tracks, HTTP requests, locales, and the slot contribution are released on cancellation or unload. No send action is invoked.
+The browser plugin contributes to `conversation.input.right` through the slot registry. MediaRecorder produces a bounded recording; the control posts it to the host through document-relative speech routes and calls the session input facade to append text. Capture tracks, HTTP requests, locales, and the slot contribution are released on cancellation or unload. No send action is invoked.
 
 </details>
 

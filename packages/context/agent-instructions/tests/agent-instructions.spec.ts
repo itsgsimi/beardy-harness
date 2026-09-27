@@ -1440,10 +1440,12 @@ describe('workspace context request injection', () => {
         frozenUserGlobalInstructionCandidates: ['USER.md'],
       })
       const agent = await stubAgent(root)
+      const frozenUserGlobalInstructions: Record<string, string | null> = { 'USER.md': null }
+      Reflect.set(frozenUserGlobalInstructions, 'USER.md', 42)
       const message = createUserMessage({
         content: [{ type: 'text', text: 'unreadable captured memory' }],
         source: { kind: 'agent-instructions', form: 'instructions', changes: [],
-          frozenUserGlobalInstructions: { 'USER.md': 42 } as unknown as Record<string, string | null> },
+          frozenUserGlobalInstructions },
       })
       agent.session.append('user/message', message, { surfaceOp: 'append' })
       await expect(composeBaselinePrefix(ctx, agent)).rejects

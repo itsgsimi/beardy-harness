@@ -104,7 +104,7 @@ describe('SearxngSearchProvider availability', () => {
 
 describe('SearxngSearchProvider request mapping', () => {
   it('sends a GET JSON search request without credentials', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [{ url: 'https://a.test', content: 'hi' }] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [{ url: 'https://a.test', content: 'hi' }] }))
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
 
@@ -112,10 +112,10 @@ describe('SearxngSearchProvider request mapping', () => {
       .search({ query: 'hello world' }, controller.signal)
 
     expect(fetchMock).toHaveBeenCalledOnce()
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const [url, init] = fetchMock.mock.calls[0]!
     expect(url).toBe('http://searxng.test/searxng/search?q=hello+world&format=json')
     expect(init).toMatchObject({ method: 'GET', redirect: 'error', signal: controller.signal })
-    expect(init.headers).toEqual({ accept: 'application/json', 'user-agent': 'deepseek-harness/0.1.2-alpha.1' })
+    expect(init?.headers).toEqual({ accept: 'application/json', 'user-agent': 'deepseek-harness/0.1.2-alpha.1' })
     expect(init).not.toHaveProperty('body')
   })
 
@@ -171,19 +171,17 @@ describe('SearxngSearchProvider error handling', () => {
   })
 
   it('surfaces an abort during body parsing as WEB_ABORTED', async () => {
-    const body = { json: () => Promise.reject(new DOMException('aborted', 'AbortError')), ok: true, status: 200 }
-    vi.stubGlobal('fetch', vi.fn(async () => body as unknown as Response))
+    const body = jsonResponse({ results: [] })
+    vi.spyOn(body, 'json').mockRejectedValue(new DOMException('aborted', 'AbortError'))
+    vi.stubGlobal('fetch', vi.fn(async () => body))
     await expect(new SearxngSearchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
   })
 
   it('surfaces an abort while reading an HTTP error body as WEB_ABORTED', async () => {
-    const body = {
-      json: () => Promise.reject(new DOMException('aborted', 'AbortError')),
-      ok: false,
-      status: 502,
-    }
-    vi.stubGlobal('fetch', vi.fn(async () => body as unknown as Response))
+    const body = jsonResponse({ error: 'unavailable' }, { status: 502 })
+    vi.spyOn(body, 'json').mockRejectedValue(new DOMException('aborted', 'AbortError'))
+    vi.stubGlobal('fetch', vi.fn(async () => body))
     await expect(new SearxngSearchProvider(options).search({ query: 'q' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
   })
@@ -209,13 +207,13 @@ describe('web-search-searxng plugin registration', () => {
     const previous = process.env.SEARXNG_BASE_URL
     process.env.SEARXNG_BASE_URL = 'http://env-searxng.test'
     try {
-      const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+      const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
       vi.stubGlobal('fetch', fetchMock)
       const ctx = new Context()
       await ctx.plugin(WebRuntime, { searchProvider: SEARXNG_PROVIDER_ID })
       const fiber = await ctx.plugin(searxngPlugin, {})
       await ctx.web.search({ query: 'q' })
-      expect((fetchMock.mock.calls[0] as unknown as [string])[0])
+      expect(fetchMock.mock.calls[0]?.[0])
         .toBe('http://env-searxng.test/search?q=q&format=json')
       await fiber.dispose()
     } finally {

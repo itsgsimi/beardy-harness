@@ -26,10 +26,10 @@
   "files": [
     "lib/index.js",
     "cordis.patch.yml",
-    "lib/types/**/*.d.ts",
     "presets/beardy.patch.yml",
     "presets/beardy-unattended.patch.yml",
-    "presets/beardy-discord.patch.yml"
+    "presets/beardy-discord.patch.yml",
+    "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
   "dsh": {
@@ -43,27 +43,27 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-cron": "workspace:^",
-    "@deepseek-ai/dsh-discord-gateway": "workspace:^",
-    "@deepseek-ai/dsh-session-query-sqlite": "workspace:^",
-    "@deepseek-ai/dsh-time-context": "workspace:^",
-    "@deepseek-ai/dsh-tool-discord": "workspace:^",
-    "@deepseek-ai/dsh-tool-memory": "workspace:^",
-    "@deepseek-ai/dsh-tool-odysseus-research": "workspace:^",
-    "@deepseek-ai/dsh-tool-session-query": "workspace:^",
-    "@deepseek-ai/dsh-web-search-searxng": "workspace:^",
+    "@deepseek-ai/dsh-cron": "workspace:*",
+    "@deepseek-ai/dsh-discord-gateway": "workspace:*",
+    "@deepseek-ai/dsh-session-query-sqlite": "workspace:*",
+    "@deepseek-ai/dsh-time-context": "workspace:*",
+    "@deepseek-ai/dsh-tool-discord": "workspace:*",
+    "@deepseek-ai/dsh-tool-memory": "workspace:*",
+    "@deepseek-ai/dsh-tool-odysseus-research": "workspace:*",
+    "@deepseek-ai/dsh-tool-session-query": "workspace:*",
+    "@deepseek-ai/dsh-web-search-searxng": "workspace:*",
     "@deepseek-ai/dsh-agent-preset": "workspace:*",
     "@deepseek-ai/dsh-agent-preset-registry": "workspace:*"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/cordis-plugin-loader": "workspace:^",
-    "@deepseek-ai/cordis-plugin-include": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
-    "@deepseek-ai/dsh-tools": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:*",
     "js-yaml": "^4.1.0"
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { DiscordPostReply } from '../src/http.ts'
 import * as ToolDiscord from '../src/index.ts'
@@ -24,11 +24,11 @@ function config(overrides: Partial<ToolDiscord.ResolvedConfig> = {}): ToolDiscor
 
 /** Context carrying only the credential provider the tool reads. */
 function contextWithToken(token: string | undefined): Context {
-  return {
+  return new Context().extend({
     credentials: {
       resolve: async () => (token === undefined ? undefined : { value: token, source: 'env' }),
     },
-  } as unknown as Context
+  })
 }
 
 /** Transport that records posted content and direct-message lookups, accepting every message. */
@@ -162,14 +162,14 @@ describe('discord_send definition', () => {
     { label: 'not a number', channelId: 'not-a-snowflake' },
     { label: 'too short', channelId: '1234567890123456' },
   ])('rejects a channelId that is $label', ({ channelId }) => {
-    const ctx = { tools: { register: () => () => {} } } as unknown as Context
+    const ctx = new Context().extend({ tools: { register: () => () => {} } })
     expect(() => {
       ToolDiscord.apply(ctx, { ...config(), channelId })
     }).toThrow(/channelId must be a Discord snowflake/)
   })
 
   it('rejects a negative bound in configuration', () => {
-    const ctx = { tools: { register: () => () => {} } } as unknown as Context
+    const ctx = new Context().extend({ tools: { register: () => () => {} } })
     expect(() => {
       ToolDiscord.apply(ctx, { ...config(), maxRetries: -1 })
     }).toThrow(
@@ -178,7 +178,7 @@ describe('discord_send definition', () => {
   })
 
   it('rejects a fractional bound in configuration', () => {
-    const ctx = { tools: { register: () => () => {} } } as unknown as Context
+    const ctx = new Context().extend({ tools: { register: () => () => {} } })
     expect(() => {
       ToolDiscord.apply(ctx, { ...config(), requestTimeoutMs: 1.5 })
     }).toThrow(
@@ -188,16 +188,16 @@ describe('discord_send definition', () => {
 
   it('accepts a configuration whose direct-message allowlist holds snowflakes', () => {
     const registered: string[] = []
-    const ctx = { tools: { register: (tool: { name: string }) => {
+    const ctx = new Context().extend({ tools: { register: (tool: { name: string }) => {
       registered.push(tool.name)
       return () => {}
-    } } } as unknown as Context
+    } } })
     ToolDiscord.apply(ctx, { ...config(), dmUserIds: [RECIPIENT] })
     expect(registered).toEqual(['discord_send'])
   })
 
   it('rejects a direct-message allowlist entry that is not a snowflake', () => {
-    const ctx = { tools: { register: () => () => {} } } as unknown as Context
+    const ctx = new Context().extend({ tools: { register: () => () => {} } })
     expect(() => {
       ToolDiscord.apply(ctx, { ...config(), dmUserIds: ['goran'] })
     }).toThrow('tool-discord: dmUserIds must each be a Discord snowflake of 17 to 20 digits, got "goran"')
