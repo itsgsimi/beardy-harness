@@ -62,6 +62,7 @@
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/cordis-plugin-loader": "workspace:^",
     "@deepseek-ai/cordis-plugin-include": "workspace:^",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "js-yaml": "^4.1.0"
   }

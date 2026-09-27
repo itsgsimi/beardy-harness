@@ -17,6 +17,7 @@ import Loader, { evaluate, type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugi
 import Include, { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import * as ToolDiscord from '@deepseek-ai/dsh-tool-discord'
 import { Config as GatewayConfig } from '@deepseek-ai/dsh-discord-gateway'
 
@@ -99,6 +100,138 @@ async function bootWithDiscordRow(configLines: readonly string[]): Promise<Conte
 }
 
 describe('dsh-beardy composition gating', () => {
+  it('resolves Beardy deployment rows and user preset references through the Loader without opening a transport', async () => {
+    const bundleRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)))
+    const layers = ['base', 'web-app', 'beardy'].map((name) => {
+      const dir = resolve(bundleRoot, name)
+      const manifest = JSON.parse(readFileSync(resolve(dir, 'package.json'), 'utf8')) as {
+        dsh: { bundle: { patch: string | string[] } }
+      }
+      return [manifest.dsh.bundle.patch].flat().flatMap(file => loadOverlayPatches('beardy composition', resolve(dir, file)))
+    })
+    const personal = [
+      { id: 'speech-whisper', disabled: false },
+      { id: 'tool-discord', disabled: false, config: { tokenEnv: 'DISCORD_BOT_TOKEN', channelId: '123456789012345678' } },
+      { id: 'discord-gateway', disabled: false, config: {
+        tokenEnv: 'DISCORD_BOT_TOKEN', allowedUserIds: ['123456789012345678'], workspacePath: '/tmp/beardy-test',
+        agentPreset: 'beardy-discord', permissionPreset: 'danger-full-access', enabled: false,
+        userLanes: { '123456789012345679': {
+          workspacePath: '/tmp/mamabear-test', agentPreset: 'beardy-mamabear', permissionPreset: 'workspace-write',
+          toolFilter: { allow: ['web_search', 'web_fetch', 'schedule_create', 'fantasy_team_memory', 'session_search'] },
+        } },
+      } },
+      { id: 'cron', disabled: false, config: {
+        jobs: [], allowedAgentPresets: ['beardy-unattended', 'beardy-brief'],
+        allowedPermissionPresets: ['workspace-write'], allowedWorkspaceRoots: ['/tmp/beardy-test'],
+      } },
+      { id: 'tool-odysseus-research', disabled: true },
+      { insert: [{ id: 'training-export', name: '@deepseek-ai/dsh-experimental-training-export', config: { root: '/tmp/beardy-training-test' } }] },
+      { insert: [
+        { id: 'preset-beardy-brief', name: '@deepseek-ai/dsh-agent-preset', config: {
+          id: 'beardy-brief', picker: 'hidden', plugins: [
+            { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: 'Write the brief.' } },
+            { id: 'brief-script', name: 'file:///tmp/beardy-brief-script/index.js' },
+          ],
+        } },
+        { id: 'preset-beardy-mamabear', name: '@deepseek-ai/dsh-agent-preset', config: {
+          id: 'beardy-mamabear', picker: 'hidden', plugins: [
+            { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: 'Help Mamabear.' } },
+            { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web' },
+            { id: 'tool-memory', name: '@deepseek-ai/dsh-tool-memory' },
+          ],
+        } },
+      ] },
+    ]
+    const shipped = composeEntries(layers)
+    expect(shipped.some(row => row.id === 'preset-beardy-brief' || row.id === 'preset-beardy-mamabear')).toBe(false)
+    const warnings: string[] = []
+    const rows = composeEntries([...layers, personal], warning => warnings.push(warning))
+    expect(warnings).toEqual([])
+    const byId = (id: string) => {
+      const row = rows.find(candidate => candidate.id === id)
+      if (row === undefined) throw new Error(`missing composed entry ${id}`)
+      return row
+    }
+    for (const [id, name] of [
+      ['speech-whisper', '@deepseek-ai/dsh-speech-whisper'],
+      ['tool-discord', '@deepseek-ai/dsh-tool-discord'],
+      ['discord-gateway', '@deepseek-ai/dsh-discord-gateway'],
+      ['cron', '@deepseek-ai/dsh-cron'],
+      ['tool-odysseus-research', '@deepseek-ai/dsh-tool-odysseus-research'],
+      ['web-fetch-http', '@deepseek-ai/dsh-web-fetch-http'],
+      ['training-export', '@deepseek-ai/dsh-experimental-training-export'],
+      ['subagent-model-selection-settings', '@deepseek-ai/dsh-tool-subagent/model-selection-settings'],
+    ] as const) expect(byId(id).name).toBe(name)
+    expect(byId('speech-whisper').disabled).toBe(false)
+    expect(byId('discord-gateway').config).toMatchObject({
+      agentPreset: 'beardy-discord', permissionPreset: 'danger-full-access',
+      userLanes: { '123456789012345679': { agentPreset: 'beardy-mamabear', permissionPreset: 'workspace-write' } },
+    })
+    expect(byId('cron').config).toMatchObject({ allowedAgentPresets: ['beardy-unattended', 'beardy-brief'] })
+    expect(byId('schedule').disabled).toBe(false)
+    const permission: unknown = byId('permission').config
+    if (!isRecord(permission) || !isRecord(permission.presets)) throw new Error('missing permission presets')
+    expect(Object.keys(permission.presets)).toContain('workspace-write')
+    expect(Object.keys(permission.presets)).toContain('danger-full-access')
+
+    const presets = rows.filter(row => row.name === '@deepseek-ai/dsh-agent-preset')
+    const presetIds = presets.map(row => (row.config as { id: string }).id)
+    for (const id of ['beardy', 'beardy-discord', 'beardy-unattended', 'beardy-brief', 'beardy-mamabear']) {
+      expect(presetIds.filter(candidate => candidate === id)).toHaveLength(1)
+    }
+    for (const id of ['beardy', 'beardy-discord', 'beardy-unattended']) {
+      const preset = presets.find(row => (row.config as { id: string }).id === id)
+      const children = (preset!.config as { plugins: JsonRecord[] }).plugins
+      const delegation = children.find(row => row.id === 'delegation')
+      if (delegation === undefined || !Array.isArray(delegation.config)) throw new Error(`missing ${id} delegation`)
+      for (const childId of ['tool-subagent', 'tool-subagent-fork', 'tool-subagent-codex', 'tool-subagent-claude-code']) {
+        expect(delegation.config.some(row => isRecord(row) && row.id === childId), `${id}/${childId}`).toBe(true)
+      }
+    }
+    const brief = presets.find(row => (row.config as { id: string }).id === 'beardy-brief')
+    expect(brief?.config).toMatchObject({ picker: 'hidden', plugins: [
+      { id: 'persona', config: { prefix: 'Write the brief.' } },
+      { id: 'brief-script' },
+    ] })
+    const mamabear = presets.find(row => (row.config as { id: string }).id === 'beardy-mamabear')
+    if (mamabear === undefined || !isRecord(mamabear.config) || !Array.isArray(mamabear.config.plugins)) {
+      throw new Error('missing Mamabear preset plugins')
+    }
+    const mamabearIds = mamabear.config.plugins.filter(isRecord).map(row => row.id)
+    expect(mamabearIds).toEqual(['persona', 'tool-web', 'tool-memory'])
+    for (const forbidden of ['tool-bash', 'tool-pwsh', 'tool-fs', 'tool-discord']) expect(mamabearIds).not.toContain(forbidden)
+
+    const ctx = new Context()
+    contexts.push(ctx)
+    ctx.baseUrl = pathToFileURL(bundleRoot).href + '/'
+    await ctx.plugin(Loader)
+    const mounted: string[] = []
+    const transportStub = { apply(context: Context) { mounted.push(context.fiber.entry?.options.id ?? '') } }
+    const moduleLoader = ctx.loader.internal
+    if (moduleLoader === undefined) throw new Error('Loader import seam unavailable')
+    ctx.loader.internal = new Proxy(moduleLoader, {
+      get(target, key, receiver) {
+        if (key === 'import') return async () => ({ default: transportStub })
+        const value: unknown = Reflect.get(target, key, receiver)
+        return value
+      },
+    })
+    ctx.provide('credentials' as never, { resolve: async () => ({ value: 'dummy-token', source: 'env' }) } as never)
+    for (const id of [
+      'speech-whisper', 'tool-discord', 'discord-gateway', 'cron', 'tool-odysseus-research', 'web-fetch-http',
+      'training-export', 'preset-beardy-brief', 'preset-beardy-mamabear',
+    ]) {
+      const row = byId(id)
+      await ctx.loader.create({ ...row, disabled: false })
+    }
+    await ctx.loader.await()
+    for (const entry of ctx.loader.entries()) await entry.fiber?.await()
+    expect(mounted).toEqual(expect.arrayContaining([
+      'speech-whisper', 'tool-discord', 'discord-gateway', 'cron', 'tool-odysseus-research', 'web-fetch-http', 'training-export',
+      'preset-beardy-brief', 'preset-beardy-mamabear',
+    ]))
+  })
+
   it('mounts every Discord row only when a bot token is present', () => {
     const rows = patchRows()
     for (const id of ['tool-discord', 'discord-gateway', 'cron']) {
