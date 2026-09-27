@@ -59,6 +59,7 @@ import type {
 import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
+import { ProviderAdmission } from './admission.ts'
 import { toPiContext } from './context.ts'
 import { toStreamChunks } from './stream.ts'
 
@@ -218,6 +219,7 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
  */
 export class PiAiAdapter extends LlmAdapter {
   private snapshot: PiAiSnapshot | undefined
+  private readonly admissions = new Map<string, ProviderAdmission>()
 
   constructor(private readonly config: PiAiAdapterOptions) {
     super()
@@ -346,6 +348,19 @@ export class PiAiAdapter extends LlmAdapter {
       options.reasoningEffort ?? profile.reasoning,
     )
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
+
+    let admission = this.admissions.get(options.provider)
+    if (admission === undefined) {
+      admission = new ProviderAdmission()
+      this.admissions.set(options.provider, admission)
+    }
+    const release = await admission.acquire(
+      options.provider,
+      profile.maxConcurrentRequests,
+      profile.queueTimeoutMs,
+      options.signal,
+    )
+    using _slot = { [Symbol.dispose]: release }
 
     const consumer = new AbortController()
     const upstream = options.signal === undefined

@@ -59,6 +59,8 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
         apiKeyEnv: ACME_GATEWAY_API_KEY
         api: openai-completions
         baseURL: https://gateway.acme.example/v1
+        maxConcurrentRequests: 1
+        queueTimeoutMs: 30000
         compat:
           thinkingFormat: deepseek
         models:
@@ -84,9 +86,13 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `requestImagePixelBudget` | `4,194,304` | Total-pixel budget for each deterministic request image |
 | `requestImageMaxBytes` | `1 MiB` | Encoded-byte target for each request image before base64 expansion |
 | `maxRequestImageBytes` | `20 MiB` | Aggregate base64 image-payload bound; a request whose retained images exceed it fails with `IMAGE_OFFLOAD_REQUIRED` |
+| `maxConcurrentRequests` | absent (unlimited) | Maximum active requests on this provider route in one adapter instance |
+| `queueTimeoutMs` | absent (no queue deadline) | Maximum wait for a configured slot; requires `maxConcurrentRequests` |
 | `retryPolicy` | normal, 5 retries | Provider-owned retry policy executed by `dsh-llm-retry` |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-llm-pi-ai) is the exhaustive source for every accepted field and its JSDoc.
+
+With `maxConcurrentRequests`, requests for the same route enter a FIFO queue when all slots are active. Aborting a queued request removes it. The slot remains held until a stream succeeds, fails, aborts, times out, or its consumer closes it; `streamIdleTimeoutMs` begins only after admission. `queueTimeoutMs` measures queue wait separately and rejects an expired waiter with `ADMISSION_TIMEOUT`. This code is outside the default retryable set: retrying into the same full queue would add load without creating capacity. A route can opt in through `retryPolicy.retryableCodes`. Admission emits no per-wait log; the terminal failure remains visible through the normal request result.
 
 ### Sign in to a provider
 
@@ -112,7 +118,7 @@ The plugin answers "which models can this provider serve?" for a route a configu
 
 ### Failures and recovery
 
-A route pi-ai does not ship needs `api`, `baseURL`, and a non-empty `models` list; an unserviceable profile is refused where it is written, naming the route and model. Failures carry stable codes: a credential that cannot be used fails with `INVALID_CREDENTIAL` naming the route and reference, a route whose `apiKeyEnv` reference resolves to nothing fails with `MISSING_CREDENTIAL`, an unconfigured model fails with `UNKNOWN_MODEL`, and terminal provider failures distinguish `QUOTA` from transient `RATE_LIMIT`. `GenerateOptions.stop` is rejected with `UNSUPPORTED_OPTION` because pi-ai's common streaming UI cannot guarantee it across providers.
+A route pi-ai does not ship needs `api`, `baseURL`, and a non-empty `models` list; an unserviceable profile is refused where it is written, naming the route and model. Failures carry stable codes: a credential that cannot be used fails with `INVALID_CREDENTIAL` naming the route and reference, a route whose `apiKeyEnv` reference resolves to nothing fails with `MISSING_CREDENTIAL`, an unconfigured model fails with `UNKNOWN_MODEL`, an expired admission wait fails with non-default-retryable `ADMISSION_TIMEOUT`, and terminal provider failures distinguish `QUOTA` from transient `RATE_LIMIT`. `GenerateOptions.stop` is rejected with `UNSUPPORTED_OPTION` because pi-ai's common streaming UI cannot guarantee it across providers.
 
 Settings writes strictly validate each new or changed provider after merging its composition and user layers. During namespace registration, stored catalog failures retain the namespace and provider rows, with the first available model diagnostic or route failure in `LlmConfigurableProvider.error`; unchanged failed providers do not block edits elsewhere. Serviceable models remain selectable, while unresolved models remain in the editable configuration and fail with `INVALID_CONFIG` before network I/O if requested directly. Repairing or deleting the offending configuration clears its diagnostic. Schema and self-contained profile errors still reject loading. Later external edits validate changed providers and retain the last accepted section on failure.
 
@@ -132,6 +138,8 @@ This section explains the design behind the adapter; the observable behavior is 
 
 The adapter is built on immutable snapshots and per-operation resolution. Each operation captures a whole snapshot — the profiles plus a `createModels()` collection holding the `Provider` each route built — before its first `await`, and a configuration change builds a new collection rather than mutating the one in use, so a request that started under one configuration never finishes under another. A route's own credential reference resolves through the harness seam and rides as the request's `apiKey` option, which pi-ai treats as the highest-priority auth override — that is what keeps the fail-loud reference semantics. Everything that override does not cover reaches pi-ai through the collection's own auth: the credential store holds the records a login wrote and a refresh rotates (addressed as `llm-pi-ai/<provider id>`), and the auth context answers the ambient questions a provider asks while resolving. Both are stable across snapshots, so a configuration change rebuilds the collection without forgetting who is signed in.
 
+Admission belongs to this adapter because its provider profiles own the concurrency setting and its stream dispatch owns the idle watchdog. The provider-neutral `dsh-llm` seam has no shared queue policy or dispatch timing to coordinate across unrelated adapters. One adapter instance coordinates its configured provider routes, including in-process `spawn` subagents that share the LLM service. A separate process needs its own limit or an external coordinator.
+
 ### Source map
 
 | File | Role |
@@ -140,6 +148,7 @@ The adapter is built on immutable snapshots and per-operation resolution. Each o
 | [`src/auth.ts`](src/auth.ts) | The credential store and ambient auth context over the harness credential plane |
 | [`src/login.ts`](src/login.ts) | Authorization flows for the installed providers that ship a login |
 | [`src/config.ts`](src/config.ts) | Profile schema, resolution, and serviceability checks |
+| [`src/admission.ts`](src/admission.ts) | Per-route request admission, cancellation, and queue deadlines |
 | [`src/catalog.ts`](src/catalog.ts) | Installed-catalog integration and drift gates |
 | [`src/provider.ts`](src/provider.ts) | The supported-protocol table and provider construction |
 | [`src/context.ts`](src/context.ts) | Harness-to-pi-ai context conversion, image handling, replay restore |
@@ -226,6 +235,7 @@ These limits define where the adapter stops and future work begins. They are cur
 - **Only a leading in-history `system` message becomes pi-ai's `systemPrompt`** — pi-ai has one system slot, so a later `system` message, or a leading one when `GenerateOptions.system` is also set, folds into a `user` message at its position; provider-specific placement of the prompt follows pi-ai rather than a harness-owned wire override. Images in system or assistant history, including the leading system message, fail with `UNSUPPORTED_CONTENT` on both conversion paths.
 - **Provider HTTP status is unavailable** — pi-ai error events do not expose a stable HTTP status across providers.
 - **Retry policy is provider-owned, not an SDK retry** — pi-ai SDK retries stay disabled so durable agent steps and `llm/retry` events own every visible attempt, and direct `ctx.llm.stream()` calls remain single-attempt.
+- **Admission is in-process** — a separate harness process sharing the same model server needs its own limit or an external coordinator; this adapter cannot count requests in another process.
 
 <a id="dev-note"></a>
 ### Dev Note
