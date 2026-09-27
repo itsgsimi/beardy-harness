@@ -5,7 +5,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { registerGatewayCommands } from '../src/commands.ts'
-import { CHANNEL, USER, drain, harness, inbound } from './support.ts'
+import { CHANNEL, USER, drain, harness, inbound, record } from './support.ts'
 
 describe('registerGatewayCommands', () => {
   const contexts: Context[] = []
@@ -82,11 +82,84 @@ describe('command dispatch through the router', () => {
     expect(h.posted[0]?.content).toBe('Nothing is running in this conversation.')
   })
 
-  it('answers a preset command for an unknown name', async () => {
+  it('opens a conversation for an unknown preset command', async () => {
     const h = harness({ replyText: 'x' })
     h.router.handle(inbound({ content: '/bogus' }))
     await drain()
-    expect(h.posted[0]?.content).toBe('No conversation is live: send a message first, then /bogus works.')
+    expect(h.posted[0]?.content).toBe('/bogus is not a known command.')
+    expect(h.calls).toContain('agent-create')
+    expect(h.calls).not.toContain('followup:/bogus')
+  })
+
+  it('resumes a durable conversation for a fantasy-like command without a model turn', async () => {
+    const lastInboundAt = Date.now() - 60_000
+    const h = harness({ initialRecord: record({ lastInboundAt }) })
+    h.registeredCommands.set('fantasy', { name: 'fantasy', description: 'Fantasy status',
+      handler: ({ agent }) => ({ kind: 'success', text: agent === h.agent ? 'Fantasy ready' : 'Wrong session' }) })
+    h.router.handle(inbound({ content: '/fantasy status' }))
+    await drain()
+    expect(h.posted[0]?.content).toBe('Fantasy ready')
+    expect(h.calls).toContain('agent-resume:discord-old-session')
+    expect(h.calls).toContain('execute:fantasy')
+    expect(h.calls.some(call => call.startsWith('followup:'))).toBe(false)
+    expect(h.table.records.get(CHANNEL)?.sessionId).toBe('discord-old-session')
+    expect(h.table.records.get(CHANNEL)?.lastInboundAt).toBeGreaterThan(lastInboundAt)
+  })
+
+  it('opens a new conversation for a fantasy-like command in the actor lane', async () => {
+    const h = harness()
+    h.registeredCommands.set('fantasy', { name: 'fantasy', description: 'Fantasy status',
+      handler: ({ agent }) => ({ kind: 'success', text: agent === h.agent ? 'Fantasy ready' : 'Wrong session' }) })
+    h.router.handle(inbound({ content: '/fantasy status' }))
+    await drain()
+    expect(h.posted[0]?.content).toBe('Fantasy ready')
+    expect(h.calls).toContain('agent-create')
+    expect(h.calls).toContain('execute:fantasy')
+    expect(h.calls.some(call => call.startsWith('followup:'))).toBe(false)
+    expect(h.table.records.get(CHANNEL)?.sessionId).toMatch(/^discord-/)
+  })
+
+  it('releases an aged record before a command opens a fresh session', async () => {
+    const h = harness({ initialRecord: record({ lastInboundAt: Date.now() - 4_000_000 }) })
+    const result = await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/fantasy status')
+    expect(result.text).toBe('ran /fantasy')
+    expect(h.calls).toContain(`del:${CHANNEL}`)
+    expect(h.calls).toContain('agent-create')
+    expect(h.calls).not.toContain('agent-resume:discord-old-session')
+    expect(h.table.records.get(CHANNEL)?.sessionId).not.toBe('discord-old-session')
+  })
+
+  it('shares one opening between simultaneous commands in a channel', async () => {
+    const h = harness()
+    const actor = { userId: USER, directMessage: true }
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const create = h.ctx.agents.create.bind(h.ctx.agents)
+    vi.spyOn(h.ctx.agents, 'create').mockImplementationOnce(async (options) => {
+      entered.resolve(undefined)
+      await release.promise
+      return await create(options)
+    })
+    try {
+      const first = h.router.execute(CHANNEL, actor, '/fantasy status')
+      await entered.promise
+      const second = h.router.execute(CHANNEL, actor, '/fantasy status')
+      expect(h.table.records.has(CHANNEL)).toBe(false)
+      release.resolve(undefined)
+      const results = await Promise.all([first, second])
+      expect(results.map(result => result.text)).toEqual(['ran /fantasy', 'ran /fantasy'])
+      expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(1)
+    } finally { release.resolve(undefined) }
+  })
+
+  it('reports a conversation opening failure without executing the command', async () => {
+    const h = harness({ failAttach: true })
+    h.router.handle(inbound({ content: '/fantasy status' }))
+    await drain()
+    expect(h.posted[0]?.content).toBe('Could not open the conversation for /fantasy. Please try again.')
+    expect(h.calls).not.toContain('execute:fantasy')
+    expect(h.table.records.has(CHANNEL)).toBe(false)
+    expect(h.warnings.some(message => message.includes('attach failed'))).toBe(true)
   })
 
   it('dispatches a preset command through the command registry once a conversation is live', async () => {

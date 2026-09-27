@@ -137,7 +137,7 @@ describe('Discord actor lanes', () => {
     expect((await run(GUILD_CHANNEL, OTHER, false)).text).toContain('No conversation yet')
   })
 
-  it('carries the native actor through lane catalog checks and rejects the stale live conversation', async () => {
+  it('opens the native actor lane after releasing a stale live conversation', async () => {
     const lanes = new Map<string, ConversationLane>()
     const h = opened({ userLanes: lanes })
     h.router.handle(inbound())
@@ -166,9 +166,33 @@ describe('Discord actor lanes', () => {
 
     native.handle(interaction('inspect', '1472404859679670458'))
     await vi.waitFor(() => { expect(edit).toHaveBeenCalledTimes(2) })
-    expect(edit.mock.calls[1]?.[1].content).toContain('No conversation is live')
+    expect(edit.mock.calls[1]?.[1].content).toBe('ran /inspect')
+    expect(h.table.records.get(CHANNEL)?.lane).toBe(USER)
+    expect(h.calls).toContain('workspace:/restricted')
+    expect(h.calls).toContain('execute:inspect')
+    expect(reply).toHaveBeenCalledWith(expect.anything(), 5, { flags: 64 }, expect.anything())
+    expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(2)
+  })
+
+  it('opens a fresh Mamabear-style lane for a text command without an inbound turn', async () => {
+    const h = opened({ userLanes: new Map([[USER, ownLane]]) })
+    h.router.handle(inbound({ content: '/fantasy status' }))
+    await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
+    expect(h.posted[0]?.content).toBe('ran /fantasy')
+    expect(h.table.records.get(CHANNEL)?.lane).toBe(USER)
+    expect(h.calls).toContain('preset-resolve:restricted')
+    expect(h.calls).toContain('permission-set:read-only')
+    expect(h.calls).toContain('restrict:{"allow":["read_file"]}')
+    expect(h.calls.some(call => call.startsWith('followup:'))).toBe(false)
+  })
+
+  it('refuses an excluded command before opening the lane', async () => {
+    const h = opened({ userLanes: new Map([[USER, ownLane]]) })
+    h.router.handle(inbound({ content: '/danger' }))
+    await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
+    expect(h.posted[0]?.content).toBe('/danger is not available through Discord.')
+    expect(h.calls).not.toContain('agent-create')
     expect(h.table.records.has(CHANNEL)).toBe(false)
-    expect(h.calls).not.toContain('execute:inspect')
   })
 
   it('does not let a new lane settle an old prompt through text, a button, or a reaction', async () => {
