@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
-import { validateModelSelection, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
+import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
 export { cronApprovalRoute, registerCronApprovalRoute } from './launch.ts'
@@ -358,14 +358,6 @@ export async function apply(
   scheduler: Scheduler = cronerScheduler,
 ): Promise<void> {
   assertConfig(resolved)
-  if (resolved.modelSelection !== undefined) {
-    await validateModelSelection(ctx, resolved.modelSelection, 'dsh-cron: modelSelection')
-  }
-  for (const job of resolved.jobs) {
-    if (job.modelSelection !== undefined) {
-      await validateModelSelection(ctx, job.modelSelection, `dsh-cron: job "${job.name}" modelSelection`)
-    }
-  }
   const configDelivery = new Map<string, string>()
   for (const job of resolved.jobs) {
     if (job.deliverChannel !== undefined) configDelivery.set(job.name, job.deliverChannel)

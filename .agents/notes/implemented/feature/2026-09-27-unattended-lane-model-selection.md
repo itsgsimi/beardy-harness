@@ -10,7 +10,7 @@ Discord conversations, scheduled runs, and Web Sessions have different latency a
 
 ## Decision
 
-Discord gateway and cron configuration may each select an exact provider, model, and optional reasoning effort. A configured cron job may override the cron-wide choice; stored jobs inherit it without changing their durable record. In the absence of an explicit choice, each new Session samples the full current `agentDefaultModel` selection. Explicit choices resolve against the registered adapter at plugin mount, and cron checks again before a fire opens its Session. An unsupported route or effort fails with the owning configuration field named.
+Discord gateway and cron configuration may each select an exact provider, model, and optional reasoning effort. A configured cron job may override the cron-wide choice; stored jobs inherit it without changing their durable record. In the absence of an explicit choice, each new Session samples the full current `agentDefaultModel` selection. Explicit choices resolve against the registered adapter when a conversation or cron run opens its Session, after provider rows have mounted. An unsupported route or effort fails with the owning configuration field named.
 
 Discord resume reads the last full `request/header` from its Session log and hands that choice to Agent resume. A headerless Session falls back to the current gateway choice. New configuration therefore affects future conversations and fires without changing an established conversation or the Web model selector. The ordinary `request/header` records each generated request's effective selection; no Session event or cron storage migration is needed.
 
@@ -28,4 +28,4 @@ Unit tests exercise default inheritance, configured precedence, unsupported effo
 
 ## Consequences
 
-Operators must choose an adapter-supported effort for each explicit route. The official DeepSeek route does not support `medium`; a local adapter can expose it through exact model metadata. Validation runs before the first Session and again at cron fire time, so adapter catalog changes cannot silently route an unsupported job.
+Operators must choose an adapter-supported effort for each explicit route. The official DeepSeek route does not support `medium`; a local adapter can expose it through exact model metadata. Validation runs at each new conversation or cron fire, so adapter catalog changes cannot silently route an unsupported job.

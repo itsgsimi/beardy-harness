@@ -1,7 +1,8 @@
 /**
  * Discord Gateway v10 client: one websocket that identifies with the bot token, keeps itself alive
  * with heartbeats, reports `MESSAGE_CREATE` dispatches upward, and reconnects until its signal is
- * aborted. The socket and the clock are seams, so the protocol is exercised without a network.
+ * aborted or Discord rejects the connection permanently. The socket and the clock are seams, so
+ * the protocol is exercised without a network.
  * @module @deepseek-ai/dsh-discord-gateway/gateway
  */
 
@@ -242,8 +243,24 @@ interface Connection {
   acked: boolean
   alive: boolean
   settled: boolean
-  readonly settle: (reason: string) => void
+  readonly settle: (end: ConnectionEnd) => void
 }
+
+/** Close details retained until the listener decides whether another connection is valid. */
+interface ConnectionEnd {
+  readonly reason: string
+  readonly code?: number
+}
+
+/** Discord Gateway close codes for authentication or configuration failures that forbid reconnecting. */
+const FATAL_CLOSE_CODES = new Map([
+  [4004, 'authentication failed'],
+  [4010, 'invalid shard'],
+  [4011, 'sharding required'],
+  [4012, 'invalid API version'],
+  [4013, 'invalid intents'],
+  [4014, 'disallowed intents'],
+])
 
 /**
  * Run one connection until it closes, its signal aborts, or a missed heartbeat marks it dead.
@@ -257,13 +274,13 @@ async function runConnection(
   options: DiscordGatewayOptions,
   signal: AbortSignal,
   wait: (ms: number, signal: AbortSignal) => Promise<void>,
-): Promise<string> {
+): Promise<ConnectionEnd> {
   const controller = new AbortController()
   const socket = (options.socketFactory ?? platformSocket)(options.url ?? DISCORD_GATEWAY_URL)
   const disposers: (() => void)[] = []
   /* v8 ignore next -- the promise executor below assigns the real resolver before any settle can run. */
-  let settleConnection: (reason: string) => void = () => {}
-  const settled = new Promise<string>((resolve) => {
+  let settleConnection: (end: ConnectionEnd) => void = () => {}
+  const settled = new Promise<ConnectionEnd>((resolve) => {
     settleConnection = resolve
   })
 
@@ -277,11 +294,11 @@ async function runConnection(
     acked: true,
     alive: true,
     settled: false,
-    settle: (reason: string) => {
+    settle: (end: ConnectionEnd) => {
       if (connection.settled) return
       connection.settled = true
       connection.alive = false
-      settleConnection(reason)
+      settleConnection(end)
     },
   }
 
@@ -340,10 +357,10 @@ async function runConnection(
         return
       case DiscordGatewayOpcode.reconnect:
         socket.close()
-        connection.settle('gateway asked to reconnect')
+        connection.settle({ reason: 'gateway asked to reconnect' })
         return
       case DiscordGatewayOpcode.invalidSession:
-        connection.settle('gateway rejected the session')
+        connection.settle({ reason: 'gateway rejected the session' })
         return
       default:
         return
@@ -352,11 +369,13 @@ async function runConnection(
 
   disposers.push(socket.on('close', (payload) => {
     const code = (payload as { code?: unknown } | undefined)?.code
-    connection.settle(typeof code === 'number' ? `socket closed with code ${String(code)}` : 'socket closed')
+    connection.settle(typeof code === 'number'
+      ? { reason: `socket closed with code ${String(code)}`, code }
+      : { reason: 'socket closed' })
   }))
 
   disposers.push(socket.on('error', () => {
-    connection.settle('socket error')
+    connection.settle({ reason: 'socket error' })
   }))
 
   // Cancellation of the whole listener must end the connection in flight, not only the next one.
@@ -367,17 +386,17 @@ async function runConnection(
     } catch {
       // A socket that refuses to close is already gone; the settle below ends the attempt.
     }
-    connection.settle('cancelled')
+    connection.settle({ reason: 'cancelled' })
   }
   if (signal.aborted) abortFromParent()
   else signal.addEventListener('abort', abortFromParent, { once: true })
 
-  const reason = await settled
+  const end = await settled
   signal.removeEventListener('abort', abortFromParent)
   connection.alive = false
   connection.disposeListeners()
   controller.abort(new Error('discord gateway connection ended'))
-  return signal.aborted ? 'cancelled' : reason
+  return signal.aborted ? { reason: 'cancelled' } : end
 }
 
 /** Beat the connection until it dies, closing it when the server stops answering. */
@@ -397,7 +416,7 @@ async function heartbeat(
     if (!connection.alive) return
     if (!connection.acked) {
       connection.socket.close()
-      connection.settle('gateway missed the heartbeat acknowledgement')
+      connection.settle({ reason: 'gateway missed the heartbeat acknowledgement' })
       return
     }
     connection.acked = false
@@ -406,16 +425,15 @@ async function heartbeat(
 }
 
 /**
- * Connect to the Discord Gateway and keep reconnecting until `signal` aborts.
+ * Connect to the Discord Gateway and keep reconnecting until `signal` aborts or a fatal close arrives.
  *
- * Every close is followed by a doubled delay, capped at `maxReconnectDelayMs`, so a gateway outage
- * costs one reconnect attempt per interval rather than a busy loop. The returned promise resolves
- * when the signal aborts; it never rejects, because a listener failure must not surface as an
- * unhandled rejection in the host that mounted it.
+ * Every reconnectable close is followed by a doubled delay, capped at `maxReconnectDelayMs`, so a
+ * gateway outage costs one reconnect attempt per interval rather than a busy loop. A fatal authentication or
+ * configuration close rejects with its code and reason; the host reports the stopped listener.
  *
  * @param options - token, callbacks, and seams.
  * @param signal - cancellation for the whole listener, not one connection.
- * @returns when the listener has stopped.
+ * @returns when the listener has stopped after cancellation.
  */
 export async function connectDiscordGateway(
   options: DiscordGatewayOptions,
@@ -429,11 +447,17 @@ export async function connectDiscordGateway(
 
   while (!signal.aborted) {
     report({ kind: 'connecting' })
-    const reason = await runConnection(options, signal, wait)
+    const end = await runConnection(options, signal, wait)
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the listener can be disposed while a connection is open.
     if (signal.aborted) break
+    const fatal = end.code === undefined ? undefined : FATAL_CLOSE_CODES.get(end.code)
+    if (fatal !== undefined) {
+      const reason = `Discord Gateway closed with code ${String(end.code)} (${fatal}); listener stopped`
+      report({ kind: 'stopped', reason })
+      throw new Error(reason)
+    }
     attempt += 1
-    report({ kind: 'disconnected', reason })
+    report({ kind: 'disconnected', reason: end.reason })
     const delay = Math.min(baseDelay * 2 ** (attempt - 1), maxDelay)
     try {
       await wait(delay, signal)

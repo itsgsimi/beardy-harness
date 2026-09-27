@@ -119,7 +119,7 @@ Then add the deployment rows to `$DSH_HOME/profiles/beardy/cordis.patch.yml`. A 
         prompt: Prepare the morning brief.
 ```
 
-Choose the exact provider and model from the registered model catalog before setting these environment values. The gateway and cron reject a route or effort that its adapter does not support when they mount; the official DeepSeek route does not accept `medium`. A configured cron job may set its own `modelSelection`; stored jobs inherit the top-level cron choice. Omit either row's `modelSelection` to inherit the complete current default, including effort. Existing Discord Sessions resume with their logged choice, and the Web keeps its own model selector.
+Choose the exact provider and model from the registered model catalog before setting these environment values. The gateway checks an explicit route and effort when a conversation opens; cron checks before each fire opens its Session. An unsupported choice fails that conversation or run with a named error; the official DeepSeek route does not accept `medium`. A configured cron job may set its own `modelSelection`; stored jobs inherit the top-level cron choice. Omit either row's `modelSelection` to inherit the complete current default, including effort. Existing Discord Sessions resume with their logged choice, and the Web keeps its own model selector.
 
 Run it under systemd so it survives logout and reboots:
 

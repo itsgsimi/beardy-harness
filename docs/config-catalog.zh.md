@@ -895,7 +895,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/discord/discord-gateway/src/index.ts:97`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:96`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */

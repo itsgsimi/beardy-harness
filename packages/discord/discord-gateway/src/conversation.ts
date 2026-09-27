@@ -29,7 +29,7 @@ import type { AskUserQuestionAnswer, AskUserQuestionAnswerItem, AskUserQuestionI
 import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 import type {} from '@deepseek-ai/dsh-session-title'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import { awaitTurn, lastAssistantText, openUnattendedSession, resumeUnattendedSession, sleep } from '@deepseek-ai/dsh-unattended-session'
+import { awaitTurn, lastAssistantText, openUnattendedSession, resumeUnattendedSession, sleep, validateModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import type { UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
 import { chunkContent, defangBroadcastMentions, discordRequest, postChannelMessage, postDiscordMessageBody, postTyping, sendDiscordMessage } from '@deepseek-ai/dsh-tool-discord'
@@ -612,7 +612,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   async function createConversation(channelId: string, lane: ConversationLane): Promise<LiveConversation> {
     return await openConversation(channelId, lane, async (openingSignal) => {
       wakes?.cancel(channelId)
-      const selection = settings.modelSelection ?? ctx.agentDefaultModel.currentSelection()
+      const selection = settings.modelSelection === undefined
+        ? ctx.agentDefaultModel.currentSelection()
+        : await validateModelSelection(ctx, settings.modelSelection, 'discord-gateway: modelSelection')
       const opened = await openUnattendedSession(ctx, {
         sessionId: SessionId(`discord-${channelId}-${randomUUID()}`),
         agentPreset: lane.agentPreset,
@@ -639,7 +641,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       } finally {
         await persisted.close()
       }
-      const selection = loggedSelection ?? settings.modelSelection ?? ctx.agentDefaultModel.currentSelection()
+      const selection = loggedSelection ?? (settings.modelSelection === undefined
+        ? ctx.agentDefaultModel.currentSelection()
+        : await validateModelSelection(ctx, settings.modelSelection, 'discord-gateway: modelSelection'))
       const opened = await resumeUnattendedSession(ctx, {
         sessionId: SessionId(record.sessionId),
         agentPreset: lane.agentPreset,

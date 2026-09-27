@@ -22,6 +22,7 @@ const JOB: ScheduledJobSpec = {
 
 interface HarnessOptions {
   readonly modelSelection?: ConfiguredModelSelection
+  readonly unresolvedModel?: boolean
   /** Assistant text the run commits; empty means the agent produced no text. */
   readonly replyText?: string
   /** Never settle whenIdle, so the bound expires. */
@@ -86,10 +87,11 @@ function harness(options: HarnessOptions = {}) {
       set: (_session: unknown, name: string) => { calls.push(`permission-set:${name}`) },
     },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm', reasoningEffort: ReasoningEffortId('high') }) },
-    llm: { resolveModelInfo: async (provider: string, model: string) => ({
-      provider, id: model, name: model,
-      reasoning: { efforts: [{ id: ReasoningEffortId('medium'), name: 'Medium' }] },
-    }) },
+    llm: { resolveModelInfo: async (provider: string, model: string) => {
+      if (options.unresolvedModel) throw new Error(`no adapter registered for provider "${provider}"`)
+      return { provider, id: model, name: model,
+        reasoning: { efforts: [{ id: ReasoningEffortId('medium'), name: 'Medium' }] } }
+    } },
     agentPresets: {
       resolve: async (name: string) => {
         calls.push(`preset-resolve:${name}`)
@@ -204,6 +206,16 @@ describe('job runner', () => {
     const h = harness({ modelSelection: { provider: 'top', model: 'top-model', reasoningEffort: 'xhigh' } })
     const result = await h.runner.run(JOB, FIRED_AT)
     expect(result.failure?.message).toContain('does not support reasoning effort "xhigh"')
+    expect(h.calls).not.toContain('agent-create')
+  })
+
+  it('fails a fire with its job name when the configured route remains unknown', async () => {
+    const h = harness({ modelSelection: { provider: 'missing', model: 'model' }, unresolvedModel: true })
+    const result = await h.runner.run(JOB, FIRED_AT)
+    expect(result.outcome).toBe('failed')
+    expect(result.failure?.message).toContain(
+      'dsh-cron: job "morning-brief" modelSelection: provider "missing" model "model" cannot be resolved',
+    )
     expect(h.calls).not.toContain('agent-create')
   })
 

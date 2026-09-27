@@ -118,6 +118,8 @@ export function record(overrides: Partial<ConversationRecord> = {}): Conversatio
 
 export interface HarnessOptions {
   readonly modelSelection?: ModelSelection
+  readonly modelEfforts?: readonly string[]
+  readonly unresolvedModel?: boolean
   readonly defaultSelection?: ModelSelection
   /** Real Agent used for an approval routed through a live conversation. */
   readonly approvalAgent?: Agent
@@ -252,7 +254,12 @@ export function harness(options: HarnessOptions = {}) {
     },
   }
   const ctx = {
-    get: (name: string) => options.eventContext?.[name as keyof Context],
+    get: (name: string) => name === 'llm' ? { resolveModelInfo: async (provider: string, model: string) => {
+      if (options.unresolvedModel) throw new Error(`no adapter registered for provider "${provider}"`)
+      return { provider, id: model, name: model, reasoning: {
+        efforts: (options.modelEfforts ?? ['low', 'medium', 'high']).map(id => ({ id, name: id })),
+      } }
+    } } : options.eventContext?.[name as keyof Context],
     sessions: { flush: async () => true },
     sessionPersistence: {
       open: async () => ({ inheritedEventCount: 0, read: async () => ({ events }), close: async () => {} }),

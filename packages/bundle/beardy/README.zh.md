@@ -119,7 +119,7 @@ SEARXNG_BASE_URL=http://127.0.0.1:8080
         prompt: Prepare the morning brief.
 ```
 
-设置这些环境变量前，先从已注册的模型目录选择确切的提供方和模型。网关与 cron 在挂载时拒绝适配器不支持的路由或推理力度；官方 DeepSeek 路由不接受 `medium`。已配置的 cron 任务可设置自己的 `modelSelection`；持久化任务继承 cron 顶层选择。省略任一行的 `modelSelection` 时，会继承完整的当前默认选择，包括推理力度。已有 Discord Session 恢复时沿用日志中的选择，Web 保留自己的模型选择器。
+设置这些环境变量前，先从已注册的模型目录选择确切的提供方和模型。网关在对话开启时检查显式路由和推理力度；cron 在每次触发打开 Session 前检查。不支持的选择会使该对话或运行失败，并给出明确错误；官方 DeepSeek 路由不接受 `medium`。已配置的 cron 任务可设置自己的 `modelSelection`；持久化任务继承 cron 顶层选择。省略任一行的 `modelSelection` 时，会继承完整的当前默认选择，包括推理力度。已有 Discord Session 恢复时沿用日志中的选择，Web 保留自己的模型选择器。
 
 用 systemd 运行它，使其在注销与重启后存活：
 

@@ -6,13 +6,12 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import type { HealthStatus } from '@deepseek-ai/dsh-health'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { sleep, validateModelSelection } from '@deepseek-ai/dsh-unattended-session'
+import { sleep } from '@deepseek-ai/dsh-unattended-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import { attachCronDelivery, createConversationRouter } from './conversation.ts'
@@ -624,10 +623,6 @@ export function currentHealthStatusLines(ctx: Context): string[] {
 export async function apply(ctx: Context, config: Config): Promise<void> {
   const resolved = config as ResolvedConfig
   assertConfig(resolved)
-  let modelSelection: ModelSelection | undefined
-  if (resolved.modelSelection !== undefined) {
-    modelSelection = await validateModelSelection(ctx, resolved.modelSelection, 'discord-gateway: modelSelection')
-  }
   if (!resolved.enabled) {
     ctx.logger.info('discord-gateway: mounted but disabled by configuration')
     return
@@ -640,7 +635,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   let botUserId = ''
   const { settings: configuredSettings, policy } = toSettings(resolved, () => botUserId)
   const settings: GatewaySettings = {
-    ...configuredSettings, ...modelSelection === undefined ? {} : { modelSelection },
+    ...configuredSettings, ...resolved.modelSelection === undefined ? {} : { modelSelection: resolved.modelSelection },
   }
   const router = createConversationRouter({
     ctx,
