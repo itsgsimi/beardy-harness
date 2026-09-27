@@ -9,8 +9,8 @@
   en: e54233a0061ef78e
   zh: b4569dd1d15f313b
 /deepseek-ai-dsh-tool-session-query/summary:
-  en: e02b980ccd46f18e
-  zh: e599be8f3864132c
+  en: 67bdae709971fb07
+  zh: 1879be8317ef02b1
 /deepseek-ai-dsh-tool-session-query/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -21,11 +21,11 @@
   en: 2379fea607f05047
   zh: 948ccb2679cad04a
 /deepseek-ai-dsh-tool-session-query/use-this-package/configuration:
-  en: 86517fff7b539e7d
-  zh: 46a37ee4f8e81b22
+  en: 040878d4652631c0
+  zh: f3cfe0c03ed37aa2
 /deepseek-ai-dsh-tool-session-query/use-this-package/what-the-model-can-do:
-  en: 560d8d66f8301213
-  zh: f4f963d61df8d3a4
+  en: 532d4acc0a890e35
+  zh: 9ef2836aa36358b4
 /deepseek-ai-dsh-tool-session-query/use-this-package/failures-and-recovery:
   en: 58559adb3f089356
   zh: eddd5dd65811901e
@@ -39,8 +39,8 @@
   en: 605c35617d9555a6
   zh: fe0b245ff86505ea
 /deepseek-ai-dsh-tool-session-query/understand-the-implementation/operation-flow:
-  en: 906e8fff04552ad3
-  zh: a5ca1ae0f197186d
+  en: 1dd4a6704b2564cf
+  zh: 709f0a555891ca71
 /deepseek-ai-dsh-tool-session-query/further-exploration:
   en: 1d4a245fac001783
   zh: 661d5d7f6e15a229
@@ -78,17 +78,17 @@
   en: beaabb79f229692a
   zh: 8573891441963be4
 /deepseek-ai-dsh-tool-session-query/model-experience/tool-results/what-the-model-sees:
-  en: 8a5d8fda38ed6940
-  zh: 84c4047bb8127719
+  en: 421d3fc39dcf7e54
+  zh: 6b1265fc04935f30
 /deepseek-ai-dsh-tool-session-query/model-experience/tool-results/token-effect:
-  en: 8078153192ce8c6b
-  zh: 839e94c31f741241
+  en: ca9b802c2b506121
+  zh: 421cc9e743d5f090
 /deepseek-ai-dsh-tool-session-query/model-experience/tool-results/kv-cache-effect:
   en: 9dbeb5d10d26d110
   zh: 277d8574207bcb90
 /deepseek-ai-dsh-tool-session-query/known-limitations-and-deferred-work:
-  en: 6aaaf928811fde0d
-  zh: ee1735af14560915
+  en: ea3cf4fed206fd16
+  zh: 2509ec467cb17698
 /deepseek-ai-dsh-tool-session-query/known-limitations-and-deferred-work/dev-note:
   en: d2f0d68fe29fb750
   zh: 323d21ee73a9e3f6

@@ -47,6 +47,7 @@ import {
   type NormalizedSessionRequest,
   FTS_HIGHLIGHT_END,
   FTS_HIGHLIGHT_START,
+  RECALL_ORIGIN_SQL,
   assertFts5OuterPredicateCount,
   assertPortableBindingCount,
   buildEventWhere,
@@ -168,7 +169,9 @@ interface IndexedLiveRow {
   generation: number
 }
 
-interface SessionHeaderRow {
+// Object type aliases, unlike interfaces, are assignable to node:sqlite's
+// `Record<string, SQLOutputValue>` rows, so query results assert to them directly.
+type SessionHeaderRow = {
   session_id: string
   version: number
   created_at: number
@@ -179,7 +182,7 @@ interface SessionHeaderRow {
   agent_preset: string | null
 }
 
-interface SearchRow extends SessionHeaderRow {
+type SearchRow = SessionHeaderRow & {
   live: number
   persisted: number
   seq: number
@@ -504,7 +507,10 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       const initiallyLive = new Set(this.ctx.sessions.list().map(session => session.id))
       let persisted = new Map<SessionId, ObservedPersistedSession>()
       if (persistence !== undefined) {
-        const { SessionFormatUnsupportedError } = await import('@deepseek-ai/dsh-session-persistence')
+        const {
+          SessionFormatUnsupportedError,
+          SessionPersistenceNotFoundError,
+        } = await import('@deepseek-ai/dsh-session-persistence')
         try {
           const canReuseIndexed = this._lastPersistenceIdentity === undefined
             || this._lastPersistenceIdentity === persistenceBinding.identity
@@ -529,6 +535,13 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
               // stays out of the index, as when its header already refused listing,
               // instead of failing every search this process serves.
               if (error instanceof SessionFormatUnsupportedError) continue
+              // Removed after listing, such as a created Session closed before
+              // its first append: observe it as deleted. The after-list check
+              // below retries if it is listed again.
+              if (error instanceof SessionPersistenceNotFoundError) {
+                persisted.delete(entry.header.id)
+                continue
+              }
               throw error
             }
             assertNotAborted(signal)
@@ -539,7 +552,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
           const afterSnapshots = await persistence.list(listOptions)
           assertNotAborted(signal)
           const after = materializePersistenceSnapshots(afterSnapshots)
-          if (!samePersistenceSnapshots(persisted, after)) continue
+          if (!samePersistedPopulation(persisted, after)) continue
           if (this._persistenceBinding !== persistenceBinding) continue
         } catch (error: unknown) {
           if (isAbort(error) || signal?.aborted) {
@@ -679,17 +692,21 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         SELECT * FROM matched ${where.length === 0 ? '' : `WHERE ${where}`}
       ),
       ranked AS (
-        SELECT *, ROW_NUMBER() OVER (
-          PARTITION BY session_id
-          ORDER BY match_count DESC, document_length ASC, time DESC, seq DESC
-        ) AS event_rank
+        SELECT *,
+          ROW_NUMBER() OVER (
+            PARTITION BY session_id
+            ORDER BY (type = 'session/title') ASC, match_count DESC, document_length ASC, time DESC, seq DESC
+          ) AS event_rank,
+          MAX(type = 'session/title') OVER (PARTITION BY session_id) AS title_match,
+          ${RECALL_ORIGIN_SQL} = 'cron' AS routine_origin
         FROM filtered
       )
       SELECT * FROM ranked
       WHERE event_rank = 1
-      ORDER BY match_count DESC, document_length ASC, time DESC, session_id ASC, seq DESC
+      ORDER BY routine_origin ASC, title_match DESC,
+        match_count DESC, document_length ASC, time DESC, session_id ASC, seq DESC
       LIMIT ? OFFSET ?
-    `).all(...bindings) as unknown as SearchRow[]
+    `).all(...bindings) as SearchRow[]
   }
 
   private _queryEvents(
@@ -715,7 +732,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       WHERE ${where}
       ORDER BY match_count DESC, document_length ASC, time DESC, seq DESC
       LIMIT ? OFFSET ?
-    `).all(...bindings) as unknown as SearchRow[]
+    `).all(...bindings) as SearchRow[]
   }
 
   private _targetObservation(
@@ -919,18 +936,20 @@ function materializePersistenceSnapshots(
   return result
 }
 
-function samePersistenceSnapshots(
+/**
+ * Compare listed ids and immutable headers, ignoring revisions. Each log read
+ * after the first listing is stored under that listing's revision, so a log
+ * appended during the observation is read again by the next reconciliation
+ * instead of failing every search that overlaps a write.
+ */
+function samePersistedPopulation(
   before: ReadonlyMap<SessionId, ObservedPersistedSession>,
   after: ReadonlyMap<SessionId, ObservedPersistedSession>,
 ): boolean {
   if (before.size !== after.size) return false
   for (const [id, first] of before) {
     const second = after.get(id)
-    if (
-      second === undefined
-      || first.revision !== second.revision
-      || !sameHeader(first.header, second.header)
-    ) return false
+    if (second === undefined || !sameHeader(first.header, second.header)) return false
   }
   return true
 }

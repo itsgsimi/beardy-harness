@@ -2075,7 +2075,7 @@ Harness 主目录下的 USER.md/MEMORY.md 策展编辑器具有字符上限和�
 
 ### `session_search`
 
-搜索调用方工作区中的先前会话，并从每个会话返回匹配度最高的事件。
+搜索调用方工作区中的先前会话，并从每个会话返回匹配度最高的事件，标题匹配与非 cron 会话排在前面；view recent 无需查询即可列出最新会话。
 
 ```json
 {
@@ -2083,7 +2083,25 @@ Harness 主目录下的 USER.md/MEMORY.md 策展编辑器具有字符上限和�
   "properties": {
     "query": {
       "type": "string",
-      "description": "Literal full-text query over prior session history."
+      "description": "Literal full-text query over prior session history. Required unless view is recent."
+    },
+    "view": {
+      "type": "string",
+      "description": "Omit or use search to rank query matches; use recent to list the newest prior sessions without a query.",
+      "enum": [
+        "search",
+        "recent"
+      ]
+    },
+    "origin": {
+      "type": "string",
+      "description": "Restrict to interactive, cron (scheduled), or discord sessions. Omit or use all for every origin.",
+      "enum": [
+        "interactive",
+        "cron",
+        "discord",
+        "all"
+      ]
     },
     "session_ids": {
       "type": "array",
@@ -2157,10 +2175,7 @@ Harness 主目录下的 USER.md/MEMORY.md 策展编辑器具有字符上限和�
         ]
       }
     }
-  },
-  "required": [
-    "query"
-  ]
+  }
 }
 ```
 

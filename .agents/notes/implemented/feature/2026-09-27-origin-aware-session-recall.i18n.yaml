@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-origin-aware-session-recall.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-origin-aware-session-recall.md
+/agent-note-origin-aware-session-recall:
+  en: 4422d92a6bdfbecc
+  zh: 6ccecf71564e005d
+/agent-note-origin-aware-session-recall/problem:
+  en: 89a059a9c1d0452f
+  zh: 90c32d3f6c59a06a
+/agent-note-origin-aware-session-recall/decision:
+  en: b4190165bf0ad0fb
+  zh: 430ac1d59f0d62fe
+/agent-note-origin-aware-session-recall/alternatives-considered:
+  en: 6021c83239a6e186
+  zh: d0a2042530832eb4
+/agent-note-origin-aware-session-recall/consequences:
+  en: 811253a175f787b1
+  zh: 57afc7edbb518982

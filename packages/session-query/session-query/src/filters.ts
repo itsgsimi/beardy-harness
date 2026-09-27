@@ -8,6 +8,7 @@ import type {
   SessionResultRange,
 } from './types.ts'
 import { SessionQueryError } from './config.ts'
+import { sessionRecallOrigin } from './origin.ts'
 
 /**
  * Apply ANDed logical-session filters while preserving input order.
@@ -59,6 +60,11 @@ export function materializeSessionResultFilters(
       case 'availability': {
         const values = copyStrings(filter.kind, filter.values)
         assertAllowedValues(filter.kind, values, ['live', 'persisted'])
+        return { kind: filter.kind, values }
+      }
+      case 'origin': {
+        const values = copyStrings(filter.kind, filter.values)
+        assertAllowedValues(filter.kind, values, ['interactive', 'cron', 'discord'])
         return { kind: filter.kind, values }
       }
       default:
@@ -132,6 +138,9 @@ function sessionPredicate(filter: SessionResultFilter): (record: SessionRecord) 
     case 'availability':
       assertAllowedValues(filter.kind, filter.values, ['live', 'persisted'])
       return record => filter.values.some(value => value === 'live' ? record.live : record.persisted)
+    case 'origin':
+      assertAllowedValues(filter.kind, filter.values, ['interactive', 'cron', 'discord'])
+      return record => filter.values.includes(sessionRecallOrigin(record.header))
     default:
       return unknownFilter(filter)
   }

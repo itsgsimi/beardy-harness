@@ -71,6 +71,8 @@ export {
 export { readColdSessionLog } from './cold-read.ts'
 export type { ColdSessionLog } from './cold-read.ts'
 export { extractSessionEventText } from './extraction.ts'
+export { sessionRecallOrigin } from './origin.ts'
+export type { SessionRecallOrigin } from './origin.ts'
 export { buildSessionEventRecords, buildSessionEventSearchDocuments } from './documents.ts'
 export {
   compileSessionTextFilter,

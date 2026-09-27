@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-session-query` to let a model search earlier sessions, inspect event matches, trace relationships, and read exact event data. Its five read-only tools return cursor-free text and authorize cross-session access only when the target session's `cwd` exactly matches the caller's; callers without a `cwd` can inspect only themselves. Search excludes the caller Session and research stage children by default; an explicit parent Session filter can include those children. It asks the model to narrow its query when the deployment result cap is reached. The package is opt-in, and enabling it adds guidance plus five tool schemas to every model request.
+Use `dsh-tool-session-query` to let a model list or search earlier sessions, inspect event matches, trace relationships, and read exact event data. Its five read-only tools return cursor-free text and authorize cross-session access only when the target session's `cwd` exactly matches the caller's; callers without a `cwd` can inspect only themselves. Session listings exclude the caller Session and research stage children by default; an explicit parent filter can include them. A capped search asks the model to narrow its query. The package is opt-in, and enabling it adds guidance plus five tool schemas to every model request.
 
 ## Table of Contents
 
@@ -36,6 +36,7 @@ Choose it when a deployment wants model-driven retrieval of prior work — for e
 | Field | Default | Meaning |
 |---|---|---|
 | `maxSearchResults` | `100` | Maximum authorized hits returned by one search call |
+| `maxRecentSessions` | `20` | Maximum authorized Sessions returned by one recent-view call |
 | `searchTimeoutMs` | `30000` | Cooperative deadline attached to both full-text search tools |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-session-query) is the exhaustive source for every accepted field and its JSDoc.
@@ -44,13 +45,13 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 | Tool | What the model gets |
 |---|---|
-| `session_search` | Sessions matching a literal query, ranked, with title and best-match excerpt; always omits the caller session |
+| `session_search` | Sessions matching a literal query with their best-match excerpt, title matches and non-cron sessions first; or, with `view: recent`, the newest sessions without a query. Each entry shows title, creation time, origin, parent, and availability; the caller session is always omitted |
 | `session_event_search` | Events matching a literal query inside one authorized session; for the current session it stops before the step that invoked it |
 | `session_trace` | The authorized ancestor chain and descendant tree of one session; unauthorized boundaries appear as markers without hidden ids |
 | `session_event_trace` | One event's positional replacements and cited source-event relationships |
 | `session_event_read` | One full unabridged event as JSON, plus optional neighboring event summaries |
 
-Workspace authority is conservative: cross-session access requires exact `cwd` equality between target and caller session, and a caller without `cwd` can inspect only itself. Requested parent ids are deduplicated and authority-checked before search; missing and cross-workspace guesses behave identically. Search results are cursor-free: a capped result asks the model to narrow its query, and never exposes provider cursors, offsets, page sizes, or a model-controlled limit. Timestamps at the tool boundary are timezone-qualified ISO 8601 and become inclusive epoch-millisecond filters.
+Workspace authority is conservative: cross-session access requires exact `cwd` equality between target and caller session, and a caller without `cwd` can inspect only itself. Requested parent ids are deduplicated and authority-checked before search; missing and cross-workspace guesses behave identically. `view: recent` takes no query or event filters, lists authorized sessions newest first by creation time, and returns at most `maxRecentSessions`; a capped page tells the model to page back with `created_at_to`. `origin` selects `interactive`, `cron`, `discord`, or `all` (the default) in both views: the cron and Discord launchers issue `cron-` and `discord-` Session ids, a subagent child takes its parent's origin, and every other Session is `interactive`. Search results are cursor-free: a capped result asks the model to narrow its query, and never exposes provider cursors, offsets, page sizes, or a model-controlled limit. Timestamps at the tool boundary are timezone-qualified ISO 8601 and become inclusive epoch-millisecond filters.
 
 ### Failures and recovery
 
@@ -90,7 +91,7 @@ The design history lives in the [model-facing session query tools note](../../..
 
 ### Operation flow
 
-Each executor derives the caller, normalizes the model's arguments into service filters, authorizes the target (or the requested parent ids) against the caller workspace, and collects results through the service boundary. Both search tools page internally through provider cursors while the observed generation stays valid, stopping at `maxSearchResults`; because one search consumes generation-bound provider cursors, the two search tools execute exclusively with sibling tool calls, while the three exact trace/read tools opt into parallel execution. Lineage output replaces unauthorized ancestor and descendant boundaries with markers containing no hidden session id.
+Each executor derives the caller, normalizes the model's arguments into service filters, authorizes the target (or the requested parent ids) against the caller workspace, and collects results through the service boundary. Both search tools page internally through provider cursors while the observed generation stays valid, stopping at `maxSearchResults`. The recent view reads `ctx.sessionQuery.filterSessions` instead, so it keeps working when a deployment disables full-text search. Because one search consumes generation-bound provider cursors, the two search tools execute exclusively with sibling tool calls, while the three exact trace/read tools opt into parallel execution. Lineage output replaces unauthorized ancestor and descendant boundaries with markers containing no hidden session id.
 
 </details>
 
@@ -121,7 +122,7 @@ The model receives one fixed prior-history guidance section.
 ##### Prior-history guidance
 
 ```markdown
-Use session_search to find relevant work from prior sessions, or session_event_search to search earlier events in one session. Search results are cursor-free and workspace-scoped. Follow a useful hit with session_trace, session_event_trace, or session_event_read when you need lineage, relationships, or exact data.
+Use session_search to find relevant work from prior sessions, or its recent view to list the newest ones; use session_event_search to search earlier events in one session. Search results are cursor-free and workspace-scoped. Follow a useful hit with session_trace, session_event_trace, or session_event_read when you need lineage, relationships, or exact data.
 ```
 
 #### Token effect
@@ -150,11 +151,11 @@ Prefix-stable while tool visibility and definitions are unchanged.
 
 #### What the model sees
 
-Each successful call emits one plain-text block. Search results include titles and best-match excerpts; traces include all authorized relationships; event reads include unabridged target JSON. The generic spill policy may replace oversized inline text with its preview, opaque locator, and retrieval hint.
+Each successful call emits one plain-text block. Session listings show each session's title, creation time, origin, parent, and availability; text search adds the best-match event and excerpt. Traces include all authorized relationships; event reads include unabridged target JSON. The generic spill policy may replace oversized inline text with its preview, opaque locator, and retrieval hint.
 
 #### Token effect
 
-Results are data-dependent and remain in logged tool history until compaction; `maxSearchResults` bounds search-hit count.
+Results are data-dependent and remain in logged tool history until compaction; `maxSearchResults` bounds search hits and `maxRecentSessions` bounds recent-view entries.
 
 #### KV Cache effect
 
@@ -168,6 +169,7 @@ Append-only result text follows the reusable request prefix and does not invalid
 These limits define when this package is a poor fit or needs special operational care. They are current package constraints, not a task backlog.
 
 - **Search caps without continuation** — search returns at most the deployment cap and asks the model to narrow its query when more matches exist; there is no continuation token.
+- **Heuristic origin** — origin reads first-party Session id namespaces and a subagent child's direct parent, so custom launcher ids and deeper delegation chains classify as `interactive`.
 - **Conservative workspace identity** — workspace identity is exact-string `cwd` equality, so symlink-equivalent paths do not share authority.
 - **Inline payloads without the spill policy** — custom compositions without the generic spill policy accept complete trace and event payloads inline.
 

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-session-search-tolerates-concurrent-appends.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-27-session-search-tolerates-concurrent-appends.md
+/agent-note-session-search-tolerates-concurrent-appends:
+  en: d18288b5730ff85b
+  zh: f2f64bc4bfb78ec0
+/agent-note-session-search-tolerates-concurrent-appends/problem:
+  en: 9231a0259f586ed3
+  zh: bab0f8c5c442f71a
+/agent-note-session-search-tolerates-concurrent-appends/decision:
+  en: 6486d3caf775c2d8
+  zh: c7a2df96704588db
+/agent-note-session-search-tolerates-concurrent-appends/alternatives-considered:
+  en: 4545f098d5deac32
+  zh: 59b2b6af3da52000
+/agent-note-session-search-tolerates-concurrent-appends/consequences:
+  en: 7e7e023428d7b310
+  zh: 0f7da713aa86df6c

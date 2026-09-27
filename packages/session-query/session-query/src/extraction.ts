@@ -1,6 +1,7 @@
 /** First-party semantic text extraction for session-query consumers. */
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-title'
 // Type-only: includes the first-party todo event consumed below.
 import type {} from '@deepseek-ai/dsh-tool-todo'
 
@@ -14,6 +15,8 @@ import type {} from '@deepseek-ai/dsh-tool-todo'
  */
 export function extractSessionEventText(event: SessionEvent): string {
   switch (event.type) {
+    case 'session/title':
+      return event.data.title
     case 'user/message':
       return contentText(event.data.content)
     case 'assistant/message':
