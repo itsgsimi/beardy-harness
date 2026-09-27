@@ -62,10 +62,10 @@ export type JobDelivery = z.infer<typeof jobDelivery>
 export const runHistoryEntry = z.object({
   /** Epoch milliseconds of the fire that produced this run. */
   firedAt: z.number(),
-  /** Reserved Session id; its log may be absent when creation failed. */
+  /** Outcome id; a skipped fire has no Session log. */
   sessionId: z.string(),
   /** How the run ended. */
-  outcome: z.enum(['answered', 'no-text-answer', 'timed-out', 'failed', 'interrupted']),
+  outcome: z.enum(['answered', 'no-text-answer', 'timed-out', 'failed', 'interrupted', 'skipped']),
   /** Elapsed milliseconds from the accepted fire to settlement; absent for interrupted recovery and earlier records. */
   durationMs: z.number().int().min(0).optional(),
   /** Failure details are optional so existing history remains readable. */
@@ -111,6 +111,8 @@ export const jobStateRecord = z.object({
   activeRun: activeRunRecord.optional(),
   /** Finished output awaiting durable delivery acceptance; recovery never reruns the Agent. */
   pendingOutcome: pendingOutcomeRecord.optional(),
+  /** Overlapping fires awaiting delivery while another run may still be active. */
+  pendingSkips: z.array(pendingOutcomeRecord).optional(),
 })
 
 /** One job's durable continuity state. */

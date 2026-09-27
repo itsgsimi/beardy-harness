@@ -787,7 +787,7 @@ export interface ResolvedConfig {
   readonly jobs: ConfiguredCronJob[]
   /** Model choice inherited by every job without its own override, including stored jobs. */
   readonly modelSelection?: ConfiguredModelSelection
-  /** Longest wait for one run's answer, in milliseconds. */
+  /** Longest wait from Session creation through one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted per process before the oldest are released. */
   readonly maxLiveRuns: number

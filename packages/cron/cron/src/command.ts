@@ -45,7 +45,7 @@ function nextFireLine(job: JobListing): string {
 export function statusLine(job: JobListing, from = new Date()): string {
   const run = job.lastRuns[0]
   const last = run === undefined ? 'never run' : `${run.outcome} at ${new Date(run.firedAt).toISOString()}`
-    + ` (Session ${run.sessionId}, duration ${run.durationMs === undefined ? 'unknown' : `${String(run.durationMs)} ms`}`
+    + ` (${run.outcome === 'skipped' ? 'Outcome' : 'Session'} ${run.sessionId}, duration ${run.durationMs === undefined ? 'unknown' : `${String(run.durationMs)} ms`}`
     + `${run.failure === undefined ? '' : `, cause ${run.failure.code}: ${run.failure.message}`})`
   return `${job.name}: ${last}; next ${nextFireAt(job, from) ?? (job.enabled ? 'none' : 'paused')}`
 }

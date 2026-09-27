@@ -4048,8 +4048,8 @@ export const EVENT_API: readonly EventApiEntry[] = [
     name: 'cron/run-finished',
     mode: 'serial',
     signature: '\'cron/run-finished\'(payload: CronRunFinished): true | undefined | Promise<true | undefined>',
-    summary: 'One cron run settled, carrying the text a delivery lane may forward.',
-    description: 'One cron run settled, carrying the text a delivery lane may forward. The scheduler emits it after recording the run in the job\'s history; delivering to a channel belongs to whichever listener owns one. Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome pending for another handoff; listeners must deduplicate by Session id and fire time.',
+    summary: 'One cron fire settled, carrying the text a delivery lane may forward.',
+    description: 'One cron fire settled, carrying the text a delivery lane may forward. The scheduler emits it after recording the outcome in the job\'s history; delivering to a channel belongs to whichever listener owns one. Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome pending for another handoff; listeners must deduplicate by outcome id and fire time.',
     parameters: [{ name: 'payload', description: 'Persisted run result, job identity, fire time, and delivery policy.' }],
   },
   {
@@ -5054,7 +5054,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CronRunOutcome',
-    declaration: 'export type CronRunOutcome = \'answered\' | \'no-text-answer\' | \'timed-out\' | \'failed\' | \'interrupted\';',
+    declaration: 'export type CronRunOutcome = \'answered\' | \'no-text-answer\' | \'timed-out\' | \'failed\' | \'interrupted\' | \'skipped\';',
   },
   {
     name: 'CronRunResult',

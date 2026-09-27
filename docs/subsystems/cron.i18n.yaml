@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/cron.md
 /cron:
-  en: 7826da83baf67608
-  zh: c01b18137f0c211b
+  en: 8fa87fa6eeaebac7
+  zh: 595d487936febecd
 /cron/run-results:
-  en: a4e5ce13791489a3
-  zh: f37f1aeebaa7b0f7
+  en: 271637f16f6fef33
+  zh: f330a019eec5844e

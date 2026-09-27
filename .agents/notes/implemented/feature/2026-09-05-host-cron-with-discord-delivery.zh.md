@@ -12,7 +12,7 @@ Status: implemented
 
 三个包，各自负责一件事。
 
-`@deepseek-ai/dsh-cron`（`packages/cron/cron/`）通过 croner 挂载在配置中声明的任务，cron 表达式的解析、时区与夏令时算术都由 croner 负责。`assertConfig` 会在加载时拒绝重复的任务名、无法解析的表达式或时区、相对的工作区路径、以及非正数的边界值，因此一个永远跑不起来的任务会让启动失败，而不是在早上七点静默失败。每次触发都按其他所有入口相同的顺序开启一个全新会话——解析 agent 预设、解析权限预设、注册工作区、`agents.create`、attach、应用权限、命名——并把任务提示词作为一条用户消息交进去，其来源是 `{ kind: 'cron', jobName, scheduledFor }`。若下一次触发到来时上一次运行仍在进行，则记为跳过；`turnTimeoutMs` 限定一次回答的上限；`maxLiveRuns` 释放最旧的已完成且仍挂载的会话。本包报告结果（`answered`、`no-text-answer`、`timed-out`、`failed`、`interrupted`），自身不做投递。
+`@deepseek-ai/dsh-cron`（`packages/cron/cron/`）通过 croner 挂载在配置中声明的任务，cron 表达式的解析、时区与夏令时算术都由 croner 负责。`assertConfig` 会在加载时拒绝重复的任务名、无法解析的表达式或时区、相对的工作区路径、以及非正数的边界值，因此一个永远跑不起来的任务会让启动失败，而不是在早上七点静默失败。开始执行的触发按其他入口相同的顺序开启一个全新会话——解析 agent 预设、解析权限预设、注册工作区、`agents.create`、attach、应用权限、命名——并把任务提示词作为一条用户消息交进去，其来源是 `{ kind: 'cron', jobName, scheduledFor }`。重叠触发会记录 `skipped`，不打开会话；`turnTimeoutMs` 限定会话创建及轮次；`maxLiveRuns` 释放最旧的已完成且仍挂载的会话，不占用其他任务的触发保护。本包报告 `answered`、`no-text-answer`、`timed-out`、`failed`、`interrupted` 或 `skipped`，自身不做投递。
 
 `@deepseek-ai/dsh-tool-discord`（`packages/discord/tool-discord/`）给模型一条唯一的写入路径：`discord_send` 把消息发到配置中指定的频道，超过 Discord 2000 字符上限的正文拆成连续多条消息，在设定的上限内等待 HTTP 429，并在发送前改写 `@everyone`、`@here` 与角色提及。bot token 在调用时通过凭据引用解析，因此组合（composition）文件里不会出现 token。它直接说 Discord REST——不用 SDK、不建立网关连接、不缓存 Discord 状态——这让依赖面停留在每次投递一个 HTTP 调用。
 
@@ -28,7 +28,7 @@ Status: implemented
 
 把任务变成运行时可编辑的持久状态是推迟而非否决：既定的未来界面——由人或 agent 创建与暂停排程，并有 Client 视图——需要其自身的持久化与标识决定，先交付配置能让第一个任务保持可靠。至于扩展 `dsh-schedule`，则被否决：它的规则是 agent 作用域的、建立在单个会话事件日志之上；一个不属于任何 Agent 的本机任务在那里没有可栖身的记录。
 
-带跨重启重试的投递队列目前被否决：它会引入本改动并不需要的持久状态、投递标识与去重问题。无法完成的发送会让其工具调用显式失败，而该次运行的结果会记录下来。
+不为直接的 `discord_send` 工具调用建立跨重启队列：那会让模型工具承担持久状态、投递标识与去重。无法完成的发送会让其工具调用显式失败，而该次运行的结果会记录下来。自动 cron 结果投递由独立组件持久承载。
 
 ## 后果
 
@@ -38,6 +38,6 @@ Status: implemented
 
 直接 `discord_send` 工具投递是调用那一刻的尽力而为。用尽重试次数的发送会使工具调用失败且不入队；Discord 宕机期间的运行会失去那条消息。自动结果投递使用上文链接所述、由独立组件拥有的持久队列。
 
-任务状态始于配置，并延伸到持久的存储记录：`cron_manage` 工具与 `/cron` 命令在护栏之下创建、修改、暂停、恢复和删除存储的任务，而配置的任务除查看、立即运行和记笔记外保持只读（[决定](2026-09-05-runtime-managed-cron-jobs.zh.md)）。完成的运行会发出 `cron/run-finished`，网关据此为点名了渠道的任务完成投递。
+任务状态始于配置，并延伸到持久的存储记录：`cron_manage` 工具与 `/cron` 命令在护栏之下创建、修改、暂停、恢复和删除存储的任务，而配置的任务除查看、立即运行和记笔记外保持只读（[决定](2026-09-05-runtime-managed-cron-jobs.zh.md)）。结束的触发（包括跳过的触发）会发出 `cron/run-finished`，网关据此为点名了渠道的任务完成投递。
 
 频道到会话的连续性被持久记录，因此重启后每个 Discord 频道会在其原有会话上继续（[决定](2026-09-05-discord-durable-conversations.zh.md)）。网关使用非特权 intent；私信与提及 bot 的服务器消息携带正文，未点名 bot 的服务器帖子可能不带正文到达。恰好只能有一个进程用该 bot token identify，否则每条入站消息都会被回复两次。

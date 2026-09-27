@@ -2,43 +2,43 @@
 
 [English](cron.md) | 中文
 
-Cron 为每次接受的任务触发创建独立的无人值守 Session。本参考记录运行结果类型与交付事件；[包 README](../../packages/cron/cron/README.zh.md) 负责说明任务配置、连续性笔记、恢复与交付重试策略。
+Cron 为每次开始执行的任务触发创建独立的无人值守 Session。跳过的触发没有 Session。本参考记录结果类型与交付事件；[包 README](../../packages/cron/cron/README.zh.md) 负责说明任务配置、连续性笔记、恢复与交付重试策略。
 
 ## 运行结果
 
-调度器提交终态历史与保留的输出后，交付消费者会收到 `CronRunFinished`。`sessionId` 与 `firedAt` 这一对值标识多次交接中的同一次运行。Session 创建失败时，预留的 Session id 可能没有对应日志。
+调度器提交终态历史与保留的输出后，交付消费者会收到 `CronRunFinished`。`sessionId` 与 `firedAt` 这一对值标识多次交接中的同一次触发。跳过的触发使用没有对应 Session 的结果 id；Session 创建失败时，预留的 Session id 也可能没有对应日志。
 
-已记录轮次的终态决定运行结果。失败结果在运行历史和待投递记录中保留错误代码与消息；Discord 只展示安全的代码。失败轮次的部分文本不算回答。
+已记录轮次的终态决定已开始运行的结果。与前一次运行重叠，或被尚未投递的结果阻挡的触发，会以 `skipped` 和原因写入历史，并进入同一投递路径。失败结果在运行历史和待投递记录中保留错误代码与消息；Discord 只展示安全的代码。失败轮次的部分文本不算回答。
 
 ```ts type-equiv
-/** How one accepted fire ended, retained in job history and delivery notices. */
-type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted'
+/** How one scheduled fire ended, retained in job history and delivery notices. */
+type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted' | 'skipped'
 ```
 
 ```ts type-equiv
-/** What one settled run reports back to the scheduler. */
+/** What one settled fire reports back to the scheduler. */
 interface CronRunResult {
-  /** How the run ended. */
+  /** How the fire ended. */
   readonly outcome: CronRunOutcome
-  /** Reserved Session id; its log may be absent when creation failed. */
+  /** Outcome id; a skipped fire has no Session log. */
   readonly sessionId: string
   /** Final assistant text of the run; empty when there was none. */
   readonly text: string
-  /** Failure facts from the turn ending or runner; absent for other outcomes. */
+  /** Failure or skip reason; absent when neither applies. */
   readonly failure?: { readonly code: string; readonly message: string }
 }
 ```
 
 ```ts type-equiv
-/** A settled run retained until delivery listeners durably accept its outcome. */
+/** A settled fire retained until delivery listeners durably accept its outcome. */
 interface CronRunFinished extends CronRunResult {
-  /** Name of the job whose run settled. */
+  /** Name of the job whose fire settled. */
   readonly jobName: string
-  /** Epoch milliseconds of the fire that started the run. */
+  /** Epoch milliseconds of the scheduled or triggered fire. */
   readonly firedAt: number
   /** Channel destination; absent means no channel delivery. */
   readonly deliverChannelId?: string
-  /** Whether an empty answer should produce an outcome notice. */
+  /** Whether an outcome without answer text should produce a notice. */
   readonly reportOutcome: boolean
   /** Next armed fire, resolved from the current job definition when delivery occurs. */
   readonly nextFireAt?: string
@@ -61,15 +61,15 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 #### `cron/run-finished` — serial
 
-One cron run settled, carrying the text a delivery lane may forward. The scheduler emits it after recording the run in the job's history; delivering to a channel belongs to whichever listener owns one. Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome pending for another handoff; listeners must deduplicate by Session id and fire time.
+One cron fire settled, carrying the text a delivery lane may forward. The scheduler emits it after recording the outcome in the job's history; delivering to a channel belongs to whichever listener owns one. Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome pending for another handoff; listeners must deduplicate by outcome id and fire time.
 
 ```ts cordis-catalog
 /**
- * One cron run settled, carrying the text a delivery lane may forward. The scheduler emits it
- * after recording the run in the job's history; delivering to a channel belongs to whichever
+ * One cron fire settled, carrying the text a delivery lane may forward. The scheduler emits it
+ * after recording the outcome in the job's history; delivering to a channel belongs to whichever
  * listener owns one.
  * Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome
- * pending for another handoff; listeners must deduplicate by Session id and fire time.
+ * pending for another handoff; listeners must deduplicate by outcome id and fire time.
  * @param payload - Persisted run result, job identity, fire time, and delivery policy.
  * @returns `true` after durable delivery acceptance, or undefined when the listener does not own delivery.
  * @mode serial
