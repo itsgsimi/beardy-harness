@@ -6,7 +6,7 @@ The [health package](../../packages/health/health/README.md) checks only explici
 
 ## State and delivery
 
-Each probe starts `unknown`. Consecutive failed checks move an unknown or healthy probe to `down` at `failureThreshold`; consecutive successful checks move a down probe to `healthy` at `recoveryThreshold`. Initial success becomes healthy without a notice. The snapshot contains a name, state, last check time, and a bounded failure cause; it contains no URL, response body, or credential.
+Each probe starts `unknown`. Consecutive failed checks move an unknown or healthy probe to `down` at `failureThreshold`; consecutive successful checks move a down probe to `healthy` at `recoveryThreshold`. Initial success becomes healthy without a notice. A matching intentional unload from `ctx.localModels` presents `paused` with operator and time, suppressing requests and down notices until load succeeds. The snapshot contains no URL, response body, or credential.
 
 When a notice channel is configured, the health owner sends each down or recovered transition through `health/transition` with a stable identity. The gateway accepts it into its existing durable outbox before acknowledging the event. A failed acceptance retains the same identity for retry while endpoint checks continue. Pending transitions enter the outbox in order once acceptance resumes. The cooldown suppresses repeated notices of the same kind for one probe. Process restart resets probe state to unknown.
 
@@ -17,12 +17,16 @@ The health owner observes `cron/run-finished` before the gateway accepts deliver
 interface ProbeSnapshot {
   /** Configured probe label. */
   readonly name: string
-  /** Current state since this Host mount. */
-  readonly state: 'unknown' | 'healthy' | 'down'
+  /** Current probe state, or durable intentional pause from local model control. */
+  readonly state: 'unknown' | 'healthy' | 'down' | 'paused'
   /** Epoch milliseconds of the latest completed HTTP check. */
   readonly checkedAt?: number
   /** Bounded status or failure class, absent after success. */
   readonly cause?: string
+  /** Operator who intentionally unloaded the backend, when paused. */
+  readonly pausedBy?: string
+  /** ISO time of the intentional unload, when paused. */
+  readonly pausedAt?: string
 }
 ```
 

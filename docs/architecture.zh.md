@@ -4,8 +4,6 @@
 
 改动 `packages/` 下的任何内容之前，请先阅读本文。本文假定你已了解 Cordis；如果尚未了解，请先阅读[入门](cordis-primer.zh.md)或[教程](cordis-tutorial/index.zh.md)。
 
-建议使用 agent（智能体）探索代码库并理解其架构。
-
 ## Cordis
 
 [Cordis](cordis-primer.zh.md) 是 dsh 底层的框架：插件向共享上下文贡献服务、类型化事件和可逆的副作用。产品的每一部分都是插件，包括模型适配器、工具注册表、会话日志，以及 agent loop（智能体循环）本身，因此每个都可以从配置替换。
@@ -150,6 +148,7 @@ seam 正是替换一个提供方就能改变整个产品的原因。文件系统
 | 添加 shell 执行 | 注册 `ctx.shell` 后端；本地后端通过 `ctx.subprocess` spawn 进程 |
 | 添加持久化终端执行 | 注册 `ctx.terminals` 后端和 `dsh-tool-terminal` |
 | 添加用户命令 | 在 `ctx.commands` 上注册；它无需模型轮次即可分派 |
+| 暂停本地模型路由 | 健康探针、LLM 和 cron 读取 `ctx.localModels`；Host 控制器持久保存意图 |
 | 管理后台任务 | 在 `ctx.jobs` 上注册；`job_*` 工具读取或停止任务 |
 | 从外部 webhook 启动 Session | 在 `ctx.webhookRuntime` 上注册可信规则，并挂载提供方适配器 |
 | 添加文件系统访问或策略 | 注册 `ctx.fs` 提供方，或监听 `fs/*` 事件 |

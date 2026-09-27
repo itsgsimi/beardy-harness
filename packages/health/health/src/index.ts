@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials'
 import type { CronRunFinished } from '@deepseek-ai/dsh-cron'
+import type {} from '@deepseek-ai/dsh-local-model-control'
 import z from '@deepseek-ai/schemastery'
 
 /** Loader name of the Host health plugin. */
@@ -76,12 +77,16 @@ export const Config: z<Config> = z.object({
 export interface ProbeSnapshot {
   /** Configured probe label. */
   readonly name: string
-  /** Current state since this Host mount. */
-  readonly state: 'unknown' | 'healthy' | 'down'
+  /** Current probe state, or durable intentional pause from local model control. */
+  readonly state: 'unknown' | 'healthy' | 'down' | 'paused'
   /** Epoch milliseconds of the latest completed HTTP check. */
   readonly checkedAt?: number
   /** Bounded status or failure class, absent after success. */
   readonly cause?: string
+  /** Operator who intentionally unloaded the backend, when paused. */
+  readonly pausedBy?: string
+  /** ISO time of the intentional unload, when paused. */
+  readonly pausedAt?: string
 }
 
 /** Most recent failed cron outcome observed by the gateway. */
@@ -177,6 +182,8 @@ export interface HealthMonitorDeps {
   deliver(transition: { id: string; channelId: string; text: string }): Promise<boolean>
   deliveryFailed?(error: unknown): void
   now(): number
+  /** Current intentional pause for this exact configured health URL. */
+  paused?(url: string): { intent: { by: string; at: string } } | undefined
 }
 
 /** Process-local monitor that keeps polling while queued transitions retry in order. */
@@ -195,9 +202,13 @@ export class HealthMonitor implements HealthStatus {
 
   /** Read one bounded snapshot without exposing URLs or credentials. */
   snapshot(): { probes: readonly ProbeSnapshot[]; lastCronFailure?: CronFailureSnapshot } {
-    return { probes: this.records.map(({ probe, record }) => ({ name: probe.name, state: record.state,
-      ...(record.checkedAt === undefined ? {} : { checkedAt: record.checkedAt }),
-      ...(record.cause === undefined ? {} : { cause: record.cause }) })),
+    return { probes: this.records.map(({ probe, record }) => {
+      const paused = this.deps.paused?.(probe.url)
+      return { name: probe.name, state: paused === undefined ? record.state : 'paused',
+        ...(record.checkedAt === undefined ? {} : { checkedAt: record.checkedAt }),
+        ...(paused === undefined && record.cause !== undefined ? { cause: record.cause } : {}),
+        ...(paused === undefined ? {} : { pausedBy: paused.intent.by, pausedAt: paused.intent.at }) }
+    }),
     ...(this.lastCronFailure === undefined ? {} : { lastCronFailure: this.lastCronFailure }) }
   }
 
@@ -220,6 +231,7 @@ export class HealthMonitor implements HealthStatus {
     const operation = (async () => {
       for (const { probe, record } of this.records) {
         if (this.controller.signal.aborted) break
+        if (this.pauseProbe(probe, record)) continue
         await this.checkProbe(probe, record)
       }
     })()
@@ -246,6 +258,7 @@ export class HealthMonitor implements HealthStatus {
       cause = this.controller.signal.aborted ? 'stopped' : 'connection failed or timed out'
     }
     if (this.controller.signal.aborted) return
+    if (this.pauseProbe(probe, record)) return
     const now = this.deps.now()
     record.checkedAt = now
     record.cause = healthy ? undefined : cause
@@ -270,6 +283,16 @@ export class HealthMonitor implements HealthStatus {
       }
     }
     await this.flush(record)
+  }
+
+  private pauseProbe(probe: ProbeConfig, record: ProbeRecord): boolean {
+    if (this.deps.paused?.(probe.url) === undefined) return false
+    record.state = 'unknown'
+    record.failures = 0
+    record.successes = 0
+    record.cause = undefined
+    record.pending.length = 0
+    return true
   }
 
   private async flush(record: ProbeRecord): Promise<void> {
@@ -307,6 +330,7 @@ export function apply(ctx: Context, raw: Config): void {
     deliver: async transition => await ctx.serial('health/transition', transition) === true,
     deliveryFailed: (error) => { ctx.logger.warn(`health: probe notice could not enter the gateway outbox: ${error instanceof Error ? error.name : 'error'}`) },
     now: Date.now,
+    paused: url => ctx.get('localModels')?.unloadedForHealthUrl(url),
   })
   ctx.provide('healthStatus', monitor)
   ctx.on('cron/run-finished', (run) => { monitor.recordCronFailure(run) }, { prepend: true })

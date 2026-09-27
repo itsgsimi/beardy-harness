@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/health/local-model-control/README.md
+/:
+  en: 5e4bd39067e2364a
+  zh: 268ae1e66a315ebd
+/deepseek-ai-dsh-local-model-control:
+  en: 86bc7edd6f6e622e
+  zh: 0e9213e13d4cbfe1
+/deepseek-ai-dsh-local-model-control/summary:
+  en: bda40b1009069dcf
+  zh: b2be76e27c1dec91
+/deepseek-ai-dsh-local-model-control/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 5acc0d3807846b6e
+/deepseek-ai-dsh-local-model-control/use-this-package:
+  en: 9d8d2dd706285446
+  zh: 68a4d0fa69a16a1b
+/deepseek-ai-dsh-local-model-control/understand-the-implementation:
+  en: fc799cd5aa115fd1
+  zh: 7518c14901f90e5f
+/deepseek-ai-dsh-local-model-control/further-exploration:
+  en: 63bfac3f9c3ed417
+  zh: dfc6d7bf15534e93
+/deepseek-ai-dsh-local-model-control/model-experience:
+  en: f1c7fbb3cdaf69e0
+  zh: 3382d260203bce30
+/deepseek-ai-dsh-local-model-control/model-experience/kv-cache-effect:
+  en: 4a2664b0133dff40
+  zh: e4130cd925f55f19
+/deepseek-ai-dsh-local-model-control/known-limitations-and-deferred-work:
+  en: 149add38dd8b44b9
+  zh: 5cd4c05ae0f7ecc5
+/deepseek-ai-dsh-local-model-control/known-limitations-and-deferred-work/dev-note:
+  en: 576714bee39e3772
+  zh: b96ccf83c4372a8a

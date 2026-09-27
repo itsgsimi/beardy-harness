@@ -62,6 +62,11 @@ async function runScenario(fixture: string, scenarioDir: string): Promise<{
   const cwd = await mkdtemp(join(tmpdir(), 'dsh-discord-snapshot-'))
   try {
     await mkdir(join(cwd, '.git'))
+    if (scenarioDir === laneScenarioDir) {
+      await mkdir(join(cwd, '.dsh'))
+      await writeFile(join(cwd, '.dsh', 'local-model-control.json'), JSON.stringify({ version: 1,
+        unloaded: { ornith: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } }) + '\n')
+    }
     const fixturePath = join(cwd, '.replay.jsonl')
     await writeFile(fixturePath, fixture.replaceAll('{{cwd}}', cwd))
     const patchDir = join(cwd, '.patches')
@@ -82,6 +87,7 @@ async function runScenario(fixture: string, scenarioDir: string): Promise<{
         DSH_DISCORD_SNAPSHOT_TASK: taskFromFixture(fixture),
         DSH_DISCORD_SNAPSHOT_PRESETS: scenarioDir === richScenarioDir ? 'beardy-discord' : 'beardy,beardy-discord',
         DSH_DISCORD_SNAPSHOT_CRON: scenarioDir === richScenarioDir ? '1' : '0',
+        DSH_DISCORD_SNAPSHOT_MODELS: scenarioDir === laneScenarioDir ? '1' : '0',
       },
     })
     const child = spawn(launch.command, launch.args, {
@@ -131,7 +137,7 @@ async function runScenario(fixture: string, scenarioDir: string): Promise<{
     const statusReplyIndex = exchanges.findLastIndex(exchange =>
       exchange.method === 'PATCH' && exchange.path.endsWith('/messages/@original'))
     expect(statusReplyIndex).toBeGreaterThanOrEqual(0)
-    // The protocol observation ends with the status response, before teardown changes the command roster.
+    // The protocol observation ends with the command response, before teardown changes the command roster.
     return { content, cwd, exchanges: exchanges.slice(0, statusReplyIndex + 1) }
   } finally {
     await rm(cwd, { recursive: true, force: true })
@@ -183,6 +189,11 @@ for (const [name, scenarioDir] of [
     expect(wire).toContain('DISCORD_RICH_REPLY_OK')
     expect(wire).toContain('```ts')
     expect(wire).toContain('embeds')
+    if (scenarioDir === laneScenarioDir) {
+      expect(wire).toContain('"title": "/models"')
+      expect(wire).toContain('Local models: ornith unloaded by Goran at 2026-09-27T18:00:00.000Z')
+      expect(wire).toContain('ornith: unloaded by Goran at 2026-09-27T18:00:00.000Z')
+    }
     expect(actual.exchanges.some(exchange => exchange.method === 'PATCH' && exchange.path.endsWith('/messages/@original'))).toBe(true)
   })
 }

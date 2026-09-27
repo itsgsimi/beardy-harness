@@ -61,6 +61,7 @@ import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Context } from '@deepseek-ai/cordis'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { assertUsableApiKey, LlmError, resolveImageAttachmentAccess } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-local-model-control'
 import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-fs'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
@@ -211,6 +212,12 @@ export function apply(ctx: Context, config: Config): void {
   const auth = { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) }
   const adapter = new PiAiAdapter({
     profiles,
+    checkRoute: (provider) => {
+      const paused = ctx.get('localModels')?.unloadedForRoute(provider)
+      if (paused !== undefined) {
+        throw new LlmError(`local model unloaded: ${paused.backend} was unloaded by ${paused.intent.by} at ${paused.intent.at}`, 'LOCAL_MODEL_UNLOADED')
+      }
+    },
     resolveApiKey,
     auth,
     resolveAttachments: () => ctx.get('attachments'),

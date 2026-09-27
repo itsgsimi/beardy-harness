@@ -27,7 +27,7 @@ The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base`
 <a id="use-this-package"></a>
 ## Use this package
 
-The bundle mounts `dsh-health` with `probes: []`, so it makes no endpoint claim until a deployment patch supplies named URLs and a notice channel. No endpoint or credential is embedded in the bundle.
+The bundle mounts `dsh-health` with `probes: []`, so it makes no endpoint claim until a deployment patch supplies named URLs and a notice channel. No endpoint or credential is embedded in the bundle. The `local-model-control` row is disabled until a personal patch supplies fixed backends, authorized presets, groups, and durable state storage. See [local model control](../../health/local-model-control/README.md) for the command behavior.
 
 ### Run the shipped Beardy profile
 

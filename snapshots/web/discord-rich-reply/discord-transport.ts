@@ -13,6 +13,7 @@ const APPLICATION_ID = '1472404859679670456'
 const BOT_USER_ID = '1472404859679670480'
 const CRON_STATUS_TOKEN = 'snapshot-cron-status-token'
 const STATUS_TOKEN = 'snapshot-status-token'
+const MODELS_STATUS_TOKEN = 'snapshot-models-status-token'
 const OUTPUT_PREFIX = 'DSH_DISCORD_SNAPSHOT '
 const PRESET_COMMANDS = ['compact', 'feedback', 'goal', 'permission', 'plan']
 
@@ -44,7 +45,8 @@ export function apply(ctx: Context): void {
     const waitForPresetCommands = async (socket: FixtureSocket): Promise<void> => {
       const presetIds = process.env.DSH_DISCORD_SNAPSHOT_PRESETS?.split(',')
       if (presetIds === undefined || presetIds.length === 0) throw new Error('Discord snapshot has no preset readiness list')
-      const names = process.env.DSH_DISCORD_SNAPSHOT_CRON === '1' ? [...PRESET_COMMANDS, 'cron'] : PRESET_COMMANDS
+      const names = process.env.DSH_DISCORD_SNAPSHOT_CRON === '1' ? [...PRESET_COMMANDS, 'cron']
+        : process.env.DSH_DISCORD_SNAPSHOT_MODELS === '1' ? [...PRESET_COMMANDS, 'models'] : PRESET_COMMANDS
       const leases: Awaited<ReturnType<typeof ctx.agentPresets.acquireScope>>[] = []
       try {
         for (const id of presetIds) leases.push(await ctx.agentPresets.acquireScope(id))
@@ -182,7 +184,8 @@ export function apply(ctx: Context): void {
       }
       if (url.pathname === '/api/v10/interactions/1472404859679670458/snapshot-cron-status-token/callback'
         || url.pathname === '/api/v10/interactions/1472404859679670462/snapshot-status-token/callback'
-        || url.pathname === '/api/v10/interactions/1472404859679670458/snapshot-status-token/callback') {
+        || url.pathname === '/api/v10/interactions/1472404859679670458/snapshot-status-token/callback'
+        || url.pathname === `/api/v10/interactions/1472404859679670463/${MODELS_STATUS_TOKEN}/callback`) {
         return new Response(null, { status: 204 })
       }
       if (url.pathname === `/api/v10/webhooks/${APPLICATION_ID}/${CRON_STATUS_TOKEN}/messages/@original`
@@ -200,6 +203,19 @@ export function apply(ctx: Context): void {
         return json({ id: '1472404859679670459' })
       }
       if (url.pathname === `/api/v10/webhooks/${APPLICATION_ID}/${STATUS_TOKEN}/messages/@original`
+        && method === 'PATCH') {
+        setTimeout(() => {
+          if (process.env.DSH_DISCORD_SNAPSHOT_MODELS !== '1') { emit({ complete: true }); return }
+          dispatch('INTERACTION_CREATE', {
+            id: '1472404859679670463', application_id: APPLICATION_ID, token: MODELS_STATUS_TOKEN,
+            type: 2, channel_id: CHANNEL_ID, channel: { id: CHANNEL_ID, type: 1 },
+            user: { id: USER_ID }, data: { name: 'models', type: 1,
+              options: [{ name: 'arguments', type: 3, value: 'status' }] },
+          })
+        }, 250)
+        return json({ id: '1472404859679670459' })
+      }
+      if (url.pathname === `/api/v10/webhooks/${APPLICATION_ID}/${MODELS_STATUS_TOKEN}/messages/@original`
         && method === 'PATCH') {
         setImmediate(() => { emit({ complete: true }) })
         return json({ id: '1472404859679670459' })

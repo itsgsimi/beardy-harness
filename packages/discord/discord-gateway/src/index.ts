@@ -8,6 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import type { HealthStatus } from '@deepseek-ai/dsh-health'
+import type {} from '@deepseek-ai/dsh-local-model-control'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -598,19 +599,24 @@ export function healthStatusLines(status: HealthStatus | undefined): string[] {
   const snapshot = status?.snapshot()
   if (snapshot === undefined) return []
   const probes = snapshot.probes.length === 0 ? 'Probes: none configured.'
-    : `Probes: ${snapshot.probes.map(probe => `${probe.name} ${probe.state}${probe.cause === undefined ? '' : ` (${probe.cause})`}`).join(', ')}`
+    : `Probes: ${snapshot.probes.map(probe => `${probe.name} ${probe.state}`
+      + (probe.state === 'paused' ? ` (unloaded by ${probe.pausedBy} at ${probe.pausedAt})`
+        : probe.cause === undefined ? '' : ` (${probe.cause})`)).join(', ')}`
   const failure = snapshot.lastCronFailure
   return [probes, failure === undefined ? 'Last cron failure: none.'
     : `Last cron failure: ${failure.jobName}, Session ${failure.sessionId}, ${failure.code}, next ${failure.nextFireAt ?? 'none'}.`]
 }
 
 /**
- * Read current host health when a gateway status command is answered.
+ * Read current host health and intentional local-model unloads when a gateway status command is answered.
  * @param ctx - Host context carrying the current health service.
  * @returns Lines appended to the status command.
  */
 export function currentHealthStatusLines(ctx: Context): string[] {
-  return healthStatusLines(ctx.get('healthStatus'))
+  const unloaded = ctx.get('localModels')?.backends().flatMap(backend => backend.intent === undefined ? []
+    : [`${backend.name} unloaded by ${backend.intent.by} at ${backend.intent.at}`]) ?? []
+  return [...healthStatusLines(ctx.get('healthStatus')),
+    ...(unloaded.length === 0 ? [] : [`Local models: ${unloaded.join(', ')}`])]
 }
 
 /**

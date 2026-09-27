@@ -52,7 +52,7 @@ This matrix shows which packages dispatch each harness-owned event and which pac
 | `fs/write-intent` | `waterfall` | [`packages/fs/fs/src/index.ts:60`](../packages/fs/fs/src/index.ts) | [`tool-fs`](../packages/fs/tool-fs) (`waterfall`), [`tool-str-replace-editor`](../packages/fs/tool-str-replace-editor) (`waterfall`) | [`fs-observation-policy`](../packages/fs/fs-observation-policy) |
 | `goal/activation-changed` | `emit` | [`packages/goal/goal/src/types.ts:150`](../packages/goal/goal/src/types.ts) | [`goal`](../packages/goal/goal) (`emit`) | `remotes` |
 | `goal/changed` | `emit` | [`packages/goal/goal/src/domain.ts:114`](../packages/goal/goal/src/domain.ts) | [`goal`](../packages/goal/goal) (`emit`) | [`goal-round-driver`](../packages/goal/goal-round-driver) |
-| `health/transition` | `serial` | [`packages/health/health/src/index.ts:120`](../packages/health/health/src/index.ts) | [`health`](../packages/health/health) (`serial`) | [`discord-gateway`](../packages/discord/discord-gateway) |
+| `health/transition` | `serial` | [`packages/health/health/src/index.ts:125`](../packages/health/health/src/index.ts) | [`health`](../packages/health/health) (`serial`) | [`discord-gateway`](../packages/discord/discord-gateway) |
 | `hmr/change` | `emit` | [`packages/boot/hmr/src/index.ts:30`](../packages/boot/hmr/src/index.ts) | [`hmr`](../packages/boot/hmr) (`emit`) | - |
 | `hmr/reload` | `emit` | [`packages/boot/hmr/src/index.ts:35`](../packages/boot/hmr/src/index.ts) | [`hmr`](../packages/boot/hmr) (`emit`) | - |
 | `llm/adapters-updated` | `emit` | [`packages/llm/llm/src/types.ts:23`](../packages/llm/llm/src/types.ts) | [`llm`](../packages/llm/llm) (`events.dispatch`) | [`acp`](../packages/acp/acp), [`llm`](../packages/llm/llm), `remotes` |

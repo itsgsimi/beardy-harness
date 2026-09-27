@@ -6,7 +6,7 @@
 
 ## 状态与交付
 
-每个探针从 `unknown` 开始。连续失败次数达到 `failureThreshold` 后，未知或健康状态变为 `down`；连续成功次数达到 `recoveryThreshold` 后，故障状态变为 `healthy`。初次成功会变为健康状态，但不发送通知。快照包含名称、状态、上次检查时间和有界失败原因，不包含 URL、响应正文或凭据。
+每个探针从 `unknown` 开始。连续失败次数达到 `failureThreshold` 后，未知或健康状态变为 `down`；连续成功次数达到 `recoveryThreshold` 后，故障状态变为 `healthy`。初次成功会变为健康状态，但不发送通知。`ctx.localModels` 中匹配的主动卸载显示为 `paused`，附操作者与时间；加载成功前不发出请求或宕机通知。快照不包含 URL、响应正文或凭据。
 
 配置通知频道后，health owner 通过 `health/transition` 发送每次故障或恢复转换，并附带稳定标识。gateway 将通知写入现有持久化 outbox 后才确认事件。写入失败时，重试沿用同一标识，端点探测仍会继续。网关恢复接收后，待处理的转换依次进入 outbox。冷却期抑制同一探针同类转换的重复通知。进程重启时，探针状态重置为未知。
 
@@ -17,12 +17,16 @@ health owner 在 gateway 接收投递前观测 `cron/run-finished`，并保留�
 interface ProbeSnapshot {
   /** Configured probe label. */
   readonly name: string
-  /** Current state since this Host mount. */
-  readonly state: 'unknown' | 'healthy' | 'down'
+  /** Current probe state, or durable intentional pause from local model control. */
+  readonly state: 'unknown' | 'healthy' | 'down' | 'paused'
   /** Epoch milliseconds of the latest completed HTTP check. */
   readonly checkedAt?: number
   /** Bounded status or failure class, absent after success. */
   readonly cause?: string
+  /** Operator who intentionally unloaded the backend, when paused. */
+  readonly pausedBy?: string
+  /** ISO time of the intentional unload, when paused. */
+  readonly pausedAt?: string
 }
 ```
 

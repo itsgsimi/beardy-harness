@@ -53,7 +53,7 @@ Probe URLs must be explicit HTTP(S) addresses without embedded user information 
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The monitor checks configured probes in one serial poll. Failure and recovery counters change each probe's process-local state at the configured thresholds. Initial success becomes healthy without a notice. A transition carries a stable identity into the gateway's durable outbox; failed acceptance is retried with the same identity while later probes continue. Pending transitions are submitted in order when the gateway accepts them. The cooldown applies separately to down and recovered notices. The health owner observes failed cron outcomes for `/status` without posting a second notice.
+The monitor checks configured probes in one serial poll. Failure and recovery counters change each probe's process-local state at the configured thresholds. Initial success becomes healthy without a notice. A transition carries a stable identity into the gateway's durable outbox; failed acceptance is retried with the same identity while later probes continue. Pending transitions are submitted in order when the gateway accepts them. The cooldown applies separately to down and recovered notices. A URL whose [local backend](../local-model-control/README.md) is intentionally unloaded appears paused with operator and time; the monitor skips its request and down notice. The health owner observes failed cron outcomes for `/status` without posting a second notice.
 
 | Source | Responsibility |
 |---|---|

@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-local-model-control'
 import { sleep, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
@@ -280,6 +281,17 @@ export function createSchedulerHost(
       if (controller.signal.aborted) return
       const current = options.resolveJob === undefined ? job : options.resolveJob(job.name)
       if (current === undefined) return
+      const provider = (current.modelSelection ?? options.modelSelection ?? ctx.agentDefaultModel.currentSelection()).provider
+      const paused = ctx.get('localModels')?.unloadedForRoute(provider)
+      if (paused !== undefined) {
+        const skipped: CronRunResult & { outcome: 'skipped' } = {
+          sessionId: SessionId(`cron-skipped-${job.name}-${randomUUID()}`), outcome: 'skipped', text: '',
+          failure: { code: 'LOCAL_MODEL_UNLOADED',
+            message: `Local model ${paused.backend} was unloaded by ${paused.intent.by} at ${paused.intent.at}.` },
+        }
+        await options.onSkipped?.(current, firedAt, skipped)
+        return
+      }
       const sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)
       if (await options.onStarting?.(current, firedAt, sessionId) === false) return
       let prepared = current

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, LlmError } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { resolveProfiles } from '../src/config.ts'
@@ -37,6 +37,49 @@ async function harness(url: string, streamIdleTimeoutMs = 1_000, queueTimeoutMs 
 const request = { model: 'deepseek-v4-flash', messages: [] }
 
 describe('pi-ai provider admission lifecycle', () => {
+  it('fails an intentionally unloaded route before credential lookup, admission, or HTTP dispatch', async () => {
+    const server = await mockServer([])
+    const ctx = await harness(server.url)
+    ctx.provide('localModels', {
+      unloadedForRoute: provider => provider === 'deepseek' ? { backend: 'ornith',
+        intent: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } : undefined,
+      unloadedForHealthUrl: () => undefined,
+      backends: () => [],
+    })
+    const result = await assemble(ctx, request)
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'LOCAL_MODEL_UNLOADED' } })
+    expect(server.requests).toHaveLength(0)
+  })
+
+  it('rechecks intentional unload after credentials and after admission while releasing the slot', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    let check = 0
+    let pauseAt = 2
+    const adapter = new PiAiAdapter({
+      profiles: () => resolveProfiles({ deepseek: { baseURL: server.url,
+        maxConcurrentRequests: 1, queueTimeoutMs: 1_000 } }),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+      checkRoute: () => {
+        check += 1
+        if (check === pauseAt) throw new LlmError('local model unloaded', 'LOCAL_MODEL_UNLOADED')
+      },
+    })
+    const drain = async (): Promise<void> => {
+      for await (const _chunk of adapter.stream({ provider: 'deepseek', ...request })) { /* drain */ }
+    }
+    await expect(drain()).rejects.toMatchObject({ code: 'LOCAL_MODEL_UNLOADED' })
+    expect(server.requests).toHaveLength(0)
+    check = 0
+    pauseAt = 3
+    await expect(drain()).rejects.toMatchObject({ code: 'LOCAL_MODEL_UNLOADED' })
+    expect(server.requests).toHaveLength(0)
+    check = 0
+    pauseAt = 0
+    await expect(drain()).resolves.toBeUndefined()
+    expect(server.requests).toHaveLength(1)
+  })
+
   it('releases the slot after success and a terminal provider error', async () => {
     const server = await mockServer([
       { events: textEvents },
