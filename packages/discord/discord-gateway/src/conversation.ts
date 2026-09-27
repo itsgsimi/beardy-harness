@@ -48,6 +48,9 @@ import type { ConversationLane, DiscordCommandActor, DiscordInboundMessage, Disc
 /** What one settled scheduled run announces on the `cron/run-finished` event. */
 interface FinishedCronRun extends Pick<CronRunResult, 'outcome' | 'text' | 'failure'> {
   readonly reportOutcome: boolean
+  readonly jobName?: string
+  readonly sessionId?: string
+  readonly nextFireAt?: string
 }
 
 /** Repeat interval for the typing indicator, fixed against Discord's own ~10-second expiry. */
@@ -104,6 +107,8 @@ export interface ConversationRouterDeps {
   readonly react?: (message: DiscordInboundMessage, emoji: string, remove: boolean, signal: AbortSignal) => Promise<void>
   /** Command descriptors of one lane's configured preset, including gateway controls. */
   readonly commands?: (lane: ConversationLane) => readonly CommandDescriptor[]
+  /** Current Host health lines, appended to `/status` even before a conversation opens. */
+  readonly statusDetails?: () => readonly string[]
   /** Typing-indicator seam. Defaults to the Discord REST poster. */
   readonly type?: TypingPoster
   /** Prompt-delivery seam. Defaults to a single Discord REST post whose reply carries the id. */
@@ -512,7 +517,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       },
       status: (): string => {
         const record = deps.table.get(channelId)
-        if (record === undefined) return 'No conversation yet: your next message starts one.'
+        const details = deps.statusDetails?.() ?? []
+        if (record === undefined) return ['No conversation yet: your next message starts one.', ...details].join('\n')
         const live = conversations.get(channelId)
         return [
           `Session: ${record.sessionId}`,
@@ -521,6 +527,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           live === undefined ? 'State: released (resumes on your next message)' : 'State: live',
           pendingNote(channelId),
           `Queued deliveries: ${String(outbox?.pending(channelId) ?? 0)}`,
+          ...details,
         ].join('\n')
       },
       stopTurn: async (): Promise<string> => {
@@ -1255,9 +1262,9 @@ export function cronDeliveryContent(run: FinishedCronRun): string | undefined {
   if (!run.reportOutcome) return undefined
   if (run.outcome === 'failed') {
     const code = run.failure?.code
-    return code !== undefined && /^[A-Z][A-Z0-9_-]{0,63}$/u.test(code)
-      ? `The scheduled run failed (${code}).`
-      : CRON_OUTCOME_LINES.failed
+    const label = run.jobName === undefined ? 'The scheduled run' : `The scheduled run "${run.jobName}"`
+    const safeCode = code !== undefined && /^[A-Z][A-Z0-9_-]{0,63}$/u.test(code) ? code : 'FAILED'
+    return `${label} failed (${safeCode}). Session: ${run.sessionId || 'unavailable'}. Next fire: ${run.nextFireAt ?? 'none'}.`
   }
   return CRON_OUTCOME_LINES[run.outcome]
 }

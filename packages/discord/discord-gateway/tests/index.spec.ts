@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { apply, assertConfig, Config, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
+import type { HealthStatus } from '@deepseek-ai/dsh-health'
+import type { OutboxRecord } from '../src/domain.ts'
+import { apply, assertConfig, Config, healthStatusLines, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
 import type { ConversationRouter } from '../src/conversation.ts'
 import type { DiscordGatewayOptions } from '../src/gateway.ts'
@@ -9,6 +11,25 @@ import { record } from './support.ts'
 
 const USER = '138391763999129600'
 const CHANNEL = '1472404859679670455'
+
+describe('health status lines', () => {
+  it('shows configured probe states and the last cron failure without exposing endpoint details', () => {
+    expect(healthStatusLines(undefined)).toEqual([])
+    const snapshot: ReturnType<HealthStatus['snapshot']> = { probes: [] }
+    const status: HealthStatus = { snapshot: () => snapshot }
+    expect(healthStatusLines(status)).toEqual(['Probes: none configured.', 'Last cron failure: none.'])
+    const observed: HealthStatus = { ...status, snapshot: () => ({ probes: [
+      { name: 'main', state: 'down', cause: 'HTTP 503' }, { name: 'local', state: 'healthy' },
+    ], lastCronFailure: { jobName: 'brief', sessionId: 's1', code: 'TRANSPORT', nextFireAt: '2026-09-28T07:00:00.000Z' } }) }
+    expect(healthStatusLines(observed)).toEqual([
+      'Probes: main down (HTTP 503), local healthy',
+      'Last cron failure: brief, Session s1, TRANSPORT, next 2026-09-28T07:00:00.000Z.',
+    ])
+    const noNext: HealthStatus = { ...status, snapshot: () => ({ probes: [],
+      lastCronFailure: { jobName: 'brief', sessionId: 's2', code: 'TIMED-OUT' } }) }
+    expect(healthStatusLines(noNext)[1]).toBe('Last cron failure: brief, Session s2, TIMED-OUT, next none.')
+  })
+})
 
 function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
   return {
@@ -192,20 +213,28 @@ describe('startListener', () => {
     const domainClosed = vi.fn(async () => {})
     const cleanup: (() => unknown)[] = []
     const routes = new Map([[CHANNEL, record({ deliveredThrough: 0 })]])
+    const notices = new Map<string, OutboxRecord>()
+    const outbox = { get: (key: string) => notices.get(key), entries: () => notices.entries(),
+      put: async (key: string, value: OutboxRecord) => { notices.set(key, value) },
+      delete: async (key: string) => { notices.delete(key) } }
+    let healthTransition: ((transition: { id: string; channelId: string; text: string }) => Promise<true>) | undefined
     let reads = 0
     const owner = {
       logger: ctx.logger,
       credentials: ctx.credentials,
       agentPresets: ctx.agentPresets,
       permissionPresets: ctx.permissionPresets,
-      on: () => () => {},
+      on: (event: string, handler: (transition: { id: string; channelId: string; text: string }) => Promise<true>) => {
+        if (event === 'health/transition') healthTransition = handler
+        return () => {}
+      },
       effect: (effect: () => (() => unknown), label: string) => {
         const dispose = effect()
         if (label === 'discord-gateway listener') cleanup.push(dispose)
         return dispose
       },
       storageDomain: { open: async () => ({
-        table: (name: string) => name === 'conversations' ? routes : new Map(),
+        table: (name: string) => name === 'conversations' ? routes : outbox,
         close: domainClosed,
       }) },
       sessionPersistence: { open: async (_id: string, _mode: string, options: { signal: AbortSignal }) => ({
@@ -222,6 +251,9 @@ describe('startListener', () => {
     } as unknown as Context
     await apply(owner, config())
     await entered.promise
+    expect(healthTransition).toBeDefined()
+    await healthTransition?.({ id: 'health:transition-1', channelId: CHANNEL, text: 'Probe main: down.' })
+    expect(notices.get('health:transition-1')).toMatchObject({ channelId: CHANNEL, chunks: ['Probe main: down.'] })
     await cleanup[0]?.()
     expect(readClosed).toHaveBeenCalledTimes(2)
     expect(domainClosed).toHaveBeenCalledTimes(1)

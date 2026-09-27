@@ -25,6 +25,17 @@
     openBrowser: false
     printUrl: false
     surfaceContext: false
+- id: cron
+  disabled: false
+  config:
+    jobs:
+      - name: snapshot-brief
+        expression: '0 0 12 31 12 * 2020'
+        timezone: UTC
+        prompt: Snapshot status only.
+        agentPreset: beardy-unattended
+        permissionPreset: workspace-write
+        workspacePath: !!js process.cwd()
 - insert:
     - id: discord-snapshot-transport
       name: ./discord-transport.ts

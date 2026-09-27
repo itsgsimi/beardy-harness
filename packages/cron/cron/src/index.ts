@@ -20,7 +20,7 @@ import type { JobRunner } from './launch.ts'
 import { assertSchedule, cronerScheduler } from './schedule.ts'
 import type { Scheduler } from './schedule.ts'
 import { createCronManageTool } from './tool.ts'
-import { registerCronCommand } from './command.ts'
+import { nextFireAt, registerCronCommand } from './command.ts'
 import type { ConfiguredCronJob, CronRunFinished, CronRunResult, ScheduledJobSpec } from './types.ts'
 export * from './domain.ts'
 export * from './launch.ts'
@@ -363,7 +363,11 @@ export async function apply(
     const current = handoffs.get(payload.sessionId)
     if (current !== undefined) return current
     const operation = Promise.resolve().then(async () => {
-      const accepted = await ctx.serial('cron/run-finished', payload)
+      const job = registry.find(payload.jobName)
+      const next = job === undefined ? undefined : nextFireAt(job)
+      const accepted = await ctx.serial('cron/run-finished', {
+        ...payload, ...(next === undefined ? {} : { nextFireAt: next }),
+      })
       if (payload.deliverChannelId !== undefined && accepted !== true) {
         throw new Error(`dsh-cron: job "${payload.jobName}" has no delivery listener accepting its outcome`)
       }

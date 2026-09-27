@@ -33,6 +33,9 @@
       "path": "../../cron/cron"
     },
     {
+      "path": "../../health/health"
+    },
+    {
       "path": "../../credentials/credentials"
     },
     {

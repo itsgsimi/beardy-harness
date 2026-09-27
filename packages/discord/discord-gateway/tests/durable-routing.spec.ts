@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createServer } from 'node:http'
+import type { Server } from 'node:http'
+import { HealthMonitor } from '@deepseek-ai/dsh-health'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { ScheduleId, createAfterScheduleRecord } from '@deepseek-ai/dsh-schedule'
 import type { OutboxRecord } from '../src/domain.ts'
 import { CHANNEL, USER, harness, inbound, record } from './support.ts'
+import { attachCronDelivery } from '../src/conversation.ts'
 
 const harnesses: ReturnType<typeof harness>[] = []
 afterEach(async () => {
@@ -31,6 +35,61 @@ function finish(events: SessionEvent[], text: string, reason = 'completed'): voi
 }
 
 describe('durable Discord conversation delivery', () => {
+  it('queues exactly one down and one recovered notice across a local HTTP outage', async () => {
+    const { h, values } = durable()
+    const listen = async (port: number): Promise<Server> => await new Promise((resolve, reject) => {
+      const server = createServer((_request, response) => { response.writeHead(200); response.end() })
+      server.once('error', reject)
+      server.listen(port, '127.0.0.1', () => { server.off('error', reject); resolve(server) })
+    })
+    const close = async (server: Server): Promise<void> => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => { if (error === undefined) resolve(); else reject(error) })
+      })
+    }
+    let server: Server | undefined = await listen(0)
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('HTTP fixture needs an allocated TCP port')
+    const port = address.port
+    const monitor = new HealthMonitor({ probes: [{ name: 'model', url: `http://127.0.0.1:${String(port)}/models` }],
+      intervalMs: 1000, timeoutMs: 1000, failureThreshold: 1, recoveryThreshold: 1,
+      noticeChannelId: CHANNEL, noticeCooldownMs: 900_000 }, {
+      fetch: globalThis.fetch, resolveCredential: async () => undefined, now: Date.now,
+      deliver: async (transition) => { await h.router.deliver(transition.channelId, transition.text, transition.id); return true },
+    })
+    try {
+      await monitor.check()
+      expect(monitor.snapshot().probes[0]?.state).toBe('healthy')
+      await close(server)
+      server = undefined
+      await monitor.check()
+      await monitor.check()
+      await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
+      server = await listen(port)
+      await monitor.check()
+      await monitor.check()
+      await vi.waitFor(() => { expect(h.posted).toHaveLength(2) })
+      expect(h.posted.map(post => post.content)).toEqual([
+        'Probe model: down (connection failed or timed out).', 'Probe model: recovered.',
+      ])
+      expect(values.size).toBe(2)
+    } finally {
+      await monitor.dispose()
+      if (server !== undefined) await close(server)
+    }
+  })
+  it('deduplicates a retried failed cron outcome in the existing outbox', async () => {
+    const { h, values } = durable()
+    attachCronDelivery(h.ctx, h.router)
+    const run = { jobName: 'brief', sessionId: 'cron-1', firedAt: 1, outcome: 'failed',
+      text: '', reportOutcome: true, deliverChannelId: CHANNEL,
+      failure: { code: 'TRANSPORT', message: 'private' }, nextFireAt: '2026-09-28T07:00:00.000Z' }
+    h.emitEvent('cron/run-finished', run)
+    h.emitEvent('cron/run-finished', run)
+    await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
+    expect(values.size).toBe(1)
+    expect(h.posted[0]?.content).toContain('brief" failed (TRANSPORT). Session: cron-1.')
+  })
   it('queues ordinary, proactive, and status replies through the same outbox', async () => {
     const { h, values } = durable({ replyText: 'First answer.' })
     h.router.handle(inbound())

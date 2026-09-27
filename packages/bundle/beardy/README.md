@@ -27,6 +27,8 @@ The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base`
 <a id="use-this-package"></a>
 ## Use this package
 
+The bundle mounts `dsh-health` with `probes: []`, so it makes no endpoint claim until a deployment patch supplies named URLs and a notice channel. No endpoint or credential is embedded in the bundle.
+
 ### Run the shipped Beardy profile
 
 The installation auto-initializes the `beardy` profile from the base, Web, and Beardy bundle layers:

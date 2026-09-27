@@ -1218,6 +1218,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'healthStatus',
+    summary: 'Read-only status of process-local probes and the latest failed cron outcome.',
+    description: 'Read-only status of process-local probes and the latest failed cron outcome.',
+    methods: [
+      {
+        signature: 'snapshot(): { probes: readonly ProbeSnapshot[]; lastCronFailure?: CronFailureSnapshot }',
+        description: 'Read bounded process-local status for human commands.',
+        parameters: [],
+        returns: 'current probe observations and the most recent failed cron fact, if any.',
+      },
+    ],
+  },
+  {
     key: 'hmr',
     summary: 'Hot reload service with Cordis-compatible module configuration and events.',
     description: 'Hot reload service with Cordis-compatible module configuration and events.',
@@ -4065,6 +4078,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.change - fresh current projection or clear tombstone.' }],
   },
   {
+    name: 'health/transition',
+    mode: 'serial',
+    signature: '\'health/transition\'(transition: { id: string; channelId: string; text: string }): true | undefined | Promise<true | undefined>',
+    summary: 'One probe state transition awaiting durable Discord outbox acceptance.',
+    description: 'One probe state transition awaiting durable Discord outbox acceptance.',
+    parameters: [{ name: 'transition', description: 'Stable identity, destination, and non-secret text.' }],
+  },
+  {
     name: 'hmr/change',
     mode: 'emit',
     signature: '\'hmr/change\'(url: string): void',
@@ -4957,12 +4978,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
   },
   {
+    name: 'CronFailureSnapshot',
+    declaration: 'export interface CronFailureSnapshot {\n    readonly jobName: string;\n    readonly sessionId: string;\n    readonly code: string;\n    readonly nextFireAt?: string;\n}',
+  },
+  {
     name: 'CronInput',
     declaration: 'export interface CronInput {\n    readonly expression: string;\n    readonly time_zone: string;\n}',
   },
   {
     name: 'CronRunFinished',
-    declaration: 'export interface CronRunFinished extends CronRunResult {\n    readonly jobName: string;\n    readonly firedAt: number;\n    readonly deliverChannelId?: string;\n    readonly reportOutcome: boolean;\n}',
+    declaration: 'export interface CronRunFinished extends CronRunResult {\n    readonly jobName: string;\n    readonly firedAt: number;\n    readonly deliverChannelId?: string;\n    readonly reportOutcome: boolean;\n    readonly nextFireAt?: string;\n}',
   },
   {
     name: 'CronRunOutcome',
@@ -5983,6 +6008,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PreToolDecision',
     declaration: 'export type PreToolDecision = {\n    kind: \'allow\';\n} | {\n    kind: \'deny\';\n    reason: string;\n    info?: ToolErrorInfo;\n} | {\n    kind: \'cancel\';\n} | {\n    kind: \'ask\';\n    reason?: string;\n    displayReason?: {\n        readonly en: string;\n        readonly [locale: string]: string;\n    };\n};',
+  },
+  {
+    name: 'ProbeSnapshot',
+    declaration: 'export interface ProbeSnapshot {\n    readonly name: string;\n    readonly state: \'unknown\' | \'healthy\' | \'down\';\n    readonly checkedAt?: number;\n    readonly cause?: string;\n}',
   },
   {
     name: 'ProductTelemetryRecord',

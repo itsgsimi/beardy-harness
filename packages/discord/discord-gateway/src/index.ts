@@ -6,6 +6,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { HealthStatus } from '@deepseek-ai/dsh-health'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -577,6 +578,21 @@ export function laneCommandCatalog(
 }
 
 /**
+ * Format bounded Host health facts for the gateway's human status reply.
+ * @param status - optional health owner from the current Host composition.
+ * @returns probe and cron-failure lines, or none without that owner.
+ */
+export function healthStatusLines(status: HealthStatus | undefined): string[] {
+  const snapshot = status?.snapshot()
+  if (snapshot === undefined) return []
+  const probes = snapshot.probes.length === 0 ? 'Probes: none configured.'
+    : `Probes: ${snapshot.probes.map(probe => `${probe.name} ${probe.state}${probe.cause === undefined ? '' : ` (${probe.cause})`}`).join(', ')}`
+  const failure = snapshot.lastCronFailure
+  return [probes, failure === undefined ? 'Last cron failure: none.'
+    : `Last cron failure: ${failure.jobName}, Session ${failure.sessionId}, ${failure.code}, next ${failure.nextFireAt ?? 'none'}.`]
+}
+
+/**
  * Mount the Discord listener: validate configuration, open the durable conversation records, own
  * one cancellation for the connection, and dispose the gateway socket and every live conversation
  * Session when the fiber goes away. Durable records survive; only live handles are released.
@@ -606,8 +622,13 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     outboxTable: domain.table('outbox'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
     commands: catalog,
+    statusDetails: () => healthStatusLines(ctx.get('healthStatus')),
   })
   attachCronDelivery(ctx, router)
+  ctx.on('health/transition', async (transition): Promise<true> => {
+    await router.deliver(transition.channelId, transition.text, transition.id)
+    return true
+  })
 
   ctx.effect(() => {
     const listening = router.recover().then(() => startListener(

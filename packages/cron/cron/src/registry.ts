@@ -402,6 +402,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
         if (activeRun === undefined) registryError(`job "${name}" has no active run to settle`)
         const pendingOutcome = { ...activeRun, ...result, sessionId: activeRun.sessionId }
         const entry = { firedAt: activeRun.firedAt, sessionId: activeRun.sessionId, outcome: result.outcome,
+          ...(result.outcome === 'interrupted' ? {} : { durationMs: Math.max(0, Date.now() - activeRun.firedAt) }),
           ...(result.failure === undefined ? {} : { failure: result.failure }) }
         await deps.stateTable.put(name, {
           ...state,

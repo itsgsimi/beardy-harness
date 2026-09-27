@@ -13,9 +13,16 @@ The package runs unattended agents on validated cron schedules. Configuration su
 
 ## Table of Contents
 
+- [Commands](#commands)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+-----
+
+## Commands
+
+`/cron status [name]` works in Discord and Web command input without a model turn. It shows the last retained outcome, Session id, elapsed duration when recorded, failure code and cause, and the next armed fire. Earlier history without duration displays `unknown`. A failed run's existing Discord outcome notice includes its job, Session id, failure code, and next fire; the scheduler sends no second failure notice.
 
 -----
 

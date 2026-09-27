@@ -332,6 +332,7 @@ describe('job registry continuity state', () => {
     ]))
     expect(await registry.recoverRuns(3)).toEqual(recovered)
     expect(stateTable.rows.get(CONFIG_JOB.name)?.lastRuns).toHaveLength(1)
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.lastRuns[0]?.durationMs).toBeUndefined()
     expect(stateTable.rows.get('removed')?.lastRuns).toHaveLength(1)
   })
 
@@ -383,10 +384,12 @@ describe('job registry continuity state', () => {
       await registry.settleRun('pr-check', { sessionId, outcome, text: '' }, 2)
       await registry.acknowledgeOutcome('pr-check', sessionId)
     }
-    expect(stateTable.rows.get('pr-check')?.lastRuns).toEqual([
+    const runs = stateTable.rows.get('pr-check')?.lastRuns
+    expect(runs?.map(({ durationMs: _duration, ...rest }) => rest)).toEqual([
       { firedAt: 3, sessionId: SessionId('c'), outcome: 'failed' },
       { firedAt: 2, sessionId: SessionId('b'), outcome: 'timed-out' },
     ])
+    expect(runs?.every(run => typeof run.durationMs === 'number' && run.durationMs >= 0)).toBe(true)
   })
 
   it('retains failure code and message in history and pending delivery across reopen', async () => {

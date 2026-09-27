@@ -203,7 +203,7 @@
       "embeds": [
         {
           "title": "/status",
-          "description": "Session: {{session:1}}\nAgent preset: beardy-discord\nPermission preset: workspace-write\nState: live\nDelivering the reply.\nQueued deliveries: 1",
+          "description": "Session: {{session:1}}\nAgent preset: beardy-discord\nPermission preset: workspace-write\nState: live\nDelivering the reply.\nQueued deliveries: 1\nProbes: none configured.\nLast cron failure: none.",
           "color": 5793266
         }
       ],

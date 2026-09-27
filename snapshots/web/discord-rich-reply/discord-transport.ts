@@ -1,6 +1,7 @@
 /** Discord's external Gateway and REST peers for the recorded Beardy conversation. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-cron'
 
 export const name = 'discord-snapshot-transport'
 
@@ -8,6 +9,7 @@ const USER_ID = '138391763999129600'
 const CHANNEL_ID = '1472404859679670455'
 const APPLICATION_ID = '1472404859679670456'
 const BOT_USER_ID = '1472404859679670480'
+const CRON_STATUS_TOKEN = 'snapshot-cron-status-token'
 const STATUS_TOKEN = 'snapshot-status-token'
 const OUTPUT_PREFIX = 'DSH_DISCORD_SNAPSHOT '
 
@@ -21,9 +23,11 @@ export function apply(ctx: Context): void {
     const originalSocket = globalThis.WebSocket
     let activeSocket: FixtureSocket | undefined
     let messageSent = false
+    let cronEnabled = false
+    let cronStatusSent = false
+    let failureSent = false
     let statusSent = false
     let nextMessage = 1
-    const statusDelivered = Promise.withResolvers<void>()
 
     const emit = (value: unknown): void => { process.stdout.write(`${OUTPUT_PREFIX}${JSON.stringify(value)}\n`) }
     const dispatch = (type: string, data: unknown): void => {
@@ -69,6 +73,7 @@ export function apply(ctx: Context): void {
         return json([{ id: '1472404859679670470', type: 1, name: 'hermes', description: 'Previous runtime' }])
       }
       if (url.pathname === `/api/v10/applications/${APPLICATION_ID}/commands` && method === 'PUT') {
+        cronEnabled = JSON.stringify(body).includes('"name":"cron"')
         if (!messageSent) {
           messageSent = true
           setImmediate(() => {
@@ -81,7 +86,18 @@ export function apply(ctx: Context): void {
         return json(body)
       }
       if (url.pathname === `/api/v10/channels/${CHANNEL_ID}/messages` && method === 'POST') {
-        if (JSON.stringify(body).includes('DISCORD_RICH_REPLY_OK') && !statusSent) {
+        if (JSON.stringify(body).includes('DISCORD_RICH_REPLY_OK') && cronEnabled && !cronStatusSent) {
+          cronStatusSent = true
+          setTimeout(() => {
+            dispatch('INTERACTION_CREATE', {
+              id: '1472404859679670458', application_id: APPLICATION_ID, token: CRON_STATUS_TOKEN,
+              type: 2, channel_id: CHANNEL_ID, channel: { id: CHANNEL_ID, type: 1 },
+              user: { id: USER_ID }, data: { name: 'cron', type: 1,
+                options: [{ name: 'arguments', type: 3, value: 'status snapshot-brief' }] },
+            })
+          }, 50)
+        }
+        if (JSON.stringify(body).includes('DISCORD_RICH_REPLY_OK') && !cronEnabled && !statusSent) {
           statusSent = true
           setImmediate(() => {
             dispatch('INTERACTION_CREATE', {
@@ -90,17 +106,40 @@ export function apply(ctx: Context): void {
               user: { id: USER_ID }, data: { name: 'status', type: 1 },
             })
           })
-          // A pending delivery remains observable until Discord acknowledges the POST.
-          await statusDelivered.promise
+        }
+        if ((body as { content?: string } | undefined)?.content?.includes('The scheduled run "snapshot-brief" failed') && !statusSent) {
+          statusSent = true
+          setImmediate(() => {
+            dispatch('INTERACTION_CREATE', {
+              id: '1472404859679670462', application_id: APPLICATION_ID, token: STATUS_TOKEN,
+              type: 2, channel_id: CHANNEL_ID, channel: { id: CHANNEL_ID, type: 1 },
+              user: { id: USER_ID }, data: { name: 'status', type: 1 },
+            })
+          })
         }
         return json({ id: String(1472404859679670460n + BigInt(nextMessage++)) })
       }
-      if (url.pathname === '/api/v10/interactions/1472404859679670458/snapshot-status-token/callback') {
+      if (url.pathname === '/api/v10/interactions/1472404859679670458/snapshot-cron-status-token/callback'
+        || url.pathname === '/api/v10/interactions/1472404859679670462/snapshot-status-token/callback'
+        || url.pathname === '/api/v10/interactions/1472404859679670458/snapshot-status-token/callback') {
         return new Response(null, { status: 204 })
+      }
+      if (url.pathname === `/api/v10/webhooks/${APPLICATION_ID}/${CRON_STATUS_TOKEN}/messages/@original`
+        && method === 'PATCH') {
+        if (!failureSent) {
+          failureSent = true
+          setImmediate(() => {
+            void ctx.serial('cron/run-finished', {
+              jobName: 'snapshot-brief', sessionId: 'snapshot-failed-run', firedAt: 1,
+              outcome: 'failed', text: '', failure: { code: 'TRANSPORT', message: 'private failure detail' },
+              nextFireAt: '2026-09-28T07:00:00.000Z', deliverChannelId: CHANNEL_ID, reportOutcome: true,
+            })
+          })
+        }
+        return json({ id: '1472404859679670459' })
       }
       if (url.pathname === `/api/v10/webhooks/${APPLICATION_ID}/${STATUS_TOKEN}/messages/@original`
         && method === 'PATCH') {
-        statusDelivered.resolve()
         setImmediate(() => { emit({ complete: true }) })
         return json({ id: '1472404859679670459' })
       }
@@ -108,7 +147,6 @@ export function apply(ctx: Context): void {
     }
     ctx.provide('discordSnapshotTransport' as never, true as never)
     return () => {
-      statusDelivered.resolve()
       activeSocket?.close()
       globalThis.fetch = originalFetch
       globalThis.WebSocket = originalSocket

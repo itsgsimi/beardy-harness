@@ -2185,6 +2185,9 @@ importers:
       '@deepseek-ai/dsh-discord-gateway':
         specifier: workspace:^
         version: link:../../discord/discord-gateway
+      '@deepseek-ai/dsh-health':
+        specifier: workspace:*
+        version: link:../../health/health
       '@deepseek-ai/dsh-session-query-sqlite':
         specifier: workspace:^
         version: link:../../session-query/session-query-sqlite
@@ -7257,6 +7260,9 @@ importers:
       '@deepseek-ai/dsh-cron':
         specifier: workspace:^
         version: link:../../cron/cron
+      '@deepseek-ai/dsh-health':
+        specifier: workspace:*
+        version: link:../../health/health
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../llm/llm
@@ -9082,6 +9088,28 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+
+  packages/health/health:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:~
+        version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-credentials':
+        specifier: workspace:*
+        version: link:../../credentials/credentials
+      '@deepseek-ai/dsh-cron':
+        specifier: workspace:*
+        version: link:../../cron/cron
 
   packages/hooks/hook-protocol:
     devDependencies:

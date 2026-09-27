@@ -889,7 +889,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-discord-gateway`
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
-- `source`: [`packages/discord/discord-gateway/src/index.ts:94`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:95`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -1503,6 +1503,47 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-headless -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-health -->
+<a id="deepseek-aidsh-health"></a>
+
+## `@deepseek-ai/dsh-health`
+
+- `inject`: `credentials`
+- `source`: [`packages/health/health/src/index.ts:31`](../packages/health/health/src/index.ts)
+
+```ts config-catalog
+/** Health polling and notification bounds. */
+export interface Config {
+  /** Explicit targets; the empty default performs no network requests. */
+  readonly probes?: ProbeConfig[]
+  /** Delay after one complete poll before the next, in milliseconds. */
+  readonly intervalMs?: number
+  /** Deadline for each HTTP request, in milliseconds. */
+  readonly timeoutMs?: number
+  /** Consecutive failures required to mark an unknown or healthy probe down. */
+  readonly failureThreshold?: number
+  /** Consecutive successes required to mark a down probe healthy. */
+  readonly recoveryThreshold?: number
+  /** Discord channel that receives transition notices; absent means status only. */
+  readonly noticeChannelId?: string
+  /** Minimum time between accepted notices of the same kind for one probe, in milliseconds. */
+  readonly noticeCooldownMs?: number
+}
+
+/** One operator-selected endpoint; the URL is never inferred from a model provider. */
+export interface ProbeConfig {
+  /** Unique operator-facing label used in status and notices. */
+  readonly name: string
+  /** Explicit HTTP(S) target queried with GET. */
+  readonly url: string
+  /** Credential reference resolved as a bearer token for this request. */
+  readonly credentialRef?: string
+  /** Exact successful HTTP response status; defaults to 200. */
+  readonly expectedStatus?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-health -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hmr -->
 <a id="deepseek-aidsh-hmr"></a>

@@ -66,6 +66,8 @@ export const runHistoryEntry = z.object({
   sessionId: z.string(),
   /** How the run ended. */
   outcome: z.enum(['answered', 'no-text-answer', 'timed-out', 'failed', 'interrupted']),
+  /** Elapsed milliseconds from the accepted fire to settlement; absent for interrupted recovery and earlier records. */
+  durationMs: z.number().int().min(0).optional(),
   /** Failure details are optional so existing history remains readable. */
   failure: z.object({ code: z.string(), message: z.string() }).optional(),
 })
