@@ -60,7 +60,7 @@ const result = await ctx.web.search({ query: 'deepseek harness', maxResults: 8 }
 const page = await ctx.web.fetch({ url: 'https://example.com' })
 ```
 
-Both calls accept an optional `AbortSignal` that is forwarded to the provider for cancellation. The normalized request and result shapes are the contract callers build on; the vocabulary section of the [web subsystem](../../../docs/subsystems/web.md) reference describes them exhaustively.
+Long-running consumers can call `ctx.web.assertAvailable()` before accepting work to resolve both selected providers. Both calls accept an optional `AbortSignal` that is forwarded to the provider for cancellation. The normalized request and result shapes are the contract callers build on; the vocabulary section of the [web subsystem](../../../docs/subsystems/web.md) reference describes them exhaustively.
 
 ### Provider selection
 

@@ -41,6 +41,8 @@ kind: "package-reference"
 
 `listCandidates(agent, query?, limit?)` 列出除 agent 自身外的会话，按 id、工作目录、投影标题或显示标题做不区分大小写的过滤，并把同目录会话排在前面。每个候选的 `label` 使用最新标题；标题缺失或不可读时回退到会话 id。显示标题优先使用 subagent 的持久创建 label，再回退到该标题。候选还会报告其工作目录是否就是发起方 agent 的工作目录，宿主因此可以只在位置能区分该行时才显示它。浏览器消费方通过 `ctx.remote.sessionReferenceResolver.candidates` 调用同一发现能力；该方法在 `displayTitle` 存在时用它标记规范 mention。
 
+父 ID 以 `rp-native-` 开头的研究阶段子 Session 不会出现在候选列表中；按明确 Session ID 仍可读取其日志。
+
 ### 配置
 
 | 字段 | 默认值 | 含义 |

@@ -1,6 +1,6 @@
-/** Exercise real feedback services before the SDK closes the recorded root turn. */
+/** Exercise feedback services and research run events before the SDK closes the recorded root turn. */
 export const name = 'snapshot-feedback-producer'
-export const inject = ['commands', 'messageFeedback', 'sessionFeedback']
+export const inject = ['agents', 'sessions', 'commands', 'messageFeedback', 'sessionFeedback']
 
 /**
  * @param {import('@deepseek-ai/cordis').Context} ctx - Composed runtime services.
@@ -25,5 +25,24 @@ export function apply(ctx) {
     if (JSON.stringify(agent.session.deriveMessages()) !== JSON.stringify(messages)) {
       throw new Error('feedback changed model-visible messages')
     }
+    const run = await ctx.agents.create({ sessionId: 'rp-native-sdk-probe', meta: { cwd: agent.session.header.cwd } })
+    try {
+      const session = run.agent.session
+      session.append('research/started', {
+        id: 'rp-native-sdk-probe', owner: { kind: 'session', sessionId: agent.session.id }, callerSessionId: agent.session.id,
+        query: 'SDK event projection', provider: 'fixture', model: 'fixture', createdAt: 0,
+      })
+      session.append('research/checkpoint', { round: 1, elapsedMs: 1, queries: ['SDK event projection'] })
+      session.append('research/search', { round: 1, query: 'SDK event projection', status: 'error', urls: [], reason: 'fixture outage' })
+      session.append('research/source', { round: 1, requestedUrl: 'https://example.com/research', status: 'error', retrievedAt: 0,
+        reason: 'fixture outage' })
+      session.append('research/finding', { round: 1, url: 'https://example.com/research', accepted: false,
+        reason: 'no fetched text' })
+      session.append('research/finished', { phase: 'failed', reason: 'fixture outage', finishedAt: 1 })
+      if (!await ctx.sessions.flush(session)) throw new Error('research SDK fixture has no durability provider')
+    } finally {
+      await run.dispose()
+    }
+    agent.session.append('research/linked', { id: 'rp-native-sdk-probe' })
   })
 }

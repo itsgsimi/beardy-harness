@@ -324,6 +324,15 @@ describe('package payload constraints', () => {
       .toEqual([expect.stringContaining('package.json files must be')])
   })
 
+  it('ships the shared web converter and rejects its omission', () => {
+    const dir = 'packages/web/tool-web'
+    const manifest = JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
+    expect(checkWorkspaceManifest({ dir, manifest })).toEqual([])
+    expect(checkWorkspaceManifest({ dir, manifest: {
+      ...manifest, files: manifest.files!.filter(file => file !== 'lib/conversion.js'),
+    } })).toEqual([expect.stringContaining('package.json files must be')])
+  })
+
   it('includes a declared profile patch without a package-name allowlist', () => {
     expect(expectedDshPackageFiles({
       name: '@deepseek-ai/dsh-private-profile',

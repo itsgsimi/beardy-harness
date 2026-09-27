@@ -19,7 +19,7 @@ import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import type {} from '@deepseek-ai/dsh-session-title'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
-import type { SessionRecord, SessionSurfaceSnapshot } from '@deepseek-ai/dsh-session-query'
+import { isResearchStageSession, type SessionRecord, type SessionSurfaceSnapshot } from '@deepseek-ai/dsh-session-query'
 import { prepareReferenceOmission, REFERENCE_WARNING } from './spill.ts'
 import {
   DEFAULT_CANDIDATE_LIMIT,
@@ -200,7 +200,7 @@ export class SessionReferenceResolver extends TypertRemoteService {
     const targetCwd = agent.session.header.cwd
     assertNotCancelled(signal)
     const records = (await settleWithCancellation(this.ctx.sessionQuery.listSessions(signal), signal))
-      .filter(record => record.header.id !== agent.id)
+      .filter(record => record.header.id !== agent.id && !isResearchStageSession(record.header))
       .map((record, index) => ({ record, index }))
     const labelled = records.map(({ record, index }) => ({ record, index, ...this.projectedLabels(record) }))
     return labelled.filter(({ record, label, displayTitle }) => {

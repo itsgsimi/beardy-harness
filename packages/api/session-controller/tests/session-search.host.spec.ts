@@ -94,6 +94,26 @@ function installSearchQuery(
 }
 
 describe('session.search', () => {
+  it('hides research stage children from list and search while retaining exact reads', async () => {
+    const ctx = await baseContext()
+    const stage = ctx.sessions.create(sid('stage'), { meta: {
+      ...header('stage', '/project'), parentSession: sid('rp-native-run'),
+    } })
+    const ordinary = ctx.sessions.create(sid('ordinary'), { meta: {
+      ...header('ordinary', '/project'), parentSession: sid('ordinary-parent'),
+    } })
+    const searchSessions = vi.fn(() => Promise.resolve({ items: [
+      { ...hit('stage'), header: stage.header },
+      { ...hit('ordinary'), header: ordinary.header },
+    ] }))
+    installSearchQuery(ctx, searchSessions)
+    const list = new ApiSessionList(ctx)
+    expect((await list.list()).map(item => item.sessionId)).toEqual(['ordinary'])
+    expect(await ctx.sessionQuery.readSession(stage.id)).toMatchObject({ session: { parentSession: sid('rp-native-run') } })
+    expect(await list.search('match', new AbortController().signal)).toMatchObject({ items: [{ sessionId: ordinary.id }] })
+    await ctx.fiber.dispose()
+  })
+
   it('rejects search when the query service is absent', async () => {
     const ctx = await baseContext()
     const list = new ApiSessionList(ctx)

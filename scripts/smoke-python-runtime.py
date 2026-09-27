@@ -114,7 +114,7 @@ ADVANCED_SNAPSHOT_DIRECTORY = (
     Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "advanced"
 )
 ADVANCED_SNAPSHOT_FILENAMES = (
-    "result.json", "session.v3.jsonl", "session.1.v3.jsonl", "session.2.v3.jsonl",
+    "result.json", "session.v3.jsonl", "session.1.v3.jsonl", "session.2.v3.jsonl", "session.3.v3.jsonl",
 )
 MINIMAL_SNAPSHOT_DIRECTORY = (
     Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "minimal"
@@ -1559,9 +1559,9 @@ def smoke_sdk_snapshot(base_url: str, executable: Path, update_snapshots: bool) 
 
         logs = read_session_logs(sessions)
         child_ids = snapshot_child_ids(result)
-        expected_ids = {SNAPSHOT_SESSION_ID, *child_ids}
+        expected_ids = {SNAPSHOT_SESSION_ID, *child_ids, "rp-native-sdk-probe"}
         if set(logs) != expected_ids:
-            raise AssertionError(f"advanced snapshot expected parent plus two child logs: {sorted(logs)}")
+            raise AssertionError(f"advanced snapshot expected parent, two children, and research run logs: {sorted(logs)}")
         if "DIRECT_CHILD_OK" not in render_jsonl(logs[child_ids[0]]):
             raise AssertionError("first advanced child log has no direct-subagent result")
         if "WORKFLOW_CHILD_OK" not in render_jsonl(logs[child_ids[1]]):
@@ -2220,7 +2220,7 @@ def build_snapshot_files(
     child_ids: list[str],
     cwd: Path,
 ) -> dict[str, str]:
-    """Render the SDK result and three persisted logs into stable expected outputs."""
+    """Render the SDK result and its persisted Session roles into stable expected outputs."""
     replacements = [(str(cwd), "{{cwd}}"), (SNAPSHOT_SESSION_ID, "{{parent}}")]
     replacements.append((snapshot_workflow_run_id(result), "{{workflow-run}}"))
     for index, child_id in enumerate(child_ids, start=1):
@@ -2280,6 +2280,13 @@ def build_snapshot_files(
         files[snapshot_session_filename(
             index, session_header_version(child_content, f"advanced child {index}"),
         )] = child_content
+    research_records = project_session_snapshot([
+        normalize_snapshot_value(record, replacements) for record in logs["rp-native-sdk-probe"]
+    ])
+    research_content = render_jsonl(research_records)
+    files[snapshot_session_filename(
+        3, session_header_version(research_content, "advanced research run"),
+    )] = research_content
     return files
 
 

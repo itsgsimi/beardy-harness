@@ -9,6 +9,7 @@ import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import {
+  isResearchStageSession,
   SessionQueryError,
   type SessionEventSearchPage,
   type SessionEventSurface,
@@ -98,7 +99,9 @@ async function executeSessionSearch(
         eventFilters,
         ...cursor === undefined ? {} : { cursor },
       }, { signal: exec.signal })),
-    hit => hit.header.id !== caller.id && workspaceAccess.recordAuthorized(hit, caller),
+    hit => hit.header.id !== caller.id
+      && (requestedParentIds !== undefined || !isResearchStageSession(hit.header))
+      && workspaceAccess.recordAuthorized(hit, caller),
   )
 
   const parentIds = collected.items

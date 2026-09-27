@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-session-backed-research-runs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.md
+/agent-note-session-backed-native-research-runs:
+  en: ec32b293d730b736
+  zh: 7a13d7f0d58619dc
+/agent-note-session-backed-native-research-runs/problem:
+  en: 2de4077138bfb939
+  zh: 5111fa7acdcc6ee0
+/agent-note-session-backed-native-research-runs/decision:
+  en: bd0843c070bc8328
+  zh: bd178d237bb4035e
+/agent-note-session-backed-native-research-runs/alternatives-considered:
+  en: 1a029b35e573c7a4
+  zh: d4feda23ba055873
+/agent-note-session-backed-native-research-runs/consequences:
+  en: 6c7e3c7700cab575
+  zh: e728eb3a6e94276d

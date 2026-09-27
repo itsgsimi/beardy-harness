@@ -251,6 +251,20 @@ function errorCode(result: ToolExecutionResult): string | undefined {
   return result.isError ? result.error.info?.code : undefined
 }
 
+it('omits research stage children from default session_search but allows an explicit parent search', async () => {
+  const mounted = await mount()
+  const parent = createSession(mounted.ctx, 'rp-native-run', '/work')
+  FakeQuery.sessionSearch = () => Promise.resolve({ items: [
+    sessionHit('stage', '/work', 'research detail', parent.id),
+    sessionHit('ordinary', '/work', 'other detail'),
+  ] })
+  const ordinary = text(await mounted.call('session_search', { query: 'detail' }))
+  expect(ordinary).not.toContain('Session stage')
+  expect(ordinary).toContain('Session ordinary')
+  const explicit = text(await mounted.call('session_search', { query: 'detail', parent_session_ids: [parent.id] }))
+  expect(explicit).toContain('Session stage')
+})
+
 describe('registration and schemas', () => {
   it('registers the five cursor-free tools, prompt, timeouts, and pure generic presenters, then disposes them', async () => {
     const mounted = await mount({ maxSearchResults: 7, searchTimeoutMs: 1234 })

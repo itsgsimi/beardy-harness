@@ -647,6 +647,9 @@ describe('session reference discovery and preparation', () => {
     const target = ctx.sessions.create(SessionId('target'), { meta: { cwd: '/same', createdAt: 10 } })
     ctx.sessions.create(SessionId('other'), { meta: { cwd: '/else', createdAt: 40 } })
     ctx.sessions.create(SessionId('none'), { meta: { createdAt: 30 } })
+    const researchStage = ctx.sessions.create(SessionId('research-stage'), { meta: {
+      cwd: '/same', parentSession: SessionId('rp-native-run'), createdAt: 35,
+    } })
     ctx.sessions.create(SessionId('same'), { meta: { cwd: '/same', createdAt: 20 } })
     const sameLater = ctx.sessions.create(SessionId('same-later'), { meta: { cwd: '/same', createdAt: 25 } })
     sameLater.append('session/title', {
@@ -667,6 +670,7 @@ describe('session reference discovery and preparation', () => {
     await expect(ctx.sessionReferenceResolver.listCandidates(fakeAgent(target), 'LATEST', 1)).resolves.toEqual([
       { sessionId: SessionId('same-later'), label: 'Latest title', displayTitle: 'Latest title', cwd: '/same', sameWorkspace: true, createdAt: 25 },
     ])
+    await expect(ctx.sessionQuery.readSession(researchStage.id)).resolves.toMatchObject({ session: { id: researchStage.id } })
     await expect(ctx.sessionReferenceResolver.listCandidates(fakeAgent(target), '', 0))
       .rejects.toThrow(expectCode('SESSION_REFERENCE_INVALID_REFERENCE'))
 

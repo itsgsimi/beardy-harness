@@ -115,6 +115,17 @@ export class WebRuntime extends Service {
     return this.registerProvider(this.fetchProviders, provider)
   }
 
+  /**
+   * Resolve both selected capabilities before a long-running consumer admits work.
+   * @throws when either configured provider is absent, unusable, or ambiguous.
+   */
+  assertAvailable(): void {
+    resolveProvider({ providers: this.searchProviders,
+      ...this.searchProviderId === undefined ? {} : { configuredId: this.searchProviderId } })
+    resolveProvider({ providers: this.fetchProviders,
+      ...this.fetchProviderId === undefined ? {} : { configuredId: this.fetchProviderId } })
+  }
+
   private registerProvider<P extends { readonly id: string }>(store: Map<string, P>, provider: P): () => void {
     if (store.has(provider.id)) {
       throw new WebError(`a web provider with id "${provider.id}" is already registered`, 'WEB_DUPLICATE_PROVIDER')

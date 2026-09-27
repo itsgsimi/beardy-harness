@@ -111,7 +111,7 @@ The package is built on one separation and one registration rule:
 
 ### Fetch flow
 
-`web_fetch` removes active and hidden HTML before a shared turndown converter renders GFM tables and strikethrough. A lexical nesting guard and conversion failures produce a fixed omission marker instead of returning unsafe raw HTML, and a synchronous conversion cap bounds DOM work. The complete output — header, untrusted-content notice, rendered body, and truncation footer — is then bounded as a whole. Conversion is memoized per result and cap so registry render and presentation share one parse.
+`web_fetch` removes active and hidden HTML before a shared turndown converter renders GFM tables and strikethrough. The converter is exported from `@deepseek-ai/dsh-tool-web/conversion` for the research provider's fetched pages. A lexical nesting guard and conversion failures produce a fixed omission marker instead of returning unsafe raw HTML, and a synchronous conversion cap bounds DOM work. The complete output — header, untrusted-content notice, rendered body, and truncation footer — is then bounded as a whole. Conversion is memoized per result and cap so registry render and presentation share one parse.
 
 ### Presentation
 

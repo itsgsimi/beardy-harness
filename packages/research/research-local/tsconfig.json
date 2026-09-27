@@ -1,0 +1,19 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cosmokit" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../core/agent" },
+    { "path": "../../attachment/attachment" },
+    { "path": "../research" },
+    { "path": "../../core/session" },
+    { "path": "../../session/session-persistence" }
+    ,{ "path": "../../web/web" }
+    ,{ "path": "../../web/tool-web" }
+    ,{ "path": "../../llm/llm" }
+    ,{ "path": "../../core/tools" }
+  ]
+}
