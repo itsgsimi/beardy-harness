@@ -13,7 +13,7 @@ import type { Response } from 'undici'
 import { proxyRouteFor } from '@deepseek-ai/dsh-http-proxy'
 import { isNonPublicIpLiteral, publicHttpNetwork } from './network.ts'
 import type { PublicAddress } from './network.ts'
-import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
+import { assertHostNotBlocked, classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
 
 /** Resolved provider limits (the plugin's schemastery Config supplies defaults). */
 export interface HttpFetchLimits {
@@ -27,6 +27,8 @@ export interface HttpFetchLimits {
   maxRedirects: number
   /** `User-Agent` header sent on every request. */
   userAgent: string
+  /** Canonical hostnames refused, with their subdomains, before any network access. */
+  blockedHosts: readonly string[]
 }
 
 /** Resolve one hostname to an already policy-validated address set. */
@@ -65,6 +67,7 @@ export class HttpFetchProvider implements WebFetchProvider {
   /** Follow same-origin redirects up to the hop cap, then read the final response. */
   private async followAndRead(initialUrl: string, signal: AbortSignal): Promise<WebFetchResult> {
     let currentUrl = validateFetchUrl(initialUrl)
+    assertHostNotBlocked(currentUrl, this.limits.blockedHosts)
     let redirectsFollowed = 0
 
     for (;;) {
@@ -91,6 +94,7 @@ export class HttpFetchProvider implements WebFetchProvider {
           let validatedTarget: URL
           try {
             validatedTarget = validateFetchUrl(target.toString())
+            assertHostNotBlocked(validatedTarget, this.limits.blockedHosts)
             if (!isSameOrigin(validatedTarget, currentUrl)) {
               throw new WebError(
                 `cross-origin redirect to ${validatedTarget.origin} is not followed automatically; retry against that URL directly`,
