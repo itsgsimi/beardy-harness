@@ -36,6 +36,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`research/`](research/README.zh.md) | 以 Session 保存的研究运行与存储 |
 | [`schedule/`](schedule/README.zh.md) | Host 拥有的定时后续操作 |
 | [`health/`](health/README.zh.md) | 显式端点探测与 Host 状态 |
+| [`homelab/`](homelab/README.zh.md) | Beardy 提供的只读家庭网络观测 |
 | [`feedback/`](feedback/README.zh.md) | 人类反馈的采集与命令 |
 | [`identity/`](identity/README.zh.md) | 共享匿名身份 |
 | [`llm/`](llm/README.zh.md) | LLM（大语言模型）能力系列：抽象服务 + 提供方适配器 |

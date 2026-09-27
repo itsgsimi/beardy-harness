@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-homelab-read-only-tool.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-homelab-read-only-tool.md
+/agent-note-read-only-beardy-home-lab-tool:
+  en: 1e53410dca698af7
+  zh: 4a98f331b98ad46d
+/agent-note-read-only-beardy-home-lab-tool/problem:
+  en: 8c2bcf411b90e670
+  zh: d5a8a8d0f16be7c5
+/agent-note-read-only-beardy-home-lab-tool/decision:
+  en: d33268c43ead628e
+  zh: 1f0e5dc0f9391aef
+/agent-note-read-only-beardy-home-lab-tool/alternatives-considered:
+  en: b8b4648589b6e389
+  zh: 60429d1a90f555ca
+/agent-note-read-only-beardy-home-lab-tool/consequences:
+  en: 1a3c678a0db060c2
+  zh: f9a23c9cbb46f81a

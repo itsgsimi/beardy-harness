@@ -36,6 +36,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`research/`](research/README.md) | Session-backed research runs and storage |
 | [`schedule/`](schedule/README.md) | Host-owned scheduled follow-ups |
 | [`health/`](health/README.md) | Explicit endpoint probes and Host status |
+| [`homelab/`](homelab/README.md) | Beardy-backed read-only home-network observations |
 | [`feedback/`](feedback/README.md) | Human feedback capture and command |
 | [`identity/`](identity/README.md) | Shared anonymous identity |
 | [`llm/`](llm/README.md) | LLM capability family: abstract service + provider adapters |

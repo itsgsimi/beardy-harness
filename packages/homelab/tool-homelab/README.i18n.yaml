@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/homelab/tool-homelab/README.md
+/:
+  en: 5610bbfe40c296b4
+  zh: f317ba4fefadc4ff
+/deepseek-ai-dsh-tool-homelab:
+  en: a05ec1a227273387
+  zh: 8fc012dbce966e44
+/deepseek-ai-dsh-tool-homelab/summary:
+  en: 7e66e1facb72f667
+  zh: 6bc5018553e7ed24
+/deepseek-ai-dsh-tool-homelab/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: fcb8aebace5f460f
+/deepseek-ai-dsh-tool-homelab/use-this-package:
+  en: 82e7794b86b2196f
+  zh: 9e9b077dca2e8aeb
+/deepseek-ai-dsh-tool-homelab/understand-the-implementation:
+  en: c43c4598f14d8be5
+  zh: 093517bc671ffd58
+/deepseek-ai-dsh-tool-homelab/further-exploration:
+  en: f6fb24e70b77c179
+  zh: b4c655cf13e7d921
+/deepseek-ai-dsh-tool-homelab/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-homelab/model-experience/home-lab-request:
+  en: dcecd99dcf1b421d
+  zh: 2bbb95fbf8eeba0e
+/deepseek-ai-dsh-tool-homelab/model-experience/home-lab-request/what-the-model-sees:
+  en: 45a017acc01b5f2f
+  zh: 8ec39618db89d081
+/deepseek-ai-dsh-tool-homelab/model-experience/home-lab-request/token-effect:
+  en: 69d7f3443e9d55bb
+  zh: 8050fe6ca6afd49f
+/deepseek-ai-dsh-tool-homelab/model-experience/home-lab-request/kv-cache-effect:
+  en: 21a4cf22b2968b1a
+  zh: 7d2cdaf3253f0cb7
+/deepseek-ai-dsh-tool-homelab/known-limitations-and-deferred-work:
+  en: d30a0353cb8a8451
+  zh: 83950ff39ce27815
+/deepseek-ai-dsh-tool-homelab/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: d1f52727398603a0

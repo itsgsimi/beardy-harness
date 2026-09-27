@@ -53,6 +53,7 @@
     "@deepseek-ai/dsh-local-model-control": "workspace:*",
     "@deepseek-ai/dsh-log-exporter": "workspace:*",
     "@deepseek-ai/dsh-tool-weather": "workspace:*",
+    "@deepseek-ai/dsh-tool-homelab": "workspace:*",
     "@deepseek-ai/dsh-subagent-dsh-sdk": "workspace:*",
     "@deepseek-ai/dsh-research": "workspace:*",
     "@deepseek-ai/dsh-research-local": "workspace:*",
