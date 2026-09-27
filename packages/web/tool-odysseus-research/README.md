@@ -24,6 +24,8 @@ English | [中文](README.zh.md)
 
 Beardy includes a disabled `tool-odysseus-research` row. Enable it in the personal profile patch with all required values. Other profiles insert a row naming this package. Odysseus must support the `research:read` and `research:run` token scopes; browser-only research routes reject bearer starts. Store the token through the [credential provider](../../credentials/credentials-local/README.md), never in model input.
 
+The bridge and native [`deep_research`](../../research/tool-research/README.md) tool are mutually exclusive at load. The [Beardy switch](../../bundle/beardy/README.md#select-native-deep-research) disables this row while enabling the native provider and tool.
+
 ```yaml
 - id: tool-odysseus-research
   disabled: false
@@ -55,7 +57,7 @@ Replace the example endpoint and model ids with the values registered in Odysseu
 | `list` | Optional title-search `query` | Active jobs and up to 20 saved reports |
 | `cancel` | `id` | Whether cancellation was requested, not a claim that execution has stopped |
 
-Read operations return JSON containing `text`, `next_offset`, and `total_chars`. Their `text` is a page of a JSON document; concatenate pages in order before parsing it. Pass each non-null `next_offset` back as `offset`. Offsets count Unicode characters. Status and list may change between reads; paging does not freeze the remote response. Missing reports, rejected tokens, and HTTP failures produce tool errors. Redirects are rejected, requests are never retried automatically, and the deadline includes response-body reads.
+Read operations return JSON containing `text`, `next_offset`, and `total_chars`. Their `text` is a page of a JSON document; concatenate pages in order before parsing it. Pass each non-null `next_offset` back as `offset`. The [research definition](../../research/research/README.md#understand-the-implementation) owns the Unicode-character paging format shared with the native tool. Status and list may change between reads; paging does not freeze the remote response. Missing reports, rejected tokens, and HTTP failures produce tool errors. Redirects are rejected, requests are never retried automatically, and the deadline includes response-body reads.
 
 Cancelling an HTTP call or unloading the plugin leaves remote jobs alive. Keep the returned id, check `list` after an ambiguous start failure before retrying, and use `cancel` to stop unwanted work. Read reports again after a Harness restart using the recorded id. No runtime invariant companion is published: this stateless bridge owns no independently observable job registry; Odysseus owns job state.
 

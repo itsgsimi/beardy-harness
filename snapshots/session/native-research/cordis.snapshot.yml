@@ -1,0 +1,47 @@
+# Keyless research composition uses the same fixture providers in replay.
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+  disabled: true
+
+- insert:
+    - id: llm-replay
+      name: '@deepseek-ai/dsh-llm-replay'
+      config:
+        providers:
+          - id: deepseek-official
+            name: DeepSeek
+            models:
+              - id: deepseek-v4-pro
+
+    - id: native-research-web-fixture
+      name: './web-fixture.mjs'
+
+    - id: native-research-local-fixture
+      name: './research-fixture.mjs'
+      config:
+        provider: deepseek-official
+        model: deepseek-v4-pro
+        ownerScope: profile
+        ownerNamespace: native-research-snapshot
+        maxRounds: 1
+        minRounds: 1
+        maxEmptyRounds: 1
+        firstRoundQueries: 1
+        laterRoundQueries: 1
+        searchResultsPerQuery: 1
+        maxPagesPerRound: 1
+        maxTotalPages: 1
+        reportPageChars: 120
+
+    - id: tool-research
+      name: '@deepseek-ai/dsh-tool-research'
+
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: native-research-fixture
+    fetchProvider: native-research-fixture
+
+- id: web-fetch-http
+  name: '@deepseek-ai/dsh-web-fetch-http'
+  disabled: true

@@ -6,6 +6,7 @@
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { researchPageOutput } from '@deepseek-ai/dsh-research'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { requestResearch } from './request.ts'
 
@@ -85,6 +86,9 @@ export const Config: z<Config> = z.object({
  * @param config - validated deployment choices and request bounds.
  */
 export function apply(ctx: Context, config: Config): void {
+  if (ctx.tools.schemas().some(schema => schema.name === 'deep_research')) {
+    throw new Error('tool-odysseus-research: disable deep_research before mounting the Odysseus bridge')
+  }
   // Cordis has validated the entry and wrapped the volatile selection before apply.
   const resolved = config as ResolvedConfig
   const url = new URL(resolved.baseURL)
@@ -130,26 +134,7 @@ export function apply(ctx: Context, config: Config): void {
       id: { type: 'string', description: 'Odysseus research id; required for status, report, and cancel.' },
       offset: { type: 'integer', description: 'Unicode character offset for the next response page; defaults to zero. Only report, status, and list accept it.' },
     },
-    output: {
-      schema: {
-        type: 'object', additionalProperties: false,
-        properties: {
-          text: { type: 'string', required: true },
-          artifact: {
-            type: 'object', additionalProperties: false,
-            properties: {
-              id: { type: 'string', required: true }, markdown: { type: 'string', required: true },
-              sources: { type: 'array', required: true, items: {
-                type: 'object', additionalProperties: false,
-                properties: { url: { type: 'string', required: true }, title: { type: 'string' } },
-              } },
-            },
-          },
-        },
-      },
-      render: (_args, value) => [{ type: 'text', text: value.text }],
-      presentationMeta: (_args, value) => value.artifact === undefined ? {} : { researchArtifact: value.artifact },
-    },
+    output: researchPageOutput,
     async execute(args, exec) {
       const credential = await ctx.credentials.resolve(credentialRef(resolved.tokenEnv))
       if (credential === undefined || credential.value.length === 0) {

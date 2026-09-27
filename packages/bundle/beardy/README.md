@@ -7,7 +7,7 @@ kind: "package-bundle"
 
 English | [中文](README.zh.md)
 
-Odysseus deep research is opt-in: enable the disabled `tool-odysseus-research` row in your personal profile patch and select its server, research token, endpoint, model, and budget using the [research bridge configuration](../../web/tool-odysseus-research/README.md).
+Beardy keeps the Odysseus research bridge as its selected opt-in path. Native `deep_research` is available through a [single profile patch switch](#select-native-deep-research); the two tools cannot mount together.
 
 ## Summary
 
@@ -39,6 +39,29 @@ dsh --profile beardy
 ```
 
 The profile uses live patch reload, stores the dedicated derived search index at `$DSH_HOME/session-search.sqlite`, and opens SQLite when the first search runs. The profile's own and home-level patch files can replace these rows with the normal profile-layer rules.
+
+<a id="select-native-deep-research"></a>
+### Select native deep research
+
+Beardy ships the `tool-odysseus-research` bridge row and the native `research-local` and `tool-research` rows disabled. An existing personal profile can keep its configured bridge enabled. To select the native engine, put these three replacements in `$DSH_HOME/profiles/beardy/cordis.patch.yml`, replacing the existing bridge row there if present:
+
+```yaml
+- id: tool-odysseus-research
+  disabled: true
+
+- id: research-local
+  disabled: false
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+    ownerScope: profile
+    ownerNamespace: beardy
+
+- id: tool-research
+  disabled: false
+```
+
+The provider and model must name an admitted LLM route. The profile namespace grants every Session in this single-user Beardy profile access to its runs; use `ownerScope: session` when reports must stay with one caller Session. The [native tool](../../research/tool-research/README.md) exposes `deep_research` and paged reports. To keep using Odysseus, enable its bridge row with the [required remote configuration](../../web/tool-odysseus-research/README.md). Mounting both tools fails at load.
 
 Beardy sends `web_search` to the SearXNG JSON endpoint at `http://127.0.0.1:8080` by default. Set `SEARXNG_BASE_URL` before launch to use another instance, and enable the `json` format in that instance's `search.formats` configuration. See the [SearXNG provider README](../../web/web-search-searxng/README.md) and [SearXNG Search API](https://docs.searxng.org/dev/search_api.html) for the endpoint contract.
 

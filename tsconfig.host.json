@@ -447,6 +447,7 @@
     { "path": "./packages/jobs/jobs-local" },
     { "path": "./packages/research/research" },
     { "path": "./packages/research/research-local" },
+    { "path": "./packages/research/tool-research" },
     { "path": "./packages/jobs/tool-jobs" },
     { "path": "./packages/experimental/agent-team" },
     { "path": "./packages/experimental/agent-team-profile" },

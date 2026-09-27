@@ -47,11 +47,14 @@ kind: "package-reference"
 
 抽象服务声明按所有者隔离的操作。`ResearchRunId` 是品牌化字符串；序列化后的值也是运行 Session ID。运行 Session 记录开始、搜索与来源结果、规范化发现、检查点和终态；调用方 Session 记录 `research/linked`。Session 事件映射要求能够理解这些事件的 Harness 在读取时识别其类型。可信调用方可以选择通用报告类别；本地提供方在专用工作流存在之前拒绝 `fantasy_football`。
 
+原生研究工具和 Odysseus 研究工具使用本包的分页格式化函数与输出 schema。页面按 Unicode 码点切分序列化 JSON，报告 `next_offset` 和 `total_chars`，并且只在调用方提供完整报告产物时携带它。两个工具都在分页前验证偏移量；超过序列化响应长度的偏移量会失败。
+
 本包仅声明类型和抽象服务，不拥有可变运行时状态，因此不发布运行时不变式配套插件。
 
 | 源码 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 服务方法和运行 ID 接纳 |
+| [`src/page.ts`](src/page.ts) | 共享 JSON 分页与工具输出 schema |
 | [`src/types.ts`](src/types.ts) | 所有者、视图、报告和持久事件类型 |
 
 </details>

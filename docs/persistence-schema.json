@@ -82034,7 +82034,7 @@
         "packages/research/research/src/types.ts#ResearchFinished"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:154"
+        "packages/research/research/src/types.ts:156"
       ]
     },
     {
@@ -83081,7 +83081,7 @@
         "packages/research/research/src/types.ts#ResearchStarted"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:121"
+        "packages/research/research/src/types.ts:123"
       ]
     },
     {
@@ -95589,7 +95589,7 @@
         "packages/research/research/src/types.ts#ResearchLinked"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:137"
+        "packages/research/research/src/types.ts:139"
       ]
     },
     {
@@ -99252,7 +99252,7 @@
         "packages/research/research/src/types.ts#ResearchCheckpoint"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:142"
+        "packages/research/research/src/types.ts:144"
       ]
     },
     {

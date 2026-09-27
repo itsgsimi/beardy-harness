@@ -3,6 +3,7 @@
  * @module @deepseek-ai/dsh-tool-odysseus-research/request
  */
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import { paginateResearchResponse } from '@deepseek-ai/dsh-research'
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import type { Config } from './index.ts'
 
@@ -153,11 +154,5 @@ export async function requestResearch(
     default:
       throw new Error('Unknown Odysseus research action')
   }
-  const text = Array.from(JSON.stringify(result))
-  if (offset > text.length) throw new Error('offset exceeds the response length')
-  const end = Math.min(offset + config.pageChars, text.length)
-  return {
-    text: JSON.stringify({ text: text.slice(offset, end).join(''), next_offset: end < text.length ? end : null, total_chars: text.length }),
-    ...(artifact === undefined ? {} : { artifact }),
-  }
+  return paginateResearchResponse(result, offset, config.pageChars, artifact)
 }

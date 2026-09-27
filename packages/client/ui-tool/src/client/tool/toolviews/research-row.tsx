@@ -94,7 +94,10 @@ export const researchToolview = {
   name: 'research-toolview',
   inject: ['slots'],
   apply(ctx: Context): void {
-    ctx.slots.inject('tool.call.toolview', () =>
-      ctx.slots.register({ name: 'tool.call.toolview', key: 'odysseus_research', locale: NS }, ResearchRow))
+    ctx.slots.inject('tool.call.toolview', () => {
+      const disposeBridge = ctx.slots.register({ name: 'tool.call.toolview', key: 'odysseus_research', locale: NS }, ResearchRow)
+      const disposeNative = ctx.slots.register({ name: 'tool.call.toolview', key: 'deep_research', locale: NS }, ResearchRow)
+      return () => { disposeNative(); disposeBridge() }
+    })
   },
 }

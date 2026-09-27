@@ -156,6 +156,26 @@ function records(log: string): JsonObject[] {
     .map(line => JSON.parse(line) as JsonObject)
 }
 
+/** Preserve research event shape while removing wall-clock and derived evidence-hash volatility. */
+function normalizeNativeResearchVolatiles(log: string): JsonObject[] {
+  const dated = log.replace(
+    /Today's date is [A-Za-z]+ \d{1,2}, \d{4}\. For latest\/current searches, use \d{4}/gu,
+    "Today's date is {{date}}. For latest/current searches, use {{year}}",
+  ).replace(/Today's date is [A-Za-z]+ \d{1,2},/gu, 'Today\'s date is {{date}},')
+  return records(dated).map((record) => {
+    if (typeof record.type !== 'string' || !record.type.startsWith('research/')) return record
+    const data = record.data as JsonObject
+    for (const key of ['createdAt', 'retrievedAt', 'finishedAt', 'elapsedMs']) {
+      if (typeof data[key] === 'number') data[key] = 0
+    }
+    const source = data.source as JsonObject | undefined
+    if (typeof source?.retrievedAt === 'number') source.retrievedAt = 0
+    const evidenceRef = data.evidenceRef as JsonObject | undefined
+    if (typeof evidenceRef?.attachmentId === 'string') evidenceRef.attachmentId = 'sha256:{{native-evidence}}'
+    return record
+  })
+}
+
 /** Compare deterministic recorded tool output with raw writer fields; only message ids are volatile. */
 function verifyToolResultWriterParity(fixture: string, actual: string): void {
   expect(sessionHeaderVersion(fixture, 'retained tool-result input')).toBe(3)
@@ -750,6 +770,82 @@ async function verifyProviderCwdResume(
   }
 }
 
+/** Reopen a completed native report from a second profile process using only persisted Sessions. */
+async function verifyNativeResearchRestart(
+  cwd: string,
+  initial: readonly SessionLog[],
+  patches: readonly string[],
+  model: { provider: string; model: string },
+  fixture: string,
+): Promise<void> {
+  const caller = initial[0]
+  const runs = initial.filter(log => records(log.content).some(event => event.type === 'research/started'))
+  const stages = initial.filter(log => typeof log.header.parentSession === 'string')
+  expect(caller).toBeDefined()
+  expect(runs).toHaveLength(2)
+  expect(stages).toHaveLength(6)
+  const first = runs[0]!
+  const second = runs[1]!
+  expect(records(first.content).find(event => event.type === 'research/finished')?.data).toMatchObject({ phase: 'completed' })
+  expect(records(second.content).find(event => event.type === 'research/finished')?.data).toMatchObject({ phase: 'cancelled' })
+  expect(stages.every(stage => stage.header.parentSession === first.header.id)).toBe(true)
+  expect(stages.every(stage => records(stage.content).filter(event => event.type === 'request/header')
+    .every(event => !Object.hasOwn((event.data as JsonObject).header as JsonObject, 'tools')))).toBe(true)
+  const callerEvents = records(caller!.content)
+  expect(callerEvents.filter(event => event.type === 'research/linked')).toHaveLength(2)
+  const result = (callId: string): JsonObject => {
+    const event = callerEvents.find(item => item.type === 'tool/result'
+      && ((item.data as JsonObject).message as JsonObject).toolCallId === callId)
+    expect(event, `${callId} result`).toBeDefined()
+    return (event!.data as JsonObject).message as JsonObject
+  }
+  const status = JSON.parse(((result('research-status').content as JsonObject[])[0]!.text as string)) as JsonObject
+  expect(JSON.parse(status.text as string)).toMatchObject({ status: 'running', report_available: false })
+  const pageZero = result('research-report-0')
+  const firstPage = JSON.parse(((pageZero.content as JsonObject[])[0]!.text as string)) as JsonObject
+  const secondPage = JSON.parse(((result('research-report-120').content as JsonObject[])[0]!.text as string)) as JsonObject
+  expect(firstPage.next_offset).toBe(120)
+  expect(secondPage.next_offset).toBeNull()
+  expect(`${firstPage.text as string}${secondPage.text as string}`).toContain('https://example.org/native-research')
+  const firstPageEvent = callerEvents.find(event => event.type === 'tool/result'
+    && ((event.data as JsonObject).message as JsonObject).toolCallId === 'research-report-0')
+  expect(((firstPageEvent!.data as JsonObject).meta as JsonObject).researchArtifact).toMatchObject({ id: first.header.id })
+
+  const override = join(cwd, '.snapshot-patches', 'research-reopen.override.json')
+  const chunks = (block: JsonObject): JsonObject => ({ kind: 'chunks', chunks: [
+    { type: 'block-start', index: 0, blockType: block.type },
+    { type: 'block-end', index: 0, block },
+    { type: 'finish', reason: { kind: block.type === 'tool-call' ? 'tool-calls' : 'stop' } },
+  ] })
+  await writeFile(override, `${JSON.stringify([
+    chunks({ type: 'tool-call', id: 'research-reopen', name: 'deep_research',
+      arguments: JSON.stringify({ action: 'report', id: first.header.id }) }),
+    chunks({ type: 'text', text: 'REOPENED' }),
+  ])}\n`)
+  const reopened = await runLoaderSmoke({
+    label: 'native research report after process restart',
+    cwd, binScript: dshBin, sourceImport: 'tsx/esm', configPath: patches[0] as string, tsconfigPath,
+    binArgs: ['--profile', 'headless',
+      ...patches.flatMap(file => ['--patch', isAbsolute(file) ? file : join(cwd, file)]),
+      'Reopen the persisted research report.'],
+    env: {
+      DSH_SNAPSHOT: 'replay', DSH_SNAPSHOT_FILE: fixture, DSH_SNAPSHOT_OVERRIDE: override,
+      DSH_SNAPSHOT_PROVIDER: model.provider, DSH_SNAPSHOT_MODEL: model.model,
+      DSH_TELEMETRY_DISABLED: '1',
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
+    },
+  })
+  expect(reopened.stdout).toBe('REOPENED\n')
+  const later = await persistedSessions(cwd)
+  const newCaller = later.find(log => !initial.some(previous => previous.header.id === log.header.id))
+  expect(newCaller).toBeDefined()
+  const reopenedResult = records(newCaller!.content).find(event => event.type === 'tool/result'
+    && ((event.data as JsonObject).message as JsonObject).toolCallId === 'research-reopen')
+  expect((reopenedResult?.data as JsonObject).meta).toMatchObject({
+    researchArtifact: { id: first.header.id, markdown: '# Report\nFixture claim [Source](https://example.org/native-research)' },
+  })
+}
+
 async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly SessionLog[], ctx: NormalizeContext): Promise<void> {
   const pin = pinOf(scenario)
   const fixture = await readFile(join(pin.dir, await primaryFixtureFile(pin.dir)), 'utf8')
@@ -790,6 +886,10 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
         .toBe(1 + (logIndex === 0 ? pin.manifest.header.promptChanges ?? 0 : 0))
     }
     for (const [index, header] of headers.entries()) {
+      if (scenario.name === 'native-research' && typeof log.header.parentSession === 'string') {
+        expect(header, `${scenario.name}: stage tools`).not.toHaveProperty('tools')
+        continue
+      }
       const selectedSchemas = childSchemas.get(logIndex)?.[index]
       const base = reconstructed[index] ?? reconstructed[0]
       const expected = selectedSchemas === undefined ? base : { ...base as JsonObject, tools: selectedSchemas }
@@ -1085,6 +1185,11 @@ describe('headless recorded-session snapshots', () => {
       let fixtureFiles = retainedToolInput === undefined
         ? sessionFixtureNames(await readdir(scenario.dir)) : [retainedToolInput]
       let fixtures = await fixtureSessions(scenario, fixtureFiles)
+      const replayChildFiles = scenario.name === 'native-research'
+        ? (await Promise.all(fixtureFiles.slice(1).map(async file => ({ file,
+          header: headerOf(await readFile(join(scenario.dir, file), 'utf8')) })))).filter(item =>
+          typeof item.header.parentSession === 'string').map(item => item.file)
+        : fixtureFiles.slice(1)
       const primaryFixture = fixtures[0]
       if (primaryFixture === undefined) throw new Error(`${scenario.name}: missing primary session fixture`)
       const task = taskFromSession(primaryFixture) ?? scenario.manifest.input?.task
@@ -1147,8 +1252,8 @@ describe('headless recorded-session snapshots', () => {
             DSH_SNAPSHOT_SPILL_ROOT: spillRoot,
             DSH_SNAPSHOT_SPILL_LOCATOR_ROOT: locatorRoot,
             DSH_SNAPSHOT_FILE: join(scenario.dir, fixtureFiles[0] as string),
-            ...(replaying && fixtureFiles.length > 1
-              ? { DSH_SNAPSHOT_CHILD_FILES: fixtureFiles.slice(1).map(file => join(scenario.dir, file)).join(delimiter) }
+            ...(replaying && replayChildFiles.length > 0
+              ? { DSH_SNAPSHOT_CHILD_FILES: replayChildFiles.map(file => join(scenario.dir, file)).join(delimiter) }
               : {}),
             ...(replaying && scenario.manifest.replay?.override === true
               ? { DSH_SNAPSHOT_OVERRIDE: join(scenario.dir, 'replay.override.json') }
@@ -1213,6 +1318,11 @@ describe('headless recorded-session snapshots', () => {
                 scenario, cwd, actualLogs, patches, model, join(scenario.dir, fixtureFiles[0] as string), task,
               )
             }
+            if (scenario.name === 'native-research') {
+              await verifyNativeResearchRestart(
+                cwd, actualLogs, patches, model, join(scenario.dir, fixtureFiles[0] as string),
+              )
+            }
             if (scenario.name === 'background-confinement-failure') {
               await verifyBackgroundConfinementFailure(actualLogs[0]!.content, cwd)
             }
@@ -1265,14 +1375,17 @@ describe('headless recorded-session snapshots', () => {
       const actualSnapshots = normalizeSessionSnapshots(actualLogs.map(log => log.content), actualContext, { nativeWriterOutput: true })
       const expectedSnapshots = normalizeSessionSnapshots(expected, contextOf(expected), { nativeWriterOutput: true })
       for (const [index, actual] of actualSnapshots.entries()) {
-        const actualRecords = records(actual)
+        const actualRecords = scenario.name === 'native-research'
+          ? normalizeNativeResearchVolatiles(actual) : records(actual)
         const expectedRecords = scenario.name === 'session-reference-spill' && index === 0
           ? sessionReferenceSpillExpected(
             actualRecords,
             expectedSnapshots[index] as string,
             sessionHeaderVersion(expected[index] as string, 'session-reference-spill fixture'),
           )
-          : records(expectedSnapshots[index] as string)
+          : scenario.name === 'native-research'
+            ? normalizeNativeResearchVolatiles(expectedSnapshots[index] as string)
+            : records(expectedSnapshots[index] as string)
         expect(actualRecords, `${scenario.name}: session ${index}`).toEqual(expectedRecords)
       }
       await verifyHeaders(scenario, actualLogs, actualContext)

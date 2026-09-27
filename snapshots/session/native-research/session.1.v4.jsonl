@@ -1,0 +1,18 @@
+{"type":"session","version":4,"id":"{{session:2}}","createdAt":1001,"cwd":"{{cwd}}","isSeeded":false,"delegationDepth":0}
+{"type":"permission/preset","data":{"preset":"workspace-write"}}
+{"type":"sandbox/mode","data":{"mode":"workspace-write"}}
+{"type":"approval/policy","data":{"policy":"ask"}}
+{"type":"research/started","data":{"id":"{{session:2}}","owner":{"kind":"profile","namespace":"native-research-snapshot"},"callerSessionId":"{{session:1}}","query":"Fixture research question","requestKey":"research-start","provider":"deepseek-official","model":"deepseek-v4-pro","promptVersion":"odysseus-general-v1","budgets":{"maxRounds":1,"minRounds":1,"firstRoundQueries":1,"laterRoundQueries":1,"searchResultsPerQuery":1,"maxPagesPerRound":1,"maxTotalPages":1,"maxPageChars":12000,"maxFindingsInSynthesis":10,"maxConcurrentSearches":2,"maxConcurrentFetches":3,"maxConcurrentModelCalls":1,"softRunTimeoutMs":300000,"hardRunTimeoutMs":1800000,"stageTimeoutMs":240000,"planMaxTokens":1024,"queryMaxTokens":2048,"extractMaxTokens":2048,"reportMaxTokens":8192,"maxEmptyRounds":1,"reportPageChars":120,"maxReportBytes":1048576,"maxEvidenceBytes":8388608},"createdAt":1790513818401}}
+{"type":"research/checkpoint","data":{"round":0,"elapsedMs":10,"stageSessionId":"{{session:4}}"}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":84,"stageSessionId":"{{session:5}}"}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":157,"queries":["fixture research evidence"]}}
+{"type":"research/search","data":{"round":1,"query":"fixture research evidence","status":"ok","urls":["https://example.org/native-research"]}}
+{"type":"research/source","data":{"round":1,"requestedUrl":"https://example.org/native-research","finalUrl":"https://example.org/native-research","statusCode":200,"retrievedAt":1790513818606,"status":"fetched","source":{"url":"https://example.org/native-research","requestedUrl":"https://example.org/native-research","title":"Fixture source","statusCode":200,"retrievedAt":1790513818606,"contentSha256":"8a5a51e21cdada86a52e9b02a879022f8eacd83672e8d276c371f389f97c380f","content":{"attachmentId":"sha256:8a5a51e21cdada86a52e9b02a879022f8eacd83672e8d276c371f389f97c380f","name":"research-source.md","bytes":45},"truncated":false}}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":238,"stageSessionId":"{{session:6}}"}}
+{"type":"research/finding","data":{"round":1,"url":"https://example.org/native-research","accepted":true,"rational":"Relevant","evidence":"Fixture evidence","summary":"Fixture claim"}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":303,"stageSessionId":"{{session:7}}"}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":418,"draftRef":{"attachmentId":"sha256:12e386d2feee3a37ff777bbe2b47dbdbb3e90300590ddce1889c1f1bcf968d08","name":"research-draft.md","bytes":67}}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":424,"urls":["https://example.org/native-research"]}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":432,"stageSessionId":"{{session:8}}"}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":487,"stageSessionId":"{{session:9}}"}}
+{"type":"research/finished","data":{"phase":"completed","finishedAt":1790513819082,"quality":"verified_urls","reportRef":{"attachmentId":"sha256:5e47c85ff3d6a0a92013a3f2e73c95e8eb3003bd0f0e5ac0932c2a9fa946ba66","name":"research-report.md","bytes":68},"evidenceRef":{"attachmentId":"sha256:09aa538a6926909e69d0da1ff805413b9cbc7c7df5f41f780d8fb2d48027cace","name":"research-evidence.json","bytes":666}}}

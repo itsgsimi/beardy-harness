@@ -28,10 +28,12 @@ export interface Config extends Partial<ResearchBudgets> {
 }
 
 /** Fully materialized settings retained by one provider instance. */
-export interface ResolvedConfig extends Omit<Config, keyof ResearchBudgets | 'ownerScope'> {
+export type ResolvedConfig = Omit<Config, keyof ResearchBudgets | 'ownerScope' | 'ownerNamespace'> & {
   readonly budgets: ResearchBudgets
-  readonly ownerScope: 'session' | 'profile'
-}
+} & (
+  | { readonly ownerScope: 'session'; readonly ownerNamespace?: never }
+  | { readonly ownerScope: 'profile'; readonly ownerNamespace: string }
+)
 
 /**
  * Resolve defaults and reject invalid direct-constructor or Loader input.
@@ -44,11 +46,14 @@ export function resolveConfig(config: Config): ResolvedConfig {
     throw new Error('research reasoningEffort must be nonblank')
   }
   const ownerScope = config.ownerScope ?? 'session'
-  if (ownerScope === 'profile' && !config.ownerNamespace?.trim()) {
-    throw new Error('research profile owner scope requires ownerNamespace')
-  }
-  if (ownerScope === 'session' && config.ownerNamespace !== undefined) {
-    throw new Error('research ownerNamespace requires profile owner scope')
+  let owner: { readonly ownerScope: 'session' } | { readonly ownerScope: 'profile'; readonly ownerNamespace: string }
+  if (ownerScope === 'profile') {
+    const namespace = config.ownerNamespace
+    if (!namespace?.trim()) throw new Error('research profile owner scope requires ownerNamespace')
+    owner = { ownerScope, ownerNamespace: namespace }
+  } else {
+    if (config.ownerNamespace !== undefined) throw new Error('research ownerNamespace requires profile owner scope')
+    owner = { ownerScope }
   }
   const budgets = { ...DEFAULT_BUDGETS }
   for (const key of Object.keys(DEFAULT_BUDGETS) as Array<keyof ResearchBudgets>) {
@@ -77,9 +82,9 @@ export function resolveConfig(config: Config): ResolvedConfig {
   if (budgets.hardRunTimeoutMs < budgets.softRunTimeoutMs || budgets.hardRunTimeoutMs < budgets.stageTimeoutMs) {
     throw new Error('research hardRunTimeoutMs must cover softRunTimeoutMs and stageTimeoutMs')
   }
-  return {
-    provider: config.provider, model: config.model, ownerScope, budgets,
+  const common = {
+    provider: config.provider, model: config.model, budgets,
     ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: config.reasoningEffort }),
-    ...(config.ownerNamespace === undefined ? {} : { ownerNamespace: config.ownerNamespace }),
   }
+  return { ...common, ...owner }
 }

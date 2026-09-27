@@ -24,6 +24,8 @@ kind: "package-reference"
 
 Beardy 包含默认禁用的 `tool-odysseus-research` 条目。在个人配置档补丁中填写所有必填值并启用。其他配置档可插入引用此包的条目。Odysseus 必须支持 `research:read` 和 `research:run` 令牌权限；仅接受浏览器会话的研究路由拒绝 bearer 启动请求。通过[凭据提供者](../../credentials/credentials-local/README.zh.md)保存令牌，不要放入模型输入。
 
+桥接与原生 [`deep_research`](../../research/tool-research/README.zh.md) 工具不能同时挂载。[Beardy 切换配置](../../bundle/beardy/README.zh.md#select-native-deep-research)禁用此条目，同时启用原生提供方和工具。
+
 ```yaml
 - id: tool-odysseus-research
   disabled: false
@@ -55,7 +57,7 @@ Beardy 包含默认禁用的 `tool-odysseus-research` 条目。在个人配置�
 | `list` | 可选的标题搜索 `query` | 活动任务及最多 20 份保存的报告 |
 | `cancel` | `id` | 是否请求取消，不表示执行已经停止 |
 
-读取操作返回包含 `text`、`next_offset` 和 `total_chars` 的 JSON。`text` 是 JSON 文档的一页；按顺序拼接所有页面后再解析。将每个非空 `next_offset` 作为 `offset` 传回。偏移量按 Unicode 字符计数。状态和列表可能在读取间变化；分页不会冻结远程响应。报告缺失、令牌被拒绝以及 HTTP 失败都会生成工具错误。重定向被拒绝，请求不会自动重试，截止时间包括响应体读取。
+读取操作返回包含 `text`、`next_offset` 和 `total_chars` 的 JSON。`text` 是 JSON 文档的一页；按顺序拼接所有页面后再解析。将每个非空 `next_offset` 作为 `offset` 传回。[研究定义包](../../research/research/README.zh.md#understand-the-implementation)拥有与原生工具共用的 Unicode 字符分页格式。状态和列表可能在读取间变化；分页不会冻结远程响应。报告缺失、令牌被拒绝以及 HTTP 失败都会生成工具错误。重定向被拒绝，请求不会自动重试，截止时间包括响应体读取。
 
 取消 HTTP 调用或卸载插件不会停止远程任务。保留返回的标识；启动请求结果不明确时，先用 `list` 检查再重试；用 `cancel` 停止不再需要的工作。Harness 重启后可凭已记录的标识再次读取报告。不发布运行时不变量伴随模块：此无状态桥接不拥有可独立观察的任务注册表；任务状态由 Odysseus 管理。
 

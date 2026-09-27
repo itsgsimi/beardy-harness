@@ -1803,6 +1803,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Durable research lifecycle and report access.',
     methods: [
       {
+        signature: 'abstract ownerFor(caller: Session): ResearchOwner',
+        description: 'Derive the configured run authority from a live caller Session.',
+        parameters: [{ name: 'caller', description: 'Session executing a trusted consumer action.' }],
+        returns: 'caller-scoped or configured single-user profile authority.',
+      },
+      {
         signature: 'abstract start(request: ResearchStart): Promise<ResearchRunView>',
         description: 'Commit a run Session, then link and flush the caller Session before returning.',
         parameters: [{ name: 'request', description: 'live caller, trusted owner, question, and optional exact-call idempotency key.' }],
@@ -6292,7 +6298,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ResearchReport',
-    declaration: 'export interface ResearchReport {\n    readonly runId: ResearchRunId;\n    readonly complete: boolean;\n    readonly markdown: string;\n    readonly sources: readonly ResearchSource[];\n    readonly reportRef: FileAttachmentRef;\n    readonly evidenceRef: FileAttachmentRef;\n}',
+    declaration: 'export interface ResearchReport {\n    readonly runId: ResearchRunId;\n    readonly complete: boolean;\n    readonly markdown: string;\n    readonly sources: readonly ResearchSource[];\n    readonly pageChars: number;\n    readonly reportRef: FileAttachmentRef;\n    readonly evidenceRef: FileAttachmentRef;\n}',
   },
   {
     name: 'ResearchRunId',

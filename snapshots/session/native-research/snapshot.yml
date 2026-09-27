@@ -1,0 +1,12 @@
+version: 1
+scenario: native-research
+profile: headless
+composition: native-research
+recording: authored
+replay:
+  override: true
+permission: workspace-write
+header:
+  class: native-research
+  pin: true
+  childSystemPrompts: [3, 4, 5, 6, 7, 8]

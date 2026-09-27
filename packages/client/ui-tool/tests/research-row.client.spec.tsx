@@ -23,28 +23,28 @@ const standard: GlobalStandardProps & SessionStandardProps = {
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
-function props(meta: unknown, isError = false): Props {
+function props(meta: unknown, isError = false, name = 'odysseus_research'): Props {
   const block: ToolResultNode = {
     kind: 'tool-result', seq: 10, time: 2000, callTime: 1000, callId: 'research',
-    call: { name: 'odysseus_research', argsRaw: '{"action":"report","id":"rp-report"}' },
+    call: { name, argsRaw: '{"action":"report","id":"rp-report"}' },
     content: [{ type: 'text', text: 'A short model page' }], isError, subCalls: [], meta,
   }
   return {
     ...standard, callId: 'research', openFile: unused, loadImage: unused,
     useToolCallArgumentsPartial: unused,
-    phase: 'result', toolName: 'odysseus_research', block, t,
+    phase: 'result', toolName: name, block, t,
     useDisclosure: () => ({ expanded: false, setExpanded: vi.fn(), toggle: vi.fn() }),
   }
 }
 
-it('opens the complete saved artifact and releases its download URL on close', () => {
+it.each(['odysseus_research', 'deep_research'])('opens a %s report and releases its download URL on close', (name) => {
   const create = vi.fn(() => 'blob:research-report')
   const revoke = vi.fn()
   vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL: create, revokeObjectURL: revoke }))
   render(<ResearchRow {...props({ researchArtifact: {
     id: 'rp-report', markdown: '# Full report\n\nEvidence beyond the short model page.\n\n<script>bad()</script>',
     sources: [{ url: 'https://docs.python.org/', title: 'Python docs' }, { url: 'javascript:bad()', title: 'Unsafe source' }],
-  } })} />)
+  } }, false, name)} />)
   expect(screen.queryByText('Evidence beyond the short model page.')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Open research report' }))
   expect(screen.getByRole('dialog', { name: 'Research report' })).toBeTruthy()

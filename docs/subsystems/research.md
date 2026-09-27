@@ -2,7 +2,7 @@
 
 English | [中文](research.zh.md)
 
-`ctx.research` exposes owner-scoped, Session-backed research runs. The [definition package](../../packages/research/research/README.md) owns the service and event types; the [local provider](../../packages/research/research-local/README.md) owns the web and model engine, persistence, and recovery. The [decision record](../../.agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.md) explains why run Sessions are the durable authority.
+`ctx.research` exposes owner-scoped, Session-backed research runs. The [definition package](../../packages/research/research/README.md) owns the service and event types; the [local provider](../../packages/research/research-local/README.md) owns the web and model engine, persistence, and recovery. The [tool consumer](../../packages/research/tool-research/README.md) exposes `deep_research` to a caller model. The [decision record](../../.agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.md) explains why run Sessions are the durable authority.
 
 ## Durable identity and ownership
 
@@ -22,6 +22,12 @@ The run and its stage children retain the caller Session's workspace path when o
 
 The general engine uses versioned Odysseus-derived plan, query, extraction, synthesis, stop, and final-report prompts. `ctx.web` supplies search and fetch with the run's abort signal; the web tool's shared HTML converter supplies bounded Markdown. The engine deduplicates queries and URLs, records unsuccessful searches and fetches, and stops after the configured empty-round limit, a model coverage decision after minimum rounds, a soft deadline, or the hard round cap. The hard deadline includes model admission wait and final attachment writes. Report links are checked against accepted fetched URLs; a URL match establishes that the URL was fetched, not that it supports the claim. The native fantasy-football category is refused until its specialized workflow is available.
 
+## Model access and Beardy selection
+
+`deep_research` provides `start`, `status`, `report`, `list`, and `cancel`. The consumer derives an owner from the caller Session and uses the tool-call ID as an exact start key. Status, list, and report reads return paged JSON with `next_offset` and `total_chars`; report page zero carries full `researchArtifact` viewer metadata. Models must concatenate all pages before parsing the report, cite source URLs, and treat source text as untrusted. The run and report remain readable by ID after restart. The Web research row renders both native and Odysseus tool calls with locale-owned copy.
+
+Beardy retains its Odysseus bridge selection until the operator applies the [native research switch](../../packages/bundle/beardy/README.md#select-native-deep-research). The patch enables the local provider and tool together while disabling the bridge. Both tool plugins reject a composition that mounts the other.
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -37,6 +43,13 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 Durable research lifecycle and report access.
 
 ```ts cordis-catalog
+/**
+ * Derive the configured run authority from a live caller Session.
+ * @param caller - Session executing a trusted consumer action.
+ * @returns caller-scoped or configured single-user profile authority.
+ */
+abstract ownerFor(caller: Session): ResearchOwner
+
 /**
  * Commit a run Session, then link and flush the caller Session before returning.
  * @param request - live caller, trusted owner, question, and optional exact-call idempotency key.
@@ -75,6 +88,8 @@ abstract report(id: ResearchRunId, owner: ResearchOwner): Promise<ResearchReport
  */
 abstract cancel(id: ResearchRunId, owner: ResearchOwner): Promise<{ requested: boolean }>
 ```
+
+Types: [Session](session.md)
 
 Source: [`packages/research/research/src/index.ts`](../../packages/research/research/src/index.ts)
 

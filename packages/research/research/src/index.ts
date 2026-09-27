@@ -6,6 +6,8 @@ import type { Session } from '@deepseek-ai/dsh-session'
 import type { ResearchCategory, ResearchOwner, ResearchReport, ResearchRunId, ResearchRunView } from './types.ts'
 
 export type * from './types.ts'
+export { paginateResearchResponse, researchPageOutput, researchPageOutputSchema } from './page.ts'
+export type { ResearchPageArtifact, ResearchPageResponse } from './page.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
@@ -56,6 +58,13 @@ export abstract class ResearchService extends Service {
     if (new.target === ResearchService) throw new Error('load a research provider, not the abstract definition')
     super(ctx, 'research')
   }
+
+  /**
+   * Derive the configured run authority from a live caller Session.
+   * @param caller - Session executing a trusted consumer action.
+   * @returns caller-scoped or configured single-user profile authority.
+   */
+  abstract ownerFor(caller: Session): ResearchOwner
 
   /**
    * Commit a run Session, then link and flush the caller Session before returning.

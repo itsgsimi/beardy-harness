@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-web'
 import { resolveConfig, type Config, type ResolvedConfig } from './config.ts'
+import { DEFAULT_BUDGETS } from './config.ts'
 import { ResearchEngine } from './engine.ts'
 import { RESEARCH_PROMPT_VERSION } from './prompts.ts'
 
@@ -187,6 +188,12 @@ export class LocalResearchService extends ResearchService {
     } else if (owner.kind !== 'profile' || owner.namespace !== this.config.ownerNamespace) {
       throw new Error('research owner is not the configured profile')
     }
+  }
+
+  ownerFor(caller: Session): ResearchOwner {
+    if (this.ctx.sessions.get(caller.id) !== caller) throw new Error('research caller Session is not live')
+    if (this.config.ownerScope === 'session') return { kind: 'session', sessionId: caller.id }
+    return { kind: 'profile', namespace: this.config.ownerNamespace }
   }
 
   private async readRun(id: RunId): Promise<ProjectedRun> {
@@ -412,6 +419,7 @@ export class LocalResearchService extends ResearchService {
     const markdown = await this.readAttachment(run.reportRef, this.config.budgets.maxReportBytes)
     await this.readAttachment(run.evidenceRef, this.config.budgets.maxEvidenceBytes)
     return { runId: id, complete: run.finished?.phase === 'completed', markdown, sources: run.sources,
+      pageChars: run.started.budgets?.reportPageChars ?? DEFAULT_BUDGETS.reportPageChars,
       reportRef: run.reportRef, evidenceRef: run.evidenceRef }
   }
 
