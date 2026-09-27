@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises'
+import { join } from 'node:path'
 import { jobStateRecord, storedJobRecord } from '../src/domain.ts'
 import { isInsideRoot, nextFireGap } from '../src/registry.ts'
 import { CONFIG_JOB, createInput, makeRegistry, reopenRegistry, storedRow } from './support.ts'
@@ -115,6 +117,72 @@ describe('job registry create', () => {
   it('refuses a workspace outside every allowed root', async () => {
     const { registry } = makeRegistry()
     await expect(registry.create(createInput({ workspacePath: '/etc' }))).rejects.toThrow('workspace "/etc" is outside every allowedWorkspaceRoot: [/srv]')
+    await expect(registry.create(createInput({ workspacePath: 'relative' }))).rejects.toThrow('workspace "relative" is outside every allowedWorkspaceRoot')
+  })
+
+  it('reports a workspace or allowed root that cannot be canonicalized', async () => {
+    const missingWorkspace = makeRegistry([], {
+      canonicalPath: async (path) => {
+        if (path === '/srv/missing') throw new Error('missing workspace')
+        return path
+      },
+    })
+    await expect(missingWorkspace.registry.create(createInput({ workspacePath: '/srv/missing' })))
+      .rejects.toThrow('workspace "/srv/missing" cannot be resolved: Error: missing workspace')
+    const missingRoot = makeRegistry([], {
+      canonicalPath: async (path) => {
+        if (path === '/srv') throw new Error('missing root')
+        return path
+      },
+    })
+    await expect(missingRoot.registry.create(createInput())).rejects.toThrow('allowedWorkspaceRoot "/srv" cannot be resolved: Error: missing root')
+  })
+
+  it('refuses a run for a job removed before its workspace check', async () => {
+    const { registry } = makeRegistry()
+    await expect(registry.resolveRunWorkspace(createInput())).rejects.toThrow('no job named "pr-check"')
+  })
+
+  it('refuses a symlink inside an allowed root that resolves outside it on create and update', async () => {
+    const base = await mkdtemp(join(process.cwd(), '.cron-root-test-'))
+    try {
+      const root = join(base, 'allowed')
+      const outside = join(base, 'outside')
+      await Promise.all([mkdir(root), mkdir(outside)])
+      await symlink(outside, join(root, 'escape'), 'dir')
+      const { registry } = makeRegistry([], {
+        stored: [storedRow('existing', { workspacePath: root })],
+        guardrails: { allowedWorkspaceRoots: [root] }, canonicalPath: realpath,
+      })
+      await expect(registry.create(createInput({ workspacePath: join(root, 'escape') })))
+        .rejects.toThrow('outside every allowedWorkspaceRoot')
+      await expect(registry.update('existing', { workspacePath: join(root, 'escape') }))
+        .rejects.toThrow('outside every allowedWorkspaceRoot')
+    } finally {
+      await rm(base, { recursive: true, force: true })
+    }
+  })
+
+  it('passes the canonical in-root workspace to a run and refuses a later symlink escape', async () => {
+    const base = await mkdtemp(join(process.cwd(), '.cron-retarget-test-'))
+    try {
+      const root = join(base, 'allowed')
+      const inside = join(root, 'inside')
+      const outside = join(base, 'outside')
+      const link = join(root, 'current')
+      await Promise.all([mkdir(inside, { recursive: true }), mkdir(outside)])
+      await symlink(inside, link, 'dir')
+      const { registry } = makeRegistry([], {
+        guardrails: { allowedWorkspaceRoots: [root] }, canonicalPath: realpath,
+      })
+      const job = await registry.create(createInput({ workspacePath: link }))
+      expect(await registry.resolveRunWorkspace(job)).toBe(inside)
+      await rm(link)
+      await symlink(outside, link, 'dir')
+      await expect(registry.resolveRunWorkspace(job)).rejects.toThrow('outside every allowedWorkspaceRoot')
+    } finally {
+      await rm(base, { recursive: true, force: true })
+    }
   })
 
   it('refuses an unparseable schedule and one faster than minIntervalMs', async () => {

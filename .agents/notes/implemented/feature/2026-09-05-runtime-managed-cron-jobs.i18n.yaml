@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-runtime-managed-cron-jobs.md
-2026-09-05-runtime-managed-cron-jobs.md: bb06f245031922d20cf153aa425f00b51f8acc83
-2026-09-05-runtime-managed-cron-jobs.zh.md: 4ca1876afe9b985779fd6cf4496960a9d375ca27
+2026-09-05-runtime-managed-cron-jobs.md: ee967df4c2729994bc9c5e1af97959b58a9cf03c
+2026-09-05-runtime-managed-cron-jobs.zh.md: f611a3b0336a981e323d471b47e31f22f953dd4a

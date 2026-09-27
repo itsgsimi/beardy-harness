@@ -87,6 +87,7 @@ export function makeRegistry(
     readonly state?: Record<string, JobStateRecord>
     readonly delivery?: ReadonlyMap<string, string>
     readonly guardrails?: Partial<JobGuardrails>
+    readonly canonicalPath?: (path: string) => Promise<string>
   } = {},
 ) {
   const jobsTable = fakeTable<StoredJobRecord>()
@@ -99,6 +100,7 @@ export function makeRegistry(
     jobsTable,
     stateTable,
     guardrails: { ...GUARDRAILS, ...options.guardrails },
+    canonicalPath: options.canonicalPath ?? (async path => path),
   })
   return { registry, jobsTable, stateTable }
 }
@@ -114,5 +116,6 @@ export function reopenRegistry(
     jobsTable: fakeTable(tables.jobsTable),
     stateTable: fakeTable(tables.stateTable),
     guardrails: GUARDRAILS,
+    canonicalPath: async path => path,
   })
 }

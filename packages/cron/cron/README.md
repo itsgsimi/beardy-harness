@@ -54,8 +54,8 @@ Registration is static per composition, so the schema does not churn mid-session
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Creation stays locked until opened** — `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` default to empty, so a stored create is refused until the operator whitelists presets and roots in configuration.
-- **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, and delete refuse rather than land unapproved.
+- **Creation stays locked until opened** — `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` default to empty, so a stored create is refused until the operator whitelists presets and roots in configuration. Workspace and root paths are compared by `realpath` on create and update; every fire rechecks the stored workspace and records a failed outcome if it escapes the roots.
+- **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, delete, resume, run_now, and note refuse rather than land unapproved. Approval requests show the proposed job or field changes, and the tool applies the approved values.
 - **Delivery needs an accepting listener** — `cron/run-finished` uses an awaited serial handoff. A channel-bound outcome stays pending until a listener durably accepts it; the scheduler waits for that acceptance before starting another run of the same job.
 - **Fires during downtime are not made up** — a schedule that should have fired while the process was stopped is skipped when it comes back; the next scheduled time runs normally.
 - **One overlapping fire per job** — a still-running job causes the next fire to be logged as skipped rather than queued, so a run longer than its own period loses those fires.

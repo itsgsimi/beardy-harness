@@ -9,7 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
-import type { JobRegistry, RegistryJob } from './registry.ts'
+import type { CreateJobInput, JobListing, JobRegistry, RegistryJob, UpdateJobPatch } from './registry.ts'
 
 /** Actions the tool exposes. */
 export type CronManageAction = 'list' | 'create' | 'update' | 'delete' | 'pause' | 'resume' | 'run_now' | 'note'
@@ -38,7 +38,7 @@ interface CronManageResult {
 
 /** Tool dependencies beyond the registry. */
 export interface CronManageToolDeps {
-  /** Whether create, update, and delete ask the approval service first. */
+  /** Whether privileged management actions ask the approval service first. */
   readonly requireApproval: boolean
   /** Start a job immediately; false when the name is not armed or unknown. */
   runNow(name: string): boolean
@@ -94,9 +94,36 @@ async function approvedForWrite(
   }
 }
 
-function describeCreate(args: CronManageArgs, name: string): string {
-  return `"${name}" (${args.expression} ${args.timezone}) preset ${args.agent_preset}`
-    + `/${args.permission_preset} in ${args.workspace_path}`
+function display(value: unknown): string {
+  return value === undefined ? '(none)' : JSON.stringify(value)
+}
+
+function describeFields(fields: object): string {
+  return Object.entries(fields).map(([field, value]) => `${field}: ${display(value)}`).join('; ')
+}
+
+function describeJob(job: JobListing): string {
+  return describeFields({
+    name: job.name, expression: job.expression, timezone: job.timezone, prompt: job.prompt,
+    agentPreset: job.agentPreset, permissionPreset: job.permissionPreset,
+    workspacePath: job.workspacePath, title: job.title, turnTimeoutMs: job.turnTimeoutMs,
+    deliverChannelId: job.deliverChannelId, enabled: job.enabled, notes: job.notes,
+  })
+}
+
+function describePatch(current: RegistryJob, patch: UpdateJobPatch): string {
+  return (Object.keys(patch) as (keyof UpdateJobPatch)[]).map((field) => {
+    const previous = current[field]
+    const value = patch[field]
+    const next = field === 'deliverChannelId' && value === '' ? undefined : value
+    return `${field}: ${display(previous)} → ${display(next)}`
+  }).join('; ')
+}
+
+function requireJob(registry: JobRegistry, name: string): JobListing {
+  const job = registry.find(name)
+  if (job === undefined) throw new Error(`no job named "${name}"`)
+  return job
 }
 
 function line(job: RegistryJob): string {
@@ -127,7 +154,8 @@ export function createCronManageTool(
       + 'requires name to start a job immediately outside its schedule; "note" requires name and notes, and replaces the continuity notes carried into '
       + 'every future run of the job — record what was reported so the next run continues instead of '
       + 'repeating. A job from plugin configuration keeps its definition read-only: change its schedule '
-      + 'or prompt by editing that configuration, which takes effect when the host restarts.',
+      + 'or prompt by editing that configuration, which takes effect when the host restarts. '
+      + 'With requireApproval, create, update, delete, resume, run_now, and note ask for approval.',
     parameters: {
       action: { type: 'string', required: true, enum: ['list', 'create', 'update', 'delete', 'pause', 'resume', 'run_now', 'note'], description: 'Operation to perform.' },
       name: { type: 'string', description: 'Required for create, update, delete, pause, resume, run_now, and note; omit only for list.' },
@@ -170,8 +198,7 @@ export function createCronManageTool(
         }
         case 'create': {
           const name = requireName(args, 'create')
-          if (deps.requireApproval) await approvedForWrite(ctx, exec, 'create', name, describeCreate(args, name))
-          const created = await registry.create({
+          const proposal: CreateJobInput = Object.freeze({
             name,
             expression: args.expression as string,
             timezone: args.timezone as string,
@@ -184,12 +211,16 @@ export function createCronManageTool(
             ...(args.deliver_channel === undefined ? {} : { deliverChannelId: args.deliver_channel }),
             ...(exec.agent === undefined ? {} : { createdBy: String(exec.agent.session.header.id) }),
           })
+          if (deps.requireApproval) await approvedForWrite(ctx, exec, 'create', name, describeFields({
+            ...proposal, title: proposal.title, turnTimeoutMs: proposal.turnTimeoutMs,
+            deliverChannelId: proposal.deliverChannelId, enabled: true,
+          }))
+          const created = await registry.create(proposal)
           return { action: 'create', name, message: `Created job ${line(created)}.` }
         }
         case 'update': {
           const name = requireName(args, 'update')
-          if (deps.requireApproval) await approvedForWrite(ctx, exec, 'update', name, `patch "${name}"`)
-          const updated = await registry.update(name, {
+          const patch: UpdateJobPatch = Object.freeze({
             ...(args.expression === undefined ? {} : { expression: args.expression }),
             ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
             ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
@@ -200,6 +231,14 @@ export function createCronManageTool(
             ...(args.turn_timeout_ms === undefined ? {} : { turnTimeoutMs: args.turn_timeout_ms }),
             ...(args.deliver_channel === undefined ? {} : { deliverChannelId: args.deliver_channel }),
           })
+          if (deps.requireApproval) {
+            const current = requireJob(registry, name)
+            await approvedForWrite(ctx, exec, 'update', name, `"${name}" ${describePatch(current, patch)}`)
+            if (describePatch(requireJob(registry, name), patch) !== describePatch(current, patch)) {
+              throw new Error(`cron job update "${name}" changed while approval was pending; retry with its current values`)
+            }
+          }
+          const updated = await registry.update(name, patch)
           return { action: 'update', name, message: `Updated job ${line(updated)}.` }
         }
         case 'delete': {
@@ -215,18 +254,39 @@ export function createCronManageTool(
         }
         case 'resume': {
           const name = requireName(args, 'resume')
+          if (deps.requireApproval) {
+            const job = requireJob(registry, name)
+            await approvedForWrite(ctx, exec, 'resume', name, `"${name}" enabled: ${display(job.enabled)} → true; ${describeJob(job)}`)
+            if (describeJob(requireJob(registry, name)) !== describeJob(job)) {
+              throw new Error(`cron job resume "${name}" changed while approval was pending; retry`)
+            }
+          }
           const resumed = await registry.setEnabled(name, true)
           return { action: 'resume', name, message: `Resumed job ${line(resumed)}.` }
         }
         case 'run_now': {
           const name = requireName(args, 'run_now')
-          if (registry.find(name) === undefined) throw new Error(`no job named "${name}"`)
+          const job = requireJob(registry, name)
+          if (deps.requireApproval) {
+            await approvedForWrite(ctx, exec, 'run_now', name, `start now: ${describeJob(job)}`)
+            if (describeJob(requireJob(registry, name)) !== describeJob(job)) {
+              throw new Error(`cron job run_now "${name}" changed while approval was pending; retry`)
+            }
+          }
           if (!deps.runNow(name)) throw new Error(`job "${name}" is paused; resume it first`)
           return { action: 'run_now', name, message: `Started job "${name}" outside its schedule.` }
         }
         case 'note': {
           const name = requireName(args, 'note')
-          await registry.setNotes(name, args.notes as string)
+          const notes = args.notes as string
+          if (deps.requireApproval) {
+            const current = requireJob(registry, name)
+            await approvedForWrite(ctx, exec, 'note', name, `"${name}" notes: ${display(current.notes)} → ${display(notes)}`)
+            if (describeJob(requireJob(registry, name)) !== describeJob(current)) {
+              throw new Error(`cron job note "${name}" changed while approval was pending; retry`)
+            }
+          }
+          await registry.setNotes(name, notes)
           return { action: 'note', name, message: `Notes for job "${name}" replaced.` }
         }
       }

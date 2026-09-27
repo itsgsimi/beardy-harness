@@ -567,7 +567,7 @@ export interface ResolvedConfig {
   readonly allowedAgentPresets: string[]
   /** Permission presets a stored job may name; empty refuses every create. */
   readonly allowedPermissionPresets: string[]
-  /** Absolute roots a stored job's workspace path must sit inside. */
+  /** Absolute roots a stored job's canonical workspace path must sit inside. */
   readonly allowedWorkspaceRoots: string[]
   /** Most jobs the durable store may hold. */
   readonly maxStoredJobs: number

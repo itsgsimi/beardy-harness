@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { apply, assertConfig, createSchedulerHost, mountJobs } from '../src/index.ts'
-import type { CronJobSpec, ResolvedConfig } from '../src/index.ts'
+import type { CronJobSpec, CronRunFinished, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
 import { fakeTable } from './support.ts'
+import type { JobStateRecord } from '../src/domain.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -365,6 +368,43 @@ describe('createSchedulerHost', () => {
 })
 
 describe('apply', () => {
+  it('records a failed fire when a stored workspace symlink is retargeted outside its root', async () => {
+    const base = await mkdtemp(join(process.cwd(), '.cron-fire-test-'))
+    const root = join(base, 'allowed')
+    const inside = join(root, 'inside')
+    const outside = join(base, 'outside')
+    const link = join(root, 'current')
+    const h = contextStub()
+    cleanup.push(async () => { await rm(base, { recursive: true, force: true }) })
+    await Promise.all([mkdir(inside, { recursive: true }), mkdir(outside)])
+    await symlink(inside, link, 'dir')
+    const createAgent = vi.spyOn(h.ctx.agents, 'create')
+    const scheduler = fakeScheduler()
+    await apply(h.ctx, config({ jobs: [], allowedWorkspaceRoots: [root] }), scheduler.scheduler)
+    const tool = h.tools.find(item => item.name === 'cron_manage') as unknown as {
+      execute(args: Record<string, unknown>, exec: never): Promise<unknown>
+    }
+    await tool.execute({
+      action: 'create', name: 'retargeted', expression: '0 9 * * 1', timezone: 'Europe/Zagreb',
+      prompt: 'Check PRs.', agent_preset: 'beardy', permission_preset: 'workspace-write', workspace_path: link,
+    }, { callId: 'create', signal: new AbortController().signal } as never)
+    h.emitTo('domain/changed', { domain: 'cron_jobs', table: 'jobs' })
+    await rm(link)
+    await symlink(outside, link, 'dir')
+    scheduler.fire('0 9 * * 1')
+    await vi.waitFor(() => {
+      const state = h.tables.get('state')?.rows.get('retargeted') as JobStateRecord | undefined
+      expect(state?.lastRuns[0]).toMatchObject({
+        outcome: 'failed', failure: { code: 'WORKSPACE_OUTSIDE_ALLOWED_ROOTS' },
+      })
+      expect(state?.lastRuns[0]?.failure?.message).toContain('outside every allowedWorkspaceRoot')
+    })
+    expect(createAgent).not.toHaveBeenCalled()
+    const delivered = h.emitted.find(item => item.event === 'cron/run-finished')?.payload as CronRunFinished | undefined
+    expect(delivered).toMatchObject({
+      jobName: 'retargeted', outcome: 'failed', failure: { code: 'WORKSPACE_OUTSIDE_ALLOWED_ROOTS' },
+    })
+  })
   it('skips a job paused after its timer callback was queued', async () => {
     const { ctx, tables } = contextStub()
     const create = vi.spyOn(ctx.agents, 'create')
