@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CHANNEL, harness, inbound, record } from './support.ts'
+import { CHANNEL, USER, harness, inbound, record } from './support.ts'
 
 describe('conversation controls during startup', () => {
   it.each([
@@ -32,7 +32,7 @@ describe('conversation controls during startup', () => {
       h.router.handle(inbound({ content: 'original message' }))
       const startupSignal = await entered.promise
       h.router.handle(inbound({ id: 'queued', content: 'queued before control' }))
-      const controlled = h.router.execute(CHANNEL, `/${command}`)
+      const controlled = h.router.execute(CHANNEL, { userId: USER, directMessage: true }, `/${command}`)
       expect(startupSignal.aborted).toBe(true)
       let finished = false
       void controlled.then(() => { finished = true })

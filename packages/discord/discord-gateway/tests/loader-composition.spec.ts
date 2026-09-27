@@ -387,6 +387,7 @@ describe('discord-gateway real Loader composition', () => {
       workspacePath: process.cwd(),
       agentPreset: 'beardy',
       permissionPreset: 'danger-full-access',
+      userLanes: {},
       titlePrefix: 'Discord',
       maxInputChars: 8_000,
       turnTimeoutMs: 600_000,

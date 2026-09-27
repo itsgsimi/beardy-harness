@@ -6,6 +6,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { sleep } from '@deepseek-ai/dsh-unattended-session'
@@ -16,7 +17,7 @@ import type { ConversationRouter, RoutingPolicy } from './conversation.ts'
 import { discordGatewayDomainSpec } from './domain.ts'
 import { connectDiscordGateway, DISCORD_GATEWAY_INTENTS } from './gateway.ts'
 import type { DiscordGatewayOptions, GatewaySocketFactory } from './gateway.ts'
-import type { GatewaySettings } from './types.ts'
+import type { ConversationLane, DiscordCommandActor, GatewaySettings, LaneToolFilter } from './types.ts'
 import { discordCommands } from './commands.ts'
 import { buildDiscordCommandCatalog, synchronizeDiscordCommands } from './interactions.ts'
 import { createNativeInteractions } from './native.ts'
@@ -75,6 +76,20 @@ export const DEFAULT_DISCORD_APPROVAL_TIMEOUT_MS = 600_000
 /** Default wait for one question's answer before the request rejects unanswered. */
 export const DEFAULT_DISCORD_QUESTION_TIMEOUT_MS = 600_000
 
+/** Session settings that replace the default lane for one allowlisted user's direct messages. */
+export interface UserLaneConfig {
+  /** Absolute workspace path the user's conversations run in. */
+  readonly workspacePath: string
+  /** Agent preset mounted into the user's conversation Sessions. */
+  readonly agentPreset: string
+  /** Permission preset applied to the user's conversation Sessions. */
+  readonly permissionPreset: string
+  /** Tool restriction for the user's conversation Agents; every name must be visible when a Session opens. Defaults to none. */
+  readonly toolFilter?: LaneToolFilter
+  /** Preset commands refused for this user in addition to `excludedPresetCommands`. Defaults to none. */
+  readonly excludedPresetCommands?: string[]
+}
+
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
 export interface Config {
   /** Render command and lifecycle notices as Discord cards. */
@@ -113,6 +128,14 @@ export interface Config {
   readonly agentPreset: string
   /** Permission preset applied to each conversation Session. */
   readonly permissionPreset: string
+  /** Tool restriction for default-lane conversation Agents; every name must be visible when a Session opens. Defaults to none. */
+  readonly toolFilter?: LaneToolFilter
+  /**
+   * Own lanes keyed by allowlisted user id. That user's direct messages run with the lane's
+   * workspace, presets, tool restriction, and command exclusions, and the user is not admitted in
+   * guild channels. Defaults to none.
+   */
+  readonly userLanes?: Record<string, UserLaneConfig>
   /** Prefix of the generated Session title. Defaults to `Discord`. */
   readonly titlePrefix?: string
   /** Longest inbound text handed to the agent. Defaults to 8000. */
@@ -155,6 +178,12 @@ export interface Config {
   readonly wakeRetryMs?: number
 }
 
+// Preserve omission; Schemastery's `{ allow: [] }` default would hide every tool.
+const toolFilterSchema = z.object({
+  allow: z.array(z.string()).default(undefined as unknown as string[]),
+  deny: z.array(z.string()).default(undefined as unknown as string[]),
+}).default(undefined as unknown as { allow: string[]; deny: string[] })
+
 export const Config: z<Config> = z.object({
   richMessages: z.boolean().default(true),
   excludedPresetCommands: z.array(z.string()).default(['export']),
@@ -174,6 +203,14 @@ export const Config: z<Config> = z.object({
   workspacePath: z.string().required(),
   agentPreset: z.string().required(),
   permissionPreset: z.string().required(),
+  toolFilter: toolFilterSchema,
+  userLanes: z.dict(z.object({
+    workspacePath: z.string().required(),
+    agentPreset: z.string().required(),
+    permissionPreset: z.string().required(),
+    toolFilter: toolFilterSchema,
+    excludedPresetCommands: z.array(z.string()).default([]),
+  })).default({}),
   titlePrefix: z.string().default('Discord'),
   maxInputChars: z.number().min(200).default(DEFAULT_DISCORD_MAX_INPUT_CHARS),
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_TURN_TIMEOUT_MS),
@@ -196,8 +233,13 @@ export const Config: z<Config> = z.object({
   wakeRetryMs: z.number().min(1).default(30_000),
 })
 
-/** Complete configuration after schemastery applies every field default. */
-export type ResolvedConfig = Required<Config>
+/** One user lane after schemastery applies its defaults; `toolFilter` stays optional. */
+export type ResolvedUserLane = Required<Omit<UserLaneConfig, 'toolFilter'>> & Pick<UserLaneConfig, 'toolFilter'>
+
+/** Complete configuration after schemastery applies every field default; `toolFilter` stays optional. */
+export type ResolvedConfig = Required<Omit<Config, 'toolFilter' | 'userLanes'>> & Pick<Config, 'toolFilter'> & {
+  readonly userLanes: Record<string, ResolvedUserLane>
+}
 
 /** A Discord user or channel id is a snowflake: 17 to 20 decimal digits. */
 const SNOWFLAKE_PATTERN = /^\d{17,20}$/
@@ -220,6 +262,17 @@ export function assertConfig(config: ResolvedConfig): void {
   if (!isAbsolute(config.workspacePath)) {
     throw new Error(`discord-gateway: workspacePath must be absolute, got "${config.workspacePath}"`)
   }
+  assertToolFilter('toolFilter', config.toolFilter)
+  for (const [userId, lane] of Object.entries(config.userLanes)) {
+    if (!config.allowedUserIds.includes(userId)) {
+      throw new Error(`discord-gateway: userLanes names "${userId}", which allowedUserIds does not admit`)
+    }
+    if (!isAbsolute(lane.workspacePath)) {
+      throw new Error(`discord-gateway: userLanes.${userId}.workspacePath must be absolute, got "${lane.workspacePath}"`)
+    }
+    assertToolFilter(`userLanes.${userId}.toolFilter`, lane.toolFilter)
+    assertPresetCommands(`userLanes.${userId}.excludedPresetCommands`, lane.excludedPresetCommands)
+  }
   for (const [field, value] of Object.entries(config)) {
     if (['inboundDebounceMs', 'replyMaxRetries', 'replyMaxRetryWaitMs', 'accentColor'].includes(field)) {
       if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
@@ -238,11 +291,7 @@ export function assertConfig(config: ResolvedConfig): void {
   if (config.outboxRetryMs > config.outboxMaxRetryMs) {
     throw new Error('discord-gateway: outboxRetryMs must not exceed outboxMaxRetryMs')
   }
-  for (const command of config.excludedPresetCommands) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(command) || ['help', 'new', 'status', 'stop'].includes(command)) {
-      throw new Error('discord-gateway: excludedPresetCommands must name preset commands, not gateway controls')
-    }
-  }
+  assertPresetCommands('excludedPresetCommands', config.excludedPresetCommands)
   if (config.answerers.length === 0) {
     throw new Error('discord-gateway: answerers must name at least one reply form; prompts nobody can answer only expire')
   }
@@ -257,6 +306,28 @@ export function assertConfig(config: ResolvedConfig): void {
   }
 }
 
+/** Reject an explicit filter that names neither list, instead of failing every conversation it would open. */
+function assertToolFilter(field: string, filter: LaneToolFilter | undefined): void {
+  if (filter !== undefined && filter.allow === undefined && filter.deny === undefined) {
+    throw new Error(`discord-gateway: ${field} is configured but names neither \`allow\` nor \`deny\` — remove the key or fill the filter`)
+  }
+}
+
+/** Exclusions name preset commands; the gateway's own controls stay available in every lane. */
+function assertPresetCommands(field: string, commands: readonly string[]): void {
+  for (const command of commands) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(command) || ['help', 'new', 'status', 'stop'].includes(command)) {
+      throw new Error(`discord-gateway: ${field} must name preset commands, not gateway controls`)
+    }
+  }
+}
+
+/** Copy a configured filter without keys Schemastery left undefined; undefined stays undefined. */
+function laneToolFilter(filter: LaneToolFilter | undefined): LaneToolFilter | undefined {
+  if (filter === undefined) return undefined
+  return { ...filter.allow === undefined ? {} : { allow: filter.allow }, ...filter.deny === undefined ? {} : { deny: filter.deny } }
+}
+
 /**
  * Split validated configuration into the settings and policy the router reads.
  * @param config - Complete validated plugin configuration.
@@ -267,6 +338,18 @@ export function toSettings(
   config: ResolvedConfig,
   botUserId: () => string,
 ): { settings: GatewaySettings; policy: RoutingPolicy } {
+  const defaultFilter = laneToolFilter(config.toolFilter)
+  const userLanes = new Map<string, ConversationLane>(Object.entries(config.userLanes).map(([userId, lane]) => {
+    const toolFilter = laneToolFilter(lane.toolFilter)
+    return [userId, {
+      userId,
+      workspacePath: lane.workspacePath,
+      agentPreset: lane.agentPreset,
+      permissionPreset: lane.permissionPreset,
+      excludedPresetCommands: [...new Set([...config.excludedPresetCommands, ...lane.excludedPresetCommands])],
+      ...toolFilter === undefined ? {} : { toolFilter },
+    }]
+  }))
   return {
     settings: {
       richMessages: config.richMessages,
@@ -282,6 +365,8 @@ export function toSettings(
       workspacePath: config.workspacePath,
       agentPreset: config.agentPreset,
       permissionPreset: config.permissionPreset,
+      ...defaultFilter === undefined ? {} : { toolFilter: defaultFilter },
+      userLanes,
       titlePrefix: config.titlePrefix,
       maxInputChars: config.maxInputChars,
       turnTimeoutMs: config.turnTimeoutMs,
@@ -305,6 +390,7 @@ export function toSettings(
       allowedChannelIds: new Set(config.allowedChannelIds),
       guildRequireMention: config.guildRequireMention,
       botUserId,
+      laneUserIds: new Set(userLanes.keys()),
     },
   }
 }
@@ -358,17 +444,33 @@ export async function startListener(
   let removeObserver: (() => unknown) | undefined
   try {
     const credential = await resolveBotToken(ctx, config.tokenEnv)
-    await ctx.agentPresets.resolve(config.agentPreset)
-    ctx.permissionPresets.resolve(config.permissionPreset)
+    for (const lane of [config, ...Object.values(config.userLanes)]) {
+      await ctx.agentPresets.resolve(lane.agentPreset)
+      ctx.permissionPresets.resolve(lane.permissionPreset)
+    }
     let applicationId = ''
     let synchronized = ''
     let requestSync = (): void => {}
     if (config.nativeCommands || config.richMessages || config.answerers.includes('component')) {
-      const scope = await ctx.agentPresets.standingKeyFor(config.agentPreset)
-      const commands = () => discordCommands(ctx.commands.listForScope(scope), config.excludedPresetCommands)
+      const catalog = laneCommandCatalog(ctx, await resolvePresetScopes(ctx, config))
       const { settings, policy } = toSettings(config, () => applicationId)
+      const defaultLane: ConversationLane = {
+        workspacePath: settings.workspacePath, agentPreset: settings.agentPreset,
+        permissionPreset: settings.permissionPreset, excludedPresetCommands: settings.excludedPresetCommands,
+      }
+      const actorCommands = (actor: DiscordCommandActor): readonly CommandDescriptor[] =>
+        catalog((actor.directMessage ? settings.userLanes.get(actor.userId) : undefined) ?? defaultLane)
+      const commands = (): readonly CommandDescriptor[] => {
+        const names = new Set<string>()
+        return [defaultLane, ...settings.userLanes.values()].flatMap(lane => catalog(lane))
+          .filter((command) => {
+            if (names.has(command.name)) return false
+            names.add(command.name)
+            return true
+          })
+      }
       native = createNativeInteractions({ signal: active, settings, policy, applicationId: () => applicationId,
-        commands, execute: (channelId, line, requestSignal) => router.execute(channelId, line, requestSignal),
+        commands: actorCommands, execute: (channelId, actor, line, requestSignal) => router.execute(channelId, actor, line, requestSignal),
         component: (interaction, requestSignal) => router.component(interaction, requestSignal),
         warn: (message) => { ctx.logger.warn(message) },
       })
@@ -423,6 +525,39 @@ export async function startListener(
   }
 }
 
+/** Standing scope of one agent preset, where that preset's commands register. */
+export type PresetScope = Awaited<ReturnType<Context['agentPresets']['standingKeyFor']>>
+
+/**
+ * Resolve the standing scope of the default lane's preset and of every user lane's preset.
+ * @param ctx - context carrying the agent preset roster.
+ * @param config - complete validated plugin configuration.
+ * @returns scopes keyed by preset id.
+ */
+export async function resolvePresetScopes(ctx: Context, config: ResolvedConfig): Promise<ReadonlyMap<string, PresetScope>> {
+  const scopes = new Map<string, PresetScope>()
+  for (const preset of new Set([config.agentPreset, ...Object.values(config.userLanes).map(lane => lane.agentPreset)])) {
+    scopes.set(preset, await ctx.agentPresets.standingKeyFor(preset))
+  }
+  return scopes
+}
+
+/**
+ * Read one lane's command catalog: its preset's commands minus that lane's exclusions.
+ * @param ctx - context carrying the command registry.
+ * @param scopes - standing scopes from {@link resolvePresetScopes}, covering every configured lane.
+ * @returns the reader the router uses while a lane's channel has no live conversation.
+ */
+export function laneCommandCatalog(
+  ctx: Context, scopes: ReadonlyMap<string, PresetScope>,
+): (lane: ConversationLane) => readonly CommandDescriptor[] {
+  return (lane) => {
+    const scope = scopes.get(lane.agentPreset)
+    if (scope === undefined) throw new Error(`discord-gateway: preset "${lane.agentPreset}" of a lane has no resolved standing scope`)
+    return discordCommands(ctx.commands.listForScope(scope), lane.excludedPresetCommands)
+  }
+}
+
 /**
  * Mount the Discord listener: validate configuration, open the durable conversation records, own
  * one cancellation for the connection, and dispose the gateway socket and every live conversation
@@ -437,7 +572,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     ctx.logger.info('discord-gateway: mounted but disabled by configuration')
     return
   }
-  const presetScope = await ctx.agentPresets.standingKeyFor(resolved.agentPreset)
+  const catalog = laneCommandCatalog(ctx, await resolvePresetScopes(ctx, resolved))
   const domain = await ctx.storageDomain.open(discordGatewayDomainSpec)
   const controller = new AbortController()
   let botUserId = ''
@@ -450,7 +585,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     table: domain.table('conversations'),
     outboxTable: domain.table('outbox'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
-    commands: () => discordCommands(ctx.commands.listForScope(presetScope), resolved.excludedPresetCommands),
+    commands: catalog,
   })
   attachCronDelivery(ctx, router)
 

@@ -27,7 +27,8 @@ import {
   tokenizeSessionFixtureCwd,
 } from '@deepseek-ai/dsh-session-snapshot'
 
-const scenarioDir = fileURLToPath(new URL('./discord-rich-reply/', import.meta.url))
+const richScenarioDir = fileURLToPath(new URL('./discord-rich-reply/', import.meta.url))
+const laneScenarioDir = fileURLToPath(new URL('./discord-user-lanes/', import.meta.url))
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const mode = process.env.DSH_SNAPSHOT ?? 'replay'
 const prefix = 'DSH_DISCORD_SNAPSHOT '
@@ -52,7 +53,7 @@ function taskFromFixture(fixture: string): string {
   throw new Error('Discord snapshot has no recorded inbound task')
 }
 
-async function runScenario(fixture: string): Promise<{
+async function runScenario(fixture: string, scenarioDir: string): Promise<{
   content: string
   cwd: string
   exchanges: DiscordExchange[]
@@ -63,7 +64,7 @@ async function runScenario(fixture: string): Promise<{
     await writeFile(fixturePath, fixture.replaceAll('{{cwd}}', cwd))
     const patchDir = join(cwd, '.patches')
     await mkdir(patchDir)
-    const patch = materializeProfilePatch(join(scenarioDir, 'cordis.yml'), cwd, patchDir, 0)
+    const patch = materializeProfilePatch(join(scenarioDir, 'cordis.yml'), cwd, 'web', patchDir, 0)
     const launch = resolveExampleLaunch({
       srcBin: join(repoRoot, 'apps/cli/src/bin.ts'),
       sourceImport: 'tsx/esm',
@@ -133,46 +134,51 @@ async function runScenario(fixture: string): Promise<{
   }
 }
 
-it.skipIf(mode === 'record')(`${mode} Discord rich replies and native status through dsh --profile web`, async () => {
-  const manifestPath = join(scenarioDir, 'snapshot.yml')
-  const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
-  expect(manifest.profile).toBe('web')
-  expect(manifest.recording).toBe('authored')
-  const [fixtureName] = sessionFixtureNames(await readdir(scenarioDir))
-  if (fixtureName === undefined) throw new Error('Discord snapshot has no Session fixture')
-  const fixturePath = join(scenarioDir, fixtureName)
-  let expected = await readFile(fixturePath, 'utf8')
-  const actual = await runScenario(expected)
-  const header = records(actual.content)[0] as { id: string; createdAt: number }
-  const context = { sessionIds: [header.id], cwd: actual.cwd }
-  const prompts = normalizedSystemPrompts(actual.content, context)
-  const schemas = normalizedToolSchemas(actual.content, context)
-  const prompt = formatSystemPromptSnapshot(prompts[0] as string, prompts.slice(1))
-  const schema = formatToolSchemasSnapshot(schemas[0] as unknown[], schemas.slice(1))
-  const wire = JSON.stringify(actual.exchanges, null, 2)
-    .replaceAll(header.id, '{{session:1}}').replaceAll(actual.cwd, '{{cwd}}') + '\n'
-  if (mode === 'refresh') {
-    const replacements = refreshFixtureReplacements([{ ...header, content: actual.content }], [expected])
-    expected = redactSessionSnapshotIds(stabilizeFixtureMessageIds([
-      scrubSessionSnapshot(tokenizeSessionFixtureCwd(stabilizeRefreshLog(
-        actual.content, expected, replacements, context,
-      ))),
-    ], [expected]))[0] as string
-    await writeFile(fixturePath, expected)
-    await writeFile(join(scenarioDir, 'system-prompt.expected.md'), prompt)
-    await writeFile(join(scenarioDir, 'tool-schemas.expected.json'), schema)
-    await writeFile(join(scenarioDir, 'discord.expected.json'), wire)
-  }
-  expect(normalizeSessionSnapshots([actual.content], context).map(records))
-    .toEqual(normalizeSessionSnapshots([expected], { sessionIds: ['{{session:1}}'], cwd: '{{cwd}}' }).map(records))
-  expect(normalizedHeaders(actual.content, context).map(value => ({ ...value as object, tools: '{{tools}}' })))
-    .toEqual(normalizedHeaders(expected, { sessionIds: [], cwd: '{{cwd}}' }))
-  expect(prompt).toBe(await readFile(join(scenarioDir, 'system-prompt.expected.md'), 'utf8'))
-  expect(schema).toBe(await readFile(join(scenarioDir, 'tool-schemas.expected.json'), 'utf8'))
-  expect(wire).toBe(await readFile(join(scenarioDir, 'discord.expected.json'), 'utf8'))
-  expect(actual.exchanges.some(exchange => exchange.method === 'PUT' && exchange.path.endsWith('/commands'))).toBe(true)
-  expect(wire).toContain('DISCORD_RICH_REPLY_OK')
-  expect(wire).toContain('```ts')
-  expect(wire).toContain('embeds')
-  expect(actual.exchanges.some(exchange => exchange.method === 'PATCH' && exchange.path.endsWith('/messages/@original'))).toBe(true)
-})
+for (const [name, scenarioDir] of [
+  ['Discord rich replies and native status', richScenarioDir],
+  ['Discord user lane with native status', laneScenarioDir],
+] as const) {
+  it.skipIf(mode === 'record')(`${mode} ${name} through dsh --profile web`, async () => {
+    const manifestPath = join(scenarioDir, 'snapshot.yml')
+    const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
+    expect(manifest.profile).toBe('web')
+    expect(manifest.recording).toBe('authored')
+    const [fixtureName] = sessionFixtureNames(await readdir(scenarioDir))
+    if (fixtureName === undefined) throw new Error('Discord snapshot has no Session fixture')
+    const fixturePath = join(scenarioDir, fixtureName)
+    let expected = await readFile(fixturePath, 'utf8')
+    const actual = await runScenario(expected, scenarioDir)
+    const header = records(actual.content)[0] as { id: string; createdAt: number }
+    const context = { sessionIds: [header.id], cwd: actual.cwd }
+    const prompts = normalizedSystemPrompts(actual.content, context)
+    const schemas = normalizedToolSchemas(actual.content, context)
+    const prompt = formatSystemPromptSnapshot(prompts[0] as string, prompts.slice(1))
+    const schema = formatToolSchemasSnapshot(schemas[0] as unknown[], schemas.slice(1))
+    const wire = JSON.stringify(actual.exchanges, null, 2)
+      .replaceAll(header.id, '{{session:1}}').replaceAll(actual.cwd, '{{cwd}}') + '\n'
+    if (mode === 'refresh') {
+      const replacements = refreshFixtureReplacements([{ ...header, content: actual.content }], [expected])
+      expected = redactSessionSnapshotIds(stabilizeFixtureMessageIds([
+        scrubSessionSnapshot(tokenizeSessionFixtureCwd(stabilizeRefreshLog(
+          actual.content, expected, replacements, context,
+        ))),
+      ], [expected]))[0] as string
+      await writeFile(fixturePath, expected)
+      await writeFile(join(scenarioDir, 'system-prompt.expected.md'), prompt)
+      await writeFile(join(scenarioDir, 'tool-schemas.expected.json'), schema)
+      await writeFile(join(scenarioDir, 'discord.expected.json'), wire)
+    }
+    expect(normalizeSessionSnapshots([actual.content], context).map(records))
+      .toEqual(normalizeSessionSnapshots([expected], { sessionIds: ['{{session:1}}'], cwd: '{{cwd}}' }).map(records))
+    expect(normalizedHeaders(actual.content, context).map(value => ({ ...value as object, tools: '{{tools}}' })))
+      .toEqual(normalizedHeaders(expected, { sessionIds: [], cwd: '{{cwd}}' }))
+    expect(prompt).toBe(await readFile(join(scenarioDir, 'system-prompt.expected.md'), 'utf8'))
+    expect(schema).toBe(await readFile(join(scenarioDir, 'tool-schemas.expected.json'), 'utf8'))
+    expect(wire).toBe(await readFile(join(scenarioDir, 'discord.expected.json'), 'utf8'))
+    expect(actual.exchanges.some(exchange => exchange.method === 'PUT' && exchange.path.endsWith('/commands'))).toBe(true)
+    expect(wire).toContain('DISCORD_RICH_REPLY_OK')
+    expect(wire).toContain('```ts')
+    expect(wire).toContain('embeds')
+    expect(actual.exchanges.some(exchange => exchange.method === 'PATCH' && exchange.path.endsWith('/messages/@original'))).toBe(true)
+  })
+}

@@ -3,7 +3,7 @@ import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { ScheduleId, createAfterScheduleRecord } from '@deepseek-ai/dsh-schedule'
 import type { OutboxRecord } from '../src/domain.ts'
-import { CHANNEL, harness, inbound, record } from './support.ts'
+import { CHANNEL, USER, harness, inbound, record } from './support.ts'
 
 const harnesses: ReturnType<typeof harness>[] = []
 afterEach(async () => {
@@ -68,7 +68,7 @@ describe('durable Discord conversation delivery', () => {
     })
     h.router.handle(inbound())
     await entered.promise
-    const replacement = record({ sessionId: 'replacement', deliveredThrough: 10 })
+    const replacement = record({ sessionId: 'replacement', deliveredThrough: 10, lastInboundAt: 1 })
     h.table.records.set(CHANNEL, replacement)
     release.resolve(undefined)
     await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
@@ -119,6 +119,19 @@ describe('durable Discord conversation delivery', () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a removed user lane dormant when its old reminder fires', async () => {
+    vi.useFakeTimers()
+    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create',
+      schedule: createAfterScheduleRecord(ScheduleId('removed-lane-reminder'), 'Check the build', 1, Date.now()),
+    } }] as unknown as SessionEvent[]
+    const { h } = durable({ storedEvents: events, initialRecord: record({ lane: USER, deliveredThrough: 1 }) })
+    await h.router.recover()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(h.calls).not.toContain('agent-resume:discord-old-session')
+    expect(h.warnings.some(message => message.includes('names removed lane'))).toBe(true)
+    expect(h.table.records.get(CHANNEL)?.lane).toBe(USER)
   })
 
   it('supports a router without persistent delivery storage', async () => {

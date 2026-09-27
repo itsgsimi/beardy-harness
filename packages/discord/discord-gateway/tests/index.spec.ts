@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { apply, assertConfig, resolveBotToken, startListener } from '../src/index.ts'
+import { apply, assertConfig, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
 import type { ConversationRouter } from '../src/conversation.ts'
 import type { DiscordGatewayOptions } from '../src/gateway.ts'
@@ -21,6 +21,7 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     workspacePath: '/workspace',
     agentPreset: 'beardy',
     permissionPreset: 'danger-full-access',
+    userLanes: {},
     titlePrefix: 'Discord',
     maxInputChars: 8_000,
     turnTimeoutMs: 600_000,
@@ -94,6 +95,56 @@ describe('assertConfig', () => {
 
   it('accepts a zero debounce window, which answers every message at once', () => {
     expect(() => { assertConfig(config({ inboundDebounceMs: 0 })) }).not.toThrow()
+  })
+
+  it('validates lane ownership, workspace paths, and command exclusions', () => {
+    const lane = { workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only', excludedPresetCommands: [] }
+    expect(() => { assertConfig(config({ userLanes: { [USER]: lane } })) }).not.toThrow()
+    expect(() => { assertConfig(config({ userLanes: { ['138391763999129601']: lane } })) })
+      .toThrow('allowedUserIds does not admit')
+    expect(() => { assertConfig(config({ userLanes: { [USER]: { ...lane, workspacePath: 'relative' } } })) })
+      .toThrow('workspacePath must be absolute')
+    expect(() => { assertConfig(config({ userLanes: { [USER]: { ...lane, excludedPresetCommands: ['help'] } } })) })
+      .toThrow('must name preset commands, not gateway controls')
+    expect(() => { assertConfig(config({ excludedPresetCommands: ['Bad Command'] })) })
+      .toThrow('must name preset commands, not gateway controls')
+  })
+
+  it('requires an allow or deny list when a lane tool filter is configured', () => {
+    const lane = { workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only', excludedPresetCommands: [] }
+    expect(() => { assertConfig(config({ toolFilter: {} })) }).toThrow('toolFilter is configured but names neither')
+    expect(() => { assertConfig(config({ userLanes: { [USER]: { ...lane, toolFilter: {} } } })) })
+      .toThrow(`userLanes.${USER}.toolFilter is configured but names neither`)
+    expect(() => { assertConfig(config({ toolFilter: { allow: [] }, userLanes: { [USER]: { ...lane, toolFilter: { deny: [] } } } })) })
+      .not.toThrow()
+  })
+})
+
+describe('lane settings and command catalogs', () => {
+  it('copies lane filters and adds user exclusions to the shared exclusions', () => {
+    const lane = { workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only',
+      excludedPresetCommands: ['export', 'danger'], toolFilter: { deny: ['shell'] } }
+    const { settings, policy } = toSettings(config({ toolFilter: { allow: ['read_file'] }, userLanes: { [USER]: lane } }), () => 'bot')
+    expect(settings.toolFilter).toEqual({ allow: ['read_file'] })
+    expect(settings.userLanes.get(USER)).toEqual({ userId: USER, workspacePath: '/restricted',
+      agentPreset: 'restricted', permissionPreset: 'read-only', excludedPresetCommands: ['export', 'danger'],
+      toolFilter: { deny: ['shell'] } })
+    expect(policy.laneUserIds.has(USER)).toBe(true)
+    expect(toSettings(config(), () => 'bot').settings.toolFilter).toBeUndefined()
+  })
+
+  it('resolves each preset once and rejects a catalog whose preset scope was not resolved', async () => {
+    const standingKeyFor = vi.fn(async (name: string) => name)
+    const listForScope = vi.fn(() => [{ name: 'inspect', description: 'Inspect' }, { name: 'danger', description: 'Danger' }])
+    const ctx = { agentPresets: { standingKeyFor }, commands: { listForScope } } as unknown as Context
+    const lane = { workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only', excludedPresetCommands: ['danger'] }
+    const scopes = await resolvePresetScopes(ctx, config({ userLanes: { [USER]: lane, ['138391763999129601']: lane } }))
+    expect(standingKeyFor.mock.calls).toEqual([['beardy'], ['restricted']])
+    expect(laneCommandCatalog(ctx, scopes)({ userId: USER, ...lane }).map(command => command.name))
+      .toEqual(expect.arrayContaining(['help', 'inspect']))
+    expect(laneCommandCatalog(ctx, scopes)({ userId: USER, ...lane }).map(command => command.name)).not.toContain('danger')
+    expect(() => { laneCommandCatalog(ctx, new Map())({ userId: USER, ...lane }) })
+      .toThrow('has no resolved standing scope')
   })
 })
 
