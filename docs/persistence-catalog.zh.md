@@ -756,7 +756,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/checkpoint': ResearchCheckpoint
 ```
 
-来源：[`packages/research/research/src/types.ts:170`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:172`](../packages/research/research/src/types.ts)
 
 <a id="researchfinding--log-only"></a>
 
@@ -767,7 +767,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/finding': ResearchFinding
 ```
 
-来源：[`packages/research/research/src/types.ts:176`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:178`](../packages/research/research/src/types.ts)
 
 <a id="researchfinished--log-only"></a>
 
@@ -778,7 +778,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/finished': ResearchFinished
 ```
 
-来源：[`packages/research/research/src/types.ts:178`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:180`](../packages/research/research/src/types.ts)
 
 <a id="researchlinked--log-only"></a>
 
@@ -789,7 +789,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/linked': ResearchLinked
 ```
 
-来源：[`packages/research/research/src/types.ts:168`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:170`](../packages/research/research/src/types.ts)
 
 <a id="researchsearch--log-only"></a>
 
@@ -800,7 +800,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/search': ResearchSearch
 ```
 
-来源：[`packages/research/research/src/types.ts:172`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:174`](../packages/research/research/src/types.ts)
 
 <a id="researchsource--log-only"></a>
 
@@ -811,7 +811,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/source': ResearchSourceAttempt
 ```
 
-来源：[`packages/research/research/src/types.ts:174`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:176`](../packages/research/research/src/types.ts)
 
 <a id="researchstarted--log-only"></a>
 
@@ -822,7 +822,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'research/started': ResearchStarted
 ```
 
-来源：[`packages/research/research/src/types.ts:166`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:168`](../packages/research/research/src/types.ts)
 
 ### `sandbox/*`
 
@@ -4656,7 +4656,7 @@ SHA-256: `90dd6be0f93b819d4420520c5d1a402db2b5054a84d7bba0e87374290afe211b`
 
 SHA-256: `f137c43bc99035c8a2bc5cbccd854293df1717a17b78a965218c3adb59616e17`
 
-来源：[`packages/research/research/src/types.ts:142`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:144`](../packages/research/research/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4701,7 +4701,7 @@ SHA-256: `383255f0978db3aadc79d8d3fee6cd785503801706294166c5200b775762ff09`
 
 SHA-256: `9dcd98874c522e742ea19361f706c2173ee3058c86ce56bd92d3caaacff472bd`
 
-来源：[`packages/research/research/src/types.ts:154`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:156`](../packages/research/research/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4722,7 +4722,7 @@ SHA-256: `9dcd98874c522e742ea19361f706c2173ee3058c86ce56bd92d3caaacff472bd`
 
 SHA-256: `eb73b0e0e79fa21231651fe01fdc9136c7d66517fcf0273f786528df1cfdc882`
 
-来源：[`packages/research/research/src/types.ts:137`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:139`](../packages/research/research/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4821,7 +4821,7 @@ SHA-256: `7d1628271ddc784e7f4a5fcedcbce24b2b684359d3e5513796aac02c7381400a`
 
 SHA-256: `a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b`
 
-来源：[`packages/research/research/src/types.ts:121`](../packages/research/research/src/types.ts)
+来源：[`packages/research/research/src/types.ts:123`](../packages/research/research/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

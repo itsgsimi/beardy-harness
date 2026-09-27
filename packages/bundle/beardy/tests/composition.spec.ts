@@ -19,6 +19,8 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import * as ToolDiscord from '@deepseek-ai/dsh-tool-discord'
+import * as NativeResearch from '@deepseek-ai/dsh-tool-research'
+import * as OdysseusResearch from '@deepseek-ai/dsh-tool-odysseus-research'
 import { Config as GatewayConfig } from '@deepseek-ai/dsh-discord-gateway'
 
 type JsonRecord = Record<string, unknown>
@@ -153,11 +155,16 @@ describe('dsh-beardy composition gating', () => {
       ['discord-gateway', '@deepseek-ai/dsh-discord-gateway'],
       ['cron', '@deepseek-ai/dsh-cron'],
       ['tool-odysseus-research', '@deepseek-ai/dsh-tool-odysseus-research'],
+      ['research-local', '@deepseek-ai/dsh-research-local'],
+      ['tool-research', '@deepseek-ai/dsh-tool-research'],
       ['web-fetch-http', '@deepseek-ai/dsh-web-fetch-http'],
       ['training-export', '@deepseek-ai/dsh-experimental-training-export'],
       ['subagent-model-selection-settings', '@deepseek-ai/dsh-tool-subagent/model-selection-settings'],
     ] as const) expect(byId(id).name).toBe(name)
     expect(byId('speech-whisper').disabled).toBe(false)
+    expect(byId('research-local').disabled).toBe(true)
+    expect(byId('tool-research').disabled).toBe(true)
+    expect(byId('tool-odysseus-research').disabled).toBe(true)
     expect(byId('discord-gateway').config).toMatchObject({
       agentPreset: 'beardy-discord', permissionPreset: 'danger-full-access',
       userLanes: { '123456789012345679': { agentPreset: 'beardy-mamabear', permissionPreset: 'workspace-write' } },
@@ -260,6 +267,24 @@ describe('dsh-beardy composition gating', () => {
       name: '@deepseek-ai/dsh-time-context',
       config: { refreshIntervalMs: 3600000 },
     }))
+  })
+
+  it.each(['native-first', 'bridge-first'])('rejects both research consumers at load (%s)', async (order) => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.provide('research' as never, { ownerFor: () => ({ kind: 'profile', namespace: 'beardy' }) } as never)
+    ctx.provide('credentials' as never, { resolve: async () => ({ value: 'fixture', source: 'fixture' }) } as never)
+    const bridgeConfig = { baseURL: 'http://127.0.0.1:1', tokenEnv: 'FIXTURE', endpointId: 'fixture',
+      model: 'fixture', maxRounds: 1, maxTimeSeconds: 60 }
+    if (order === 'native-first') {
+      await ctx.plugin(NativeResearch)
+      await expect(ctx.plugin(OdysseusResearch, bridgeConfig)).rejects.toThrow(/disable deep_research/)
+    } else {
+      await ctx.plugin(OdysseusResearch, bridgeConfig)
+      await expect(ctx.plugin(NativeResearch)).rejects.toThrow(/disable the Odysseus bridge/)
+    }
   })
 
   it('fails loud naming channelId when no profile supplied a destination', async () => {

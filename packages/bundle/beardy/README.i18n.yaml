@@ -6,8 +6,8 @@
   en: dcfa66b7e3e9dc1d
   zh: 16d7ead96614c7ef
 /deepseek-ai-dsh-beardy:
-  en: 5edbb0397dee196f
-  zh: 820c221aec8e6178
+  en: 08466b4b6586b51a
+  zh: d66f693415caa440
 /deepseek-ai-dsh-beardy/summary:
   en: a42e531c3950431f
   zh: 62299296a72bf215
@@ -18,8 +18,11 @@
   en: bbff250eba0f1b89
   zh: 0a618f05cc88ee2b
 /deepseek-ai-dsh-beardy/use-this-package/run-the-shipped-beardy-profile:
-  en: 210a7cf72176e512
-  zh: 8d947dc18da8118b
+  en: f84f730667a5952f
+  zh: 19340ec2f61549f3
+/deepseek-ai-dsh-beardy/use-this-package/select-native-deep-research:
+  en: b11b971246078c3c
+  zh: 5653d117e2ceed8d
 /deepseek-ai-dsh-beardy/use-this-package/deploy-as-an-always-on-discord-agent:
   en: 541f0b53bc6ad1ea
   zh: 8b3a62c39a90ce9a

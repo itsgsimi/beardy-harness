@@ -506,6 +506,12 @@ importers:
       '@deepseek-ai/dsh-plugin-package-inventory-deepseek':
         specifier: workspace:*
         version: link:../../packages/llm/plugin-package-inventory-deepseek
+      '@deepseek-ai/dsh-research':
+        specifier: workspace:*
+        version: link:../../packages/research/research
+      '@deepseek-ai/dsh-research-local':
+        specifier: workspace:*
+        version: link:../../packages/research/research-local
       '@deepseek-ai/dsh-sandbox-local':
         specifier: workspace:*
         version: link:../../packages/sandbox/sandbox-local
@@ -551,6 +557,9 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../packages/core/system-prompt
+      '@deepseek-ai/dsh-tool-research':
+        specifier: workspace:*
+        version: link:../../packages/research/tool-research
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../packages/core/tools
@@ -2185,6 +2194,12 @@ importers:
       '@deepseek-ai/dsh-discord-gateway':
         specifier: workspace:^
         version: link:../../discord/discord-gateway
+      '@deepseek-ai/dsh-research':
+        specifier: workspace:*
+        version: link:../../research/research
+      '@deepseek-ai/dsh-research-local':
+        specifier: workspace:*
+        version: link:../../research/research-local
       '@deepseek-ai/dsh-session-query-sqlite':
         specifier: workspace:^
         version: link:../../session-query/session-query-sqlite
@@ -2200,6 +2215,9 @@ importers:
       '@deepseek-ai/dsh-tool-odysseus-research':
         specifier: workspace:^
         version: link:../../web/tool-odysseus-research
+      '@deepseek-ai/dsh-tool-research':
+        specifier: workspace:*
+        version: link:../../research/tool-research
       '@deepseek-ai/dsh-tool-session-query':
         specifier: workspace:^
         version: link:../../session-query/tool-session-query
@@ -10573,6 +10591,52 @@ importers:
       '@deepseek-ai/dsh-tool-web':
         specifier: workspace:*
         version: link:../../web/tool-web
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:*
+        version: link:../../web/web
+
+  packages/research/tool-research:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:~
+        version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:*
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: workspace:*
+        version: link:../../test-support/agent-loop-testkit
+      '@deepseek-ai/dsh-attachment-local':
+        specifier: workspace:*
+        version: link:../../attachment/attachment-local
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-research':
+        specifier: workspace:*
+        version: link:../research
+      '@deepseek-ai/dsh-research-local':
+        specifier: workspace:*
+        version: link:../research-local
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: workspace:*
+        version: link:../../session/session-persistence-jsonl
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools

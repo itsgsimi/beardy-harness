@@ -754,7 +754,7 @@ Source: [`packages/core/session/src/types.ts:390`](../packages/core/session/src/
 'research/checkpoint': ResearchCheckpoint
 ```
 
-Source: [`packages/research/research/src/types.ts:170`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:172`](../packages/research/research/src/types.ts)
 
 <a id="researchfinding--log-only"></a>
 
@@ -765,7 +765,7 @@ Source: [`packages/research/research/src/types.ts:170`](../packages/research/res
 'research/finding': ResearchFinding
 ```
 
-Source: [`packages/research/research/src/types.ts:176`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:178`](../packages/research/research/src/types.ts)
 
 <a id="researchfinished--log-only"></a>
 
@@ -776,7 +776,7 @@ Source: [`packages/research/research/src/types.ts:176`](../packages/research/res
 'research/finished': ResearchFinished
 ```
 
-Source: [`packages/research/research/src/types.ts:178`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:180`](../packages/research/research/src/types.ts)
 
 <a id="researchlinked--log-only"></a>
 
@@ -787,7 +787,7 @@ Source: [`packages/research/research/src/types.ts:178`](../packages/research/res
 'research/linked': ResearchLinked
 ```
 
-Source: [`packages/research/research/src/types.ts:168`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:170`](../packages/research/research/src/types.ts)
 
 <a id="researchsearch--log-only"></a>
 
@@ -798,7 +798,7 @@ Source: [`packages/research/research/src/types.ts:168`](../packages/research/res
 'research/search': ResearchSearch
 ```
 
-Source: [`packages/research/research/src/types.ts:172`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:174`](../packages/research/research/src/types.ts)
 
 <a id="researchsource--log-only"></a>
 
@@ -809,7 +809,7 @@ Source: [`packages/research/research/src/types.ts:172`](../packages/research/res
 'research/source': ResearchSourceAttempt
 ```
 
-Source: [`packages/research/research/src/types.ts:174`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:176`](../packages/research/research/src/types.ts)
 
 <a id="researchstarted--log-only"></a>
 
@@ -820,7 +820,7 @@ Source: [`packages/research/research/src/types.ts:174`](../packages/research/res
 'research/started': ResearchStarted
 ```
 
-Source: [`packages/research/research/src/types.ts:166`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:168`](../packages/research/research/src/types.ts)
 
 ### `sandbox/*`
 
@@ -4654,7 +4654,7 @@ Sources: [`packages/research/research/src/types.ts:19`](../packages/research/res
 
 SHA-256: `f137c43bc99035c8a2bc5cbccd854293df1717a17b78a965218c3adb59616e17`
 
-Sources: [`packages/research/research/src/types.ts:142`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:144`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4699,7 +4699,7 @@ Sources: [`packages/research/research/src/types.ts:82`](../packages/research/res
 
 SHA-256: `9dcd98874c522e742ea19361f706c2173ee3058c86ce56bd92d3caaacff472bd`
 
-Sources: [`packages/research/research/src/types.ts:154`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:156`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4720,7 +4720,7 @@ Sources: [`packages/research/research/src/types.ts:154`](../packages/research/re
 
 SHA-256: `eb73b0e0e79fa21231651fe01fdc9136c7d66517fcf0273f786528df1cfdc882`
 
-Sources: [`packages/research/research/src/types.ts:137`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:139`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4819,7 +4819,7 @@ Sources: [`packages/research/research/src/types.ts:70`](../packages/research/res
 
 SHA-256: `a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b`
 
-Sources: [`packages/research/research/src/types.ts:121`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:123`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

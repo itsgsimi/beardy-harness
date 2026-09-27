@@ -24,6 +24,8 @@ kind: "package-reference"
 
 Beardy 包含默认禁用的 `tool-odysseus-research` 条目。在个人配置档补丁中填写所有必填值并启用。其他配置档可插入引用此包的条目。Odysseus 必须支持 `research:read` 和 `research:run` 令牌权限；仅接受浏览器会话的研究路由拒绝 bearer 启动请求。通过[凭据提供者](../../credentials/credentials-local/README.zh.md)保存令牌，不要放入模型输入。
 
+桥接与原生 [`deep_research`](../../research/tool-research/README.zh.md) 工具不能同时挂载。[Beardy 切换配置](../../bundle/beardy/README.zh.md#select-native-deep-research)禁用此条目，同时启用原生提供方和工具。
+
 ```yaml
 - id: tool-odysseus-research
   disabled: false

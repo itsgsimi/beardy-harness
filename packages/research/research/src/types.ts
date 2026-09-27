@@ -95,6 +95,8 @@ export interface ResearchReport {
   readonly complete: boolean
   readonly markdown: string
   readonly sources: readonly ResearchSource[]
+  /** Unicode characters per model-facing report page, captured when the run started. */
+  readonly pageChars: number
   readonly reportRef: FileAttachmentRef
   readonly evidenceRef: FileAttachmentRef
 }

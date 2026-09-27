@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/research.md
 /research-runs:
-  en: 6190546bf7f3850d
-  zh: 26cfa5d407fe912a
+  en: c6bc21f102bd6de9
+  zh: ba910343cdabed86
 /research-runs/durable-identity-and-ownership:
   en: 57da3e1f1d04da31
   zh: 3934a7c03842fa04
@@ -17,3 +17,6 @@
 /research-runs/evidence-and-stopping:
   en: bdfabf3027242a47
   zh: 38a507414674ceb0
+/research-runs/model-access-and-beardy-selection:
+  en: 3735cda02b5c5cec
+  zh: 0954fc3beea4d553

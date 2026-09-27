@@ -74,6 +74,8 @@ import McpResources from '@deepseek-ai/dsh-mcp-resources'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import { registerListSubagentModels } from '../packages/subagent/tool-subagent/src/list-models.ts'
 import * as ToolOdysseusResearch from '@deepseek-ai/dsh-tool-odysseus-research'
+import type { ResearchService } from '@deepseek-ai/dsh-research'
+import * as ToolResearch from '@deepseek-ai/dsh-tool-research'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import WorkflowEngine from '@deepseek-ai/dsh-workflow'
 import type { WorkflowRun, WorkflowStartRequest } from '@deepseek-ai/dsh-workflow'
@@ -703,6 +705,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
     },
     note: 'Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-research',
+    dir: 'tool-research',
+    source: 'packages/research/tool-research/src/index.ts',
+    requires: ['ctx.tools', 'ctx.research'],
+    writes: ['tool/call', 'tool/result', 'research/linked'],
+    async mount(ctx) {
+      ctx.provide('research', {} as ResearchService)
+      await ctx.plugin(ToolResearch)
+    },
+    note: 'Native runs and reports survive process restart. The tool derives owner authority from the caller Session and pages report text.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-discord',

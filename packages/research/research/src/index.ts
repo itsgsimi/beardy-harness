@@ -58,6 +58,13 @@ export abstract class ResearchService extends Service {
   }
 
   /**
+   * Derive the configured run authority from a live caller Session.
+   * @param caller - Session executing a trusted consumer action.
+   * @returns caller-scoped or configured single-user profile authority.
+   */
+  abstract ownerFor(caller: Session): ResearchOwner
+
+  /**
    * Commit a run Session, then link and flush the caller Session before returning.
    * @param request - live caller, trusted owner, question, and optional exact-call idempotency key.
    * @returns the durable run view; duplicate keys return the same run.

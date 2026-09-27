@@ -112,15 +112,17 @@ export async function runStage(
         ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(config.reasoningEffort) }),
       },
       setup: (agentCtx) => {
+        agentCtx.tools.presentAs('native')
         agentCtx.tools.restrict({ allow: [] })
         agentCtx.tools.guard(() => 'research stages cannot execute tools')
         agentCtx.on('session/event', (session, event) => {
           if (session.id === id && event.type === 'assistant/message') response = event
         })
         agentCtx.on('llm/stream', (request, next) => {
+          if (request.sessionId !== id) return next()
           if (++modelCalls > 1) throw new Error('research stage attempted another model call')
           if (request.tools !== undefined && request.tools.length > 0) {
-            throw new Error('research stage exposed model tools')
+            throw new Error(`research stage exposed model tools: ${request.tools.map(tool => tool.name).join(', ')}`)
           }
           return next()
         })

@@ -7,7 +7,7 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
-Odysseus 深度研究需显式启用：在个人配置档补丁中启用默认禁用的 `tool-odysseus-research` 条目，并根据[研究桥接配置](../../web/tool-odysseus-research/README.zh.md)选择服务器、研究令牌、端点、模型和预算。
+Beardy 保留 Odysseus 研究桥接作为当前的显式启用方案。原生 `deep_research` 可通过[一组配置档补丁](#select-native-deep-research)切换；两个工具不能同时挂载。
 
 ## 概述
 
@@ -37,6 +37,29 @@ dsh --profile beardy
 ```
 
 该 profile 使用 patch 实时热重载，把专用的派生搜索索引存放在 `$DSH_HOME/session-search.sqlite`，并在首次搜索时打开 SQLite。profile 自身与 home 层的 patch 文件可以按普通的 profile 层规则替换这些行。
+
+<a id="select-native-deep-research"></a>
+### 选择原生深度研究
+
+Beardy 随附的 `tool-odysseus-research` 桥接条目，以及原生 `research-local` 和 `tool-research` 条目默认均被禁用。现有个人配置档可以继续启用已配置的桥接。若要选择原生引擎，请把以下三个替换条目放入 `$DSH_HOME/profiles/beardy/cordis.patch.yml`；若其中已有桥接条目，请替换它：
+
+```yaml
+- id: tool-odysseus-research
+  disabled: true
+
+- id: research-local
+  disabled: false
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+    ownerScope: profile
+    ownerNamespace: beardy
+
+- id: tool-research
+  disabled: false
+```
+
+提供方和模型必须对应已准入的 LLM 路由。该配置档命名空间允许此单用户 Beardy 配置档中的每个 Session 访问其运行；若报告仅应属于一个调用方 Session，可改用 `ownerScope: session`。[原生工具](../../research/tool-research/README.zh.md)提供 `deep_research` 和分页报告。若继续使用 Odysseus，请按照[远端必需配置](../../web/tool-odysseus-research/README.zh.md)启用桥接条目。同时挂载两个工具会在加载时失败。
 
 Beardy 默认把 `web_search` 发往 `http://127.0.0.1:8080` 的 SearXNG JSON 端点。启动前设置 `SEARXNG_BASE_URL` 可改用其他实例，并在该实例的 `search.formats` 配置中启用 `json` 格式。端点契约见 [SearXNG provider README](../../web/web-search-searxng/README.zh.md) 与 [SearXNG Search API](https://docs.searxng.org/dev/search_api.html)。
 

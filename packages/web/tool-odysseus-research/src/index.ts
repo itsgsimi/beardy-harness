@@ -85,6 +85,9 @@ export const Config: z<Config> = z.object({
  * @param config - validated deployment choices and request bounds.
  */
 export function apply(ctx: Context, config: Config): void {
+  if (ctx.tools.schemas().some(schema => schema.name === 'deep_research')) {
+    throw new Error('tool-odysseus-research: disable deep_research before mounting the Odysseus bridge')
+  }
   // Cordis has validated the entry and wrapped the volatile selection before apply.
   const resolved = config as ResolvedConfig
   const url = new URL(resolved.baseURL)

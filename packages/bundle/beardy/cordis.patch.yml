@@ -58,6 +58,22 @@
       name: '@deepseek-ai/dsh-tool-odysseus-research'
       disabled: true
 
+# Native research uses the dsh-research definition through its provider and tool.
+# Enable both native rows and disable the bridge in one personal profile patch.
+- insert:
+    - id: research-local
+      name: '@deepseek-ai/dsh-research-local'
+      disabled: true
+      config:
+        provider: deepseek-official
+        model: deepseek-flash
+        ownerScope: profile
+        ownerNamespace: beardy
+
+    - id: tool-research
+      name: '@deepseek-ai/dsh-tool-research'
+      disabled: true
+
 # Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
 # only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
 # token itself lives in the environment or the root .env; the composition names the reference, never

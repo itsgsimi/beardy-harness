@@ -4100,6 +4100,25 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-ralph -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-research -->
+<a id="deepseek-aidsh-tool-research"></a>
+
+## `@deepseek-ai/dsh-tool-research`
+
+- `inject`: `research` · `tools`
+- `source`: [`packages/research/tool-research/src/index.ts:16`](../packages/research/tool-research/src/index.ts)
+
+```ts config-catalog
+/** Page bound for changing status and list responses; reports use each run's captured budget. */
+export interface Config {
+  /** Maximum Unicode characters per status or list response page. */
+  readonly summaryPageChars?: number
+  /** Maximum owner-scoped runs projected for one list request. */
+  readonly listLimit?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-research -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-session-query -->
 <a id="deepseek-aidsh-tool-session-query"></a>
 

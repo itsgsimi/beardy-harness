@@ -159,26 +159,26 @@
   en: a7d3fa2c2977b817
   zh: a7d3fa2c2977b817
 /session-persistence-event-catalog/events/research/research-checkpoint-log-only:
-  en: 2aa5d1f837abf0fe
-  zh: cc11d877ce4dd0d8
+  en: e82ab668a6709de9
+  zh: 33e68ffa3293e929
 /session-persistence-event-catalog/events/research/research-finding-log-only:
-  en: 68a4654b213c323d
-  zh: 9fa2fa3f804755cf
+  en: c1ea989c00726935
+  zh: 65f9539c59a1d0e7
 /session-persistence-event-catalog/events/research/research-finished-log-only:
-  en: e461cf3fe77d3eab
-  zh: 0ab5fd27ffe48bb3
+  en: a99eadd1a67b019b
+  zh: 7f7cf633bc845e3a
 /session-persistence-event-catalog/events/research/research-linked-log-only:
-  en: 06c9fa7976ebe816
-  zh: bad637ff0318888b
+  en: 9c4a88c8410cf830
+  zh: 74ac92b2c9936897
 /session-persistence-event-catalog/events/research/research-search-log-only:
-  en: 073e18c4991a62f7
-  zh: 25fad8fe78dd0297
+  en: f452b31df208165b
+  zh: 4b469fb3e1d737b8
 /session-persistence-event-catalog/events/research/research-source-log-only:
-  en: c69e8304c04efb25
-  zh: 5aae56a47aceb917
+  en: d33a6126f89ac92d
+  zh: 559307503b34505f
 /session-persistence-event-catalog/events/research/research-started-log-only:
-  en: a35035cd6955a7ee
-  zh: 0c6f1ec182d5d849
+  en: b201535b01fa8117
+  zh: 0d4fab9efaaf4fcd
 /session-persistence-event-catalog/events/sandbox:
   en: ec841ab8439335b0
   zh: ec841ab8439335b0
@@ -1221,17 +1221,17 @@
   en: 61908e41f787ec9d
   zh: 81c314705d2e4246
 /session-persistence-event-catalog/resolved-persistence-types/researchcheckpoint:
-  en: fbb5c1c4d2450a32
-  zh: 97c853deb6bc0f54
+  en: a79bacc9f736fccd
+  zh: 8cced986a44cf214
 /session-persistence-event-catalog/resolved-persistence-types/researchfinding:
   en: 9e111b0a3a9d2f33
   zh: ff6a9c7424a79c97
 /session-persistence-event-catalog/resolved-persistence-types/researchfinished:
-  en: a68ce88886958586
-  zh: 816027cbfc5d4e69
+  en: 552a07d71d7d67f1
+  zh: 3886c5052cebc091
 /session-persistence-event-catalog/resolved-persistence-types/researchlinked:
-  en: 69a44ee83880c209
-  zh: 8c9c4a976cef2fd6
+  en: e955fcbb92fd09fe
+  zh: c675b4b9d8c6e415
 /session-persistence-event-catalog/resolved-persistence-types/researchowner:
   en: 708ce2ae80103639
   zh: aa1f82605e44721f
@@ -1245,8 +1245,8 @@
   en: 67c24ef7c5866aec
   zh: 407e06d91bd01d72
 /session-persistence-event-catalog/resolved-persistence-types/researchstarted:
-  en: e7c94567562e87a4
-  zh: 4a63dfb7d4767681
+  en: 7b6336c43664e65d
+  zh: 021362281a7c236c
 /session-persistence-event-catalog/resolved-persistence-types/sandboxmode:
   en: c9fa5343ea99733b
   zh: d6de41351c57a73f

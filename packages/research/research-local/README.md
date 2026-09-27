@@ -29,7 +29,7 @@ Mount the provider with the Agent factory, Session store and persistence, an att
 
 ### When to choose it
 
-Choose it for local research runs whose progress must survive a caller ending and whose evidence and reports need immutable storage. The separate model-facing consumer is not mounted in this package.
+Choose it for local research runs whose progress must survive a caller ending and whose evidence and reports need immutable storage. Mount the [model-facing consumer](../tool-research/README.md) separately.
 
 ### Minimal configuration
 
@@ -86,7 +86,7 @@ No runtime invariant companion is published because the run Session is the sole 
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through a future consumer that controls which bounded progress and report pages reach its caller model.
+Indirectly, through the `deep_research` consumer that controls which bounded progress and report pages reach its caller model.
 
 #### KV Cache effect
 
@@ -96,7 +96,7 @@ Each stage sends one bounded prompt in a fresh Session, so prior page text is in
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- The model-facing `odysseus_research` consumer and Beardy opt-in are separate work. This provider starts runs only through trusted `ctx.research` callers.
+- The `deep_research` consumer requires a caller Session and derives owner authority through this provider. It is enabled separately from the engine.
 - URL citation checks match accepted fetched source URLs; they do not verify each factual claim.
 - Profile ownership is only valid for an explicitly single-user composition; this provider does not authenticate separate human principals.
 

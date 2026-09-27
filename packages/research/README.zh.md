@@ -1,5 +1,5 @@
 ---
-description: "研究包组：为原生研究引擎及其后续消费方提供持久运行记录和本地存储。"
+description: "研究包组：提供持久运行记录、本地引擎和面向模型的工具。"
 kind: "package-group"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-研究运行可以在进程重启后保留，并保存按所有者隔离的进度与报告。定义包提供公共服务和 Session 事件类型；本地提供方保存运行和不可变报告文件。模型引擎和工具消费方是独立的后续部分。
+研究运行在进程重启后仍可保留按所有者隔离的进度与报告。定义包提供服务和 Session 事件类型，本地提供方运行有界的 Web 与模型引擎，工具向调用方模型提供五种操作。
 
 ## 目录
 
@@ -26,6 +26,7 @@ kind: "package-group"
 |---|---|---|
 | [`research`](research/README.zh.md) | 运行身份、所有者、报告、事件和服务类型 | `ctx.research` |
 | [`research-local`](research-local/README.zh.md) | 持久保存、列出和协调运行及报告附件 | `ctx.research` 的提供方 |
+| [`tool-research`](tool-research/README.zh.md) | 提供 `deep_research` 操作和分页报告 | `ctx.research` 的消费方 |
 
 -----
 

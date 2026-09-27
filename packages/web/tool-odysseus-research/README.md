@@ -24,6 +24,8 @@ English | [中文](README.zh.md)
 
 Beardy includes a disabled `tool-odysseus-research` row. Enable it in the personal profile patch with all required values. Other profiles insert a row naming this package. Odysseus must support the `research:read` and `research:run` token scopes; browser-only research routes reject bearer starts. Store the token through the [credential provider](../../credentials/credentials-local/README.md), never in model input.
 
+The bridge and native [`deep_research`](../../research/tool-research/README.md) tool are mutually exclusive at load. The [Beardy switch](../../bundle/beardy/README.md#select-native-deep-research) disables this row while enabling the native provider and tool.
+
 ```yaml
 - id: tool-odysseus-research
   disabled: false

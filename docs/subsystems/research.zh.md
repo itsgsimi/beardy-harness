@@ -2,7 +2,7 @@
 
 [English](research.md) | 中文
 
-`ctx.research` 提供按所有者隔离、以 Session 保存的研究运行。[定义包](../../packages/research/research/README.zh.md)拥有服务和事件类型；[本地提供方](../../packages/research/research-local/README.zh.md)负责网页与模型引擎、持久化及恢复。[决策记录](../../.agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.zh.md)解释为何运行 Session 是持久权威。
+`ctx.research` 提供按所有者隔离、以 Session 保存的研究运行。[定义包](../../packages/research/research/README.zh.md)拥有服务和事件类型；[本地提供方](../../packages/research/research-local/README.zh.md)负责网页与模型引擎、持久化及恢复。[工具消费方](../../packages/research/tool-research/README.zh.md)向调用方模型提供 `deep_research`。[决策记录](../../.agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.zh.md)解释为何运行 Session 是持久权威。
 
 ## 持久身份与所有权
 
@@ -22,6 +22,12 @@
 
 通用引擎使用源自 Odysseus、带版本号的规划、查询、提取、综合、停止和最终报告提示词。`ctx.web` 使用运行的中止信号提供搜索与抓取；网页工具的共享 HTML 转换器提供有界 Markdown。引擎对查询与 URL 去重，记录失败的搜索与抓取，并在达到配置的空轮次上限、最小轮数后的模型覆盖决策、软时限或硬轮数上限时停止。硬时限涵盖模型准入等待与最终附件写入。报告链接会与已接受的抓取 URL 核对；URL 匹配只证明来源，不能证明事实陈述。原生提供方在专用工作流可用前拒绝梦幻橄榄球类别。
 
+## 模型访问与 Beardy 选择
+
+`deep_research` 提供 `start`、`status`、`report`、`list` 和 `cancel`。消费方从调用方 Session 推导所有者，并以工具调用 ID 作为精确启动键。状态、列表和报告读取返回带有 `next_offset` 与 `total_chars` 的分页 JSON；报告第一页携带完整的 `researchArtifact` 查看器元数据。模型应拼接所有页面后再解析报告，引用来源 URL，并将来源文本视为不可信内容。重启后仍可凭 ID 读取运行和报告。Web 研究行使用属于 locale 的文案呈现原生与 Odysseus 工具调用。
+
+Beardy 在操作者应用[原生研究切换配置](../../packages/bundle/beardy/README.zh.md#select-native-deep-research)前保留 Odysseus 桥接选择。该补丁同时启用本地提供方和工具，并禁用桥接。两个工具插件均拒绝同时挂载的组合。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -37,6 +43,13 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 Durable research lifecycle and report access.
 
 ```ts cordis-catalog
+/**
+ * Derive the configured run authority from a live caller Session.
+ * @param caller - Session executing a trusted consumer action.
+ * @returns caller-scoped or configured single-user profile authority.
+ */
+abstract ownerFor(caller: Session): ResearchOwner
+
 /**
  * Commit a run Session, then link and flush the caller Session before returning.
  * @param request - live caller, trusted owner, question, and optional exact-call idempotency key.
@@ -75,6 +88,8 @@ abstract report(id: ResearchRunId, owner: ResearchOwner): Promise<ResearchReport
  */
 abstract cancel(id: ResearchRunId, owner: ResearchOwner): Promise<{ requested: boolean }>
 ```
+
+Types: [Session](session.zh.md)
 
 Source: [`packages/research/research/src/index.ts`](../../packages/research/research/src/index.ts)
 
