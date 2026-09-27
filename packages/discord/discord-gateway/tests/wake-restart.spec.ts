@@ -4,9 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { DiscordWakeCoordinator, dispatchLegacyReminders } from '../src/wake.ts'
 import type { ConversationRecord } from '../src/domain.ts'
+import { tableFromMap } from './support.ts'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
@@ -115,9 +115,7 @@ describe('Discord reminder wake after restart', () => {
       channelId: 'channel', sessionId, agentPreset: 'beardy-discord', workspacePath: root,
       openedAt: 1, lastInboundAt: 1,
     }]])
-    const table = {
-      entries: () => records.entries(), get: (key: string) => records.get(key),
-    } as unknown as KvTable<string, ConversationRecord>
+    const table = tableFromMap(records)
     let live = false
     const done = Promise.withResolvers<undefined>()
     const wake = vi.fn(async (record: ConversationRecord) => {

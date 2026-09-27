@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { apply, assertConfig, Config, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
 import type { ConversationRouter } from '../src/conversation.ts'
@@ -144,7 +144,7 @@ describe('lane settings and command catalogs', () => {
   it('leases each preset once and rejects a catalog whose preset scope was not resolved', async () => {
     const acquireScope = vi.fn(async (name: string) => ({ key: name, [Symbol.asyncDispose]: async () => {} }))
     const listForScope = vi.fn(() => [{ name: 'inspect', description: 'Inspect' }, { name: 'danger', description: 'Danger' }])
-    const ctx = { agentPresets: { acquireScope }, commands: { listForScope } } as unknown as Context
+    const ctx = new Context().extend({ agentPresets: { acquireScope }, commands: { listForScope } })
     const lane = { workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only', excludedPresetCommands: ['danger'] }
     const scopes = await resolvePresetScopes(ctx, config({ userLanes: { [USER]: lane, ['138391763999129601']: lane } }))
     expect(acquireScope.mock.calls).toEqual([['beardy'], ['restricted']])
@@ -177,12 +177,16 @@ function contextStub(options: { token?: string; unknownPreset?: boolean } = {}) 
     },
     permissionPresets: { resolve: () => ({}) },
   }
-  return { ctx: ctx as unknown as Context, logger }
+  return { ctx: new Context().extend(ctx), logger }
 }
 
 const handled = vi.fn()
 const reacted = vi.fn()
-const ROUTER = { handle: handled, handleReaction: reacted, dispose: vi.fn() } as unknown as ConversationRouter
+const ROUTER: ConversationRouter = {
+  handle: handled, handleReaction: reacted, dispose: vi.fn(async () => {}),
+  recover: async () => {}, deliver: async () => {},
+  execute: async () => ({ kind: 'success', text: '' }), component: async () => '',
+}
 
 describe('startListener', () => {
   it('cancels a startup reminder read before waiting for recovery to finish during disposal', async () => {
@@ -193,7 +197,7 @@ describe('startListener', () => {
     const cleanup: (() => unknown)[] = []
     const routes = new Map([[CHANNEL, record({ deliveredThrough: 0 })]])
     let reads = 0
-    const owner = {
+    const owner = new Context().extend({
       logger: ctx.logger,
       credentials: ctx.credentials,
       agentPresets: ctx.agentPresets,
@@ -219,7 +223,7 @@ describe('startListener', () => {
         },
         close: readClosed,
       }) },
-    } as unknown as Context
+    })
     await apply(owner, config())
     await entered.promise
     await cleanup[0]?.()

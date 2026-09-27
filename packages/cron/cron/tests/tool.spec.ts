@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { createCronManageTool } from '../src/tool.ts'
 import { CONFIG_JOB, makeRegistry, storedRow } from './support.ts'
 
@@ -16,7 +16,7 @@ function setup(
   const approval = deps.approvalOutcome === undefined
     ? undefined
     : { request: vi.fn(async () => deps.approvalOutcome as string) }
-  const ctx = { get: (service: string) => service === 'approval' ? approval : undefined } as unknown as Context
+  const ctx = new Context().extend({ get: (service: string) => service === 'approval' ? approval : undefined })
   const exec = {
     agent: { session: { header: { id: 'session-1' } } },
     callId: 'call-1',

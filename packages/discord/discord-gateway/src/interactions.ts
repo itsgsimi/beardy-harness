@@ -367,7 +367,10 @@ export async function synchronizeDiscordCommands(
   const path = `/applications/${encodeURIComponent(applicationId)}/commands`
   const response = await call('GET', path)
   let current: unknown
-  try { current = JSON.parse(response.body) as unknown } catch { throw new Error('discord: command catalog response is not JSON') }
+  try {
+    const parsed: unknown = JSON.parse(response.body)
+    current = parsed
+  } catch { throw new Error('discord: command catalog response is not JSON') }
   if (!Array.isArray(current)) throw new Error('discord: command catalog response is not an array')
   if (!sameCatalog(current, catalog)) await call('PUT', path, catalog)
 }

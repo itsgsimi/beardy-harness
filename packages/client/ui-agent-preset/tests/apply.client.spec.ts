@@ -918,16 +918,28 @@ describe('ui-agent-preset apply', () => {
     ctx.provide('uiWorkspace', uiWorkspaceDouble() as never)
     await ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'uiWorkspace'], apply }).await()
     const section = (slots.entries('settings.section')[0]!.inject as unknown as () => AgentPresetSectionInjected)()
-    const injectSeat = slots.entries('conversation.hero.agentPreset')[0]!
-      .inject as unknown as (sessionId?: SessionId) => AgentPresetSeatInjected
+    const injectSeat = slots.entries('conversation.hero.agentPreset')[0]?.inject
+    if (injectSeat === undefined) throw new Error('Agent preset seat was not registered')
 
     await section.load()
     section.startCreatorDraft?.()
     state.current = 's1'
     state.byId['s1'] = { id: 's1', blank: true }
     sessions.notify()
-    const boundSeat = injectSeat(SessionId('s1'))
-    await boundSeat.load()
+    const boundSeat: unknown = Reflect.apply(injectSeat, undefined, [SessionId('s1')])
+    if (typeof boundSeat !== 'object' || boundSeat === null || !('load' in boundSeat)
+      || typeof boundSeat.load !== 'function' || !('hooks' in boundSeat)) {
+      throw new Error('Agent preset seat has no load or hooks')
+    }
+    const hooks = boundSeat.hooks
+    if (typeof hooks !== 'object' || hooks === null || !('agentPresetSeat' in hooks)) {
+      throw new Error('Agent preset seat has no snapshot source')
+    }
+    const seat = hooks.agentPresetSeat
+    if (typeof seat !== 'object' || seat === null || !('getSnapshot' in seat) || typeof seat.getSnapshot !== 'function') {
+      throw new Error('Agent preset seat has no snapshot reader')
+    }
+    await Reflect.apply(boundSeat.load, boundSeat, [])
     await vi.waitFor(() => { expect(calls).toContain('select:cordis') })
 
     // The chip mounts with the flow's session, so its roster load can land
@@ -936,9 +948,10 @@ describe('ui-agent-preset apply', () => {
     state.byId['s1'] = {
       id: 's1', blank: true, projectionValues: { agentPreset: 'cordis' },
     }
-    await boundSeat.load()
+    await Reflect.apply(boundSeat.load, boundSeat, [])
 
-    expect(boundSeat.hooks.agentPresetSeat.getSnapshot().current).toBe('cordis')
+    const snapshot: unknown = Reflect.apply(seat.getSnapshot, seat, [])
+    expect(snapshot).toMatchObject({ current: 'cordis' })
     conversation()
   })
 

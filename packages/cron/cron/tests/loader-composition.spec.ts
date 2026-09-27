@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
+import Loader, { type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Cron from '../src/index.ts'
 
@@ -118,11 +118,16 @@ async function boot(
   ])
   context.loader.internal = {
     version: 'v2',
+    loadCache: new Map(),
+    register(): never { throw new Error('unexpected module hook registration') },
+    getOrCreateModuleJob(): never { throw new Error('unexpected module job creation') },
+    resolveSync(): never { throw new Error('unexpected synchronous module resolution') },
+    load(): never { throw new Error('unexpected module load') },
     async import(specifier: string) {
       if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
       return modules.get(specifier)
     },
-  } as unknown as NonNullable<typeof context.loader.internal>
+  } satisfies ModuleLoaderV2
   await context.loader.create({
     name: 'cordis:include',
     config: { path: pathToFileURL(configPath).href },

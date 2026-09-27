@@ -1,10 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { Context } from '@deepseek-ai/cordis'
+import { type Agent } from '@deepseek-ai/dsh-agent'
+import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { Session, SessionId, SessionSeq, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import { awaitTurn, lastAssistantText, lastTurnEndReason, sleep } from '../src/turn.ts'
 
 function agentReturning(idle: () => Promise<void>): Agent {
-  return { whenIdle: idle } as unknown as Agent
+  const id = SessionId('await-turn')
+  return {
+    ctx: new Context(), id, session: Session.create(id), options: {}, inbox: unsupportedInbox(), status: 'idle',
+    send: () => {}, followup: () => {}, steer: () => {}, inject: () => {}, cancel: () => {},
+    runMaintenance: task => task(new AbortController().signal), whenIdle: idle,
+  }
+}
+
+function assistantEvent(seq: number, text: string): SessionEvent<'assistant/message'> {
+  return {
+    seq: SessionSeq(seq), time: seq, type: 'assistant/message', surfaceOp: 'append',
+    data: { turn: 1, step: 1, message: createAssistantMessage({
+      content: [{ type: 'text', text }], source: { provider: 'fixture', model: 'fixture' },
+    }), stream: [] },
+  }
+}
+
+function endEvent(seq: number, reason: TurnEndReason): SessionEvent<'turn/end'> {
+  return { seq: SessionSeq(seq), time: seq, type: 'turn/end', data: { turn: 1, reason } }
 }
 
 describe('sleep', () => {
@@ -69,29 +90,22 @@ describe('lastAssistantText', () => {
   })
 
   it('keeps the last text after the marker and skips earlier events', () => {
-    const events = [
-      { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'first' }] } } },
-      { seq: 2, type: 'turn/end', data: {} },
-      { seq: 3, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'second' }] } } },
-    ] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [assistantEvent(1, 'first'), endEvent(2, { kind: 'completed' }), assistantEvent(3, 'second')]
     expect(lastAssistantText(events, 2)).toBe('second')
   })
 
   it('ignores an assistant message whose text blocks are empty', () => {
-    const events = [
-      { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '' }] } } },
-    ] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [assistantEvent(1, '')]
     expect(lastAssistantText(events, 0)).toBe('')
   })
 })
 
 describe('lastTurnEndReason', () => {
   it('selects only a terminal event logged after admission', () => {
-    const events = [
-      { seq: 1, type: 'turn/end', data: { reason: { kind: 'completed' } } },
-      { seq: 2, type: 'assistant/message', data: {} },
-      { seq: 3, type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'SERVER', message: 'failed' } } } },
-    ] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [
+      endEvent(1, { kind: 'completed' }), assistantEvent(2, ''),
+      endEvent(3, { kind: 'error', error: { code: 'SERVER', message: 'failed' } }),
+    ]
     expect(lastTurnEndReason(events, 2)).toEqual({ kind: 'error', error: { code: 'SERVER', message: 'failed' } })
     expect(lastTurnEndReason(events, 4)).toBeUndefined()
   })

@@ -111,7 +111,8 @@ export class SearxngSearchProvider implements WebSearchProvider {
     }
 
     try {
-      return mapSearxngResponse(parseSearxngResponse(await response.json() as unknown))
+      const payload: unknown = await response.json()
+      return mapSearxngResponse(parseSearxngResponse(payload))
     } catch (error: unknown) {
       if (isAbortError(error)) throw new WebError('SearXNG search aborted', 'WEB_ABORTED', { cause: error })
       throw new WebError(`SearXNG returned an unprocessable response body: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
@@ -176,7 +177,7 @@ function cleanOptional(value: string | null | undefined): string | undefined {
 async function readErrorMessage(response: Response): Promise<string> {
   const fallback = `SearXNG API error (HTTP ${response.status})`
   try {
-    const parsed = await response.json() as unknown
+    const parsed: unknown = await response.json()
     if (!isRecord(parsed)) return fallback
     const error = parsed as SearxngError
     const detail = typeof error.error === 'string' ? error.error : error.message

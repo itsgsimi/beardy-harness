@@ -98,7 +98,8 @@ export async function requestResearch(
     } finally {
       reader.releaseLock()
     }
-    return record(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown)
+    const payload: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    return record(payload)
   }
   let artifact: ResearchArtifact | undefined
   let result: Record<string, unknown>

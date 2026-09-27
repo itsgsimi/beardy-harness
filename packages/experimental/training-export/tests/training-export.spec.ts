@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { execFile } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,6 +14,9 @@ import LlmRuntime, {
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import { CompactionId } from '@deepseek-ai/dsh-compaction'
+import type {
+  MessageFeedbackListRequest, MessageFeedbackListResult, MessageFeedbackVersion, MessageFeedbackService,
+} from '@deepseek-ai/dsh-message-feedback'
 import { encodeSegment } from '../src/paths.ts'
 import * as trainingExport from '../src/index.ts'
 
@@ -70,7 +73,7 @@ async function readLinesEventually(path: string, minLines: number, timeoutMs = 2
       throw error
     })
     const lines = text.split('\n').filter(line => line.length > 0)
-    if (lines.length >= minLines) return lines.map(line => JSON.parse(line) as unknown)
+    if (lines.length >= minLines) return lines.map((line): unknown => JSON.parse(line))
     if (Date.now() - start > timeoutMs) throw new Error(`timed out waiting for ${minLines} line(s) in ${path}`)
     await new Promise(resolve => setTimeout(resolve, 5))
   }
@@ -478,6 +481,46 @@ describe('training-export configuration', () => {
 })
 
 describe('training-export labels', () => {
+  it('filters feedback to assistant messages in the turn and tolerates a rejected lookup', async () => {
+    const root = await tempRoot()
+    const ctx = await setup(root)
+    const session = ctx.sessions.create(SessionId('label-ratings'))
+    let result: MessageFeedbackListResult = { ok: false, error: { code: 'session-not-found', sessionId: session.id } }
+    const list = vi.fn<(request: MessageFeedbackListRequest) => Promise<MessageFeedbackListResult>>(async () => result)
+    ctx.reflect.provide('messageFeedback', { list } satisfies Pick<MessageFeedbackService, 'list'>)
+
+    const first = createAssistantMessage({
+      content: [{ type: 'text', text: 'First answer' }], source: { provider: 'mock', model: 'mock' },
+    })
+    session.append('turn/start', { turn: 1 })
+    session.append('assistant/message', { turn: 1, step: 1, message: first, stream: [] }, { surfaceOp: 'append' })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const path = join(root, encodeSegment(session.id), 'labels.jsonl')
+    const [rejected] = await readLinesEventually(path, 1) as [Record<string, unknown>]
+    expect(rejected.ratings).toEqual([])
+
+    const second = createAssistantMessage({
+      content: [{ type: 'text', text: 'Second answer' }], source: { provider: 'mock', model: 'mock' },
+    })
+    const version = randomUUID() as MessageFeedbackVersion
+    result = { ok: true, value: { items: [
+      { messageId: first.id, rating: 'negative', note: 'earlier turn', version, createdAt: 1, updatedAt: 1 },
+      { messageId: second.id, rating: 'positive', version, createdAt: 1, updatedAt: 1 },
+    ] } }
+    session.append('turn/start', { turn: 2 })
+    session.append('assistant/message', { turn: 2, step: 1, message: second, stream: [] }, { surfaceOp: 'append' })
+    session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
+    const [, accepted] = await readLinesEventually(path, 2) as [Record<string, unknown>, Record<string, unknown>]
+    expect(accepted.ratings).toEqual([{ messageId: second.id, rating: 'positive', note: '' }])
+    expect(list).toHaveBeenCalledTimes(2)
+
+    session.append('turn/start', { turn: 3 })
+    session.append('turn/end', { turn: 3, reason: { kind: 'completed' } })
+    const [, , empty] = await readLinesEventually(path, 3) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>]
+    expect(empty.ratings).toEqual([])
+    expect(list).toHaveBeenCalledTimes(2)
+  })
+
   it('writes a label at turn/end with the turn\'s counts', async () => {
     const root = await tempRoot()
     const ctx = await setup(root)

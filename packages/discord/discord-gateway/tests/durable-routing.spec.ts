@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { ScheduleId, createAfterScheduleRecord } from '@deepseek-ai/dsh-schedule'
 import type { OutboxRecord } from '../src/domain.ts'
-import { CHANNEL, USER, harness, inbound, record } from './support.ts'
+import { CHANNEL, USER, assistantTextEvent, harness, inbound, record, tableFromMap, turnEndEvent, turnStartEvent } from './support.ts'
 
 const harnesses: ReturnType<typeof harness>[] = []
 afterEach(async () => {
@@ -13,21 +12,24 @@ afterEach(async () => {
 
 function durable(options: Parameters<typeof harness>[0] = {}) {
   const values = new Map<string, OutboxRecord>()
-  const table = {
-    get: (key: string) => values.get(key), entries: () => values.entries(),
-    put: async (key: string, value: OutboxRecord) => { values.set(key, value) },
-    delete: async (key: string) => values.delete(key),
-  } as unknown as KvTable<string, OutboxRecord>
+  const table = tableFromMap(values)
   const h = harness({ ...options, outboxStorage: table, manualWait: true })
   harnesses.push(h)
   return { h, values, table }
 }
 
-function finish(events: SessionEvent[], text: string, reason = 'completed'): void {
-  events.push({ seq: events.length, type: 'turn/start', data: { turn: 2 } } as unknown as SessionEvent)
-  events.push({ seq: events.length, type: 'assistant/message', data: { turn: 2, step: 1,
-    message: { content: [{ type: 'text', text }] } } } as unknown as SessionEvent)
-  events.push({ seq: events.length, type: 'turn/end', data: { turn: 2, reason: { kind: reason } } } as unknown as SessionEvent)
+function finish(events: SessionEvent[], text: string, reason: 'completed' | 'interrupted' = 'completed'): void {
+  events.push(turnStartEvent(events.length, 2))
+  events.push(assistantTextEvent(events.length, 2, text))
+  events.push(turnEndEvent(events.length, 2, { kind: reason }))
+}
+
+function reminderEvent(id: string): SessionEvent<'schedule/change'> {
+  return {
+    seq: SessionSeq(0), time: Date.now(), type: 'schedule/change',
+    data: { version: 1, operation: 'create',
+      schedule: createAfterScheduleRecord(ScheduleId(id), 'Check the build', 1, Date.now(), 'Check the build') },
+  }
 }
 
 describe('durable Discord conversation delivery', () => {
@@ -103,9 +105,7 @@ describe('durable Discord conversation delivery', () => {
 
   it('wakes a persisted reminder in its recorded conversation and allows idle cleanup to re-arm it', async () => {
     vi.useFakeTimers()
-    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create',
-      schedule: createAfterScheduleRecord(ScheduleId('reminder'), 'Check the build', 1, Date.now(), 'Check the build'),
-    } }] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [reminderEvent('reminder')]
     const { h } = durable({ storedEvents: events, initialRecord: record({ deliveredThrough: 1 }) })
     await h.router.recover()
     await vi.advanceTimersByTimeAsync(1000)
@@ -123,9 +123,7 @@ describe('durable Discord conversation delivery', () => {
 
   it('leaves a removed user lane dormant when its old reminder fires', async () => {
     vi.useFakeTimers()
-    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create',
-      schedule: createAfterScheduleRecord(ScheduleId('removed-lane-reminder'), 'Check the build', 1, Date.now(), 'Check the build'),
-    } }] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [reminderEvent('removed-lane-reminder')]
     const { h } = durable({ storedEvents: events, initialRecord: record({ lane: USER, deliveredThrough: 1 }) })
     await h.router.recover()
     await vi.advanceTimersByTimeAsync(1000)
@@ -143,9 +141,7 @@ describe('durable Discord conversation delivery', () => {
   it.each(['replaced', 'inbound', 'running', 'resume-error'] as const)(
     'rechecks conversation ownership and activity for a cold wake: %s', async (mode) => {
       vi.useFakeTimers()
-      const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create',
-        schedule: createAfterScheduleRecord(ScheduleId('reminder'), 'Check the build', 1, Date.now(), 'Check the build'),
-      } }] as unknown as SessionEvent[]
+      const events: SessionEvent[] = [reminderEvent('reminder')]
       const { h } = durable({ storedEvents: events, initialRecord: record({ deliveredThrough: 1 }),
         ...(mode === 'resume-error' ? { resumeError: 'other' } : {}) })
       await h.router.recover()

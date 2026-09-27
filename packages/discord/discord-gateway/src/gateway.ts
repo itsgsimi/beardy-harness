@@ -109,7 +109,8 @@ function frameData(payload: unknown): string | undefined {
 function parseFrame(text: string): GatewayFrame | undefined {
   let parsed: unknown
   try {
-    parsed = JSON.parse(text) as unknown
+    const frame: unknown = JSON.parse(text)
+    parsed = frame
   } catch {
     return undefined
   }

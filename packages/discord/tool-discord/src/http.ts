@@ -155,7 +155,8 @@ export function discordReplyObject(body: string): Record<string, unknown> | unde
   if (body === '') return undefined
   let parsed: unknown
   try {
-    parsed = JSON.parse(body) as unknown
+    const payload: unknown = JSON.parse(body)
+    parsed = payload
   } catch {
     // A non-JSON error page still carries the status; only its fields are unavailable.
     return undefined
@@ -254,7 +255,8 @@ export const openDirectMessageChannel: DiscordDmChannelOpener = async (request, 
   }
   let parsed: unknown
   try {
-    parsed = JSON.parse(reply.body) as unknown
+    const payload: unknown = JSON.parse(reply.body)
+    parsed = payload
   } catch {
     parsed = undefined
   }

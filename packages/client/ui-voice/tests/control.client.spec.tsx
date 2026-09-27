@@ -2,18 +2,34 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
+import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { GlobalStandardProps, SessionStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { VoiceControl } from '../src/client/VoiceControl.tsx'
 import { en } from '../src/client/locales.ts'
 import { recordAudio, transcribeAudio } from '../src/client/recording.ts'
 
 vi.mock('../src/client/recording.ts', () => ({ recordAudio: vi.fn(), transcribeAudio: vi.fn() }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks() })
+const unused = (): never => { throw new Error('VoiceControl does not use this slot fixture') }
+const standard: GlobalStandardProps & SessionStandardProps = {
+  sessionId: SessionId('voice'), useSession: unused, useProjection: unused,
+  useConversation: unused, useInput: unused, useChat: unused, useTrajectory: unused,
+  usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
+  useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+  inputActions: { captureInsertion: unused, insertText: unused, setDraft: unused,
+    addAttachments: unused, removeAttachment: unused, pruneAttachments: unused, submit: unused },
+}
 function setup(append = vi.fn(() => true)) {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ maxAudioBytes: 1000, maxDurationSeconds: 180 }) })))
   vi.stubGlobal('isSecureContext', true)
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: vi.fn() } })
   vi.stubGlobal('MediaRecorder', vi.fn())
-  const props = { append, useInput: () => false, t: (key: keyof typeof en) => en[key] } as unknown as ComponentProps<typeof VoiceControl>
+  const input: InputState = { draft: '', attachmentIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [] }
+  const props = { ...standard, append, useInput: <S,>(select: (state: InputState) => S): S => select(input),
+    t: makeTranslate(en, commonEn) } satisfies ComponentProps<typeof VoiceControl>
   return { append, ...render(<VoiceControl {...props} />) }
 }
 describe('composer voice control', () => {

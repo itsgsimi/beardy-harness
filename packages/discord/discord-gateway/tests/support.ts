@@ -4,9 +4,12 @@
  */
 
 import { vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, SessionLogOffset, SessionSeq, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import { createAssistantMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import { createConversationRouter } from '../src/conversation.ts'
 import type { RoutingPolicy } from '../src/conversation.ts'
@@ -19,6 +22,47 @@ export const USER = '138391763999129600'
 export const CHANNEL = '1472404859679670455'
 export const GUILD_CHANNEL = '1478276183543119914'
 export const BOT_USER = '111111111111111111'
+
+/** Complete logged fixtures for proactive-reply scans. */
+export function turnStartEvent(seq: number, turn: number): SessionEvent<'turn/start'> {
+  return { seq: SessionSeq(seq), time: Date.now(), type: 'turn/start', data: { turn } }
+}
+
+export function assistantTextEvent(seq: number, turn: number, text: string): SessionEvent<'assistant/message'> {
+  return {
+    seq: SessionSeq(seq), time: Date.now(), type: 'assistant/message', surfaceOp: 'append',
+    data: { turn, step: 1, message: createAssistantMessage({
+      content: [{ type: 'text', text }], source: { provider: 'fixture', model: 'fixture' },
+    }), stream: [] },
+  }
+}
+
+export function turnEndEvent(seq: number, turn: number, reason: TurnEndReason = { kind: 'completed' }): SessionEvent<'turn/end'> {
+  return { seq: SessionSeq(seq), time: Date.now(), type: 'turn/end', data: { turn, reason } }
+}
+
+export function stepEndEvent(seq: number, turn: number, step: number): SessionEvent<'step/end'> {
+  return { seq: SessionSeq(seq), time: Date.now(), type: 'step/end', data: { turn, step } }
+}
+
+/** In-memory durable-table fake with the full table API. */
+export function tableFromMap<K extends string, V>(records: Map<K, V>, parse: (value: V) => V = value => value): KvTable<K, V> {
+  return {
+    get: key => records.get(key),
+    entries: () => [...records.entries()].values(),
+    keys: () => [...records.keys()].values(),
+    get size() { return records.size },
+    put: async (key, value) => { records.set(key, parse(value)) },
+    delete: async key => records.delete(key),
+    update: async (key, fn) => {
+      const current = records.get(key)
+      if (current === undefined) throw new Error(`missing table key: ${key}`)
+      const next = parse(fn(current))
+      records.set(key, next)
+      return next
+    },
+  }
+}
 
 /** Settings that keep every timer in the router inert unless a test arms it deliberately. */
 export const SETTINGS: GatewaySettings = {
@@ -145,26 +189,28 @@ export function harness(options: HarnessOptions = {}) {
   const eventHandlers = new Map<string, ((payload: Record<string, unknown>, next: () => Promise<never>) => unknown)[]>()
   const registeredCommands = new Map<string, { name: string; description: string; handler: (invocation: { agent: unknown }) => unknown }>()
   let idleResolve: () => void = () => {}
-  const agent = {
+  const agentId = SessionId('discord-fixture-agent')
+  const session = Session.create(agentId)
+  vi.spyOn(session, 'ownEvents').mockImplementation(() => events)
+  vi.spyOn(session, 'seq', 'get').mockImplementation(() => SessionLogOffset(events.length))
+  const agent: Agent & { status: Agent['status'] } = {
+    id: agentId,
+    ctx: new Context(),
+    options: {},
+    inbox: unsupportedInbox(),
     status: 'idle',
-    session: {
-      get seq(): number { return events.length },
-      ownEvents: () => events,
-    },
-    followup(message: { content: readonly { text?: string }[] }) {
-      calls.push(`followup:${message.content[0]?.text ?? ''}`)
+    session,
+    send: () => {}, steer: () => {}, inject: () => {},
+    runMaintenance: <T>(task: (signal: AbortSignal) => Promise<T>) => task(new AbortController().signal),
+    followup(message: UserMessage) {
+      calls.push(`followup:${message.content.find(block => block.type === 'text')?.text ?? ''}`)
       if (options.replyText !== undefined) {
         if (options.outboxStorage !== undefined || options.reactionStatus === true) {
-          events.push({ seq: events.length, type: 'turn/start', data: { turn: 1 } } as SessionEvent)
+          events.push(turnStartEvent(events.length, 1))
         }
-        events.push({
-          seq: events.length,
-          type: 'assistant/message',
-          data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: options.replyText }] } },
-        } as unknown as SessionEvent)
+        events.push(assistantTextEvent(events.length, 1, options.replyText))
         if (options.outboxStorage !== undefined || options.reactionStatus === true) {
-          events.push({ seq: events.length, type: 'turn/end',
-            data: { turn: 1, reason: { kind: 'completed' } } } as SessionEvent)
+          events.push(turnEndEvent(events.length, 1))
         }
       }
     },
@@ -306,8 +352,9 @@ export function harness(options: HarnessOptions = {}) {
   const typed: string[] = []
   const waitResolvers: (() => void)[] = []
   const controller = new AbortController()
+  const testContext = new Context().extend(ctx)
   const router = createConversationRouter({
-    ctx: ctx as unknown as Context,
+    ctx: testContext,
     signal: controller.signal,
     settings: {
       ...SETTINGS,
@@ -388,9 +435,9 @@ export function harness(options: HarnessOptions = {}) {
         handler(payload, () => Promise.reject(new Error('next called on a plain event')))
       }
     },
-    ctx: ctx as unknown as Context,
+    ctx: testContext,
     releaseIdle: () => { idleResolve() },
-    emitStatus: (liveAgent: unknown, status: string) => {
+    emitStatus: (liveAgent: unknown, status: Agent['status']) => {
       if (liveAgent === agent) agent.status = status
       for (const handler of [...(eventHandlers.get('agent/status') ?? [])]) {
         handler({ agent: liveAgent, status }, async () => undefined as never)
