@@ -1,0 +1,16 @@
+- id: web
+  config:
+    fetchProvider: weather-fixture
+- id: tool-web
+  disabled: true
+- id: web-fetch-http
+  disabled: true
+- insert:
+    - id: weather-fixture
+      name: './fixture.mjs'
+    - id: tool-weather
+      name: '@deepseek-ai/dsh-tool-weather'
+      config:
+        defaultLocation: Phoenix, AZ
+        units: us
+        days: 3

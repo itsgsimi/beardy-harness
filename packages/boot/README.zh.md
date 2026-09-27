@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-boot 组负责启动 profile 应用并管理其已安装组合。`app-boot` 解析配置并启动 Loader，`cmdline` 提供应用参数，`plugin-manager` 提供与 CLI 共享的当前 profile 操作。各包 README 负责各自的细节。
+boot 组负责启动 profile 应用并管理其已安装组合。`app-boot` 解析配置并启动 Loader，`cmdline` 提供应用参数，`plugin-manager` 提供与 CLI 共享的当前 profile 操作，`log-exporter` 将选定的 Cordis 消息写入进程日志。各包 README 负责各自的细节。
 
 ## 目录
 
@@ -27,6 +27,7 @@ boot 组负责启动 profile 应用并管理其已安装组合。`app-boot` 解�
 | [`hmr`](hmr/README.zh.md) | 协调模块与配置重载，并与包修改互斥执行 | `hmr` |
 | [`config-editor`](config-editor/README.zh.md) | 通过 Loader 应用并持久化当前 profile 配置 | `configEditor` |
 | [`plugin-manager`](plugin-manager/README.zh.md) | 通过共享 CLI 操作管理当前 profile 插件与组合包 | `pluginManager` |
+| [`log-exporter`](log-exporter/README.zh.md) | 为进程日志筛选、规范化并脱敏 Cordis 消息 | logger 导出器 |
 
 <a id="related-documentation"></a>
 ## 相关文档

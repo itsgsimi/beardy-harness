@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 3612141096c73fc6
-  zh: 7ee049285b04fd47
+  en: c2873a3b2473000f
+  zh: 021a2aa10190604e
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -312,8 +312,14 @@
   en: 96bffc40b80df4b8
   zh: 96bffc40b80df4b8
 /tool-schema-catalog/deepseek-ai-dsh-tool-workspace-dependencies/load-workspace-dependencies:
-  en: 77b88764ff3464e9
-  zh: a9ca7eeb15ada747
+  en: d019707749e06630
+  zh: 2283f53d40303db6
+/tool-schema-catalog/deepseek-ai-dsh-tool-weather:
+  en: 12b206b9d9637427
+  zh: 12b206b9d9637427
+/tool-schema-catalog/deepseek-ai-dsh-tool-weather/get-weather:
+  en: c9f9ee22e568bc70
+  zh: 8d6f2a48968bd93f
 /tool-schema-catalog/deepseek-ai-dsh-tool-web:
   en: 4b9918342d3aa931
   zh: 4b9918342d3aa931

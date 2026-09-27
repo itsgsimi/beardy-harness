@@ -2222,6 +2222,55 @@ export type Config = Readonly<Record<string, never>>
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-retry -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-log-exporter -->
+<a id="deepseek-aidsh-log-exporter"></a>
+
+## `@deepseek-ai/dsh-log-exporter`
+
+- `refs`: `LoggerType` (`@deepseek-ai/cordis`)
+- `source`: [`packages/boot/log-exporter/src/index.ts:37`](../packages/boot/log-exporter/src/index.ts)
+
+```ts config-catalog
+/** Journal selection and formatting config. */
+export interface Config {
+  /** Logger severities eligible for export; defaults to error, warn, and info. */
+  levels?: LoggerType[]
+  /** Exact logger names selected beyond unconditional warnings and errors. */
+  loggerNames?: string[]
+  /** Message prefixes selected beyond unconditional warnings and errors. */
+  messagePrefixes?: string[]
+  /** Lifecycle lines mapped to stable output before the other info filters. */
+  lifecycleLines?: LifecycleLine[]
+  /** Ordered redactions applied to every emitted line. */
+  redactionPatterns?: RedactionPattern[]
+  /** Maximum characters in one written line, including an ellipsis when cut. */
+  maxLineLength?: number
+}
+
+/** An exact lifecycle line or a prefix with an optional required suffix. */
+export interface LifecycleLine {
+  /** Exact input line; exclusive with prefix and suffix. */
+  exact?: string
+  /** Input prefix; may be paired with suffix. */
+  prefix?: string
+  /** Input suffix, only with prefix. */
+  suffix?: string
+  /** Stable output line, with variable input omitted. */
+  output: string
+}
+
+/** A regular-expression replacement applied before writing a line. */
+export interface RedactionPattern {
+  /** JavaScript regular expression source. */
+  pattern: string
+  /** Case-insensitive matching when true; every match is replaced. */
+  ignoreCase?: boolean
+  /** Replacement text; use $1 for a retained capture. */
+  replacement: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-log-exporter -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-lsp-stdio -->
 <a id="deepseek-aidsh-lsp-stdio"></a>
 
@@ -4355,6 +4404,27 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-todo -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-weather -->
+<a id="deepseek-aidsh-tool-weather"></a>
+
+## `@deepseek-ai/dsh-tool-weather`
+
+- `inject`: `tools` · `web`
+- `source`: [`packages/web/tool-weather/src/index.ts:19`](../packages/web/tool-weather/src/index.ts)
+
+```ts config-catalog
+/** Deployment choices for the weather tool. */
+export interface Config {
+  /** Used when a call omits city; required so the default is deployment-owned. */
+  defaultLocation: string
+  /** Temperature and wind units returned to the model. Defaults to US customary. */
+  units?: 'us' | 'metric'
+  /** Forecast days to return, from one to wttr.in j1's maximum of three. */
+  days?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-weather -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-web -->
 <a id="deepseek-aidsh-tool-web"></a>

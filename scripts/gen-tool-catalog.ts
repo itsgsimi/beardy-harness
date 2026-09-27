@@ -77,6 +77,7 @@ import * as ToolOdysseusResearch from '@deepseek-ai/dsh-tool-odysseus-research'
 import type { ResearchService } from '@deepseek-ai/dsh-research'
 import * as ToolResearch from '@deepseek-ai/dsh-tool-research'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import * as ToolWeather from '@deepseek-ai/dsh-tool-weather'
 import WorkflowEngine from '@deepseek-ai/dsh-workflow'
 import type { WorkflowRun, WorkflowStartRequest } from '@deepseek-ai/dsh-workflow'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
@@ -672,6 +673,17 @@ const TOOL_PACKAGES: ToolPackage[] = [
     async mount(ctx) {
       // Schema harvest never prepares a payload; the directory need not exist.
       await ctx.plugin(ToolWorkspaceDependencies, { source: resolve(root, '.tmp/tool-catalog/primary-runtime') })
+    },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-weather',
+    dir: 'tool-weather',
+    source: 'packages/web/tool-weather/src/index.ts',
+    requires: ['ctx.tools', 'ctx.web'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(WebRuntime)
+      await ctx.plugin(ToolWeather, { defaultLocation: 'Phoenix, AZ', units: 'us', days: 3 })
     },
   },
   {

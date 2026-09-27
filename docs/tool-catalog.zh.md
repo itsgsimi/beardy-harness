@@ -49,6 +49,7 @@
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
+| `@deepseek-ai/dsh-tool-weather` | `get_weather` | `ctx.tools`、`ctx.web` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`、`ctx.credentials` | `tool/call`、`tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint、model、and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
 | `@deepseek-ai/dsh-tool-research` | `deep_research` | `ctx.tools`、`ctx.research` | `tool/call`、`tool/result`、`research/linked` | - | 原生运行和报告可在进程重启后保留。工具从调用方 Session 推导所有者权限，并对报告文本分页。 |
@@ -2843,6 +2844,28 @@ todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为
 ```
 
 来源：[`packages/skill/tool-workspace-dependencies/src/index.ts`](../packages/skill/tool-workspace-dependencies/src/index.ts)
+
+<a id="deepseek-aidsh-tool-weather"></a>
+
+## `@deepseek-ai/dsh-tool-weather`
+
+### `get_weather`
+
+使用 wttr.in 获取一个地点的当前天气和预报。wttr.in `j1` 响应最多包含三天预报；更晚日期需要其他来源。省略 `city` 时使用已配置的默认地点。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "city": {
+      "type": "string",
+      "description": "City, region, postal code, or airport code. Defaults to the configured home location."
+    }
+  }
+}
+```
+
+来源：[`packages/web/tool-weather/src/index.ts`](../packages/web/tool-weather/src/index.ts)
 
 <a id="deepseek-aidsh-tool-web"></a>
 

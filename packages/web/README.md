@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The `web/` packages let models search the public web and fetch HTTP(S) pages through the `web_search` and `web_fetch` tools. Deployments can choose Exa, Perplexity, or DeepSeek for search and anonymous HTTP(S) access for fetch; availability and resource limits depend on the configured provider. Use this family for search and page retrieval, not interactive browsing, content extraction, or per-URL policy enforcement. Models receive consistent tool behavior, cancellation, and error reporting when providers change.
+The `web/` packages let models search the public web, fetch HTTP(S) pages, and read a short weather forecast through `web_search`, `web_fetch`, and `get_weather`. Deployments can choose Exa, Perplexity, or DeepSeek for search and anonymous HTTP(S) access for fetch; availability and resource limits depend on the configured provider. Use this family for search and page retrieval, not interactive browsing, content extraction, or per-URL policy enforcement. Models receive consistent tool behavior, cancellation, and error reporting when providers change.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ The `web/` packages let models search the public web and fetch HTTP(S) pages thr
 <a id="packages"></a>
 ## Packages
 
-Eight packages play the web roles; the subsystem reference owns the exhaustive vocabulary and contracts.
+Nine packages play the web roles; the subsystem reference owns the exhaustive vocabulary and contracts.
 
 | Package | Role | ctx key |
 |---|---|---|
@@ -33,6 +33,7 @@ Eight packages play the web roles; the subsystem reference owns the exhaustive v
 | [`web-search-searxng/`](web-search-searxng/README.md) | Searches the web through a SearXNG instance | registers on `ctx.web` |
 | [`web-fetch-http/`](web-fetch-http/README.md) | Fetches public HTTP(S) pages anonymously | registers on `ctx.web` |
 | [`tool-web/`](tool-web/README.md) | Exposes `web_search` and `web_fetch` to the model | registers on `ctx.tools` |
+| [`tool-weather/`](tool-weather/README.md) | Exposes current weather and up to three wttr.in forecast days | registers on `ctx.tools` |
 | [`tool-odysseus-research/`](tool-odysseus-research/README.md) | Odysseus research jobs and saved reports | registers on `ctx.tools` |
 
 -----

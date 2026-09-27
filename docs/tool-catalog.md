@@ -45,6 +45,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
+| `@deepseek-ai/dsh-tool-weather` | `get_weather` | `ctx.tools`, `ctx.web` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
 | `@deepseek-ai/dsh-tool-research` | `deep_research` | `ctx.tools`, `ctx.research` | `tool/call`, `tool/result`, `research/linked` | - | Native runs and reports survive process restart. The tool derives owner authority from the caller Session and pages report text. |
@@ -2829,6 +2830,28 @@ Get absolute paths to bundled Python and library directories, plus bundled Pytho
 ```
 
 Source: [`packages/skill/tool-workspace-dependencies/src/index.ts`](../packages/skill/tool-workspace-dependencies/src/index.ts)
+
+<a id="deepseek-aidsh-tool-weather"></a>
+
+## `@deepseek-ai/dsh-tool-weather`
+
+### `get_weather`
+
+Get current weather and a forecast for a location using wttr.in. The wttr.in j1 response contains at most three forecast days; requests for later days need another source. Omit city to use the configured home location.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "city": {
+      "type": "string",
+      "description": "City, region, postal code, or airport code. Defaults to the configured home location."
+    }
+  }
+}
+```
+
+Source: [`packages/web/tool-weather/src/index.ts`](../packages/web/tool-weather/src/index.ts)
 
 <a id="deepseek-aidsh-tool-web"></a>
 
