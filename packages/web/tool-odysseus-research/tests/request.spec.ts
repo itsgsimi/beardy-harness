@@ -63,6 +63,31 @@ describe('Odysseus research requests', () => {
       .toBe('{"id":"rp-123","cancellation_requested":false}')
   })
 
+  it('retains untitled report sources without inventing a title', async () => {
+    const sources = [{ url: 'https://example.org/untitled' }, { url: 'https://example.org/titled', title: 'Titled' }]
+    vi.stubGlobal('fetch', vi.fn<typeof globalThis.fetch>().mockImplementation(async () => reply({ result: 'Evidence', sources })))
+    const response = await requestResponse(config, 'token', { action: 'report', id: 'rp-123' }, signal())
+    expect(response.artifact).toEqual({ id: 'rp-123', markdown: 'Evidence', sources })
+    expect(response.artifact?.sources[0]).not.toHaveProperty('title')
+  })
+
+  it('lists saved reports without a title filter when the query is omitted', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(reply({ active: [] }))
+      .mockResolvedValueOnce(reply({ research: [{ session_id: 'rp-saved' }], total: 1 }))
+    vi.stubGlobal('fetch', fetch)
+    const list = JSON.parse(await requestResearch(config, 'token', { action: 'list' }, signal())) as { text: string }
+    expect(JSON.parse(list.text)).toEqual({ active: [], saved: [{ session_id: 'rp-saved' }], total_saved: 1 })
+    expect(fetch.mock.calls[1]?.[0]).toBe('http://odysseus.test/api/research/library?limit=20&search=')
+  })
+
+  it('rejects a successful response without a body', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null))
+    vi.stubGlobal('fetch', fetch)
+    await expect(requestResearch(config, 'token', { action: 'status', id: 'rp-123' }, signal()))
+      .rejects.toThrow('Odysseus returned an empty response')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     { action: 'start', query: ' ' }, { action: 'status', id: '../secret' },
     { action: 'report' }, { action: 'list', offset: -1 }, { action: 'list', offset: 0.5 },
@@ -81,13 +106,19 @@ describe('Odysseus research requests', () => {
   })
 
   it.each([
-    ['start', { session_id: '../bad', status: 'running' }], ['start', { session_id: 'rp-123', status: 'error' }],
-    ['cancel', { cancelled: 'yes' }], ['report', { result: null, sources: [] }],
-    ['status', {}], ['status', []], ['list', { active: null }],
-  ])('rejects malformed %s responses', async (action, response) => {
+    ['start', { session_id: '../bad', status: 'running' }, 'research id must contain'],
+    ['start', { session_id: 'rp-123', status: 'error' }, 'did not acknowledge a running research job'],
+    ['start', { session_id: 42, status: 'running' }, 'research id must contain'],
+    ['cancel', { cancelled: 'yes' }, 'invalid cancellation response'],
+    ['report', { result: null, sources: [] }, 'invalid report or sources'],
+    ['report', { result: 'Evidence', sources: [{ url: 42 }] }, 'invalid report source'],
+    ['report', { result: 'Evidence', sources: [{ url: 'https://example.org', title: 42 }] }, 'invalid report source'],
+    ['status', {}, 'invalid research status'], ['status', [], 'invalid research response'],
+    ['list', { active: null }, 'invalid research list'],
+  ])('rejects malformed %s responses: %j', async (action, response, message) => {
     vi.stubGlobal('fetch', vi.fn<typeof globalThis.fetch>().mockImplementation(async () => reply(response)))
     await expect(requestResearch(config, 'token', { action, query: 'q', id: 'rp-123' }, signal()))
-      .rejects.toThrow()
+      .rejects.toThrow(message)
   })
 
   it('bounds the complete HTTP body including a single oversized multibyte chunk', async () => {

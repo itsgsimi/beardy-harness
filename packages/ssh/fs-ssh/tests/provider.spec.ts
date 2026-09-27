@@ -106,7 +106,7 @@ describe('SSH filesystem provider', () => {
     const { fs, dispatch } = await setup()
     const written = { operation: 'update', version: 'v2', before: 'old', after: 'new' }
     const edited = { version: 'v3', before: 'new', after: 'next' }
-    dispatch.mockResolvedValueOnce(written).mockResolvedValueOnce(edited)
+    dispatch.mockResolvedValueOnce(written).mockResolvedValueOnce(edited).mockResolvedValueOnce(null).mockResolvedValueOnce(null)
     const signal = new AbortController().signal
     const policy: SandboxExecutionPolicy = { mode: 'workspace-write', workspaceRoot: '/remote/link/..' }
     const expected = { kind: 'replaceIfVersion' as const, version: FsVersion('v1') }
@@ -115,14 +115,21 @@ describe('SSH filesystem provider', () => {
     expect(dispatch).toHaveBeenLastCalledWith('fs.write', { target, content: 'new', expected, policy }, signal)
     expect(await fs.editText(target, edit, { version: FsVersion('v2') }, signal, policy)).toEqual(edited)
     expect(dispatch).toHaveBeenLastCalledWith('fs.edit', { target, edit, expected: { version: 'v2' }, policy }, signal)
+    await fs.makeDirectory(target, signal, policy)
+    expect(dispatch).toHaveBeenLastCalledWith('fs.mkdir', { target, policy }, signal)
+    await fs.removeFile(target, signal, policy)
+    expect(dispatch).toHaveBeenLastCalledWith('fs.remove', { target, policy }, signal)
   })
 
   it('resolves deployment policy for mutations without an explicit policy', async () => {
     const { fs, dispatch } = await setup()
     dispatch.mockResolvedValueOnce({ operation: 'create', version: 'v1', before: null, after: 'new' })
-      .mockResolvedValueOnce({ version: 'v2', before: 'new', after: 'next' })
+      .mockResolvedValueOnce({ version: 'v2', before: 'new', after: 'next' }).mockResolvedValueOnce(null).mockResolvedValueOnce(null)
     await fs.writeText(target, 'new', { kind: 'createIfAbsent' })
     await fs.editText(target, { oldString: 'new', newString: 'next', replaceAll: true })
+    await fs.makeDirectory(target)
+    await fs.removeFile(target)
+    expect(dispatch.mock.calls.map(([method]) => method)).toEqual(['fs.write', 'fs.edit', 'fs.mkdir', 'fs.remove'])
     for (const [, params] of dispatch.mock.calls) expect(params).toMatchObject({ policy: { mode: 'read-only', workspaceRoot: '/remote/work' } })
   })
 

@@ -35,7 +35,7 @@ const credentialFixtures = {
     ctx.provide('credentials' as never, {
       resolve: async (ref: string) => (ref === 'ODYSSEUS_TOKEN'
         ? { value: 'fixture-token', source: 'fixture' }
-        : undefined),
+        : ref === 'EMPTY_TOKEN' ? { value: '', source: 'fixture' } : undefined),
     } as never)
   },
 }
@@ -138,6 +138,51 @@ it.each([
   await expect(boot([...VALID_CONFIG.filter(line => line.trim().split(':')[0] !== field), extra])).rejects.toThrow()
 })
 
+it.each([
+  ['a worker reusing the reserved default id', ['      - id: default', '        label: Other', '        endpointId: other', '        model: other-model']],
+  ['a worker id outside the picker alphabet', ['      - id: flash model', '        label: Flash', '        endpointId: flash', '        model: flash-model']],
+  ['a worker with a blank label', ['      - id: flash', '        label: " "', '        endpointId: flash', '        model: flash-model']],
+])('rejects %s', async (_case, worker) => {
+  await expect(boot([...VALID_CONFIG, '    workers:', ...worker, '        disableThinking: false']))
+    .rejects.toThrow('workers require unique ids and non-empty labels, endpoints, and models')
+})
+
+it.each(['MISSING_TOKEN', 'EMPTY_TOKEN'])('refuses to contact Odysseus when credential %s has no value', async (tokenEnv) => {
+  const ctx = await boot([...VALID_CONFIG.filter(line => !line.includes('tokenEnv')), `    tokenEnv: ${tokenEnv}`])
+  const fetch = vi.fn<typeof globalThis.fetch>()
+  vi.stubGlobal('fetch', fetch)
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal, callId: ToolCallId('missing-credential'), name: 'odysseus_research',
+    arguments: { action: 'status', id: 'rp-test' }, agent: agent(ctx),
+  })
+  expect(result.isError).toBe(true)
+  expect(JSON.stringify(result.content)).toContain(`Odysseus credential ${tokenEnv} is missing`)
+  expect(fetch).not.toHaveBeenCalled()
+})
+
+it('refuses new jobs when settings select a worker that is not configured', async () => {
+  const ctx = await boot([...VALID_CONFIG, '    selectedWorker: retired'])
+  const fetch = vi.fn<typeof globalThis.fetch>()
+  vi.stubGlobal('fetch', fetch)
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal, callId: ToolCallId('retired-worker'), name: 'odysseus_research',
+    arguments: { action: 'start', query: 'Research test' }, agent: agent(ctx),
+  })
+  expect(result.isError).toBe(true)
+  expect(JSON.stringify(result.content)).toContain('Odysseus settings selected an unavailable worker')
+  expect(fetch).not.toHaveBeenCalled()
+})
+
+it('presents remote mutations as execution and inspections as reads', async () => {
+  const ctx = await boot(VALID_CONFIG)
+  const definition = ctx.tools.get('odysseus_research')
+  for (const args of [{ action: 'start', query: 'Question' }, { action: 'cancel', id: 'rp-test' }]) {
+    expect(definition?.presentCall?.(args)).toEqual({ card: 'generic', title: 'Odysseus research', kind: 'execute', rawInput: JSON.stringify(args) })
+  }
+  for (const args of [{ action: 'status', id: 'rp-test' }, { action: 'report', id: 'rp-test' }, { action: 'list' }]) {
+    expect(definition?.presentCall?.(args)).toEqual({ card: 'generic', title: 'Odysseus research', kind: 'read', rawInput: JSON.stringify(args) })
+  }
+})
 
 it('uses the selected research worker for new jobs', async () => {
   const ctx = await boot([...VALID_CONFIG,

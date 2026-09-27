@@ -93,9 +93,14 @@ export function apply(ctx: Context): void {
     return state
   }
 
-  /** Read only when the exact Agent remains live. */
+  /**
+   * Read only when the exact Agent remains live and the goal service's fiber is
+   * still active. An unloading goal service removes its projection while this
+   * driver's teardown runs, and its process-local activation leaves with it.
+   */
   function currentGoal(state: DriverState): GoalView | undefined {
     if (ctx.agents.get(state.agent.id) !== state.agent) return undefined
+    if (ctx.get('goals') === undefined) return undefined
     return ctx.goals.get(state.agent)
   }
 

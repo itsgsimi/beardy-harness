@@ -1253,6 +1253,24 @@ describe('SQLite reconciliation and source lifecycle', () => {
     await expect(ctx.sessionQuery.searchSessions({ query: 'refused' })).resolves.toEqual({ items: [] })
   })
 
+  it('fails the search when a stored log read fails for a reason other than format refusal', async () => {
+    const durable = header('unreadable')
+    TestPersistence.reset([{ meta: durable, events: messageEvents('durable needle') }])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    const failure = new Error('disk read failed')
+    TestPersistence.readEffect = () => { throw failure }
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' })).rejects.toThrow(expect.objectContaining({
+      code: 'SESSION_QUERY_PERSISTENCE_FAILED',
+      message: 'session-search persistence observation failed: disk read failed',
+      cause: failure,
+    }) as Error)
+    TestPersistence.readEffect = undefined
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: durable }] })
+  })
+
   it('recovers on the next search after source and SQLite transaction failures', async () => {
     TestPersistence.reset([{ meta: header('durable'), events: messageEvents('durable needle') }])
     const ctx = await liveContext()

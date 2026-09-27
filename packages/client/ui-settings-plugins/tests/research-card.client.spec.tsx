@@ -6,7 +6,7 @@ import { bindSnapshotSelector, makeTranslate, stubConfigForm } from '@deepseek-a
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { ResearchCard } from '../src/client/ResearchCard.tsx'
-import { ResearchCardController, type ResearchSettings } from '../src/client/research-card-controller.ts'
+import { ResearchCardController, type ResearchCardFace, type ResearchSettings } from '../src/client/research-card-controller.ts'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -15,20 +15,56 @@ const standard: GlobalStandardProps = {
   usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
   useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
 }
+function renderCard(face: ResearchCardFace) {
+  render(<ResearchCard {...{
+    ...standard, ...face, t: makeTranslate(en, commonEn),
+    useResearchCard: bindSnapshotSelector(face.hooks.researchCard),
+  }} />)
+}
 
 it('shows configured research workers and saves the selected worker', async () => {
   const form = stubConfigForm<ResearchSettings>()
   form.publish({ status: 'ready', writable: true, value: {
     model: 'qwen4b', workerLabel: 'Local 4B', workers: [{ id: 'flash', label: 'Flash', model: 'flash' }],
   }, revision: 2 })
-  const face = new ResearchCardController(form.scope).inject()
-  render(<ResearchCard {...{
-    ...standard, ...face, t: makeTranslate(en, commonEn),
-    useResearchCard: bindSnapshotSelector(face.hooks.researchCard),
-  }} />)
+  renderCard(new ResearchCardController(form.scope).inject())
   expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['Local 4B', 'Flash'])
   await act(async () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Research model' }), { target: { value: 'flash' } })
   })
   expect(form.set).toHaveBeenCalledWith('selectedWorker', 'flash')
+})
+
+it('follows the profile form from loading through unavailable to its default model', () => {
+  const form = stubConfigForm<ResearchSettings>()
+  renderCard(new ResearchCardController(form.scope).inject())
+  expect(screen.getByText(en.researchLoading)).toBeTruthy()
+  act(() => { form.publish({ status: 'unavailable' }) })
+  expect(screen.getByText(en.researchUnavailable)).toBeTruthy()
+  act(() => { form.publish({ status: 'ready', writable: true, value: { model: 'qwen4b' }, revision: 1 }) })
+  const picker = screen.getByRole<HTMLSelectElement>('combobox', { name: en.researchModel })
+  expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['qwen4b'])
+  expect(picker.value).toBe('default')
+})
+
+it('alerts when the profile refuses or fails the worker save and clears the alert on success', async () => {
+  const form = stubConfigForm<ResearchSettings>()
+  form.publish({ status: 'ready', writable: true, value: {
+    model: 'qwen4b', workers: [{ id: 'flash', label: 'Flash', model: 'flash' }],
+  }, revision: 1 })
+  renderCard(new ResearchCardController(form.scope).inject())
+  const choose = async (id: string) => {
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: en.researchModel }), { target: { value: id } })
+    })
+  }
+  form.set.mockResolvedValueOnce(false)
+  await choose('flash')
+  expect(screen.getByRole('alert').textContent).toBe(en.researchSaveFailed)
+  await choose('flash')
+  expect(screen.queryByRole('alert')).toBeNull()
+  form.set.mockRejectedValueOnce(new Error('profile write failed'))
+  await choose('flash')
+  expect(screen.getByRole('alert').textContent).toBe(en.researchSaveFailed)
+  expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en.researchModel }).disabled).toBe(false)
 })

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { createAfterScheduleRecord, ScheduleId } from '@deepseek-ai/dsh-schedule'
-import { DiscordWakeCoordinator } from '../src/wake.ts'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { createAfterScheduleRecord, createEveryScheduleRecord, ScheduleId } from '@deepseek-ai/dsh-schedule'
+import { DiscordWakeCoordinator, dispatchLegacyReminders } from '../src/wake.ts'
 import type { ConversationRecord } from '../src/domain.ts'
 import { record, tableFromMap } from './support.ts'
 
@@ -106,5 +107,43 @@ describe('Discord cold reminder timers', () => {
     expect(h.close).toHaveBeenCalledTimes(1)
     expect(h.ctx.logger.warn).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('legacy reminder dispatch', () => {
+  it('does not flush a session without due reminders', async () => {
+    const session = Session.create(SessionId('legacy-future'))
+    session.append('schedule/change', { version: 1, operation: 'create',
+      schedule: createAfterScheduleRecord(ScheduleId('future'), 'Later', 60, Date.now(), 'Later') })
+    const flush = vi.fn(async () => true)
+    const ctx = new Context().extend({ sessions: { flush } })
+    const followup = vi.fn()
+    const agent: Pick<Agent, 'session' | 'followup'> = { session, followup }
+
+    expect(await dispatchLegacyReminders(ctx, agent as Agent)).toBe(0)
+    expect(followup).not.toHaveBeenCalled()
+    expect(flush).not.toHaveBeenCalled()
+  })
+
+  it('frames historical untitled recurring reminders and requires a durable inbox splice', async () => {
+    const session = Session.create(SessionId('legacy-recurring'))
+    const old = createEveryScheduleRecord(ScheduleId('recurring'), 'Check in', 300,
+      Date.now() - 600_000, 'Old title')
+    const { title: _title, ...untitled } = old
+    session.append('schedule/change', { version: 1, operation: 'create',
+      schedule: untitled as typeof old })
+    const flush = vi.fn(async () => false)
+    const ctx = new Context().extend({ sessions: { flush } })
+    const followup = vi.fn<Agent['followup']>()
+    const agent: Pick<Agent, 'session' | 'followup'> = { session, followup }
+
+    await expect(dispatchLegacyReminders(ctx, agent as Agent))
+      .rejects.toThrow('Discord legacy reminder inbox was not persisted')
+    expect(followup).toHaveBeenCalledOnce()
+    expect(followup.mock.calls[0]?.[0].content.map(block => block.type === 'text' ? block.text : '').join(''))
+      .toContain('Check in')
+    expect(flush).toHaveBeenCalledWith(session)
+    expect(session.ownEvents().some(event => event.type === 'schedule/change'
+      && event.data.operation === 'dispatch' && Reflect.has(event.data, 'acceptedAt'))).toBe(true)
   })
 })

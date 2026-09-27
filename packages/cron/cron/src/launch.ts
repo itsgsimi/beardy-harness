@@ -163,8 +163,9 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         signal.throwIfAborted()
         const opening = openSession(job, firedAt, sessionId, runSignal)
         const releaseLate = (): void => {
-          void opening.then(late => disposeHandle(ctx, late, timeoutMs)).catch((error: unknown) => {
-            if (!runSignal.aborted) ctx.logger.warn(`dsh-cron: late Session creation failed: ${errorChain(error)}`)
+          void opening.then(late => disposeHandle(ctx, late, timeoutMs)).catch((_error: unknown) => {
+            // Only called after runSignal aborted and the run's outcome is decided, so an opening that fails leaves no
+            // Session to release and nothing further to report.
           })
         }
         let opened: { kind: 'opened'; value: UnattendedSession } | { kind: 'timeout' }

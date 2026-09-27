@@ -490,6 +490,51 @@ describe('createSchedulerHost', () => {
     expect(host.trigger('morning-brief')).toBe(false)
     await host.dispose()
   })
+
+  it('logs an overlapping fire whose skip cannot be recorded and lets the running fire finish', async () => {
+    const { ctx, logger } = contextStub()
+    const settled = Promise.withResolvers<CronRunResult>()
+    const host = createSchedulerHost(ctx, {
+      turnTimeoutMs: 60_000, maxLiveRuns: 5,
+      onSkipped: async () => { throw new Error('state table unavailable') },
+      onSettled: (_job, _firedAt, result) => { settled.resolve(result) },
+    }, fakeScheduler().scheduler)
+    host.sync([{ ...JOB, notes: '' }])
+    expect(host.trigger(JOB.name)).toBe(true)
+    expect(host.trigger(JOB.name)).toBe(false)
+    expect(await settled.promise).toMatchObject({ outcome: 'answered', text: 'done' })
+    await host.dispose()
+    expect(logger.warn).toHaveBeenCalledWith('dsh-cron: job "morning-brief" is still running; this fire is skipped')
+    expect(logger.error).toHaveBeenCalledWith(
+      'dsh-cron: job "morning-brief" skipped fire could not be recorded: state table unavailable',
+    )
+  })
+
+  it('logs a failed release of completed Sessions without blocking the next fire', async () => {
+    const { ctx, logger } = contextStub()
+    const outcomes: string[] = []
+    const secondSettled = Promise.withResolvers<undefined>()
+    const host = createSchedulerHost(ctx, {
+      turnTimeoutMs: 60_000, maxLiveRuns: 0,
+      onSettled: (_job, _firedAt, result) => {
+        outcomes.push(result.outcome)
+        if (outcomes.length === 2) secondSettled.resolve(undefined)
+      },
+    }, fakeScheduler().scheduler)
+    const releasing = Promise.withResolvers<undefined>()
+    vi.spyOn(host.runner, 'trim').mockImplementationOnce(async () => {
+      releasing.resolve(undefined)
+      throw new Error('release bookkeeping failed')
+    })
+    host.sync([{ ...JOB, notes: '' }])
+    expect(host.trigger(JOB.name)).toBe(true)
+    await releasing.promise
+    expect(host.trigger(JOB.name)).toBe(true)
+    await secondSettled.promise
+    await host.dispose()
+    expect(outcomes).toEqual(['answered', 'answered'])
+    expect(logger.error).toHaveBeenCalledWith('dsh-cron: releasing completed sessions failed: release bookkeeping failed')
+  })
 })
 
 describe('apply', () => {

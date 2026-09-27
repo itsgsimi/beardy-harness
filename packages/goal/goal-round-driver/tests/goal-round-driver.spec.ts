@@ -82,6 +82,7 @@ interface Harness {
   readonly ctx: Context
   readonly adapter: ScriptedAdapter
   readonly agent: Agent
+  readonly goal: Awaited<ReturnType<Context['plugin']>>
   readonly driver: Awaited<ReturnType<Context['plugin']>>
 }
 
@@ -96,7 +97,7 @@ async function harness(script: ScriptEntry[]): Promise<Harness> {
   const ctx = new Context()
   contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
-  await ctx.plugin(GoalService)
+  const goal = await ctx.plugin(GoalService)
   const driver = await ctx.plugin(goalSession)
   await ctx.plugin(AgentLoop, { agents: [] })
   const adapter = new ScriptedAdapter(script)
@@ -105,7 +106,7 @@ async function harness(script: ScriptEntry[]): Promise<Harness> {
     provider: 'mock',
     model: 'mock',
   })
-  return { ctx, adapter, agent, driver }
+  return { ctx, adapter, agent, goal, driver }
 }
 
 /** Observe inserted inbox messages after the live projection accepts them. */
@@ -919,6 +920,20 @@ describe('same-session goal driving', () => {
     })
     expect(test.agent.status).toBe('idle')
     expect(test.adapter.requests).toHaveLength(1)
+  })
+
+  it('cancels an admitted round without reading the goal service when it unloads first', async () => {
+    const test = await harness(['hang'])
+    test.ctx.goals.create(test.agent, { objective: 'stop with the application' })
+    await waitForRequests(test.adapter, 1)
+    const warn = vi.spyOn(test.ctx.logger, 'warn').mockImplementation(() => {})
+
+    await test.goal.dispose()
+
+    expect(test.ctx.get('goals')).toBeUndefined()
+    expect(test.agent.status).toBe('idle')
+    expect(test.adapter.requests).toHaveLength(1)
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('cancels an accepted queued round and awaits its driver task during teardown', async () => {

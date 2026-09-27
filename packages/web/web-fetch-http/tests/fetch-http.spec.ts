@@ -147,6 +147,14 @@ describe('public-network policy', () => {
       ])
   })
 
+  it('retains an IPv4-only answer set without querying for a DNS64 prefix', async () => {
+    const resolver = vi.fn(async () => [{ address: '8.8.4.4', family: 4 }])
+    await expect(resolvePublicAddresses('ipv4-only.test', new AbortController().signal, resolver))
+      .resolves.toEqual([{ address: '8.8.4.4', family: 4 }])
+    expect(resolver).toHaveBeenCalledOnce()
+    expect(resolver).toHaveBeenCalledWith('ipv4-only.test', { all: true, order: 'verbatim' })
+  })
+
   it('rejects the whole DNS answer set when one address is not public', async () => {
     const resolver = vi.fn(async () => [
       { address: '8.8.8.8', family: 4 },

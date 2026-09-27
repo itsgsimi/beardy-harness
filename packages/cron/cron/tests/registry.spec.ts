@@ -349,6 +349,33 @@ describe('job registry continuity state', () => {
     })
   })
 
+  it('records a skipped fire without a reason as a zero-duration history entry without a failure', async () => {
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB])
+    const payload = await registry.recordSkipped(CONFIG_JOB.name, {
+      firedAt: 1, sessionId: SessionId('skip'), reportOutcome: false,
+    }, { sessionId: SessionId('skip'), outcome: 'skipped', text: '' }, 3)
+    expect(payload).toEqual({ jobName: CONFIG_JOB.name, firedAt: 1, sessionId: 'skip', reportOutcome: false,
+      outcome: 'skipped', text: '' })
+    expect(stateTable.rows.get(CONFIG_JOB.name)?.lastRuns).toEqual([
+      { firedAt: 1, sessionId: 'skip', outcome: 'skipped', durationMs: 0 },
+    ])
+  })
+
+  it('keeps the other skipped notices pending when one is acknowledged', async () => {
+    const { registry } = makeRegistry([CONFIG_JOB])
+    const failure = { code: 'PREVIOUS_RUN_IN_PROGRESS', message: 'The previous run was still in progress.' }
+    for (const [firedAt, id] of [[1, 'first-skip'], [2, 'second-skip']] as const) {
+      await registry.recordSkipped(CONFIG_JOB.name, { firedAt, sessionId: SessionId(id), reportOutcome: true },
+        { sessionId: SessionId(id), outcome: 'skipped', text: '', failure }, 3)
+    }
+    await registry.acknowledgeOutcome(CONFIG_JOB.name, 'first-skip')
+    expect(registry.pendingOutcomes(CONFIG_JOB.name)).toEqual([
+      expect.objectContaining({ sessionId: 'second-skip', outcome: 'skipped', failure }),
+    ])
+    await registry.acknowledgeOutcome(CONFIG_JOB.name, 'second-skip')
+    expect(registry.pendingOutcomes(CONFIG_JOB.name)).toEqual([])
+  })
+
   it('recovers interrupted work and finished undelivered output without duplicating history', async () => {
     const active = { firedAt: 2, sessionId: SessionId('active'), reportOutcome: true, deliverChannelId: 'c' }
     const { registry, stateTable } = makeRegistry([CONFIG_JOB], { state: {

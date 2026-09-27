@@ -111,6 +111,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
     switch (this.authentication.kind) {
       case 'insecure': return undefined
       case 'browser': return this.authentication.browserAuth.isAuthenticated(request) ? undefined : 401
+      /* v8 ignore next -- closed ConnectionAuthentication union; the typed constructor argument admits no other kind. */
       default: return assertNever(this.authentication)
     }
   }
@@ -133,6 +134,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
         })
         response.end(request.method === 'HEAD' ? undefined : 'forbidden')
         return false
+      /* v8 ignore next -- closed ConnectionAuthentication union; the typed constructor argument admits no other kind. */
       default: return assertNever(this.authentication)
     }
   }
@@ -148,6 +150,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
         url.hash = ''
         return url.href
       }
+      /* v8 ignore next -- closed ConnectionAuthentication union; the typed constructor argument admits no other kind. */
       default: return assertNever(this.authentication)
     }
   }

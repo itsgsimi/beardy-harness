@@ -129,6 +129,22 @@ describe('the agent-preset roster store', () => {
     ])
   })
 
+  it('carries the picker placement each preset saved', async () => {
+    const controller = derivedController(fakeApi([
+      { id: 'standard', isDefault: true },
+      { id: 'mine', isDefault: false, picker: 'more' },
+      { id: 'quiet', isDefault: false, picker: 'hidden' },
+    ] as never))
+
+    await controller.load()
+
+    expect(controller.store.getSnapshot().options).toEqual([
+      { id: 'standard' },
+      { id: 'mine', picker: 'more' },
+      { id: 'quiet', picker: 'hidden' },
+    ])
+  })
+
   it('reports an empty roster as unavailable, not as an error', async () => {
     const controller = derivedController(fakeApi([]))
 
@@ -208,11 +224,13 @@ describe('the new-session chip controller', () => {
       failListCode?: RemoteErrorCode
       developerTools?: ObservableSnapshot<boolean>
       list?: () => Promise<ReturnType<typeof remoteRoster>>
+      settings?: object
     } = {},
   ): AgentPresetSeatController {
     const partial = {
       configForms: { developerTools: { enabled: options.developerTools ?? createSnapshotStore(true) } },
       remote: {
+        ...options.settings === undefined ? {} : { settings: options.settings },
         agentPresets: {
           list: options.list ?? (() => {
             return Promise.resolve(options.failList === undefined
@@ -537,6 +555,46 @@ describe('the new-session chip controller', () => {
     await controller.load()
 
     expect(controller.store.getSnapshot()).toMatchObject({ error: 'host down', options: [] })
+  })
+
+  it('keeps a refused placement save apart from the session choice and skips the roster refresh', async () => {
+    let reads = 0
+    const controller = chip([], undefined, {
+      list: () => { reads++; return Promise.resolve(remoteRoster('standard')) },
+      settings: {
+        update: () => Promise.resolve({
+          ok: false as const, error: new RemoteError('gateway/internal', 'read-only settings', {}),
+        }),
+      },
+    })
+    await controller.load()
+
+    await controller.setPickerPlacement('mine', 'hidden')
+
+    expect(reads).toBe(1)
+    expect(controller.store.getSnapshot()).toMatchObject({
+      current: 'standard', error: null, pickerSaving: false, pickerError: 'read-only settings',
+    })
+  })
+
+  it('ignores a placement change while an earlier one is still saving', async () => {
+    const saved = Promise.withResolvers<{ ok: true; value: object }>()
+    const patches: unknown[] = []
+    const controller = chip(ROSTER, undefined, {
+      settings: {
+        update: (_ns: string, patch: unknown) => { patches.push(patch); return saved.promise },
+      },
+    })
+    await controller.load()
+
+    const first = controller.setPickerPlacement('minimal', 'more')
+    await controller.setPickerPlacement('minimal', 'hidden')
+
+    expect(patches).toEqual([{ picker: { minimal: 'more' } }])
+    expect(controller.store.getSnapshot().pickerSaving).toBe(true)
+    saved.resolve({ ok: true, value: {} })
+    await first
+    expect(controller.store.getSnapshot()).toMatchObject({ pickerSaving: false, pickerError: null })
   })
 
 })
