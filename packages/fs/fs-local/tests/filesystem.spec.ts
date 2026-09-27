@@ -50,6 +50,37 @@ async function remountWithDiffLimit(diffBasisMaxBytes: number): Promise<void> {
   fs = ctx.fs as LocalFileSystem
 }
 
+it('removes only the observed file version when a guard is supplied', async () => {
+  const path = join(dir, 'skill.md')
+  await writeFile(path, 'initial')
+  const target = await fs.resolve(path)
+  const oldVersion = await versionOf(target)
+  await writeFile(path, 'changed after approval')
+  await expect(fs.removeFile(target, undefined, undefined, undefined, oldVersion))
+    .rejects.toMatchObject({ code: 'FS_STALE_VERSION' })
+  expect(await readFile(path, 'utf8')).toBe('changed after approval')
+  await fs.removeFile(target, undefined, undefined, undefined, await versionOf(target))
+  await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+it('refuses missing, directory, and aborted removals', async () => {
+  const missing = await fs.resolve('missing.md')
+  await expect(fs.removeFile(missing)).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
+  await expect(fs.removeFile(missing, undefined, undefined, undefined, FsVersion('old')))
+    .rejects.toMatchObject({ code: 'FS_STALE_VERSION' })
+  const directory = await fs.resolve('.')
+  await expect(fs.removeFile(directory)).rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
+  await writeFile(join(dir, 'kept.md'), 'keep')
+  const kept = await fs.resolve('kept.md')
+  await expect(fs.removeFile(kept, AbortSignal.abort())).rejects.toMatchObject({ code: 'FS_ABORTED' })
+  expect(await readFile(join(dir, 'kept.md'), 'utf8')).toBe('keep')
+})
+
+it('refuses a pre-aborted directory creation', async () => {
+  const directory = await fs.resolve('new-directory')
+  await expect(fs.makeDirectory(directory, AbortSignal.abort())).rejects.toMatchObject({ code: 'FS_ABORTED' })
+})
+
 describe('registration', () => {
   it('registers LocalFileSystem as ctx.fs with a default cwd', async () => {
     const bare = new Context()

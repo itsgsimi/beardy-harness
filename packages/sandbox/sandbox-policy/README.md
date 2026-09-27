@@ -35,6 +35,8 @@ Choose it for every composition with confined capabilities (bash, filesystem, te
 
 Load the package with a default mode; the fail-safe default is `read-only`, and a deployment that wants a workspace-writable agent opts into `workspace-write` explicitly.
 
+Trusted memory and skill tools can ask this service for a one-use exact filesystem mutation allowance after `allowed-once`. The allowance is separate from the execution policy and cannot enter shell or subprocess writable roots.
+
 ```yaml
 - name: '@deepseek-ai/dsh-sandbox-policy'
   config:

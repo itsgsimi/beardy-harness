@@ -64,6 +64,18 @@ interface SandboxExecutionPolicy {
 }
 ```
 
+已获批准的记忆或用户技能变更将 `FsMutationAllowance` 与执行策略分开携带。受沙箱约束的文件系统在检查配置的 Harness 主目录和符号链接祖先后，仅针对一个准确目标消费该许可；受限制的进程不会收到它。
+
+```ts type-equiv
+/** One filesystem mutation outside the workspace, issued only after a tool approval. */
+interface FsMutationAllowance {
+  /** Exact path the filesystem operation may mutate. */
+  readonly targetPath: string
+  /** Harness home whose symlink-free ancestry contains the target. */
+  readonly homePath: string
+}
+```
+
 `ctx.sandboxPolicy.resolve()` 接收活跃会话；对于已批准的重试，还接收显式模式。该服务拥有优先级与 root 回退规则，使 bash 和 fs 不必重复实现。
 
 ```ts type-equiv
@@ -206,6 +218,17 @@ The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mo
  * @returns the fully resolved per-call mode and absolute workspace root.
  */
 resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy
+
+/**
+ * Issue one exact filesystem mutation after a tool receives `allowed-once`.
+ * The ticket is separate from the execution policy, so shell and subprocess
+ * policies cannot inherit it.
+ * @param policy - calling session's resolved policy.
+ * @param homePath - configured Harness home.
+ * @param targetPath - exact file or directory to mutate.
+ * @returns a one-use filesystem allowance.
+ */
+approveFsMutation(policy: SandboxExecutionPolicy, homePath: string, targetPath: string): FsMutationAllowance
 
 /**
  * Read the session override without applying the deployment default.

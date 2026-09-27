@@ -1873,7 +1873,7 @@ Source: [`packages/skill/tool-skill/src/index.ts`](../packages/skill/tool-skill/
 
 ### `memory`
 
-Edit one of the two curated memory files that load into every future session's baseline. target "user" edits USER.md (who the user is: name, role, environment, standing preferences); target "memory" edits MEMORY.md (your notes: conventions with no task home, environment facts, things learned that apply to every session). Entries are single-line declarative facts, one per call action; the result reports remaining budget. Writes take effect for later sessions; the current session keeps its loaded baseline.
+Edit a curated core memory file or list and read on-demand topic memory. target "user" edits USER.md (who the user is: name, role, environment, standing preferences); target "memory" edits MEMORY.md (your notes: conventions with no task home, environment facts, things learned that apply to every session). Entries are single-line declarative facts, one per call action; the result reports remaining budget. Writes take effect for later sessions; the current session keeps its loaded baseline. Topic files under memories/ are never in the baseline; read them only when relevant. Topic writes use complete Markdown documents with updated, status, source frontmatter and Rule, Why, History sections; replace/remove require the version returned by read. Remove retires a topic instead of deleting it.
 
 ```json
 {
@@ -1881,16 +1881,19 @@ Edit one of the two curated memory files that load into every future session's b
   "properties": {
     "target": {
       "type": "string",
-      "description": "Which memory file to edit.",
+      "description": "Core file to edit, or the on-demand topic tier.",
       "enum": [
         "user",
-        "memory"
+        "memory",
+        "topic"
       ]
     },
     "action": {
       "type": "string",
-      "description": "Operation to perform on one entry.",
+      "description": "Core files support add/replace/remove; topics also support list/read.",
       "enum": [
+        "list",
+        "read",
         "add",
         "replace",
         "remove"
@@ -1903,6 +1906,22 @@ Edit one of the two curated memory files that load into every future session's b
     "old_text": {
       "type": "string",
       "description": "Substring matching exactly one existing entry, for replace or remove."
+    },
+    "topic": {
+      "type": "string",
+      "description": "Lowercase kebab slug for one topic; omit for list."
+    },
+    "expected_version": {
+      "type": "string",
+      "description": "Version returned by topic read; required for replace/remove."
+    },
+    "include_retired": {
+      "type": "boolean",
+      "description": "For topic list, include retired files."
+    },
+    "superseded_by": {
+      "type": "string",
+      "description": "For topic remove, optional successor slug."
     }
   },
   "required": [

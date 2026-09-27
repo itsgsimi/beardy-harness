@@ -29,7 +29,7 @@ Mount this backend when a composition needs `ctx.fs` backed by the real host fil
 
 ### When to choose it
 
-Choose `fs-local` for ordinary host-file access in a single process. Choose [`fs-sandbox`](../fs-sandbox/README.md) when a session's writes and edits must be confined to its workspace and temp roots — it extends this backend and adds only the mode fence. `config.cwd` is a resolution default, not a containment boundary: absolute paths and `..` escape it.
+Choose `fs-local` for ordinary host-file access in a single process. Choose [`fs-sandbox`](../fs-sandbox/README.md) when a session's mutations must be confined to its workspace and temp roots — it extends this backend with the mode fence and approved exact-file allowances. `removeFile` checks an optional observed version inside its per-target lock before unlinking. `config.cwd` is a resolution default, not a containment boundary: absolute paths and `..` escape it.
 
 ### Minimal configuration
 

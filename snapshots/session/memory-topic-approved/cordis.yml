@@ -1,0 +1,9 @@
+- insert:
+    - id: tool-memory
+      name: '@deepseek-ai/dsh-tool-memory'
+      config:
+        dshHome: !!js process.cwd() + '/memory-home'
+        requireApproval: true
+        allowApprovedHomeWrites: true
+    - id: approval-fixture
+      name: './fixture.mjs'

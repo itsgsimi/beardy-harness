@@ -33,11 +33,11 @@ Pick [`fs-local`](../fs-local/README.md) for ordinary host files or [`fs-sandbox
 
 ### What the service lets you do
 
-Through `ctx.fs` you can resolve any path to a stable target identity, read a whole text file or stream it in chunks, read raw bytes up to an explicit cap, list one directory level, atomically create or replace a file, and apply a literal text edit atomically. The version guard on both mutations is optional: omit it for unconditional create-or-overwrite, or supply it to fail when the file changed since you last observed it. Read, listing, and mutation failures are typed `FsError`s with stable codes such as `FS_NOT_FOUND`, `FS_STALE_VERSION`, or `FS_AMBIGUOUS_EDIT`, so callers branch on the code, never on message text.
+Through `ctx.fs` you can resolve any path to a stable target identity, read a whole text file or stream it in chunks, read raw bytes up to an explicit cap, list one directory level, atomically create or replace a file, apply a literal text edit atomically, and remove one regular file. Write and edit version guards remain optional; `removeFile` accepts an optional observed version and rejects a changed file with `FS_STALE_VERSION`. Read, listing, and mutation failures are typed `FsError`s with stable codes, so callers branch on the code, never on message text.
 
 `watch(target, changed, signal)` reports invalidations for one file or a directory's direct entries. It resolves once observation is ready with an asynchronous close function that the caller must await. The signal cancels initialization; unsupported providers reject without polling.
 
-Plugins that already hold a `stat` result can call `writeObservedText` to write against that version and emit the before and after `fs/observed` events. The caller still validates the target, obtains approval, and supplies its session sandbox policy.
+Plugins that already hold a `stat` result can call `writeObservedText` to write against that version and emit the before and after `fs/observed` events. The caller validates the target, obtains approval, and supplies its session sandbox policy. Trusted home-file tools may also pass a separate one-use exact-target allowance; it does not extend shell policy.
 
 -----
 

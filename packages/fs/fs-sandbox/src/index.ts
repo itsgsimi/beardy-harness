@@ -3,8 +3,8 @@
  * `@deepseek-ai/dsh-fs` Service Definition. It extends `LocalFileSystem` so all
  * text-storage mechanics — resolve, stat, read/stream, list, the atomic
  * write and the read-match-write edit critical section — are the local
- * implementation's, verbatim; this package adds only the per-call POLICY fence
- * on the two mutations. Reads pass through untouched: every mode permits
+ * implementation's, verbatim; this package adds the per-call policy fence
+ * on mutations. Reads pass through untouched: every mode permits
  * reading.
  *
  * The fence is a policy check in TRUSTED code over a MODEL-CONTROLLED path,
@@ -32,8 +32,10 @@ import type { Config as LocalConfig } from '@deepseek-ai/dsh-fs-local'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import type { FsEditOutcome, FsEditRequest, FsTarget, FsVersion, FsWriteIntent, FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import { writableRoots } from '@deepseek-ai/dsh-sandbox'
-import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
-import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type { FsMutationAllowance, SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { consumeApprovedFsMutation } from '@deepseek-ai/dsh-sandbox-policy'
+import { lstat } from 'node:fs/promises'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { isPathUnder } from './containment.ts'
 
 /**
@@ -75,6 +77,7 @@ export class SandboxedFileSystem extends LocalFileSystem {
    * @param signal - aborts before atomic publication takes effect.
    * @param sandboxPolicy - the per-call mode and workspace root; omit to use
    *   the deployment fallback.
+   * @param allowance - one-use exact home target from an approved trusted tool.
    * @returns the write outcome from the inherited backend.
    */
   override async writeText(
@@ -83,8 +86,9 @@ export class SandboxedFileSystem extends LocalFileSystem {
     expected?: FsWriteIntent,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
   ): Promise<FsWriteOutcome> {
-    return super.writeText(await this.checkedTarget(target, sandboxPolicy), content, expected, signal)
+    return super.writeText(await this.checkedTarget(target, sandboxPolicy, allowance), content, expected, signal)
   }
 
   /**
@@ -96,6 +100,7 @@ export class SandboxedFileSystem extends LocalFileSystem {
    * @param signal - aborts before atomic publication takes effect.
    * @param sandboxPolicy - the per-call mode and workspace root; omit to use
    *   the deployment fallback.
+   * @param allowance - one-use exact home target from an approved trusted tool.
    * @returns the edit outcome from the inherited backend.
    */
   override async editText(
@@ -104,8 +109,9 @@ export class SandboxedFileSystem extends LocalFileSystem {
     expected?: { version: FsVersion },
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
   ): Promise<FsEditOutcome> {
-    return super.editText(await this.checkedTarget(target, sandboxPolicy), edit, expected, signal)
+    return super.editText(await this.checkedTarget(target, sandboxPolicy, allowance), edit, expected, signal)
   }
 
   /**
@@ -113,13 +119,15 @@ export class SandboxedFileSystem extends LocalFileSystem {
    * @param target - resolved directory target.
    * @param signal - aborts before directory creation takes effect.
    * @param sandboxPolicy - per-call mode and workspace root; omit to use the deployment fallback.
+   * @param allowance - one-use exact home target from an approved trusted tool.
    */
   override async makeDirectory(
     target: FsTarget,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
   ): Promise<void> {
-    return super.makeDirectory(await this.checkedTarget(target, sandboxPolicy), signal)
+    return super.makeDirectory(await this.checkedTarget(target, sandboxPolicy, allowance), signal)
   }
 
   /**
@@ -127,13 +135,17 @@ export class SandboxedFileSystem extends LocalFileSystem {
    * @param target - resolved regular-file target.
    * @param signal - aborts before file removal takes effect.
    * @param sandboxPolicy - per-call mode and workspace root; omit to use the deployment fallback.
+   * @param allowance - one-use exact home target from an approved trusted tool.
+   * @param expectedVersion - observed version required for removal, when supplied.
    */
   override async removeFile(
     target: FsTarget,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
+    expectedVersion?: FsVersion,
   ): Promise<void> {
-    return super.removeFile(await this.checkedTarget(target, sandboxPolicy), signal)
+    return super.removeFile(await this.checkedTarget(target, sandboxPolicy, allowance), signal, undefined, undefined, expectedVersion)
   }
 
   /**
@@ -147,7 +159,9 @@ export class SandboxedFileSystem extends LocalFileSystem {
    * refusal — the tool layer maps it to the model-facing `[sandbox: …]` marker
    * and the escalation hint.
    */
-  private async checkedTarget(target: FsTarget, sandboxPolicy?: SandboxExecutionPolicy): Promise<FsTarget> {
+  private async checkedTarget(
+    target: FsTarget, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance,
+  ): Promise<FsTarget> {
     const policy = sandboxPolicy ?? this.ctx.sandboxPolicy.resolve()
     const { mode } = policy
     if (mode === 'danger-full-access') return target
@@ -165,10 +179,44 @@ export class SandboxedFileSystem extends LocalFileSystem {
         break
       }
     }
+    if (!contained && allowance !== undefined) {
+      const path = resolve(target.displayPath)
+      const suffix = relative(allowance.homePath, path)
+      const canonicalHome = await this.resolve(allowance.homePath)
+      if (suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix)
+        && path === allowance.targetPath && await isPathUnder(fresh.targetKey, canonicalHome.targetKey)
+        && await this.hasNoSymlinkAncestors(path, allowance.homePath)) {
+        contained = consumeApprovedFsMutation(allowance, path)
+      }
+    }
     if (!contained) {
       throw new FsError(`cannot write "${target.displayPath}": file access denied under workspace-write mode`, 'FS_SANDBOX_DENIED')
     }
     return fresh
+  }
+
+  /** Reject symlinked targets and ancestors, including a symlink at the home itself. */
+  private async hasNoSymlinkAncestors(path: string, homePath: string): Promise<boolean> {
+    let current = path
+    while (true) {
+      if (current === homePath) {
+        try {
+          return (await lstat(current)).isDirectory()
+        } catch (error: unknown) {
+          /* v8 ignore next -- an unreadable home is a host I/O failure; absent homes are refused below. */
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          return false
+        }
+      }
+      try {
+        if ((await lstat(current)).isSymbolicLink()) return false
+      } catch (error: unknown) {
+        /* v8 ignore next -- resolve rejects non-directory ancestors before this walk; only a concurrent swap reaches this branch. */
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        if (current !== path) return false
+      }
+      current = dirname(current)
+    }
   }
 }
 

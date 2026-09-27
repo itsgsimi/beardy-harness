@@ -12,13 +12,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, parse } from 'node:path'
+import { isAbsolute, join, parse, relative, sep } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { FsError, FsTargetKey } from '@deepseek-ai/dsh-fs'
 import type { FsTarget } from '@deepseek-ai/dsh-fs'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { writableRoots, type SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { SandboxedFileSystem } from '@deepseek-ai/dsh-fs-sandbox'
 import { assertWorkspaceOutsideTemp, outsideTempWorkspaceParent } from '../../../../scripts/snapshot-workspace-parent.ts'
 
@@ -67,6 +67,11 @@ describe('the capability fact', () => {
 describe('read-only', () => {
   beforeEach(() => boot('read-only'))
 
+  it('cannot issue an approved home mutation in read-only mode', () => {
+    expect(() => ctx.sandboxPolicy.approveFsMutation(ctx.sandboxPolicy.resolve(), outside, join(outside, 'USER.md')))
+      .toThrow('workspace-write')
+  })
+
   it('denies write, leaving no file on disk', async () => {
     const path = join(workspace, 'denied.txt')
     await expect(fs.writeText(await target(path), 'x')).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
@@ -90,6 +95,102 @@ describe('read-only', () => {
 
 describe('workspace-write containment', () => {
   beforeEach(() => boot('workspace-write'))
+
+  it('accepts one approved exact home file and refuses reuse or neighboring files', async () => {
+    const path = join(outside, 'MEMORY.md')
+    const policy = ctx.sandboxPolicy.resolve()
+    const allowance = ctx.sandboxPolicy.approveFsMutation(policy, outside, path)
+    expect(Object.isFrozen(allowance)).toBe(true)
+    await expect(fs.writeText(await target(join(outside, 'OTHER.md')), 'no', undefined, undefined, policy, allowance))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    await fs.writeText(await target(path), 'one', undefined, undefined, policy, allowance)
+    expect(await readFile(path, 'utf8')).toBe('one')
+    await expect(fs.writeText(await target(path), 'two', undefined, undefined, policy, allowance))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(await readFile(path, 'utf8')).toBe('one')
+  })
+
+  it('refuses to issue an allowance for a target outside the configured home', () => {
+    const policy = ctx.sandboxPolicy.resolve()
+    expect(() => ctx.sandboxPolicy.approveFsMutation(policy, outside, join(workspace, 'USER.md')))
+      .toThrow('inside the configured Harness home')
+  })
+
+  it('refuses a forged allowance and a symlinked home ancestor', async () => {
+    const path = join(outside, 'MEMORY.md')
+    const policy = ctx.sandboxPolicy.resolve()
+    await expect(fs.writeText(await target(path), 'no', undefined, undefined, policy,
+      { homePath: outside, targetPath: path })).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    const link = join(outside, 'link')
+    const actual = join(base, 'actual')
+    await mkdir(actual)
+    await symlink(actual, link)
+    const linkedPath = join(link, 'MEMORY.md')
+    const allowance = ctx.sandboxPolicy.approveFsMutation(policy, outside, linkedPath)
+    await expect(fs.writeText(await target(linkedPath), 'no', undefined, undefined, policy, allowance))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(join(actual, 'MEMORY.md'))).toBe(false)
+  })
+
+  it('keeps the approved file outside the shared writable roots', async () => {
+    const path = join(outside, 'USER.md')
+    const policy = ctx.sandboxPolicy.resolve()
+    const allowance = ctx.sandboxPolicy.approveFsMutation(policy, outside, path)
+    await fs.writeText(await target(path), 'approved', undefined, undefined, policy, allowance)
+    expect(writableRoots(policy).every((root) => {
+      const suffix = relative(root, path)
+      return suffix === '..' || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)
+    })).toBe(true)
+    await expect(fs.writeText(await target(join(outside, 'shell.txt')), 'blocked', undefined, undefined, policy))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+  })
+
+  it('creates only the approved home directory and removes a versioned approved file', async () => {
+    const policy = ctx.sandboxPolicy.resolve()
+    const directory = join(outside, 'memories')
+    await fs.makeDirectory(await target(directory), undefined, policy,
+      ctx.sandboxPolicy.approveFsMutation(policy, outside, directory))
+    const path = join(directory, 'doors.md')
+    await fs.writeText(await target(path), 'topic', undefined, undefined, policy,
+      ctx.sandboxPolicy.approveFsMutation(policy, outside, path))
+    const resolved = await target(path)
+    const version = (await fs.stat(resolved))?.version
+    if (version === undefined) throw new Error('expected saved file version')
+    await fs.removeFile(resolved, undefined, policy,
+      ctx.sandboxPolicy.approveFsMutation(policy, outside, path), version)
+    expect(existsSync(path)).toBe(false)
+    await expect(fs.makeDirectory(await target(join(outside, 'other')), undefined, policy))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+  })
+
+  it('does not create a missing home or intermediate ancestor through an exact-target ticket', async () => {
+    const policy = ctx.sandboxPolicy.resolve()
+    const missingHome = join(outside, 'missing-home')
+    const missingHomeTarget = join(missingHome, 'memories')
+    await expect(fs.makeDirectory(await target(missingHomeTarget), undefined, policy,
+      ctx.sandboxPolicy.approveFsMutation(policy, missingHome, missingHomeTarget)))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(missingHome)).toBe(false)
+
+    const nested = join(outside, 'missing-parent', 'USER.md')
+    await expect(fs.writeText(await target(nested), 'blocked', undefined, undefined, policy,
+      ctx.sandboxPolicy.approveFsMutation(policy, outside, nested)))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(join(outside, 'missing-parent'))).toBe(false)
+  })
+
+  it('rejects a symlinked ancestor even when it points inside the approved home', async () => {
+    const actual = join(outside, 'actual')
+    await mkdir(actual)
+    const link = join(outside, 'link')
+    await symlink(actual, link)
+    const path = join(link, 'USER.md')
+    const policy = ctx.sandboxPolicy.resolve()
+    await expect(fs.writeText(await target(path), 'blocked', undefined, undefined, policy,
+      ctx.sandboxPolicy.approveFsMutation(policy, outside, path)))
+      .rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(join(actual, 'USER.md'))).toBe(false)
+  })
 
   it('a write under the workspace lands', async () => {
     const path = join(workspace, 'nested', 'ok.txt')

@@ -13,11 +13,11 @@ import { randomUUID } from 'node:crypto'
 import type {} from '@deepseek-ai/dsh-speech-whisper'
 import { transcribeDiscordAudio } from './audio.ts'
 import type { Context } from '@deepseek-ai/cordis'
-import type { CronRunOutcome, CronRunResult } from '@deepseek-ai/dsh-cron'
+import { cronApprovalRoute, type CronRunOutcome, type CronRunResult } from '@deepseek-ai/dsh-cron'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
-import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
+import { activeApprovalRequestId, type ApprovalOutcome, type ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { CommandDescriptor, CommandResult } from '@deepseek-ai/dsh-commands'
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import { parseCommand } from '@deepseek-ai/dsh-commands'
@@ -135,6 +135,7 @@ interface PendingBatch {
 interface PendingApproval {
   readonly kind: 'approval'
   readonly channelId: string
+  readonly unattended: boolean
   /** Id of the prompt message whose reactions answer this request; empty when delivery omitted it. */
   promptMessageId: string
   readonly requestId: DiscordPromptId
@@ -365,6 +366,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       const inputAborted = (): boolean => input.controller.signal.aborted
       const waking = previous.then(async () => {
         signal.throwIfAborted()
+        /* v8 ignore next -- /stop can cancel this input after a due wake joins the channel tail. */
         if (inputAborted()) return
         if (deps.table.get(record.channelId)?.sessionId !== record.sessionId
           || conversations.has(record.channelId)) return
@@ -375,6 +377,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           return
         }
         const live = await resumeConversation(record, lane)
+        /* v8 ignore next -- cancellation after Session publication depends on host scheduling between promise continuations. */
         if (inputAborted()) return
         await dispatchLegacyReminders(ctx, live.handle.agent)
         if (live.handle.agent.status === 'idle') await flushDelivery(live, outbox)
@@ -567,6 +570,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     const done = open(AbortSignal.any([signal, controller.signal]))
     const opening = { controller, done, lane: lane.userId }
     openings.set(channelId, opening)
+    /* v8 ignore next -- channel tails serialize openings; identity also guards an overlapping wake during shutdown. */
     const retire = (): void => { if (openings.get(channelId) === opening) openings.delete(channelId) }
     void done.then(retire, retire)
     return done
@@ -666,8 +670,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
    * request waits per channel: a newer request cancels the older one, because a text answer cannot
    * name which prompt it belongs to.
    */
-  async function askApproval(conversation: LiveConversation, req: ApprovalRequest): Promise<ApprovalOutcome> {
-    const channelId = conversation.channelId
+  async function askApproval(channelId: string, req: ApprovalRequest, unattended = false): Promise<ApprovalOutcome> {
     pendings.get(channelId)?.cancel()
     if (signal.aborted || req.signal?.aborted === true) return 'cancelled'
     return await new Promise<ApprovalOutcome>((resolve) => {
@@ -676,6 +679,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       const isSettled = (): boolean => settled
       const cancel = (): void => { settle('cancelled') }
       const settle = (outcome: ApprovalOutcome): void => {
+        /* v8 ignore next -- settlement removes the pending entry and abort listeners before another answer can reach it. */
         if (settled) return
         settled = true
         pendings.delete(channelId)
@@ -686,8 +690,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         resolve(outcome)
       }
       const entry: PendingApproval = {
-        kind: 'approval', channelId, promptMessageId: '', requestId: DiscordPromptId(randomUUID()),
+        kind: 'approval', channelId, unattended, promptMessageId: '', requestId: DiscordPromptId(activeApprovalRequestId(req) ?? randomUUID()),
         answerLine: (line: string): void => {
+          if (unattended) return
           const outcome = approvalOutcomeForLine(line)
           if (outcome !== undefined) settle(outcome)
         },
@@ -698,7 +703,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       signal.addEventListener('abort', cancel, { once: true })
       track((async () => {
         try {
-          const text = buildApprovalPrompt(req.toolName, req.reason, settings.answerers, settings.approvalTimeoutMs)
+          const forms = unattended ? settings.answerers.filter(form => form !== 'text') : settings.answerers
+          const text = buildApprovalPrompt(req.toolName, req.reason, forms, settings.approvalTimeoutMs)
           const messageId = await prompt(text, channelId, await deps.resolveToken(), AbortSignal.any([signal, controller.signal]),
             settings.answerers.includes('component') ? approvalControls(entry.requestId) : undefined)
           if (isSettled()) clearPrompt(channelId, messageId)
@@ -710,6 +716,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         }
       })())
       wait(settings.approvalTimeoutMs, controller.signal).then(() => {
+        if (isSettled()) return
         settle('cancelled')
         track(notice(channelId, 'The approval request expired; the action was not taken.', 'Approval expired'))
       }, () => {
@@ -739,6 +746,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         clearPrompt(channelId, entry.promptMessageId)
       }
       const fail = (error: UserQuestionError): void => {
+        /* v8 ignore next -- settlement removes abort listeners and the expiry callback checks settled first. */
         if (settled) return
         finish()
         reject(error)
@@ -766,6 +774,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       const entry: PendingQuestion = {
         kind: 'question', channelId, questions: request.questions, requestId: DiscordPromptId(''), promptMessageId: '', nextIndex: 0, answered: [],
         answerLine: (line: string): void => {
+          /* v8 ignore next -- finish removes the pending entry before another reply can call answerLine. */
           if (settled) return
           const question = entry.questions[entry.nextIndex] as AskUserQuestionItem
           const item = parseQuestionAnswer(question, line)
@@ -785,6 +794,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       request.signal?.addEventListener('abort', cancel, { once: true })
       signal.addEventListener('abort', cancel, { once: true })
       wait(settings.questionTimeoutMs, controller.signal).then(() => {
+        if (settled) return
         fail(new UserQuestionError(`the Discord user did not answer within ${String(settings.questionTimeoutMs)}ms`, 'ASK_TIMEOUT'))
         track(notice(channelId, 'The question expired without an answer.', 'Question expired'))
       }, () => {
@@ -1065,9 +1075,16 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   // it owns the asking Agent. Prepend keeps remote bridges from claiming Discord interactions
   // when a Web client connects before the gateway mounts or reloads.
   ctx.effect(() => ctx.on('approval/request', (req, next) => {
+    const cron = cronApprovalRoute(req.agent)
+    if (cron !== undefined) {
+      const channelId = cron.channelId
+      if (channelId === undefined || activeApprovalRequestId(req) === undefined || !deps.policy.allowedChannelIds.has(channelId)
+        || !settings.answerers.some(form => form === 'component' || form === 'reaction')) return Promise.resolve('unavailable')
+      return askApproval(channelId, req, true)
+    }
     const conversation = findLive(req.agent)
     if (conversation === undefined) return next()
-    return askApproval(conversation, req)
+    return askApproval(conversation.channelId, req)
   }, { prepend: true }), 'discord-gateway approval answerer')
 
   ctx.effect(() => ctx.on('user-questions/request', (request, next) => {
@@ -1170,16 +1187,18 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         return (await execute(interaction.channelId, interactionActor(interaction), `/${parts[2] as string}`, requestSignal)).text as string
       }
       if (!settings.answerers.includes('component')) return 'Native answers are disabled.'
-      if (deps.table.get(interaction.channelId) === undefined
-        || !matchesLane(interaction.channelId, laneFor(interactionActor(interaction)))) {
+      const pending = pendings.get(interaction.channelId)
+      if (pending === undefined) return 'This request has expired or was already answered.'
+      if (!(pending.kind === 'approval' && pending.unattended)
+        && (deps.table.get(interaction.channelId) === undefined
+          || !matchesLane(interaction.channelId, laneFor(interactionActor(interaction))))) {
         return 'This request has expired or was already answered.'
       }
-      const pending = pendings.get(interaction.channelId)
-      if (pending === undefined || pending.promptMessageId !== interaction.messageId || pending.requestId !== parts[2]) {
+      if (pending.promptMessageId !== interaction.messageId || pending.requestId !== parts[2]) {
         return 'This request has expired or was already answered.'
       }
       if (pending.kind === 'approval' && parts[1] === 'approval' && parts.length === 4) {
-        const outcome = approvalOutcomeForLine(parts[3] ?? '')
+        const outcome = approvalOutcomeForLine(parts[3] as string)
         if (outcome !== undefined) {
           pending.settle(outcome)
           return outcome === 'allowed-once' ? 'Allowed once.' : 'Rejected.'
@@ -1199,11 +1218,12 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     handleReaction(reaction: DiscordInboundReaction): void {
       if (!settings.answerers.includes('reaction')) return
       if (!deps.policy.allowedUserIds.has(reaction.userId)) return
-      if (deps.table.get(reaction.channelId) === undefined
-        || !matchesLane(reaction.channelId, laneFor({ userId: reaction.userId,
-          directMessage: settings.userLanes.has(reaction.userId) }))) return
       const pending = pendings.get(reaction.channelId)
       if (pending === undefined || pending.kind !== 'approval') return
+      if (pending.unattended ? !deps.policy.allowedChannelIds.has(reaction.channelId)
+        : deps.table.get(reaction.channelId) === undefined
+          || !matchesLane(reaction.channelId, laneFor({ userId: reaction.userId,
+            directMessage: settings.userLanes.has(reaction.userId) }))) return
       if (reaction.messageId !== pending.promptMessageId) return
       const outcome = approvalOutcomeForReaction(reaction.emojiName)
       if (outcome !== undefined) pending.settle(outcome)

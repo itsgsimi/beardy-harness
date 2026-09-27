@@ -9,7 +9,9 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The package runs unattended agents on validated cron schedules. Configuration supplies read-only jobs; operators may also manage durable jobs through `cron_manage` and `/cron`, within configured preset, workspace, count, interval, and approval limits. Each fire opens a Session, injects continuity notes, records its terminal outcome, and avoids overlapping runs. Optional Discord delivery remains durable and retries without repeating model work. Shutdown interrupts active runs cleanly; restart records abandoned reservations and resumes only at the next future schedule match.
+The package runs unattended agents on cron schedules. Configuration supplies read-only jobs; operators manage durable jobs through `cron_manage` and `/cron`, within preset, workspace, count, interval, and approval limits. Each fire opens a Session, injects continuity notes, records its outcome, and avoids overlapping runs. Discord delivery remains durable and retries without repeating model work. Shutdown interrupts active runs; restart records abandoned reservations and resumes at the next future schedule match.
+
+An active run exposes its configured `deliverChannel` to the Discord approval answerer only for that run's lifetime. A run without a channel cannot obtain a home-write approval.
 
 ## Table of Contents
 

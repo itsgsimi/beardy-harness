@@ -163,10 +163,12 @@
               enableUserSkillManagement: true
               nudgeAfterToolCalls: 8
               requireApproval: true
+              allowApprovedHomeWrites: true
           - id: tool-memory
             name: '@deepseek-ai/dsh-tool-memory'
             config:
               requireApproval: true
+              allowApprovedHomeWrites: true
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
           - id: tool-plugin-manager

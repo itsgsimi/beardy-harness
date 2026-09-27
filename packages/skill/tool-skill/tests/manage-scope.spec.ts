@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
@@ -12,6 +12,9 @@ import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
+import SandboxedFileSystem from '@deepseek-ai/dsh-fs-sandbox'
+import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
+import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
 
@@ -74,7 +77,7 @@ function agentForCwd(cwd?: string): Agent {
 }
 
 /** Boot the plugin stack over a real workspace and a DSH_HOME-pinned Harness home. */
-async function setup(config: toolSkill.Config): Promise<{ ctx: Context; workspace: string; home: string }> {
+async function setup(config: toolSkill.Config, withPolicy = false): Promise<{ ctx: Context; workspace: string; home: string }> {
   const workspace = await tempDir('manage-scope-ws')
   await mkdir(join(workspace, '.git'), { recursive: true })
   const home = await tempDir('manage-scope-home')
@@ -84,6 +87,10 @@ async function setup(config: toolSkill.Config): Promise<{ ctx: Context; workspac
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(SkillRegistry)
+  if (withPolicy) {
+    await ctx.plugin(SessionProjections)
+    await ctx.plugin(SandboxPolicy, { mode: 'workspace-write', workspaceRoot: workspace })
+  }
   await ctx.plugin(LocalFileSystem, { cwd: workspace })
   await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
   await ctx.plugin(toolSkill, config)
@@ -108,6 +115,57 @@ async function call(
 }
 
 describe('skill_manage scopes and approval', () => {
+  it('requires approval and both skill-management scopes for approved home writes', async () => {
+    await expect(setup({ allowApprovedHomeWrites: true, enableSkillManagement: true, enableUserSkillManagement: true }))
+      .rejects.toThrow('requires requireApproval')
+    await expect(setup({ allowApprovedHomeWrites: true, requireApproval: true, enableUserSkillManagement: true }))
+      .rejects.toThrow('enableSkillManagement')
+  })
+
+  it('creates and deletes one approved user skill outside the workspace under workspace-write', async () => {
+    await mkdir(join(process.cwd(), '.cache'), { recursive: true })
+    const container = await mkdtemp(join(process.cwd(), '.cache', 'dsh-approved-skill-'))
+    tempDirs.push(container)
+    const workspace = join(container, 'workspace')
+    const home = join(container, 'home')
+    await mkdir(join(workspace, '.git'), { recursive: true })
+    await mkdir(home)
+    process.env.DSH_HOME = home
+    let outcome: 'allowed-once' | 'rejected' = 'allowed-once'
+    const ctx = new Context()
+    ctx.provide('approval' as never, { request: async () => outcome } as never)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SessionProjections)
+    await ctx.plugin(SandboxPolicy, { mode: 'workspace-write', workspaceRoot: workspace })
+    await ctx.plugin(SandboxedFileSystem, { cwd: workspace })
+    await ctx.plugin(SkillFileSystem, { dshHome: home, agentsHome: join(container, 'agents'), watch: false })
+    await ctx.plugin(toolSkill, { enableSkillManagement: true, enableUserSkillManagement: true,
+      requireApproval: true, allowApprovedHomeWrites: true })
+    const liveAgent = agentForCwd(workspace)
+    const path = join(home, 'skills', 'weekly-review.md')
+    expect((await call(ctx, { action: 'create', name: 'weekly-review', description: 'Review week',
+      content: 'Propose next steps.', scope: 'user' }, liveAgent)).isError).toBe(false)
+    expect(await readFile(path, 'utf8')).toContain('Propose next steps.')
+    outcome = 'rejected'
+    expect((await call(ctx, { action: 'update', name: 'weekly-review', description: 'Review week',
+      content: 'Unapproved update.', scope: 'user' }, liveAgent)).isError).toBe(true)
+    expect(await readFile(path, 'utf8')).not.toContain('Unapproved update.')
+    outcome = 'allowed-once'
+    expect((await call(ctx, { action: 'delete', name: 'weekly-review', scope: 'user' }, liveAgent)).isError).toBe(false)
+    await expect(readFile(path, 'utf8')).rejects.toThrow()
+    await ctx.fiber.dispose()
+  })
+
+  it('resolves the fallback policy for an agentless user-scope call', async () => {
+    const { ctx, home } = await setup({ enableSkillManagement: true, enableUserSkillManagement: true }, true)
+    const result = await call(ctx, { action: 'create', name: 'fallback-policy', description: 'Policy',
+      content: 'Use the fallback.', scope: 'user' })
+    expect(result.isError).toBe(false)
+    expect(await readFile(join(home, '.dsh', 'skills', 'fallback-policy.md'), 'utf8')).toContain('Use the fallback.')
+  })
   it('refuses the user scope when user-scope management is disabled', async () => {
     const { ctx, home } = await setup({ enableSkillManagement: true })
     const result = await call(ctx, {

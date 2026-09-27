@@ -5,6 +5,7 @@
 
 import { vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
@@ -73,6 +74,8 @@ export function record(overrides: Partial<ConversationRecord> = {}): Conversatio
 }
 
 export interface HarnessOptions {
+  /** Real Agent used for an approval routed through a live conversation. */
+  readonly approvalAgent?: Agent
   /** Real dispatcher for tests that exercise listener ordering and disposal. */
   readonly eventContext?: Context
   readonly richMessages?: boolean
@@ -125,6 +128,10 @@ export interface HarnessOptions {
   readonly promptResult?: (ordinal: number) => Promise<string>
   /** Leave out the prompt seam so the router's Discord transport runs for prompts. */
   readonly useDefaultPrompt?: boolean
+  /** Leave out the prompt-clear seam so the router edits the real Discord message. */
+  readonly useDefaultClearPrompt?: boolean
+  /** Leave out the reaction seam so status reactions use the Discord transport. */
+  readonly useDefaultReact?: boolean
   /** Reply forms the router accepts; defaults to both. */
   readonly answerers?: readonly ('component' | 'reaction' | 'text')[]
   /** Allowlisted users; defaults to {@link USER} alone. */
@@ -150,6 +157,9 @@ export function harness(options: HarnessOptions = {}) {
     session: {
       get seq(): number { return events.length },
       ownEvents: () => events,
+      append: (type: SessionEvent['type'], data: SessionEvent['data']) => {
+        events.push({ seq: events.length, type, data } as SessionEvent)
+      },
     },
     followup(message: { content: readonly { text?: string }[] }) {
       calls.push(`followup:${message.content[0]?.text ?? ''}`)
@@ -178,7 +188,7 @@ export function harness(options: HarnessOptions = {}) {
     },
   }
   const handle = {
-    agent,
+    agent: options.approvalAgent ?? agent,
     dispose: vi.fn(async () => { calls.push('dispose') }),
   }
   const agentCtx = {
@@ -334,8 +344,14 @@ export function harness(options: HarnessOptions = {}) {
     ...(options.commands === undefined ? {} : { commands: options.commands }),
     table,
     postRich: async (body) => { cards.push(body) },
-    clearPrompt: async (_channelId, messageId) => { cleared.push(messageId) },
-    react: async (_message, emoji, remove) => { reactions.push(`${remove ? 'remove' : 'add'}:${emoji}`) },
+    ...(options.useDefaultClearPrompt ? {} : {
+      clearPrompt: async (_channelId: string, messageId: string) => { cleared.push(messageId) },
+    }),
+    ...(options.useDefaultReact ? {} : {
+      react: async (_message: DiscordInboundMessage, emoji: string, remove: boolean) => {
+        reactions.push(`${remove ? 'remove' : 'add'}:${emoji}`)
+      },
+    }),
     ...(options.outboxStorage === undefined ? {} : { outboxTable: options.outboxStorage }),
     resolveToken: async () => {
       if (options.failToken) throw new Error('no token')

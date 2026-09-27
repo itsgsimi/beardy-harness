@@ -52,6 +52,14 @@ export interface SandboxExecutionPolicy {
   sessionId?: SessionId
 }
 
+/** One filesystem mutation outside the workspace, issued only after a tool approval. */
+export interface FsMutationAllowance {
+  /** Exact path the filesystem operation may mutate. */
+  readonly targetPath: string
+  /** Harness home whose symlink-free ancestry contains the target. */
+  readonly homePath: string
+}
+
 /**
  * Enforcement completeness for this host. `partial` means an active backend or
  * older kernel ABI cannot govern every promised file effect; callers requiring

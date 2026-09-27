@@ -311,6 +311,32 @@ describe('approval answerer through the router', () => {
     await expect(pending).resolves.toBe('cancelled')
   })
 
+  it('does not post an approval prompt for an already cancelled operation', async () => {
+    const h = harness({ replyText: 'x' })
+    h.router.handle(inbound())
+    await drain()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(h.emitWaterfall('approval/request', { agent: h.agent, toolName: 'bash', signal: controller.signal }))
+      .resolves.toBe('cancelled')
+    expect(h.prompts).toHaveLength(0)
+  })
+
+  it('ignores a prompt transport failure that arrives after cancellation', async () => {
+    const delivery = Promise.withResolvers<undefined>()
+    const h = harness({ replyText: 'x', promptBarrier: delivery.promise })
+    h.router.handle(inbound())
+    await drain()
+    const controller = new AbortController()
+    const pending = h.emitWaterfall('approval/request', { agent: h.agent, toolName: 'bash', signal: controller.signal })
+    await vi.waitFor(() => { expect(h.calls).toContain('prompt') })
+    controller.abort()
+    await expect(pending).resolves.toBe('cancelled')
+    delivery.reject(new Error('late prompt failure'))
+    await drain()
+    expect(h.warnings.some(message => message.includes('approval prompt'))).toBe(false)
+  })
+
   it('reports unavailable and warns when the prompt cannot be delivered', async () => {
     const h = harness({ replyText: 'x', failPrompt: true })
     h.router.handle(inbound())
@@ -448,6 +474,34 @@ describe('question answerer through the router', () => {
     await expect(pending).resolves.toEqual({ answers: [{ id: 'q1', selected: [], custom: 'Europe/Zagreb' }] })
   })
 
+  it('accepts free text for a component-only question with no menu choices', async () => {
+    const h = harness({ replyText: 'x', answerers: ['component'] })
+    h.router.handle(inbound())
+    await drain()
+    const pending = h.emitWaterfall(
+      'user-questions/request',
+      { agent: h.agent, questions: [question({ options: [] })] },
+    )
+    await drain()
+    expect(h.prompts[0]?.components).toEqual([])
+    h.router.handle(inbound({ id: 'm2', content: 'Europe/Zagreb' }))
+    await expect(pending).resolves.toEqual({ answers: [{ id: 'q1', selected: [], custom: 'Europe/Zagreb' }] })
+  })
+
+  it('keeps menu questions on their component answer path', async () => {
+    const h = harness({ replyText: 'x', answerers: ['component'] })
+    h.router.handle(inbound())
+    await drain()
+    const pending = h.emitWaterfall('user-questions/request', { agent: h.agent, questions: [question()] })
+    await drain()
+    expect(h.prompts[0]?.components?.length).toBeGreaterThan(0)
+    h.router.handle(inbound({ id: 'm2', content: '1' }))
+    await drain()
+    expect(h.calls.filter(call => call.startsWith('followup:'))).toHaveLength(1)
+    await h.router.dispose()
+    await expect(pending).rejects.toMatchObject({ name: 'UserQuestionError', code: 'ASK_ABORTED' })
+  })
+
   it('rejects with ASK_TIMEOUT on expiry and tells the channel', async () => {
     const h = harness({ replyText: 'x', questionTimeoutMs: 30 })
     h.router.handle(inbound())
@@ -458,6 +512,21 @@ describe('question answerer through the router', () => {
     await new Promise(resolve => setTimeout(resolve, 80))
     await assertion
     expect(h.posted.some(entry => entry.content.includes('expired'))).toBe(true)
+  })
+
+  it('does not report an answered question as expired when its timer resolves late', async () => {
+    const h = harness({ replyText: 'x', manualWait: true })
+    h.router.handle(inbound())
+    await drain()
+    const pending = h.emitWaterfall('user-questions/request', { agent: h.agent, questions: [question()] })
+    await drain()
+    const expire = h.waitResolvers.at(-1)
+    expect(expire).toBeDefined()
+    h.router.handle(inbound({ id: 'm2', content: '1' }))
+    await expect(pending).resolves.toEqual({ answers: [{ id: 'q1', selected: ['Red'] }] })
+    expire?.()
+    await drain()
+    expect(h.posted.some(entry => entry.content.includes('expired'))).toBe(false)
   })
 
   it('/status names a waiting question', async () => {
@@ -499,6 +568,34 @@ describe('question answerer through the router', () => {
     await drain()
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'UserQuestionError', code: 'ASK_ABORTED' })
+  })
+
+  it('does not post a question whose asking operation already aborted', async () => {
+    const h = harness({ replyText: 'x' })
+    h.router.handle(inbound())
+    await drain()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(h.emitWaterfall('user-questions/request', {
+      agent: h.agent, questions: [question()], signal: controller.signal,
+    })).rejects.toMatchObject({ name: 'UserQuestionError', code: 'ASK_ABORTED' })
+    expect(h.prompts).toHaveLength(0)
+  })
+
+  it('clears a late question prompt after the asking operation aborts', async () => {
+    const delivery = Promise.withResolvers<undefined>()
+    const h = harness({ replyText: 'x', promptBarrier: delivery.promise, answerers: ['component', 'text'] })
+    h.router.handle(inbound())
+    await drain()
+    const controller = new AbortController()
+    const pending = h.emitWaterfall('user-questions/request', {
+      agent: h.agent, questions: [question()], signal: controller.signal,
+    })
+    await vi.waitFor(() => { expect(h.prompts).toHaveLength(1) })
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'UserQuestionError', code: 'ASK_ABORTED' })
+    delivery.resolve(undefined)
+    await vi.waitFor(() => { expect(h.cleared).toContain('prompt-1') })
   })
 
   it('rejects a waiting question when the listener stops', async () => {

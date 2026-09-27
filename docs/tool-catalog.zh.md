@@ -1885,7 +1885,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `memory`
 
-编辑两个策展记忆文件之一；它们会加载进以后每个会话的基线。`target: user` 编辑 USER.md（用户的姓名、角色、环境及长期偏好）；`target: memory` 编辑 MEMORY.md（没有具体任务归属的约定、环境事实及适用于所有会话的经验）。每次调用处理一条单行事实，结果报告剩余预算。写入只影响后续会话；当前会话保留已加载的基线。
+编辑策展核心记忆文件，或按需列出和读取主题记忆。`target: user` 编辑 USER.md（用户的姓名、角色、环境及长期偏好）；`target: memory` 编辑 MEMORY.md（没有具体任务归属的约定、环境事实及适用于所有会话的经验）。核心条目是单行陈述性事实，每次调用处理一条；结果报告剩余预算。写入只影响后续会话，当前会话保留已加载的基线。`memories/` 下的主题文件不会进入基础提示；只在相关时读取。主题写入提供包含 updated、status、source frontmatter 和 Rule、Why、History 小节的完整 Markdown 文档；替换和停用需要读取时返回的版本。remove 会停用主题，而不删除文件。
 
 ```json
 {
@@ -1893,16 +1893,19 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Which memory file to edit.",
+      "description": "Core file to edit, or the on-demand topic tier.",
       "enum": [
         "user",
-        "memory"
+        "memory",
+        "topic"
       ]
     },
     "action": {
       "type": "string",
-      "description": "Operation to perform on one entry.",
+      "description": "Core files support add/replace/remove; topics also support list/read.",
       "enum": [
+        "list",
+        "read",
         "add",
         "replace",
         "remove"
@@ -1915,6 +1918,22 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     "old_text": {
       "type": "string",
       "description": "Substring matching exactly one existing entry, for replace or remove."
+    },
+    "topic": {
+      "type": "string",
+      "description": "Lowercase kebab slug for one topic; omit for list."
+    },
+    "expected_version": {
+      "type": "string",
+      "description": "Version returned by topic read; required for replace/remove."
+    },
+    "include_retired": {
+      "type": "boolean",
+      "description": "For topic list, include retired files."
+    },
+    "superseded_by": {
+      "type": "string",
+      "description": "For topic remove, optional successor slug."
     }
   },
   "required": [

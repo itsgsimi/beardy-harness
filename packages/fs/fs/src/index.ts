@@ -9,7 +9,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import type { FsMutationAllowance, SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { FsError } from './types.ts'
 import type {
   FsDirEntry,
@@ -259,12 +259,14 @@ export abstract class FileSystem extends Service {
    * @param target - the directory target to create.
    * @param signal - aborts before the directory is created.
    * @param sandboxPolicy - the per-call policy for a sandboxing backend.
+   * @param allowance - one-use exact home target from an approved trusted tool.
    * @returns completion after the directory exists.
    */
   abstract makeDirectory(
     target: FsTarget,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
   ): Promise<void>
 
   /**
@@ -274,12 +276,16 @@ export abstract class FileSystem extends Service {
    * @param target - the regular-file target to remove.
    * @param signal - aborts before removal takes effect.
    * @param sandboxPolicy - the per-call policy for a sandboxing backend.
+   * @param allowance - one-use exact home target from an approved trusted tool.
+   * @param expectedVersion - observed version required for removal, when supplied.
    * @returns completion after the file is absent.
    */
   abstract removeFile(
     target: FsTarget,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
+    expectedVersion?: FsVersion,
   ): Promise<void>
 
   /**
@@ -292,6 +298,7 @@ export abstract class FileSystem extends Service {
    * @param sandboxPolicy - the per-call mode and workspace root this write
    *   runs under; a sandboxing backend fences the write by it, the bare backend
    *   ignores it. Omit to leave the backend its own default.
+   * @param allowance - one-use exact home target from an approved trusted tool.
    * @returns the outcome, including the version the write produced.
    */
   abstract writeText(
@@ -300,6 +307,7 @@ export abstract class FileSystem extends Service {
     expected?: FsWriteIntent,
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
   ): Promise<FsWriteOutcome>
 
   /**
@@ -313,6 +321,7 @@ export abstract class FileSystem extends Service {
    * @param sandboxPolicy - the per-call mode and workspace root this edit runs
    *   under; a sandboxing backend fences the edit by it, the bare backend
    *   ignores it. Omit to leave the backend its own default.
+   * @param allowance - one-use exact home target from an approved trusted tool.
    * @returns the outcome, including the version the edit produced.
    */
   abstract editText(
@@ -321,6 +330,7 @@ export abstract class FileSystem extends Service {
     expected?: { version: FsVersion },
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
+    allowance?: FsMutationAllowance,
   ): Promise<FsEditOutcome>
 }
 

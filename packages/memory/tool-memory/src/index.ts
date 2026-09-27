@@ -14,6 +14,7 @@ import { createMemoryTool } from './tool.ts'
 import type { MemoryToolConfig } from './tool.ts'
 
 export * from './store.ts'
+export * from './topic.ts'
 export * from './tool.ts'
 
 /** Cordis plugin name used by Loader diagnostics. */
@@ -30,6 +31,10 @@ export const DEFAULT_MEMORY_MAX_CHARS = 2200
 
 /** Default character cap for one memory entry. */
 export const DEFAULT_ENTRY_MAX_CHARS = 400
+/** Default complete topic file cap. */
+export const DEFAULT_TOPIC_MAX_CHARS = 16384
+/** Default number of topic files, including retired topics. */
+export const DEFAULT_TOPIC_MAX_FILES = 64
 
 /** Plugin configuration; every tunable is a validated field changeable from cordis.yml. */
 export interface Config {
@@ -41,8 +46,16 @@ export interface Config {
   readonly memoryMaxChars?: number
   /** Character cap for one entry. Defaults to 400. */
   readonly entryMaxChars?: number
+  /** Complete topic document cap in characters. */
+  readonly topicMaxChars?: number
+  /** Maximum number of topic files, including retired topics. */
+  readonly topicMaxFiles?: number
+  /** Maximum topic document returned by read. */
+  readonly topicReadMaxChars?: number
   /** Ask the approval service before every write. Defaults to false; set true for unattended presets. */
   readonly requireApproval?: boolean
+  /** Permit one exact Harness-home mutation after approval in workspace-write mode. */
+  readonly allowApprovedHomeWrites?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -50,7 +63,11 @@ export const Config: z<Config> = z.object({
   userMaxChars: z.number().step(1).min(1).default(DEFAULT_USER_MAX_CHARS),
   memoryMaxChars: z.number().step(1).min(1).default(DEFAULT_MEMORY_MAX_CHARS),
   entryMaxChars: z.number().step(1).min(1).default(DEFAULT_ENTRY_MAX_CHARS),
+  topicMaxChars: z.number().step(1).min(1).default(DEFAULT_TOPIC_MAX_CHARS),
+  topicMaxFiles: z.number().step(1).min(1).default(DEFAULT_TOPIC_MAX_FILES),
+  topicReadMaxChars: z.number().step(1).min(1).default(DEFAULT_TOPIC_MAX_CHARS),
   requireApproval: z.boolean().default(false),
+  allowApprovedHomeWrites: z.boolean().default(false),
 })
 
 /** Complete configuration after schemastery applies every field default and the home is resolved. */
@@ -58,10 +75,16 @@ export type ResolvedConfig = MemoryToolConfig
 
 /** Reject caps that cannot hold one entry; the home path is normalized absolute by {@link resolveDshHome}. */
 function assertConfig(config: ResolvedConfig): void {
+  if (config.allowApprovedHomeWrites && !config.requireApproval) {
+    throw new Error('tool-memory: allowApprovedHomeWrites requires requireApproval')
+  }
   if (config.entryMaxChars > config.userMaxChars || config.entryMaxChars > config.memoryMaxChars) {
     throw new Error(
       'tool-memory: entryMaxChars must fit inside both file caps; a single entry could never be stored',
     )
+  }
+  if (config.topicReadMaxChars > config.topicMaxChars) {
+    throw new Error('tool-memory: topicReadMaxChars must be no greater than topicMaxChars')
   }
 }
 
@@ -88,7 +111,11 @@ export function apply(ctx: Context, config: Config): void {
     userMaxChars: config.userMaxChars,
     memoryMaxChars: config.memoryMaxChars,
     entryMaxChars: config.entryMaxChars,
+    topicMaxChars: config.topicMaxChars,
+    topicMaxFiles: config.topicMaxFiles,
+    topicReadMaxChars: config.topicReadMaxChars,
     requireApproval: config.requireApproval,
+    allowApprovedHomeWrites: config.allowApprovedHomeWrites,
   } as ResolvedConfig
   assertConfig(resolved)
   ctx.systemPrompt.section({

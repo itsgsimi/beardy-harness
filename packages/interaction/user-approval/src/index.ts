@@ -48,6 +48,17 @@ declare module '@deepseek-ai/dsh-session/types' {
 import { ApprovalRequestId } from './types.ts'
 import type { ApprovalOutcome, ApprovalRequestEvent } from './types.ts'
 
+const activeRequestIds = new WeakMap<ApprovalRequestEvent, ReturnType<typeof ApprovalRequestId>>()
+
+/**
+ * The service-issued id of a currently dispatched request, if one is active.
+ * @param req - request object dispatched by the approval service.
+ * @returns its active logged id, or undefined after settlement.
+ */
+export function activeApprovalRequestId(req: ApprovalRequestEvent): ReturnType<typeof ApprovalRequestId> | undefined {
+  return activeRequestIds.get(req)
+}
+
 export { ApprovalRequestId } from './types.ts'
 export type { ApprovalOutcome } from './types.ts'
 
@@ -228,7 +239,13 @@ export class ApprovalService extends Service {
       ...req.callId !== undefined ? { callId: req.callId } : {},
       ...req.reason !== undefined ? { reason: req.reason } : {},
     })
-    const outcome = await this.decide(req, session)
+    activeRequestIds.set(req, id)
+    let outcome: ApprovalOutcome
+    try {
+      outcome = await this.decide(req, session)
+    } finally {
+      activeRequestIds.delete(req)
+    }
     session.append('approval/decided', { id, outcome })
     return outcome
   }
