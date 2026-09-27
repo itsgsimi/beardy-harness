@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-05-unattended-session-extraction.md
-2026-09-05-unattended-session-extraction.md: 7cd7e7e8aadf54ba905b6c6fb866fd53766cee11
-2026-09-05-unattended-session-extraction.zh.md: 779c642a71645b1928b9659d506a124bf2d81f92
+2026-09-05-unattended-session-extraction.md: e746a3d7920fa5e434b94323c6c349c600136590
+2026-09-05-unattended-session-extraction.zh.md: 193e91899e029c81721a68b739a7596ba74b4946

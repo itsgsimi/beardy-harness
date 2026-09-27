@@ -3,6 +3,7 @@
 import type { Mermaid, MermaidConfig } from 'mermaid'
 import clsx from 'clsx'
 import css from './SourcePreview.module.css'
+import { importMermaid } from './mermaid-loader.ts'
 import { readPreviewTheme } from './preview-theme.ts'
 
 let runtime: Promise<Mermaid> | undefined
@@ -10,7 +11,7 @@ let nextDiagramId = 0
 let pending: Promise<unknown> = Promise.resolve()
 
 function loadMermaid(): Promise<Mermaid> {
-  runtime ??= import('mermaid').then(({ default: mermaid }) => mermaid).catch((error: unknown) => {
+  runtime ??= importMermaid().catch((error: unknown) => {
     runtime = undefined
     throw error
   })
