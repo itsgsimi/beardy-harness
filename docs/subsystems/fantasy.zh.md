@@ -2,7 +2,7 @@
 
 [English](fantasy.md) | 中文
 
-[Fantasy 定义](../../packages/fantasy/fantasy/README.zh.md)声明只读视图和品牌化 Yahoo 键。[Yahoo 提供方](../../packages/fantasy/fantasy-yahoo/README.zh.md)提供私有 OAuth 存储及 REST 读取。[模型工具](../../packages/fantasy/tool-fantasy/README.zh.md)向调用方 Session 提供有界结果。
+[Fantasy 定义](../../packages/fantasy/fantasy/README.zh.md)声明只读视图和品牌化 Yahoo 键。[Yahoo 提供方](../../packages/fantasy/fantasy-yahoo/README.zh.md)提供私有 OAuth 存储及 REST 读取。[模型工具](../../packages/fantasy/tool-fantasy/README.zh.md)向调用方 Session 提供有界结果。[报告插件](../../packages/fantasy/fantasy-reports/README.zh.md)定时发送每周报告。
 
 ## Authority and token ownership
 
@@ -15,6 +15,10 @@
 `FantasyLeagueSettings` 包含阵容位置与计分系数。Yahoo 提供相应字段时，`FantasyTeam` 包含排名、实际分数和对阵预测分数。`FantasyPlayer` 包含阵容位置、已选槽位、状态与伤病说明、轮空周、得分、持有率和统计。交易与选秀结果保留球队和球员键。Yahoo 的数字键集合及局部对象数组先经过规范化，之后工具结果才进入模型。
 
 `fantasy` 工具只有由 GET 支持的操作：leagues、league、standings、scoreboard、matchup、team、players、player、transactions、draft 和 weeks。长的序列化结果暴露 `next_offset`；Yahoo 球员与交易分页暴露 `next_start`。工具调用与结果保存在普通 Session 历史中。token 存储和 API bearer 请求头从不向模型显示。
+
+## Weekly reports
+
+报告插件按显式球队键读取配置的球队，而不是按调用方预设读取，因此一个组合可以同时为 Goran 和 Mamabear 的球队生成报告。每份报告都是一次研究工作流运行：Yahoo 阵容、阵容位、计分、对阵、状态和预测分数是权威上下文，网页只有写出其所针对的球员时才被采纳。在任何审阅之前，代码会依据联盟的 Yahoo 首发位、轮空周和不可出场状态核对阵容是否合法；只有通过审阅策略的报告才会送到球队的 Discord 频道。影子模式把所有报告只发送到一个配置的频道，并附上标明球队的标签。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

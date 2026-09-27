@@ -1,0 +1,62 @@
+# Keyless weekly-report composition uses the same fixture providers in replay.
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+  disabled: true
+
+- insert:
+    - id: llm-replay
+      name: '@deepseek-ai/dsh-llm-replay'
+      config:
+        providers:
+          - id: deepseek-official
+            name: DeepSeek
+            models:
+              - id: deepseek-v4-pro
+
+    - id: fantasy-report-web-fixture
+      name: './web-fixture.mjs'
+
+    - id: fantasy-report-yahoo-fixture
+      name: './yahoo-fixture.mjs'
+
+    - id: fantasy-report-research-fixture
+      name: './research-fixture.mjs'
+      config:
+        provider: deepseek-official
+        model: deepseek-v4-pro
+        ownerScope: profile
+        ownerNamespace: fantasy-report-snapshot
+        reportPageChars: 20000
+
+    - id: tool-research
+      name: '@deepseek-ai/dsh-tool-research'
+
+    - id: fantasy-report-schedule-fixture
+      name: './reports-fixture.mjs'
+      config:
+        timezone: America/Phoenix
+        workspacePath: !!js process.cwd()
+        shadowChannelId: '1472404859679670455'
+        searchesPerPlayer: 1
+        pagesPerPlayer: 1
+        maxConcurrentFetches: 1
+        deliveryAttempts: 1
+        teams:
+          - id: googies
+            name: The Googies
+            teamKey: 470.l.809970.t.7
+            channelId: '1472404859679670455'
+            schedule:
+              full: '0 14 * * 3'
+              thursday: '0 11 * * 4'
+              sunday: '30 5 * * 0'
+
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: fantasy-report-fixture
+    fetchProvider: fantasy-report-fixture
+
+- id: web-fetch-http
+  name: '@deepseek-ai/dsh-web-fetch-http'
+  disabled: true

@@ -11,9 +11,11 @@ flowchart LR
   svc_fantasy["ctx.fantasy<br/>Read-only Yahoo Fantasy data"]
   pkg_fantasy_yahoo["fantasy-yahoo"]
   pkg_tool_fantasy["tool-fantasy"]
+  pkg_fantasy_reports["fantasy-reports"]
   pkg_research["research"]
   svc_research["ctx.research<br/>Durable owner-scoped research runs"]
   pkg_research_local["research-local"]
+  pkg_tool_research["tool-research"]
   pkg_hmr["hmr"]
   svc_hmr["ctx.hmr<br/>Serialized module and configuration reloads"]
   pkg_app_boot["app-boot"]
@@ -473,6 +475,7 @@ flowchart LR
   svc_deepseekLlmApiExtensions --> pkg_llm_deepseek
   svc_directoryPicker --> pkg_api_workspace_controller
   svc_dynamicCordisRunner --> pkg_tool_cordis
+  svc_fantasy --> pkg_fantasy_reports
   svc_fantasy --> pkg_tool_fantasy
   svc_fileReferences --> pkg_api_session_controller
   svc_fileUploads --> pkg_api_session_controller
@@ -500,6 +503,8 @@ flowchart LR
   svc_profileContext --> pkg_plugin_manager
   svc_ptcRuntime --> pkg_tools
   svc_ptcRuntime --> pkg_workflow_ptc
+  svc_research --> pkg_fantasy_reports
+  svc_research --> pkg_tool_research
   svc_sandbox --> pkg_bash_sandbox
   svc_sandbox --> pkg_terminal_bash
   svc_sandboxPolicy --> pkg_bash_sandbox
@@ -590,8 +595,8 @@ flowchart LR
 
 | ctx key | Role | Owner | Implementations | Direct consumers | Companion plugins | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy) | - | The provider owns OAuth and Yahoo parsing; the model consumer returns bounded reads from the caller's mapped team. |
-| `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | - | - | The local provider persists run Sessions and report attachments; the model-facing consumer follows in the research tool slice. |
+| `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The provider owns OAuth and Yahoo parsing; the model tool reads the caller's mapped team and scheduled reports read configured teams. |
+| `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The local provider persists run Sessions and report attachments and executes consumer workflows such as the weekly fantasy report. |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | Owns module and exact configuration watchers; application mutations share its queue and automatic reloads await the application file lock. |
 | `ctx.pluginRegistryProbe` | `core` | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | Races public registry responses on the Host; the Client owns the initial registry recommendation. |
 | `ctx.pluginManager` | `core` | [`plugin-manager`](../packages/boot/plugin-manager) | - | [`plugin-manager`](../packages/boot/plugin-manager), `ui-settings-plugin-inventory` | - | Shares profile package operations with the CLI and reports persisted and running state to Web and agent callers. |

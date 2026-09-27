@@ -12256,7 +12256,7 @@
       "kind": "event",
       "event": "research/started",
       "surface": false,
-      "digest": "529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3",
+      "digest": "a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c",
       "schema": {
         "root": 0,
         "nodes": [
@@ -12351,6 +12351,11 @@
               },
               {
                 "name": "requestKey",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "workflow",
                 "type": 4,
                 "optional": true
               }
@@ -54833,327 +54838,6 @@
       "sources": []
     },
     {
-      "digest": "529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 16,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 17,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "budgets",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "callerSessionId",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "category",
-                "type": 5,
-                "optional": true
-              },
-              {
-                "name": "createdAt",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "promptVersion",
-                "type": 4,
-                "optional": true
-              },
-              {
-                "name": "provider",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "query",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "reasoningEffort",
-                "type": 4,
-                "optional": true
-              },
-              {
-                "name": "requestKey",
-                "type": 4,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "extractMaxTokens",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "firstRoundQueries",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "hardRunTimeoutMs",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "laterRoundQueries",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxConcurrentFetches",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxConcurrentModelCalls",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxConcurrentSearches",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxEmptyRounds",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxEvidenceBytes",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxFindingsInSynthesis",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxPageChars",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxPagesPerRound",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxReportBytes",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxRounds",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "maxTotalPages",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "minRounds",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "planMaxTokens",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "queryMaxTokens",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "reportMaxTokens",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "reportPageChars",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "searchResultsPerQuery",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "softRunTimeoutMs",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "stageTimeoutMs",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "union",
-            "types": [
-              6,
-              7,
-              8,
-              9,
-              10
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "comparison"
-          },
-          {
-            "kind": "literal",
-            "value": "factcheck"
-          },
-          {
-            "kind": "literal",
-            "value": "general"
-          },
-          {
-            "kind": "literal",
-            "value": "howto"
-          },
-          {
-            "kind": "literal",
-            "value": "product"
-          },
-          {
-            "kind": "union",
-            "types": [
-              12,
-              14
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "namespace",
-                "type": 4,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "profile"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 15,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 4,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "session"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "research/started"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "529e0ccd0e34079ab4ff21ed87f810cee0388246263bf22e8aba5986b56fae05",
       "schema": {
         "root": 0,
@@ -82034,7 +81718,298 @@
         "packages/research/research/src/types.ts#ResearchFinished"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:156"
+        "packages/research/research/src/types.ts:158"
+      ]
+    },
+    {
+      "digest": "9dd4e7a1ee792ac32be5c80f564bce8d49d346aa5567107f32d0f2407484782e",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "workflow",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              11,
+              13
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "namespace",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "profile"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "session"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchStarted"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:123"
       ]
     },
     {
@@ -82799,292 +82774,6 @@
       "sources": []
     },
     {
-      "digest": "a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "budgets",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "callerSessionId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "category",
-                "type": 4,
-                "optional": true
-              },
-              {
-                "name": "createdAt",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 10,
-                "optional": false
-              },
-              {
-                "name": "promptVersion",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "provider",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "query",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "reasoningEffort",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "requestKey",
-                "type": 3,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "extractMaxTokens",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "firstRoundQueries",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "hardRunTimeoutMs",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "laterRoundQueries",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxConcurrentFetches",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxConcurrentModelCalls",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxConcurrentSearches",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxEmptyRounds",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxEvidenceBytes",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxFindingsInSynthesis",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxPageChars",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxPagesPerRound",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxReportBytes",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxRounds",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxTotalPages",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "minRounds",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planMaxTokens",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "queryMaxTokens",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "reportMaxTokens",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "reportPageChars",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "searchResultsPerQuery",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "softRunTimeoutMs",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "stageTimeoutMs",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "union",
-            "types": [
-              5,
-              6,
-              7,
-              8,
-              9
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "comparison"
-          },
-          {
-            "kind": "literal",
-            "value": "factcheck"
-          },
-          {
-            "kind": "literal",
-            "value": "general"
-          },
-          {
-            "kind": "literal",
-            "value": "howto"
-          },
-          {
-            "kind": "literal",
-            "value": "product"
-          },
-          {
-            "kind": "union",
-            "types": [
-              11,
-              13
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "namespace",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "profile"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "session"
-          }
-        ]
-      },
-      "names": [
-        "packages/research/research/src/types.ts#ResearchStarted"
-      ],
-      "sources": [
-        "packages/research/research/src/types.ts:123"
-      ]
-    },
-    {
       "digest": "a2066bd52f61218ba15b758def2641cc6a8bd3d4a594a488ee4c65be356d7e39",
       "schema": {
         "root": 0,
@@ -83752,6 +83441,332 @@
           {
             "kind": "literal",
             "value": "tool-registry"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 16,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "workflow",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              14
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "namespace",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "profile"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "session"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/started"
           }
         ]
       },
@@ -95589,7 +95604,7 @@
         "packages/research/research/src/types.ts#ResearchLinked"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:139"
+        "packages/research/research/src/types.ts:141"
       ]
     },
     {
@@ -99252,7 +99267,7 @@
         "packages/research/research/src/types.ts#ResearchCheckpoint"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:144"
+        "packages/research/research/src/types.ts:146"
       ]
     },
     {

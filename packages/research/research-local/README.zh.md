@@ -50,6 +50,8 @@ Loader 组合测试使用以下字段装载此提供方：
 
 运行和阶段 Session 标头会保留调用方的工作区路径（如果存在），以便 Agent 销毁后仍可按明确授权读取阶段日志。
 
+带 `workflow` 的 `start` 请求会执行该使用方流程，而不是通用引擎。其运行与阶段时限替代该运行的 `hardRunTimeoutMs` 和 `stageTimeoutMs`，并记录在 `research/started` 中。其阶段与通用运行共享提供方的模型准入，因此 `maxConcurrentModelCalls` 同时约束两者。
+
 -----
 
 <a id="understand-the-implementation"></a>

@@ -1469,6 +1469,101 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-training-export -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-reports -->
+<a id="deepseek-aidsh-fantasy-reports"></a>
+
+## `@deepseek-ai/dsh-fantasy-reports`
+
+- `inject`: `agents` · `fantasy` · `research` · `sessionPersistence` · `web`
+- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:40`](../packages/fantasy/fantasy-reports/src/config.ts)
+
+```ts config-catalog
+/** Deployment values. Teams, channels, and schedules have no defaults. */
+export interface Config {
+  /** IANA timezone for schedules, fire dates, and report timestamps. */
+  readonly timezone: string
+  /** Absolute workspace recorded on the caller, run, and stage Sessions. */
+  readonly workspacePath: string
+  /** Teams to report on. */
+  readonly teams: TeamConfig[]
+  /** First Yahoo game week that produces reports. */
+  readonly firstWeek?: number
+  /** Last Yahoo game week that produces reports. */
+  readonly lastWeek?: number
+  /** When set, every report and notice goes only to this channel, labeled with its team. */
+  readonly shadowChannelId?: string
+  /** Minimum milliseconds between two report starts. */
+  readonly minimumStartGapMs?: number
+  /** Search queries per roster player: availability first, then fantasy outlook. */
+  readonly searchesPerPlayer?: number
+  /** Search results considered per query. */
+  readonly searchResultsPerQuery?: number
+  /** Admitted pages kept per roster player. */
+  readonly pagesPerPlayer?: number
+  /** Concurrent player searches and fetches. */
+  readonly maxConcurrentFetches?: number
+  /** Characters rendered from one fetched page before admission. */
+  readonly maxPageChars?: number
+  /** Characters of one admitted page shown to a model, kept as passages around roster names. */
+  readonly sourceExcerptChars?: number
+  /** Characters of all admitted pages shown to the writer; each page's share never drops below 1,200. */
+  readonly promptSourceChars?: number
+  /** Hosts whose pages are never fetched; each entry also covers its subdomains. */
+  readonly excludedHosts?: string[]
+  /** Largest roster a report covers. */
+  readonly maxPlayers?: number
+  /** Output ceiling of the writer stage. */
+  readonly writerMaxTokens?: number
+  /** Output ceiling of each reviewer stage. */
+  readonly reviewerMaxTokens?: number
+  /** Output ceiling of each repair stage. */
+  readonly repairMaxTokens?: number
+  /** Factual reviews before the final-round rule applies. */
+  readonly maxReviews?: number
+  /** Structural repairs before publication is withheld. */
+  readonly maxStructuralRepairs?: number
+  /** Earlier completed reports of the same team and season shown as context. */
+  readonly historyReports?: number
+  /** Characters of earlier reports shown as context, shared by all of them. */
+  readonly historyChars?: number
+  /** Deadline of one model stage. */
+  readonly stageTimeoutMs?: number
+  /** Deadline of one complete report run. */
+  readonly runTimeoutMs?: number
+  /** Largest delivered report, including a shadow label. */
+  readonly maxDeliveryChars?: number
+  /** Delivery handoff attempts before a report stays undelivered. */
+  readonly deliveryAttempts?: number
+  /** Milliseconds between delivery handoff attempts. */
+  readonly deliveryRetryMs?: number
+}
+
+/** One Yahoo team, its Discord destination, and its three weekly start times. */
+export interface TeamConfig {
+  /** Stable lowercase identity used in run keys and job names. */
+  readonly id: string
+  /** Display name used in report titles and shadow labels. */
+  readonly name: string
+  /** Yahoo team key; its league is the key's league prefix. */
+  readonly teamKey: string
+  /** Discord channel that receives this team's reports outside shadow mode. */
+  readonly channelId: string
+  /** Cron expressions for the three weekly reports, in the configured timezone. */
+  readonly schedule: ReportScheduleConfig
+}
+
+/** One team's three weekly start times. */
+export interface ReportScheduleConfig {
+  /** Midweek full report, such as `0 14 * * 3` for Wednesday at 2:00 PM. */
+  readonly full: string
+  /** Thursday update focused on practice reports and early kickoffs. */
+  readonly thursday: string
+  /** Sunday update focused on final designations before kickoff. */
+  readonly sunday: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-fantasy-reports -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-yahoo -->
 <a id="deepseek-aidsh-fantasy-yahoo"></a>
 

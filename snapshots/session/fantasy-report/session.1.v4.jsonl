@@ -1,0 +1,5 @@
+{"type":"session","version":4,"id":"{{session:2}}","createdAt":1001,"cwd":"{{cwd}}","isSeeded":false,"delegationDepth":0}
+{"type":"permission/preset","data":{"preset":"workspace-write"}}
+{"type":"sandbox/mode","data":{"mode":"workspace-write"}}
+{"type":"approval/policy","data":{"policy":"ask"}}
+{"type":"research/linked","data":{"id":"{{session:3}}"}}

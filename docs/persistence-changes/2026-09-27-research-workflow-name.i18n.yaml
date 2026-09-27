@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-09-27-research-workflow-name.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-27-research-workflow-name.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-09-27-research-workflow-name:
+  en: 70aa1a98571b9d69
+  zh: 364216c154b32236
+/2026-09-27-research-workflow-name/summary:
+  en: 1b11be76ea84932d
+  zh: 7d42aaaa7bfac50c
+/2026-09-27-research-workflow-name/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-09-27-research-workflow-name/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-09-27-research-workflow-name/compatibility:
+  en: ad5f0e6b57d5092a
+  zh: fd7cef031126951e
+/2026-09-27-research-workflow-name/verification:
+  en: 5d9f9c58dcdd3eb8
+  zh: 940ffe7e62d68c70
+/2026-09-27-research-workflow-name/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

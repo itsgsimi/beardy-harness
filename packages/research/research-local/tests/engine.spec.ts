@@ -408,7 +408,8 @@ it('counts queued admission in the hard timeout and permits only one active mode
 it('rejects unsupported categories, reasoning routes and context windows before committing a run', async () => {
   const h = await harness([], async () => result([]), async url => page(url), { reasoningEffort: 'high' })
   const request = { caller: h.caller.agent.session, owner: h.owner, query: 'Admission' }
-  await expect(h.local.start({ ...request, category: 'fantasy_football' })).rejects.toThrow('fantasy_football')
+  await expect(h.local.start({ ...request, category: 'general', workflow: { name: 'weekly', promptVersion: 'v1',
+    run: async () => ({ markdown: '', evidence: '', quality: 'partial' }) } })).rejects.toThrow('take no category')
   await expect(h.local.start(request)).rejects.toThrow('reasoningEffort')
   h.adapter.resolveModel = async (provider, model) => ({ provider, id: model, name: model,
     reasoning: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }] }, context: { contextWindow: 8192 } })
@@ -581,4 +582,68 @@ it('counts only its own model request while another stage streams concurrently',
   }
   expect(h.adapter.requests).toHaveLength(2)
   await h.caller.dispose()
+})
+
+it('runs a consumer workflow through logged stages, ledger writes, and a completed report', async () => {
+  const h = await harness(['{"verdict":"ok"}'], async () => result([]), async url => page(url), { stageTimeoutMs: 1 })
+  h.ctx.web.assertAvailable = () => { throw new Error('a workflow owns its own web use') }
+  const seen: string[] = []
+  let runId: string | undefined
+  const view = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Weekly workflow',
+    workflow: { name: 'weekly-report', promptVersion: 'weekly-v1', budgets: { stageTimeoutMs: 60000, hardRunTimeoutMs: 120000 },
+      async run(run) {
+        runId = run.id
+        await run.search({ round: 1, query: 'player news', status: 'ok', urls: ['https://example.com/news'] })
+        const source = await run.fetched({ round: 1, requestedUrl: 'https://example.com/news', url: 'https://example.com/final',
+          title: 'News', statusCode: 200, retrievedAt: 5, text: 'Exact page text', truncated: false })
+        await run.failed({ round: 2, requestedUrl: 'https://example.com/down', retrievedAt: 6, status: 'error', reason: 'offline' })
+        await run.finding({ round: 2, url: source.url, accepted: true })
+        seen.push(await run.stage('Write JSON', 100))
+        await expect(run.stage('Too large', 0)).rejects.toThrow(/maxTokens must be positive/)
+        return { markdown: `# Weekly\n${source.contentSha256}`, evidence: '{"ok":true}', quality: 'verified_urls' }
+      } } })
+  await h.local.whenDone(view.id)
+  expect(seen).toEqual(['{"verdict":"ok"}'])
+  expect(runId).toBe(view.id)
+  const settled = await h.local.status(view.id, h.owner)
+  expect(settled).toMatchObject({ phase: 'completed', round: 2, sourceCount: 1 })
+  expect(settled.stageSessionIds).toHaveLength(1)
+  const report = await h.local.report(view.id, h.owner)
+  expect(report.markdown).toContain('# Weekly')
+  expect(report.sources[0]).toMatchObject({ url: 'https://example.com/final', requestedUrl: 'https://example.com/news', retrievedAt: 5 })
+  const handle = await h.ctx.sessionPersistence.open(SessionId(view.id), 'read')
+  const log = await handle.read()
+  await handle.close()
+  expect(log.events.find(event => event.type === 'research/started')?.data).toMatchObject({
+    workflow: 'weekly-report', promptVersion: 'weekly-v1', budgets: { stageTimeoutMs: 60000, hardRunTimeoutMs: 120000 } })
+  expect(log.events.filter(event => event.type === 'research/source').map(event => event.data.status)).toEqual(['fetched', 'error'])
+  expect(log.events.find(event => event.type === 'research/finished')?.data).toMatchObject({ phase: 'completed', quality: 'verified_urls' })
+  await h.caller.dispose()
+})
+
+it('fails a workflow run with its rejection reason and bounds stage input by the context window', async () => {
+  const h = await harness([], async () => result([]), async url => page(url))
+  const failed = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Blocked workflow',
+    workflow: { name: 'weekly-report', promptVersion: 'weekly-v1', async run() { throw new Error('publication blocked: lineup') } } })
+  await h.local.whenDone(failed.id)
+  expect(await h.local.status(failed.id, h.owner)).toMatchObject({ phase: 'failed', reason: 'Error: publication blocked: lineup' })
+  h.adapter.resolveModel = async (provider, model) => ({ provider, id: model, name: model, context: { contextWindow: 9000 } })
+  const bounded = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Bounded workflow',
+    workflow: { name: 'weekly-report', promptVersion: 'weekly-v1', async run(run) {
+      await run.stage('x'.repeat(3000), 8500)
+      return { markdown: '', evidence: '', quality: 'partial' }
+    } } })
+  await h.local.whenDone(bounded.id)
+  expect(await h.local.status(bounded.id, h.owner)).toMatchObject({ phase: 'failed', reason: expect.stringContaining('context window') as string })
+  await h.caller.dispose()
+})
+
+it('lets a whole-host shutdown dispose a live stage Agent before the run aborts it', async () => {
+  const h = await harness([{ hang: true }], async () => result([]), async url => page(url))
+  const entered = Promise.withResolvers<boolean>()
+  h.ctx.on('llm/stream', (_request, next) => { entered.resolve(true); return next() })
+  await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Host shutdown' })
+  await entered.promise
+  contexts.splice(contexts.indexOf(h.ctx), 1)
+  await h.ctx.fiber.dispose()
 })

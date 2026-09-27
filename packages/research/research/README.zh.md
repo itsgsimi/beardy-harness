@@ -45,7 +45,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-抽象服务声明按所有者隔离的操作。`ResearchRunId` 是品牌化字符串；序列化后的值也是运行 Session ID。运行 Session 记录开始、搜索与来源结果、规范化发现、检查点和终态；调用方 Session 记录 `research/linked`。Session 事件映射要求能够理解这些事件的 Harness 在读取时识别其类型。可信调用方可以选择通用报告类别；本地提供方在专用工作流存在之前拒绝 `fantasy_football`。
+抽象服务声明按所有者隔离的操作。`ResearchRunId` 是品牌化字符串；序列化后的值也是运行 Session ID。运行 Session 记录开始、搜索与来源结果、规范化发现、检查点和终态；调用方 Session 记录 `research/linked`。Session 事件映射要求能够理解这些事件的 Harness 在读取时识别其类型。可信调用方可以选择通用报告类别，也可以传入 `ResearchWorkflow`：提供方记录其名称和提示词版本，用有日志、无工具的阶段以及与通用引擎相同的账本写入来执行它，并把它返回的报告提交为完成结果。
 
 原生研究工具和 Odysseus 研究工具使用本包的分页格式化函数与输出 schema。页面按 Unicode 码点切分序列化 JSON，报告 `next_offset` 和 `total_chars`，并且只在调用方提供完整报告产物时携带它。两个工具都在分页前验证偏移量；超过序列化响应长度的偏移量会失败。
 

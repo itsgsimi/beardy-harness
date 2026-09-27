@@ -135,6 +135,7 @@
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-fantasy": "workspace:*",
     "@deepseek-ai/dsh-fantasy-yahoo": "workspace:*",
+    "@deepseek-ai/dsh-fantasy-reports": "workspace:*",
     "@deepseek-ai/dsh-tool-fantasy": "workspace:*",
     "@deepseek-ai/dsh-research": "workspace:*",
     "@deepseek-ai/dsh-research-local": "workspace:*",

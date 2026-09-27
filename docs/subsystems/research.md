@@ -20,7 +20,11 @@ The run and its stage children retain the caller Session's workspace path when o
 
 ## Evidence and stopping
 
-The general engine uses versioned Odysseus-derived plan, query, extraction, synthesis, stop, and final-report prompts. `ctx.web` supplies search and fetch with the run's abort signal; the web tool's shared HTML converter supplies bounded Markdown. The engine deduplicates queries and URLs, records unsuccessful searches and fetches, and stops after the configured empty-round limit, a model coverage decision after minimum rounds, a soft deadline, or the hard round cap. The hard deadline includes model admission wait and final attachment writes. Report links are checked against accepted fetched URLs; a URL match establishes that the URL was fetched, not that it supports the claim. The native fantasy-football category is refused until its specialized workflow is available.
+The general engine uses versioned Odysseus-derived plan, query, extraction, synthesis, stop, and final-report prompts. `ctx.web` supplies search and fetch with the run's abort signal; the web tool's shared HTML converter supplies bounded Markdown. The engine deduplicates queries and URLs, records unsuccessful searches and fetches, and stops after the configured empty-round limit, a model coverage decision after minimum rounds, a soft deadline, or the hard round cap. The hard deadline includes model admission wait and final attachment writes. Report links are checked against accepted fetched URLs; a URL match establishes that the URL was fetched, not that it supports the claim.
+
+## Consumer workflows
+
+A trusted consumer can pass a `ResearchWorkflow` to `start` in place of a category. The provider records the workflow name, its prompt version, and its run and stage deadlines in `research/started`, then calls the workflow with a `ResearchWorkflowRun`. Each `stage` call is a logged, tool-free child Session of the run; `search`, `fetched`, `failed`, and `finding` write the same ledger events as the general engine, and `fetched` attaches the exact model-visible page text before its source event. A resolved result becomes the completed report and evidence; a rejection ends the run `failed` with the error text as its reason. Workflow and general stages share the provider's model admission. The [weekly fantasy report](../../packages/fantasy/fantasy-reports/README.md) is a workflow consumer.
 
 ## Model access and Beardy selection
 
@@ -52,8 +56,8 @@ abstract ownerFor(caller: Session): ResearchOwner
 
 /**
  * Commit a run Session, then link and flush the caller Session before returning.
- * @param request - live caller, trusted owner, question, and optional exact-call idempotency key.
- * @returns the durable run view; duplicate keys return the same run.
+ * @param request - live caller, trusted owner, question, optional exact-call idempotency key, and optional workflow.
+ * @returns the durable run view; duplicate keys return the same run without starting another workflow.
  */
 abstract start(request: ResearchStart): Promise<ResearchRunView>
 

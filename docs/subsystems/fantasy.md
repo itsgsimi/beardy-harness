@@ -2,7 +2,7 @@
 
 English | [中文](fantasy.zh.md)
 
-The [Fantasy definition](../../packages/fantasy/fantasy/README.md) declares read views and branded Yahoo keys. The [Yahoo provider](../../packages/fantasy/fantasy-yahoo/README.md) supplies the private OAuth store and REST reads. The [model tool](../../packages/fantasy/tool-fantasy/README.md) exposes bounded results to a caller Session.
+The [Fantasy definition](../../packages/fantasy/fantasy/README.md) declares read views and branded Yahoo keys. The [Yahoo provider](../../packages/fantasy/fantasy-yahoo/README.md) supplies the private OAuth store and REST reads. The [model tool](../../packages/fantasy/tool-fantasy/README.md) exposes bounded results to a caller Session. The [report plugin](../../packages/fantasy/fantasy-reports/README.md) sends scheduled weekly reports.
 
 ## Authority and token ownership
 
@@ -15,6 +15,10 @@ The provider requires `tokenFile` below `$DSH_HOME`. It may copy an optional pri
 `FantasyLeagueSettings` includes roster slots and scoring modifiers. `FantasyTeam` carries standings, actual points, and projected matchup points when Yahoo provides them. `FantasyPlayer` carries roster position, selected slot, status and injury note, bye, scoring, ownership, and stats when present. Transactions and draft picks retain team and player keys. Yahoo's numbered collections and arrays of partial objects are normalized before a tool result reaches the model.
 
 The `fantasy` tool has only GET-backed actions: leagues, league, standings, scoreboard, matchup, team, players, player, transactions, draft, and weeks. Long serialized results expose `next_offset`; Yahoo player and transaction pages expose `next_start`. Tool calls and results are stored in ordinary Session history. The token store and API bearer header are never model-visible.
+
+## Weekly reports
+
+The report plugin reads configured teams by explicit team key, not by caller preset, so one composition can report on both Goran's and Mamabear's teams. Each report is a research workflow run: the Yahoo roster, slots, scoring, matchup, statuses, and projections are the authoritative context, and web pages are admitted only when they name the player they were fetched for. Code checks a legal lineup against the league's Yahoo starting slots, bye weeks, and unavailable statuses before any review, and only a report that passes the review policy reaches the team's Discord channel. Shadow mode sends every report only to one configured channel with a label naming its team.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

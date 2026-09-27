@@ -50,6 +50,8 @@ The service flushes `research/started` on a new run Session, then flushes `resea
 
 Run and stage Session headers retain the caller's workspace path when available, allowing explicit workspace-authorized stage reads after disposal.
 
+A `start` request with a `workflow` runs that consumer procedure instead of the general engine. Its run and stage deadlines replace `hardRunTimeoutMs` and `stageTimeoutMs` for that run and are recorded in `research/started`. Its stages share the provider's model admission with general runs, so `maxConcurrentModelCalls` bounds both.
+
 -----
 
 <a id="understand-the-implementation"></a>

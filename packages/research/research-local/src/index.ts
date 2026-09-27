@@ -6,8 +6,8 @@ import z from '@deepseek-ai/schemastery'
 import { ResearchRunId, ResearchService } from '@deepseek-ai/dsh-research'
 import type { ResearchList, ResearchStart } from '@deepseek-ai/dsh-research'
 import type {
-  ResearchCheckpoint, ResearchFinding, ResearchFinished, ResearchOwner, ResearchReport, ResearchRunId as RunId, ResearchRunView,
-  ResearchSearch, ResearchSource, ResearchSourceAttempt, ResearchStarted,
+  ResearchBudgets, ResearchCheckpoint, ResearchFinding, ResearchFinished, ResearchOwner, ResearchReport, ResearchRunId as RunId,
+  ResearchRunView, ResearchSearch, ResearchSource, ResearchSourceAttempt, ResearchStarted,
 } from '@deepseek-ai/dsh-research/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
@@ -20,6 +20,8 @@ import { resolveConfig, type Config, type ResolvedConfig } from './config.ts'
 import { DEFAULT_BUDGETS } from './config.ts'
 import { ResearchEngine } from './engine.ts'
 import { RESEARCH_PROMPT_VERSION } from './prompts.ts'
+import { StageAdmission } from './stage.ts'
+import { runWorkflow, workflowBudgets } from './workflow.ts'
 
 export type { Config } from './config.ts'
 
@@ -149,6 +151,7 @@ export class LocalResearchService extends ResearchService {
   })
 
   private readonly config: ResolvedConfig
+  private readonly admission: StageAdmission
   private readonly engine: ResearchEngine
   private readonly live = new Map<RunId, AgentHandle>()
   private readonly workers = new Map<RunId, { controller: AbortController; task: Promise<void> }>()
@@ -159,7 +162,8 @@ export class LocalResearchService extends ResearchService {
   constructor(ctx: Context, config: Config) {
     super(ctx)
     this.config = resolveConfig(config)
-    this.engine = new ResearchEngine(ctx, this.config, this)
+    this.admission = new StageAdmission(this.config.budgets.maxConcurrentModelCalls)
+    this.engine = new ResearchEngine(ctx, this.config, this, this.admission)
     ctx.effect(() => () => this.disposeRuns(), 'research run teardown')
   }
 
@@ -247,9 +251,16 @@ export class LocalResearchService extends ResearchService {
     return runs
   }
 
+  /** Budgets recorded for and enforced on one run: provider values, with a workflow's deadlines applied. */
+  private runBudgets(request: ResearchStart): ResearchBudgets {
+    if (request.workflow === undefined) return this.config.budgets
+    if (request.category !== undefined) throw new Error('research workflow runs take no category')
+    return workflowBudgets(request.workflow, this.config.budgets)
+  }
+
   async start(request: ResearchStart): Promise<ResearchRunView> {
-    if (request.category === 'fantasy_football') throw new Error('native fantasy_football research is not available')
-    this.ctx.web.assertAvailable()
+    const budgets = this.runBudgets(request)
+    if (request.workflow === undefined) this.ctx.web.assertAvailable()
     const info = await this.ctx.llm.resolveModelInfo(this.config.provider, this.config.model)
     if (this.config.reasoningEffort !== undefined
       && !info.reasoning?.efforts.some(effort => effort.id === this.config.reasoningEffort)) {
@@ -266,9 +277,15 @@ export class LocalResearchService extends ResearchService {
     if (parentAgent === undefined) throw new Error('research run has no live Agent')
     const controller = new AbortController()
     const startedAt = Date.now()
-    const timer = setTimeout(() => { controller.abort({ kind: 'timeout' }) }, this.config.budgets.hardRunTimeoutMs)
-    const task = this.engine.run(view.id, parentAgent, request.owner, view.query, request.category ?? 'general', controller.signal,
-      startedAt, info.context?.contextWindow, request.caller.header.cwd).catch(async (error: unknown) => {
+    const timer = setTimeout(() => { controller.abort({ kind: 'timeout' }) }, budgets.hardRunTimeoutMs)
+    const cwd = request.caller.header.cwd
+    const task = (request.workflow === undefined
+      ? this.engine.run(view.id, parentAgent, request.owner, view.query, request.category ?? 'general', controller.signal,
+        startedAt, info.context?.contextWindow, cwd)
+      : runWorkflow(this.ctx, this.admission, { ...this.config, budgets }, this, request.workflow, {
+        id: view.id, parentAgent, owner: request.owner, signal: controller.signal, startedAt,
+        contextWindow: info.context?.contextWindow, cwd,
+      })).catch(async (error: unknown) => {
       const abortReason = controller.signal.reason as { kind?: 'cancel' | 'timeout' | 'shutdown' } | undefined
       if (abortReason?.kind === 'cancel') return
       if (this.uncertain.has(view.id)) throw error
@@ -306,7 +323,7 @@ export class LocalResearchService extends ResearchService {
    */
   async startStored(request: ResearchStart): Promise<ResearchRunView> {
     const category = request.category
-    if (category === 'fantasy_football') throw new Error('native fantasy_football research is not available')
+    const budgets = this.runBudgets(request)
     await this.ensureReconciled()
     return this.serialized(async () => {
       this.assertOwner(request.caller, request.owner)
@@ -338,8 +355,9 @@ export class LocalResearchService extends ResearchService {
         model: this.config.model,
         ...(this.config.reasoningEffort === undefined ? {} : { reasoningEffort: this.config.reasoningEffort }),
         ...(category === undefined ? {} : { category }),
-        promptVersion: RESEARCH_PROMPT_VERSION,
-        budgets: this.config.budgets,
+        ...(request.workflow === undefined ? {} : { workflow: request.workflow.name }),
+        promptVersion: request.workflow?.promptVersion ?? RESEARCH_PROMPT_VERSION,
+        budgets,
         createdAt: Date.now(),
       }
       try {

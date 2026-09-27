@@ -238,8 +238,22 @@ describe('research run storage', () => {
     await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: '  ' })).rejects.toThrow(/nonblank/)
     await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'A', requestKey: ' ' }))
       .rejects.toThrow(/requestKey/)
-    await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League', category: 'fantasy_football' }))
-      .rejects.toThrow(/fantasy_football/)
+    const workflow = { name: 'weekly-report', promptVersion: 'weekly-v1', run: async () => ({ markdown: '', evidence: '', quality: 'partial' as const }) }
+    await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
+      category: 'general', workflow })).rejects.toThrow(/take no category/)
+    await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
+      workflow: { ...workflow, name: 'Weekly Report' } })).rejects.toThrow(/workflow name/)
+    await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
+      workflow: { ...workflow, promptVersion: ' ' } })).rejects.toThrow(/promptVersion/)
+    await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
+      workflow: { ...workflow, budgets: { stageTimeoutMs: 0 } } })).rejects.toThrow(/stageTimeoutMs/)
+    const stored = await (ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
+      workflow: { ...workflow, budgets: { hardRunTimeoutMs: 7200000 } } })
+    const storedHandle = await ctx.sessionPersistence.open(SessionId(stored.id), 'read')
+    const started = (await storedHandle.read()).events.find(event => event.type === 'research/started')
+    await storedHandle.close()
+    expect(started?.data).toMatchObject({ workflow: 'weekly-report', promptVersion: 'weekly-v1', budgets: { hardRunTimeoutMs: 7200000 } })
+    expect(started?.data).not.toHaveProperty('category')
     const first = await (ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'Alpha' })
     const second = await (ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'Beta' })
     expect((await ctx.research.list({ owner: source.owner, query: 'alp', limit: 5 })).map(view => view.id)).toEqual([first.id])

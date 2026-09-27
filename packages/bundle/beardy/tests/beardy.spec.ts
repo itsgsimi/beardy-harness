@@ -80,11 +80,16 @@ describe('dsh-beardy bundle', () => {
     expect(rows.find(row => row.id === 'tool-fantasy')).toMatchObject({
       name: '@deepseek-ai/dsh-tool-fantasy', disabled: true,
     })
+    expect(rows.find(row => row.id === 'fantasy-weekly-reports')).toMatchObject({
+      name: '@deepseek-ai/dsh-fantasy-reports', disabled: true,
+    })
+    expect(rows.find(row => row.id === 'fantasy-weekly-reports')).not.toHaveProperty('config')
     expect(rows.find(row => row.id === 'local-model-control')).toMatchObject({
       name: '@deepseek-ai/dsh-local-model-control', disabled: true,
     })
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-fantasy-yahoo')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-fantasy')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-fantasy-reports')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-local-model-control')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-session-query-sqlite')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-session-query')

@@ -14,7 +14,7 @@ import type {} from '@deepseek-ai/dsh-attachment'
 import type { ResolvedConfig } from './config.ts'
 import { datePreamble, extractPrompt, finalPrompt, planPrompt, queryPrompt, stopPrompt, synthesisPrompt } from './prompts.ts'
 import { RESEARCH_PROMPT_VERSION } from './prompts.ts'
-import { runStage, StageAdmission } from './stage.ts'
+import { runStage, type StageAdmission } from './stage.ts'
 
 /** Run Session writes performed through the provider's serialized commit barrier. */
 export interface EngineStorage {
@@ -160,18 +160,16 @@ export async function mapLimit<T, U>(items: readonly T[], limit: number, signal:
   return values
 }
 
-/** General provider engine. One instance owns admission across its live runs. */
+/** General provider engine; its model stages share the provider's admission gate with workflow runs. */
 export class ResearchEngine {
-  private readonly admission: StageAdmission
-
   /**
    * @param ctx - provider context with web, model and attachment services.
    * @param config - resolved route and budgets.
    * @param storage - durable event writer.
+   * @param admission - provider-wide model stage gate.
    */
-  constructor(private readonly ctx: Context, private readonly config: ResolvedConfig, private readonly storage: EngineStorage) {
-    this.admission = new StageAdmission(config.budgets.maxConcurrentModelCalls)
-  }
+  constructor(private readonly ctx: Context, private readonly config: ResolvedConfig, private readonly storage: EngineStorage,
+    private readonly admission: StageAdmission) {}
 
   /**
    * Execute a committed run until a terminal event or cancellation.

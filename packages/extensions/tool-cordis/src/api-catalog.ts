@@ -1890,8 +1890,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'abstract start(request: ResearchStart): Promise<ResearchRunView>',
         description: 'Commit a run Session, then link and flush the caller Session before returning.',
-        parameters: [{ name: 'request', description: 'live caller, trusted owner, question, and optional exact-call idempotency key.' }],
-        returns: 'the durable run view; duplicate keys return the same run.',
+        parameters: [{ name: 'request', description: 'live caller, trusted owner, question, optional exact-call idempotency key, and optional workflow.' }],
+        returns: 'the durable run view; duplicate keys return the same run without starting another workflow.',
       },
       {
         signature: 'abstract status(id: ResearchRunId, owner: ResearchOwner): Promise<ResearchRunView>',
@@ -6412,8 +6412,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RequestUserInput {\n    readonly role: \'user\';\n    readonly content: UserMessage[\'content\'];\n    readonly id?: never;\n    readonly source?: never;\n}',
   },
   {
+    name: 'ResearchBudgets',
+    declaration: 'export interface ResearchBudgets {\n    readonly maxRounds: number;\n    readonly minRounds: number;\n    readonly firstRoundQueries: number;\n    readonly laterRoundQueries: number;\n    readonly searchResultsPerQuery: number;\n    readonly maxPagesPerRound: number;\n    readonly maxTotalPages: number;\n    readonly maxPageChars: number;\n    readonly maxFindingsInSynthesis: number;\n    readonly maxConcurrentSearches: number;\n    readonly maxConcurrentFetches: number;\n    readonly maxConcurrentModelCalls: number;\n    readonly softRunTimeoutMs: number;\n    readonly hardRunTimeoutMs: number;\n    readonly stageTimeoutMs: number;\n    readonly planMaxTokens: number;\n    readonly queryMaxTokens: number;\n    readonly extractMaxTokens: number;\n    readonly reportMaxTokens: number;\n    readonly maxEmptyRounds: number;\n    readonly reportPageChars: number;\n    readonly maxReportBytes: number;\n    readonly maxEvidenceBytes: number;\n}',
+  },
+  {
     name: 'ResearchCategory',
     declaration: 'export type ResearchCategory = \'general\' | \'product\' | \'comparison\' | \'howto\' | \'factcheck\';',
+  },
+  {
+    name: 'ResearchFinding',
+    declaration: 'export interface ResearchFinding {\n    readonly round: number;\n    readonly url: string;\n    readonly accepted: boolean;\n    readonly rational?: string;\n    readonly evidence?: string;\n    readonly summary?: string;\n    readonly reason?: string;\n}',
   },
   {
     name: 'ResearchList',
@@ -6440,12 +6448,36 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ResearchRunView {\n    readonly id: ResearchRunId;\n    readonly owner: ResearchOwner;\n    readonly callerSessionId: SessionId;\n    readonly query: string;\n    readonly phase: ResearchPhase;\n    readonly round: number;\n    readonly stageSessionIds: readonly SessionId[];\n    readonly sourceCount: number;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n    readonly provider: string;\n    readonly model: string;\n    readonly reportAvailable: boolean;\n    readonly reason?: string;\n}',
   },
   {
+    name: 'ResearchSearch',
+    declaration: 'export interface ResearchSearch {\n    readonly round: number;\n    readonly query: string;\n    readonly status: \'ok\' | \'error\';\n    readonly urls: readonly string[];\n    readonly reason?: string;\n}',
+  },
+  {
     name: 'ResearchSource',
     declaration: 'export interface ResearchSource {\n    readonly url: string;\n    readonly title: string;\n    readonly retrievedAt: number;\n    readonly contentSha256: string;\n    readonly content: FileAttachmentRef;\n    readonly truncated: boolean;\n    readonly requestedUrl?: string;\n    readonly statusCode?: number;\n}',
   },
   {
+    name: 'ResearchSourceAttempt',
+    declaration: 'export interface ResearchSourceAttempt {\n    readonly round: number;\n    readonly requestedUrl: string;\n    readonly status: \'fetched\' | \'http_error\' | \'error\';\n    readonly finalUrl?: string;\n    readonly statusCode?: number;\n    readonly retrievedAt: number;\n    readonly source?: ResearchSource;\n    readonly reason?: string;\n}',
+  },
+  {
     name: 'ResearchStart',
-    declaration: 'export interface ResearchStart {\n    readonly caller: Session;\n    readonly owner: ResearchOwner;\n    readonly query: string;\n    readonly requestKey?: string;\n    readonly category?: ResearchCategory | \'fantasy_football\';\n}',
+    declaration: 'export interface ResearchStart {\n    readonly caller: Session;\n    readonly owner: ResearchOwner;\n    readonly query: string;\n    readonly requestKey?: string;\n    readonly category?: ResearchCategory;\n    readonly workflow?: ResearchWorkflow;\n}',
+  },
+  {
+    name: 'ResearchWorkflow',
+    declaration: 'export interface ResearchWorkflow {\n    readonly name: string;\n    readonly promptVersion: string;\n    readonly budgets?: Partial<Pick<ResearchBudgets, \'hardRunTimeoutMs\' | \'stageTimeoutMs\'>>;\n    run(run: ResearchWorkflowRun): Promise<ResearchWorkflowResult>;\n}',
+  },
+  {
+    name: 'ResearchWorkflowPage',
+    declaration: 'export interface ResearchWorkflowPage {\n    readonly round: number;\n    readonly requestedUrl: string;\n    readonly url: string;\n    readonly title: string;\n    readonly statusCode: number;\n    readonly retrievedAt: number;\n    readonly text: string;\n    readonly truncated: boolean;\n}',
+  },
+  {
+    name: 'ResearchWorkflowResult',
+    declaration: 'export interface ResearchWorkflowResult {\n    readonly markdown: string;\n    readonly evidence: string;\n    readonly quality: \'verified_urls\' | \'partial\';\n}',
+  },
+  {
+    name: 'ResearchWorkflowRun',
+    declaration: 'export interface ResearchWorkflowRun {\n    readonly id: ResearchRunId;\n    readonly signal: AbortSignal;\n    stage(prompt: string, maxTokens: number): Promise<string>;\n    search(result: ResearchSearch): Promise<void>;\n    fetched(page: ResearchWorkflowPage): Promise<ResearchSource>;\n    failed(attempt: Omit<ResearchSourceAttempt, \'status\' | \'source\'> & {\n        readonly status: \'http_error\' | \'error\';\n    }): Promise<void>;\n    finding(result: ResearchFinding): Promise<void>;\n}',
   },
   {
     name: 'ResolvedAlwaysRetryPolicy',
