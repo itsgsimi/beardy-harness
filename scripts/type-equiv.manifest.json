@@ -2313,6 +2313,16 @@
       "source": "packages/cron/cron/src/types.ts"
     },
     {
+      "doc": "docs/subsystems/health.md",
+      "symbol": "ProbeSnapshot",
+      "source": "packages/health/health/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/health.md",
+      "symbol": "CronFailureSnapshot",
+      "source": "packages/health/health/src/index.ts"
+    },
+    {
       "doc": "docs/subsystems/deliverables.md",
       "symbol": "PresentedFile",
       "source": "packages/deliverables/tool-present/src/types.ts"

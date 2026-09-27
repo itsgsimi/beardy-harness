@@ -1,0 +1,10 @@
+# Bilingual-pair consistency record for health.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/subsystems/health.md
+/endpoint-health:
+  en: 83c0db8368b2074f
+  zh: bd2ae3bf4e81ced1
+/endpoint-health/state-and-delivery:
+  en: 1ef983130f0ffab2
+  zh: 4f8f19936c4c9eb7

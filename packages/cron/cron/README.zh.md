@@ -13,9 +13,17 @@ kind: "package-reference"
 
 ## 目录
 
+- [命令](#commands)
 - [模型体验](#model-experience)
 - [已知限制与后续工作](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
+
+-----
+
+<a id="commands"></a>
+## 命令
+
+`/cron status [name]` 在 Discord 和 Web 命令输入中运行，无需模型轮次。它显示最近保留的结果、Session id、已记录的运行时长、失败代码与原因，以及下一次已启用的触发时间。缺少时长的旧历史显示 `unknown`。失败运行通过现有 Discord 结果通知携带任务名、Session id、失败代码和下一次触发时间；调度器不会再发布第二条失败通知。
 
 -----
 

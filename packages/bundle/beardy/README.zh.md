@@ -27,6 +27,8 @@ Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备�
 <a id="use-this-package"></a>
 ## 使用本包
 
+组合包以 `probes: []` 挂载 `dsh-health`，因此部署 patch 提供具名 URL 和通知频道之前，不会宣称任何端点可用。组合包不内置端点或凭据。
+
 ### 运行随附的 Beardy profile
 
 安装会从 base、Web 与 Beardy 组合包层自动初始化 `beardy` profile：

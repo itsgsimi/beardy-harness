@@ -179,6 +179,7 @@ export interface HarnessOptions {
   readonly toolFilter?: LaneToolFilter
   /** Lane command catalog seam used while no conversation is live. */
   readonly commands?: (lane: ConversationLane) => readonly CommandDescriptor[]
+  readonly statusDetails?: () => readonly string[]
 }
 
 /** Context carrying the services the router touches, recording every call it makes. */
@@ -242,6 +243,7 @@ export function harness(options: HarnessOptions = {}) {
     },
   }
   const ctx = {
+    get: (name: string) => options.eventContext?.[name as keyof Context],
     sessions: { flush: async () => true },
     sessionPersistence: {
       open: async () => ({ inheritedEventCount: 0, read: async () => ({ events }), close: async () => {} }),
@@ -379,6 +381,7 @@ export function harness(options: HarnessOptions = {}) {
       laneUserIds: new Set(options.userLanes?.keys() ?? []),
     } satisfies RoutingPolicy,
     ...(options.commands === undefined ? {} : { commands: options.commands }),
+    ...(options.statusDetails === undefined ? {} : { statusDetails: options.statusDetails }),
     table,
     postRich: async (body) => { cards.push(body) },
     clearPrompt: async (_channelId, messageId) => { cleared.push(messageId) },

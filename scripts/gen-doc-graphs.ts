@@ -76,6 +76,7 @@ const GROUP_ORDER = [
   'core',
   'typert',
   'goal',
+  'health',
   'experimental',
   'process',
   'bash',
@@ -601,6 +602,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     title: 'Same-session goal domain',
     mode: 'core',
     note: 'Folds revisioned objective state from the session log and keeps live continuation activation process-local.',
+  },
+  {
+    key: 'healthStatus',
+    pkg: 'health',
+    title: 'Configured endpoint health',
+    mode: 'service',
+    consumers: ['discord-gateway'],
+    note: 'Keeps current HTTP probe states and the latest failed cron fact in the Host; Discord reads status and durably accepts transition notices.',
   },
   {
     key: 'ssh',

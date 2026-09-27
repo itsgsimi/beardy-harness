@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/health/health/README.md
+/:
+  en: 8ef4537409fa12cc
+  zh: bea53f1f3cffb1f2
+/deepseek-ai-dsh-health:
+  en: 83533e7eaf7eab8e
+  zh: 8de78aad2fb03513
+/deepseek-ai-dsh-health/summary:
+  en: 7aadeb3c10b69eed
+  zh: 5f00e1535a5fb819
+/deepseek-ai-dsh-health/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 5acc0d3807846b6e
+/deepseek-ai-dsh-health/use-this-package:
+  en: 48bdf62c35ddba1d
+  zh: d2a0c7a140bab4c7
+/deepseek-ai-dsh-health/understand-the-implementation:
+  en: 10edd705ff272438
+  zh: 4dd6b9d9ea84d92a
+/deepseek-ai-dsh-health/further-exploration:
+  en: 2434abd37e11fd41
+  zh: f1c4e4e6fd15890f
+/deepseek-ai-dsh-health/model-experience:
+  en: 0ff552ec103d94e5
+  zh: 5018909e05d688fa
+/deepseek-ai-dsh-health/model-experience/kv-cache-effect:
+  en: 71975d71e1fef6ea
+  zh: 5036ad227fb652c9
+/deepseek-ai-dsh-health/known-limitations-and-deferred-work:
+  en: 0ad946f6399849fb
+  zh: 73cae6f34cdef8f1
+/deepseek-ai-dsh-health/known-limitations-and-deferred-work/dev-note:
+  en: c587a80b633aa011
+  zh: 6d83bfbb0999a317

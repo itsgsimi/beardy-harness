@@ -126,7 +126,7 @@ async function runScenario(fixture: string, scenarioDir: string): Promise<{
     const path = join(sessionsRoot, paths[0] as string)
     const content = await readFile(path, 'utf8')
     assertPersistedSessionVersion(basename(path), content)
-    const statusReplyIndex = exchanges.findIndex(exchange =>
+    const statusReplyIndex = exchanges.findLastIndex(exchange =>
       exchange.method === 'PATCH' && exchange.path.endsWith('/messages/@original'))
     expect(statusReplyIndex).toBeGreaterThanOrEqual(0)
     // The protocol observation ends with the status response, before teardown changes the command roster.

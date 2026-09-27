@@ -31,6 +31,15 @@ async function opened(options: Parameters<typeof harness>[0] = {}) {
 }
 
 describe('rich Discord conversations', () => {
+  it('shows probe and cron failure lines in status before and after a conversation opens', async () => {
+    const details = ['Probes: main down (HTTP 503)', 'Last cron failure: brief, Session s1, TRANSPORT, next none.']
+    const h = setup({ statusDetails: () => details })
+    const actor = { userId: USER, directMessage: true }
+    expect((await h.router.execute(CHANNEL, actor, '/status')).text).toContain(details.join('\n'))
+    h.router.handle(inbound())
+    await vi.waitFor(() => { expect(h.posted).toHaveLength(1) })
+    expect((await h.router.execute(CHANNEL, actor, '/status')).text).toContain(details.join('\n'))
+  })
   it('shows command cards without starting a model session, and executes native commands without duplicate posts', async () => {
     const h = setup({ richMessages: true })
     h.router.handle(inbound({ content: '/help' }))

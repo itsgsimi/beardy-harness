@@ -20,12 +20,36 @@ describe('/cron subcommands', () => {
   it('says so when there are no jobs at all', async () => {
     const { registry } = makeRegistry()
     expect(await runCronSubcommand('list', registry, deps)).toEqual({ kind: 'success', text: 'No cron jobs.' })
+    expect(await runCronSubcommand('status', registry, deps)).toEqual({ kind: 'success', text: 'No cron jobs.' })
+  })
+
+  it('formats status, duration, failure cause, and the next fire for one or every job', async () => {
+    const { registry } = makeRegistry([CONFIG_JOB], { state: { 'morning-brief': {
+      notes: '', lastRuns: [{ firedAt: Date.parse('2026-09-26T07:00:00.000Z'), sessionId: 's-brief',
+        outcome: 'failed', durationMs: 1250, failure: { code: 'TRANSPORT', message: 'Connection error' } }],
+    } } })
+    const one = await runCronSubcommand('status morning-brief', registry, deps)
+    expect(one.kind).toBe('success')
+    expect(one.text).toContain('failed at 2026-09-26T07:00:00.000Z (Session s-brief, duration 1250 ms, cause TRANSPORT: Connection error)')
+    expect(one.text).toMatch(/; next \d{4}-\d\d-\d\dT/)
+    expect(await runCronSubcommand('status', registry, deps)).toEqual(one)
+    expect(await runCronSubcommand('status absent', registry, deps)).toEqual({ kind: 'error', text: 'no job named "absent"' })
+  })
+
+  it('reports an unrun job and legacy history without duration', async () => {
+    const { registry } = makeRegistry([CONFIG_JOB])
+    expect((await runCronSubcommand('status morning-brief', registry, deps)).text).toContain('never run')
+    const { registry: old } = makeRegistry([CONFIG_JOB], { state: { 'morning-brief': {
+      notes: '', lastRuns: [{ firedAt: 1, sessionId: 'old', outcome: 'answered' }],
+    } } })
+    expect((await runCronSubcommand('status morning-brief', old, deps)).text).toContain('duration unknown')
   })
 
   it('marks paused stored jobs and omits a next-run time for them', async () => {
     const { registry } = makeRegistry([], { stored: [storedRow('pr-check', { enabled: false })] })
     const result = await runCronSubcommand('list', registry, deps)
     expect(result).toEqual({ kind: 'success', text: 'pr-check: paused (0 9 * * 1 Europe/Zagreb, stored)' })
+    expect((await runCronSubcommand('status pr-check', registry, deps)).text).toBe('pr-check: never run; next paused')
   })
 
   it('starts an armed job on run and reports the start', async () => {
@@ -83,6 +107,7 @@ describe('/cron subcommands', () => {
     const { registry } = makeRegistry([], { stored: [storedRow('late-bloom', { expression: '0 0 12 31 12 * 2020' })] })
     const result = await runCronSubcommand('list', registry, deps)
     expect(result).toEqual({ kind: 'success', text: 'late-bloom: 0 0 12 31 12 * 2020 Europe/Zagreb (stored)' })
+    expect((await runCronSubcommand('status late-bloom', registry, deps)).text).toBe('late-bloom: never run; next none')
   })
 
   it('reports a thrown non-error from the registry as its string form', async () => {
@@ -92,7 +117,7 @@ describe('/cron subcommands', () => {
 
   it('answers unknown verbs and missing names with the usage line', async () => {
     const { registry } = makeRegistry()
-    const usage = 'usage: /cron list | run <name> | pause <name> | resume <name> | delete <name>'
+    const usage = 'usage: /cron list | status [name] | run <name> | pause <name> | resume <name> | delete <name>'
     expect(await runCronSubcommand('explode everything', registry, deps)).toEqual({ kind: 'error', text: usage })
     for (const verb of ['run', 'pause', 'resume', 'delete']) {
       expect(await runCronSubcommand(verb, registry, deps)).toEqual({

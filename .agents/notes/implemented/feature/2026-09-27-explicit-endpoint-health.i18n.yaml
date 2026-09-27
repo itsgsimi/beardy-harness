@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-explicit-endpoint-health.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-explicit-endpoint-health.md
+/agent-note-explicit-endpoint-health-and-transition-notices:
+  en: 922fd49ea5c74e8c
+  zh: ac1efffa8c6d487f
+/agent-note-explicit-endpoint-health-and-transition-notices/problem:
+  en: 5c709e91c2420251
+  zh: e003b67ec0de7f5e
+/agent-note-explicit-endpoint-health-and-transition-notices/decision:
+  en: c36308c57f1a68c2
+  zh: d71caab2d14b7be4
+/agent-note-explicit-endpoint-health-and-transition-notices/alternatives-considered:
+  en: 271bae490dfb64aa
+  zh: 7786e9510519de85
+/agent-note-explicit-endpoint-health-and-transition-notices/consequences:
+  en: d2e1856e66df68de
+  zh: 1b2553dad5bdb9a0

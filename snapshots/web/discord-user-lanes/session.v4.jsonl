@@ -19,4 +19,4 @@
 {"type":"step/end","data":{"turn":1,"step":1}}
 {"type":"turn/end","data":{"turn":1,"reason":{"kind":"completed"}}}
 {"type":"command/run","data":{"commandId":"{{command:1}}","name":"status","args":"","source":{"kind":"user"}}}
-{"type":"command/done","data":{"commandId":"{{command:1}}","kind":"success","text":"Session: {{session:1}}\nAgent preset: beardy-discord\nPermission preset: workspace-write\nState: live\nDelivering the reply.\nQueued deliveries: 1"}}
+{"type":"command/done","data":{"commandId":"{{command:1}}","kind":"success","text":"Session: {{session:1}}\nAgent preset: beardy-discord\nPermission preset: workspace-write\nState: live\nDelivering the reply.\nQueued deliveries: 1\nProbes: none configured.\nLast cron failure: none."}}

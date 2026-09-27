@@ -257,6 +257,7 @@ describe('dsh-beardy composition gating', () => {
     expect(rows.find(row => row.id === 'tool-discord')?.config).toEqual({ tokenEnv: 'DISCORD_BOT_TOKEN' })
     expect(rows.find(row => row.id === 'discord-gateway')).not.toHaveProperty('config')
     expect(rows.find(row => row.id === 'cron')?.config).toEqual({ jobs: [] })
+    expect(rows.find(row => row.id === 'health')?.config).toEqual({ probes: [] })
   })
 
   it('mounts the clock with an hourly injection throttle', () => {

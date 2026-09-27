@@ -40,6 +40,8 @@ interface CronRunFinished extends CronRunResult {
   readonly deliverChannelId?: string
   /** Whether an empty answer should produce an outcome notice. */
   readonly reportOutcome: boolean
+  /** Next armed fire, resolved from the current job definition when delivery occurs. */
+  readonly nextFireAt?: string
 }
 ```
 

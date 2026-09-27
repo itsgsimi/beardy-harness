@@ -16,13 +16,38 @@ export interface CronCommandDeps {
   runNow(name: string): boolean
 }
 
-const USAGE = 'usage: /cron list | run <name> | pause <name> | resume <name> | delete <name>'
+const USAGE = 'usage: /cron list | status [name] | run <name> | pause <name> | resume <name> | delete <name>'
+
+/**
+ * Next fire of an armed job, absent when paused or exhausted.
+ * @param job - Job definition and arm state.
+ * @param from - Instant after which to find a fire.
+ * @returns the next UTC instant, or undefined when none is armed.
+ */
+export function nextFireAt(job: JobListing, from = new Date()): string | undefined {
+  if (!job.enabled) return undefined
+  return new Cron(job.expression, { timezone: job.timezone, paused: true }).nextRun(from)?.toISOString()
+}
 
 function nextFireLine(job: JobListing): string {
   if (!job.enabled) return `${job.name}: paused (${job.expression} ${job.timezone}, ${job.origin})`
-  const next = new Cron(job.expression, { timezone: job.timezone, paused: true }).nextRun(new Date())
+  const next = nextFireAt(job)
   return `${job.name}: ${job.expression} ${job.timezone} (${job.origin})`
-    + (next === null ? '' : `, next ${new Date(next).toISOString()}`)
+    + (next === undefined ? '' : `, next ${next}`)
+}
+
+/**
+ * Human-readable last outcome and next fire for one job.
+ * @param job - Job and bounded run history to describe.
+ * @param from - Instant after which to find a fire.
+ * @returns one status line for a command reply.
+ */
+export function statusLine(job: JobListing, from = new Date()): string {
+  const run = job.lastRuns[0]
+  const last = run === undefined ? 'never run' : `${run.outcome} at ${new Date(run.firedAt).toISOString()}`
+    + ` (Session ${run.sessionId}, duration ${run.durationMs === undefined ? 'unknown' : `${String(run.durationMs)} ms`}`
+    + `${run.failure === undefined ? '' : `, cause ${run.failure.code}: ${run.failure.message}`})`
+  return `${job.name}: ${last}; next ${nextFireAt(job, from) ?? (job.enabled ? 'none' : 'paused')}`
 }
 
 /**
@@ -45,6 +70,15 @@ export async function runCronSubcommand(
       case 'list': {
         const jobs = registry.list()
         return { kind: 'success', text: jobs.length === 0 ? 'No cron jobs.' : jobs.map(nextFireLine).join('\n') }
+      }
+      case 'status': {
+        if (name !== '') {
+          const job = registry.find(name)
+          return job === undefined ? { kind: 'error', text: `no job named "${name}"` }
+            : { kind: 'success', text: statusLine(job) }
+        }
+        const jobs = registry.list()
+        return { kind: 'success', text: jobs.length === 0 ? 'No cron jobs.' : jobs.map(job => statusLine(job)).join('\n') }
       }
       case 'run': {
         if (name === '') return { kind: 'error', text: `which job? ${USAGE}` }
@@ -84,8 +118,8 @@ export async function runCronSubcommand(
 export function registerCronCommand(ctx: Context, registry: JobRegistry, deps: CronCommandDeps): void {
   ctx.commands.register({
     name: 'cron',
-    description: 'List, run, pause, resume, or delete cron jobs.',
-    input: { hint: 'list | run <name> | pause <name> | resume <name> | delete <name>' },
+    description: 'List and inspect cron jobs, or run, pause, resume, and delete them.',
+    input: { hint: 'list | status [name] | run <name> | pause <name> | resume <name> | delete <name>' },
     handler: invocation => runCronSubcommand(invocation.rawInput, registry, deps),
   })
 }

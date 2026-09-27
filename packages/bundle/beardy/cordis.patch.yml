@@ -84,6 +84,12 @@
       config:
         jobs: []
 
+    # Endpoint targets and notice channel are supplied only by the deployment patch.
+    - id: health
+      name: '@deepseek-ai/dsh-health'
+      config:
+        probes: []
+
 # Keep the Host Schedule available to Discord sessions while cron retains its own unattended runs.
 - id: schedule
   disabled: false
