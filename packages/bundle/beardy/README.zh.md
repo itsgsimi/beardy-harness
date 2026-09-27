@@ -275,7 +275,7 @@ Beardy 把 `$DSH_HOME/SOUL.md` 作为持久的全局指令，与 `$DSH_HOME/AGEN
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **技能学习需要审阅** — Beardy 可以创建和更新用户技能，并在持续使用工具后收到留存提醒。它没有自动质量评估或合并流程。
+- **技能学习需要审阅** — Beardy 可以检查、创建和更新用户技能。一个已完成轮次若有至少 20 次工具调用且没有加载技能，每个 Session 最多会收到一次提醒。检查会对薄弱的调用指引和目录重叠发出警告，但 Beardy 不会自主合并技能。
 - **运行时调度需要配置** — 操作者配置预设和工作区允许清单后，`cron_manage` 与 `/cron` 可管理存储任务。配置任务除笔记和显式运行外保持只读。
 - **每个 bot token 只能一个进程** — 网关会回复它看到的每一条入站私信，因此若另一个挂载 `dsh-discord-gateway` 且使用同一 token 的 profile 并行运行，会重复回复。
 - **没有通用消息网关** — 该 profile 提供 Web 应用；Discord 是它唯一的渠道适配器，没有 Telegram、Slack 或类似服务的适配器。

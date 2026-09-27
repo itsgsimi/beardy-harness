@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-skill-nudge-quality.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-skill-nudge-quality.md
+/agent-note-session-scoped-skill-nudges-and-draft-lint:
+  en: 81a6e313cf49345b
+  zh: 6f2fc55a6b8ed393
+/agent-note-session-scoped-skill-nudges-and-draft-lint/problem:
+  en: a56962ffdeb750d0
+  zh: 06192312ed6afb4a
+/agent-note-session-scoped-skill-nudges-and-draft-lint/decision:
+  en: 8477ea11709f59c4
+  zh: 03fa83140158f5ae
+/agent-note-session-scoped-skill-nudges-and-draft-lint/alternatives-considered:
+  en: 512a565b97e002c9
+  zh: 0a5ddc01b3b216be
+/agent-note-session-scoped-skill-nudges-and-draft-lint/consequences:
+  en: 1bfd7f89455ac281
+  zh: fa6f5c7af758c421

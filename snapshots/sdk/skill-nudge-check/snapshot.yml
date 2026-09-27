@@ -1,0 +1,8 @@
+version: 1
+scenario: skill-nudge-check
+profile: sdk
+composition: sdk-skill-nudge-check
+recording: authored
+header:
+  class: sdk-skill-nudge-check
+  pin: true

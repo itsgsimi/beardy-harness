@@ -275,7 +275,7 @@ The history guidance and tool schemas remain prefix-stable for a fixed bundle an
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Skill learning requires review** — Beardy can create and update user skills and receives a capture reminder after sustained tool use. It has no automatic quality evaluation or consolidation process.
+- **Skill learning requires review** — Beardy can check, create, and update user skills. A completed turn with at least 20 tool calls and no skill load can produce one reminder per Session. Lint warns about weak routing and overlap, but Beardy does not consolidate skills autonomously.
 - **Runtime scheduling requires configuration** — `cron_manage` and `/cron` manage stored jobs after the operator configures the preset and workspace allowlists. Configured jobs remain read-only apart from notes and explicit runs.
 - **One process per bot token** — the gateway answers every inbound direct message it sees, so running this profile alongside another that mounts `dsh-discord-gateway` with the same token replies twice.
 - **No general messaging gateway** — the profile provides the Web application; Discord is its only channel adapter, and there is none for Telegram, Slack, or similar services.

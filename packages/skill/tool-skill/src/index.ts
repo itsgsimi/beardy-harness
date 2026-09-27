@@ -28,6 +28,7 @@ export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills']
 
 const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 500
+const DEFAULT_SKILL_BODY_MAX_BYTES = 32768
 /**
  * Durable provider and item records for one published session skill catalog. The catalog is a
  * `catalog`-form context, so it records the entries it published beside the
@@ -83,8 +84,10 @@ export interface Config {
   requireApproval?: boolean
   /** Permit approved user-scope mutations in the Harness home under workspace-write. */
   allowApprovedHomeWrites?: boolean
-  /** Tool calls in one settled turn that trigger the save-it-as-a-skill nudge; 0 disables. */
+  /** Tool results in one completed turn that trigger the Session's one skill nudge; 0 disables. */
   nudgeAfterToolCalls?: number
+  /** Maximum UTF-8 bytes in a skill body written by skill_manage. */
+  skillBodyMaxBytes?: number
 }
 
 /** Validate and default the model-facing skill catalog configuration. */
@@ -95,6 +98,7 @@ export const Config: z<Config> = z.object({
   requireApproval: z.boolean().default(false),
   allowApprovedHomeWrites: z.boolean().default(false),
   nudgeAfterToolCalls: z.number().default(0),
+  skillBodyMaxBytes: z.number().default(DEFAULT_SKILL_BODY_MAX_BYTES),
 })
 
 /**
@@ -112,9 +116,13 @@ export function apply(ctx: Context, config: Config = {}): void {
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
   const nudgeAfterToolCalls = config.nudgeAfterToolCalls ?? 0
   assertPositiveInteger('nudgeAfterToolCalls', nudgeAfterToolCalls, 0)
+  const skillBodyMaxBytes = config.skillBodyMaxBytes ?? DEFAULT_SKILL_BODY_MAX_BYTES
+  assertPositiveInteger('skillBodyMaxBytes', skillBodyMaxBytes)
   const includePrunedResultGuidance = config.enableSkillManagement === true || nudgeAfterToolCalls > 0
 
-  if (nudgeAfterToolCalls > 0) installSkillNudge(ctx, nudgeAfterToolCalls)
+  if (nudgeAfterToolCalls > 0) ctx.inject(['sessionProjections'], (child) => {
+    installSkillNudge(child, nudgeAfterToolCalls)
+  })
 
   const skillTool = defineTool({
     name: 'skill',
@@ -204,6 +212,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         enableUserScope: config.enableUserSkillManagement === true,
         requireApproval: config.requireApproval === true,
         allowApprovedHomeWrites: config.allowApprovedHomeWrites === true,
+        skillBodyMaxBytes,
       })
     })
   }
