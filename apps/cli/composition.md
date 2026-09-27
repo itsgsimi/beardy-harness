@@ -8,6 +8,8 @@ The dsh-base bundle patch shared by the web, headless, sdk, and acp profiles; th
 ```mermaid
 flowchart LR
   cfg["packages/bundle/base/cordis.patch.yml<br/>cordis.yml"]
+  plugin_dsh_base_speech_whisper["speech-whisper<br/>@deepseek-ai/dsh-speech-whisper"]
+  cfg --> plugin_dsh_base_speech_whisper
   plugin_dsh_base_tool_plugin_manager["tool-plugin-manager<br/>@deepseek-ai/dsh-plugin-manager/tools"]
   cfg --> plugin_dsh_base_tool_plugin_manager
   plugin_dsh_base_plugin_manager["plugin-manager<br/>@deepseek-ai/dsh-plugin-manager"]
@@ -198,6 +200,7 @@ flowchart LR
 
 | Plugin id | Package / module |
 | --- | --- |
+| `speech-whisper` | `@deepseek-ai/dsh-speech-whisper` |
 | `tool-plugin-manager` | `@deepseek-ai/dsh-plugin-manager/tools` |
 | `plugin-manager` | `@deepseek-ai/dsh-plugin-manager` |
 | `timer` | `@deepseek-ai/cordis-plugin-timer` |
