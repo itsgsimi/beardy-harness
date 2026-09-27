@@ -470,6 +470,9 @@ importers:
       '@deepseek-ai/dsh-fantasy':
         specifier: workspace:*
         version: link:../../packages/fantasy/fantasy
+      '@deepseek-ai/dsh-fantasy-reports':
+        specifier: workspace:*
+        version: link:../../packages/fantasy/fantasy-reports
       '@deepseek-ai/dsh-fantasy-yahoo':
         specifier: workspace:*
         version: link:../../packages/fantasy/fantasy-yahoo
@@ -2216,6 +2219,9 @@ importers:
       '@deepseek-ai/dsh-fantasy':
         specifier: workspace:*
         version: link:../../fantasy/fantasy
+      '@deepseek-ai/dsh-fantasy-reports':
+        specifier: workspace:*
+        version: link:../../fantasy/fantasy-reports
       '@deepseek-ai/dsh-fantasy-yahoo':
         specifier: workspace:*
         version: link:../../fantasy/fantasy-yahoo
@@ -8633,6 +8639,67 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
+
+  packages/fantasy/fantasy-reports:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:~
+        version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:*
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-loop':
+        specifier: workspace:*
+        version: link:../../core/agent-loop
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: workspace:*
+        version: link:../../test-support/agent-loop-testkit
+      '@deepseek-ai/dsh-attachment-local':
+        specifier: workspace:*
+        version: link:../../attachment/attachment-local
+      '@deepseek-ai/dsh-cron':
+        specifier: workspace:*
+        version: link:../../cron/cron
+      '@deepseek-ai/dsh-fantasy':
+        specifier: workspace:*
+        version: link:../fantasy
+      '@deepseek-ai/dsh-fantasy-yahoo':
+        specifier: workspace:*
+        version: link:../fantasy-yahoo
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-research':
+        specifier: workspace:*
+        version: link:../../research/research
+      '@deepseek-ai/dsh-research-local':
+        specifier: workspace:*
+        version: link:../../research/research-local
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-persistence':
+        specifier: workspace:*
+        version: link:../../session/session-persistence
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: workspace:*
+        version: link:../../session/session-persistence-jsonl
+      '@deepseek-ai/dsh-tool-web':
+        specifier: workspace:*
+        version: link:../../web/tool-web
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:*
+        version: link:../../web/web
 
   packages/fantasy/fantasy-yahoo:
     dependencies:

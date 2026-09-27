@@ -42,7 +42,7 @@ export interface ResearchBudgets {
   readonly maxEvidenceBytes: number
 }
 
-/** General report format; specialized fantasy publication is not available here. */
+/** Report format of the provider's general research workflow. */
 export type ResearchCategory = 'general' | 'product' | 'comparison' | 'howto' | 'factcheck'
 
 /** One fetched source with its immutable source-text attachment. */
@@ -130,6 +130,8 @@ export interface ResearchStarted {
   readonly model: string
   readonly reasoningEffort?: string
   readonly category?: ResearchCategory
+  /** Consumer-supplied workflow name; absent for the provider's general workflow. */
+  readonly workflow?: string
   readonly promptVersion?: string
   readonly budgets?: ResearchBudgets
   readonly createdAt: number
@@ -160,6 +162,36 @@ export interface ResearchFinished {
   readonly reportRef?: FileAttachmentRef
   readonly evidenceRef?: FileAttachmentRef
   readonly quality?: 'verified_urls' | 'partial' | 'source_unavailable'
+}
+
+/** A fetched page that a consumer workflow keeps as a cited source. */
+export interface ResearchWorkflowPage {
+  /** Workflow step that fetched the page. */
+  readonly round: number
+  /** URL passed to the fetch. */
+  readonly requestedUrl: string
+  /** Final URL after redirects. */
+  readonly url: string
+  /** Display title for citations. */
+  readonly title: string
+  /** HTTP status of the successful fetch. */
+  readonly statusCode: number
+  /** Epoch milliseconds when the fetch started. */
+  readonly retrievedAt: number
+  /** Exact text the workflow may show a model; saved unchanged as the source attachment. */
+  readonly text: string
+  /** Whether the fetch or text bound removed page content. */
+  readonly truncated: boolean
+}
+
+/** A completed consumer workflow report. */
+export interface ResearchWorkflowResult {
+  /** Report Markdown saved as the immutable report file. */
+  readonly markdown: string
+  /** Evidence manifest JSON saved as the immutable evidence file. */
+  readonly evidence: string
+  /** Citation quality recorded in the terminal event. */
+  readonly quality: 'verified_urls' | 'partial'
 }
 
 declare module '@deepseek-ai/dsh-session/types' {

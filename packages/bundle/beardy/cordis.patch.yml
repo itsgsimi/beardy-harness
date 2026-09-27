@@ -93,6 +93,14 @@
       name: '@deepseek-ai/dsh-tool-fantasy'
       disabled: true
 
+# Weekly reports need the Yahoo provider, native research with profile ownership, and the Discord
+# gateway. The personal profile supplies teams, channels, schedules, and the workspace. The row id
+# differs from the Odysseus bridge row `fantasy-reports`, so both can load during a shadow week.
+- insert:
+    - id: fantasy-weekly-reports
+      name: '@deepseek-ai/dsh-fantasy-reports'
+      disabled: true
+
 # Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
 # only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
 # token itself lives in the environment or the root .env; the composition names the reference, never

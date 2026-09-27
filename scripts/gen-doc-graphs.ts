@@ -115,8 +115,8 @@ const SERVICE_ROLES: ServiceRole[] = [
     title: 'Read-only Yahoo Fantasy data',
     mode: 'seam',
     implementations: ['fantasy-yahoo'],
-    consumers: ['tool-fantasy'],
-    note: 'The provider owns OAuth and Yahoo parsing; the model consumer returns bounded reads from the caller\'s mapped team.',
+    consumers: ['tool-fantasy', 'fantasy-reports'],
+    note: 'The provider owns OAuth and Yahoo parsing; the model tool reads the caller\'s mapped team and scheduled reports read configured teams.',
   },
   {
     key: 'research',
@@ -124,7 +124,8 @@ const SERVICE_ROLES: ServiceRole[] = [
     title: 'Durable owner-scoped research runs',
     mode: 'seam',
     implementations: ['research-local'],
-    note: 'The local provider persists run Sessions and report attachments; the model-facing consumer follows in the research tool slice.',
+    consumers: ['tool-research', 'fantasy-reports'],
+    note: 'The local provider persists run Sessions and report attachments and executes consumer workflows such as the weekly fantasy report.',
   },
   {
     key: 'hmr',

@@ -132,7 +132,13 @@ export async function runStage(
         })
       },
     })
-    const abort = () => { handle.agent.cancel({ kind: 'parent' }) }
+    const abort = () => {
+      try {
+        handle.agent.cancel({ kind: 'parent' })
+      } catch {
+        // A whole-host shutdown can dispose the stage Agent before the run's abort reaches it; nothing remains to cancel.
+      }
+    }
     stageSignal.addEventListener('abort', abort, { once: true })
     try {
       await linked(id)

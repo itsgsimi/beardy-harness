@@ -221,6 +221,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 
 | Package | Config | Description |
 |---|---|---|
+| `@deepseek-ai/dsh-fantasy-reports` | yes | Scheduled weekly Yahoo fantasy reports through reviewed research runs and Discord delivery |
 | `@deepseek-ai/dsh-fantasy-yahoo` | yes | Yahoo Fantasy v2 provider and private OAuth store |
 | `@deepseek-ai/dsh-tool-fantasy` | yes | Read-only model-facing Yahoo Fantasy tool |
 

@@ -20,7 +20,11 @@
 
 ## 证据与停止条件
 
-通用引擎使用源自 Odysseus、带版本号的规划、查询、提取、综合、停止和最终报告提示词。`ctx.web` 使用运行的中止信号提供搜索与抓取；网页工具的共享 HTML 转换器提供有界 Markdown。引擎对查询与 URL 去重，记录失败的搜索与抓取，并在达到配置的空轮次上限、最小轮数后的模型覆盖决策、软时限或硬轮数上限时停止。硬时限涵盖模型准入等待与最终附件写入。报告链接会与已接受的抓取 URL 核对；URL 匹配只证明来源，不能证明事实陈述。原生提供方在专用工作流可用前拒绝梦幻橄榄球类别。
+通用引擎使用源自 Odysseus、带版本号的规划、查询、提取、综合、停止和最终报告提示词。`ctx.web` 使用运行的中止信号提供搜索与抓取；网页工具的共享 HTML 转换器提供有界 Markdown。引擎对查询与 URL 去重，记录失败的搜索与抓取，并在达到配置的空轮次上限、最小轮数后的模型覆盖决策、软时限或硬轮数上限时停止。硬时限涵盖模型准入等待与最终附件写入。报告链接会与已接受的抓取 URL 核对；URL 匹配只证明来源，不能证明事实陈述。
+
+## 使用方工作流
+
+可信使用方可以向 `start` 传入 `ResearchWorkflow` 来代替类别。提供方在 `research/started` 中记录工作流名称、提示词版本以及运行和阶段时限，然后以 `ResearchWorkflowRun` 调用该工作流。每次 `stage` 调用都是运行下一个有日志、无工具的子 Session；`search`、`fetched`、`failed` 和 `finding` 写入与通用引擎相同的账本事件，`fetched` 会在来源事件之前附加模型可见的页面原文。工作流返回的结果成为完成的报告与证据；拒绝则以错误文本为原因把运行结束为 `failed`。工作流阶段与通用阶段共享提供方的模型准入。[每周 Fantasy 报告](../../packages/fantasy/fantasy-reports/README.zh.md)是工作流使用方之一。
 
 ## 模型访问与 Beardy 选择
 
@@ -52,8 +56,8 @@ abstract ownerFor(caller: Session): ResearchOwner
 
 /**
  * Commit a run Session, then link and flush the caller Session before returning.
- * @param request - live caller, trusted owner, question, and optional exact-call idempotency key.
- * @returns the durable run view; duplicate keys return the same run.
+ * @param request - live caller, trusted owner, question, optional exact-call idempotency key, and optional workflow.
+ * @returns the durable run view; duplicate keys return the same run without starting another workflow.
  */
 abstract start(request: ResearchStart): Promise<ResearchRunView>
 

@@ -1,0 +1,334 @@
+{
+  "formatVersion": 2,
+  "roots": [
+    {
+      "key": "event:research/started",
+      "kind": "event",
+      "event": "research/started",
+      "surface": false,
+      "digest": "a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 16,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "workflow",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              14
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "namespace",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "profile"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "session"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/started"
+          }
+        ]
+      }
+    }
+  ],
+  "types": []
+}

@@ -13,9 +13,11 @@ flowchart LR
   svc_fantasy["ctx.fantasy<br/>Read-only Yahoo Fantasy data"]
   pkg_fantasy_yahoo["fantasy-yahoo"]
   pkg_tool_fantasy["tool-fantasy"]
+  pkg_fantasy_reports["fantasy-reports"]
   pkg_research["research"]
   svc_research["ctx.research<br/>Durable owner-scoped research runs"]
   pkg_research_local["research-local"]
+  pkg_tool_research["tool-research"]
   pkg_hmr["hmr"]
   svc_hmr["ctx.hmr<br/>Serialized module and configuration reloads"]
   pkg_app_boot["app-boot"]
@@ -475,6 +477,7 @@ flowchart LR
   svc_deepseekLlmApiExtensions --> pkg_llm_deepseek
   svc_directoryPicker --> pkg_api_workspace_controller
   svc_dynamicCordisRunner --> pkg_tool_cordis
+  svc_fantasy --> pkg_fantasy_reports
   svc_fantasy --> pkg_tool_fantasy
   svc_fileReferences --> pkg_api_session_controller
   svc_fileUploads --> pkg_api_session_controller
@@ -502,6 +505,8 @@ flowchart LR
   svc_profileContext --> pkg_plugin_manager
   svc_ptcRuntime --> pkg_tools
   svc_ptcRuntime --> pkg_workflow_ptc
+  svc_research --> pkg_fantasy_reports
+  svc_research --> pkg_tool_research
   svc_sandbox --> pkg_bash_sandbox
   svc_sandbox --> pkg_terminal_bash
   svc_sandboxPolicy --> pkg_bash_sandbox
@@ -592,8 +597,8 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy) | - | 提供方拥有 OAuth 与 Yahoo 解析；模型消费方返回调用方映射球队的有界只读结果。 |
-| `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | - | - | 本地提供方保存运行 Session 和报告附件；面向模型的消费方将在研究工具切片中加入。 |
+| `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 提供方拥有 OAuth 与 Yahoo 解析；模型工具读取调用方映射的球队，定时报告读取配置的球队。 |
+| `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 本地提供方保存运行 Session 和报告附件，并执行每周 Fantasy 报告等使用方工作流。 |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |
 | `ctx.pluginRegistryProbe` | `core` | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | 在 Host 上并发比较公共安装源响应；初始安装源推荐由 Client 负责。 |
 | `ctx.pluginManager` | `core` | [`plugin-manager`](../packages/boot/plugin-manager) | - | [`plugin-manager`](../packages/boot/plugin-manager), `ui-settings-plugin-inventory` | - | 与 CLI 共享 profile 包操作，并向 Web 和 Agent 调用方分别报告持久状态与运行状态。 |

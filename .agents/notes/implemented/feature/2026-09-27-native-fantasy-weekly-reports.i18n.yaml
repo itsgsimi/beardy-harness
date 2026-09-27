@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-native-fantasy-weekly-reports.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-native-fantasy-weekly-reports.md
+/agent-note-native-weekly-fantasy-reports-as-research-workflows:
+  en: 5528c3f7ce481246
+  zh: 736c2c736544b61c
+/agent-note-native-weekly-fantasy-reports-as-research-workflows/problem:
+  en: 2b35bd6f56f7a2f1
+  zh: 395218450cbfc02e
+/agent-note-native-weekly-fantasy-reports-as-research-workflows/decision:
+  en: 6b4b4094c657d1e5
+  zh: 987a512f91f4f0dd
+/agent-note-native-weekly-fantasy-reports-as-research-workflows/alternatives-considered:
+  en: ed2f55e0e0f6eeef
+  zh: 3bb850e1a1713307
+/agent-note-native-weekly-fantasy-reports-as-research-workflows/consequences:
+  en: e4bc822bfae8f9be
+  zh: 2fa9fdf31bda667d

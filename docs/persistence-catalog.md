@@ -55,7 +55,7 @@ The [format references](persistence-changes/historical-formats/README.md) cover 
 | `event:research/linked` | event | `428258651791def845d5cda5c471d5e38b692e4118e40def1cecae39b874b5fa` | [`{ type: "research/linked" }`](#persistence-type-sha256-428258651791def845d5cda5c471d5e38b692e4118e40def1cecae39b874b5fa) |
 | `event:research/search` | event | `52261b4041cd97429dbfd487040d4829dfe0ab225e067cbaf1aa1e8b951d98a9` | [`{ type: "research/search" }`](#persistence-type-sha256-52261b4041cd97429dbfd487040d4829dfe0ab225e067cbaf1aa1e8b951d98a9) |
 | `event:research/source` | event | `2a51521026afc8af908bb4dd436f5194339657b9cf0d0bc6297909fa0f29fd81` | [`{ type: "research/source" }`](#persistence-type-sha256-2a51521026afc8af908bb4dd436f5194339657b9cf0d0bc6297909fa0f29fd81) |
-| `event:research/started` | event | `529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3` | [`{ type: "research/started" }`](#persistence-type-sha256-529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3) |
+| `event:research/started` | event | `a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c` | [`{ type: "research/started" }`](#persistence-type-sha256-a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c) |
 | `event:sandbox/mode` | event | `516da4cdd6d2f1e5ce488e648578ca51f40e458f707b803e5b24de870e799415` | [`{ type: "sandbox/mode" }`](#persistence-type-sha256-516da4cdd6d2f1e5ce488e648578ca51f40e458f707b803e5b24de870e799415) |
 | `event:schedule/change` | event | `a0a2e5c42e1c929445ecd1cd70f49be6b66441894ec72c08e8ae332821d4a3cb` | [`{ type: "schedule/change" }`](#persistence-type-sha256-a0a2e5c42e1c929445ecd1cd70f49be6b66441894ec72c08e8ae332821d4a3cb) |
 | `event:session-log-deepseek/delivery-accepted` | event | `d63b8b8ffad9c02fd80c43a17df4f240c1fe8118ecca9de34f9d5871838ab5b9` | [`{ type: "session-log-deepseek/delivery-accepted" }`](#persistence-type-sha256-d63b8b8ffad9c02fd80c43a17df4f240c1fe8118ecca9de34f9d5871838ab5b9) |
@@ -754,7 +754,7 @@ Source: [`packages/core/session/src/types.ts:390`](../packages/core/session/src/
 'research/checkpoint': ResearchCheckpoint
 ```
 
-Source: [`packages/research/research/src/types.ts:172`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:204`](../packages/research/research/src/types.ts)
 
 <a id="researchfinding--log-only"></a>
 
@@ -765,7 +765,7 @@ Source: [`packages/research/research/src/types.ts:172`](../packages/research/res
 'research/finding': ResearchFinding
 ```
 
-Source: [`packages/research/research/src/types.ts:178`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:210`](../packages/research/research/src/types.ts)
 
 <a id="researchfinished--log-only"></a>
 
@@ -776,7 +776,7 @@ Source: [`packages/research/research/src/types.ts:178`](../packages/research/res
 'research/finished': ResearchFinished
 ```
 
-Source: [`packages/research/research/src/types.ts:180`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:212`](../packages/research/research/src/types.ts)
 
 <a id="researchlinked--log-only"></a>
 
@@ -787,7 +787,7 @@ Source: [`packages/research/research/src/types.ts:180`](../packages/research/res
 'research/linked': ResearchLinked
 ```
 
-Source: [`packages/research/research/src/types.ts:170`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:202`](../packages/research/research/src/types.ts)
 
 <a id="researchsearch--log-only"></a>
 
@@ -798,7 +798,7 @@ Source: [`packages/research/research/src/types.ts:170`](../packages/research/res
 'research/search': ResearchSearch
 ```
 
-Source: [`packages/research/research/src/types.ts:174`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:206`](../packages/research/research/src/types.ts)
 
 <a id="researchsource--log-only"></a>
 
@@ -809,7 +809,7 @@ Source: [`packages/research/research/src/types.ts:174`](../packages/research/res
 'research/source': ResearchSourceAttempt
 ```
 
-Source: [`packages/research/research/src/types.ts:176`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:208`](../packages/research/research/src/types.ts)
 
 <a id="researchstarted--log-only"></a>
 
@@ -820,7 +820,7 @@ Source: [`packages/research/research/src/types.ts:176`](../packages/research/res
 'research/started': ResearchStarted
 ```
 
-Source: [`packages/research/research/src/types.ts:168`](../packages/research/research/src/types.ts)
+Source: [`packages/research/research/src/types.ts:200`](../packages/research/research/src/types.ts)
 
 ### `sandbox/*`
 
@@ -4654,7 +4654,7 @@ Sources: [`packages/research/research/src/types.ts:19`](../packages/research/res
 
 SHA-256: `f137c43bc99035c8a2bc5cbccd854293df1717a17b78a965218c3adb59616e17`
 
-Sources: [`packages/research/research/src/types.ts:144`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:146`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4699,7 +4699,7 @@ Sources: [`packages/research/research/src/types.ts:82`](../packages/research/res
 
 SHA-256: `9dcd98874c522e742ea19361f706c2173ee3058c86ce56bd92d3caaacff472bd`
 
-Sources: [`packages/research/research/src/types.ts:156`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:158`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4720,7 +4720,7 @@ Sources: [`packages/research/research/src/types.ts:156`](../packages/research/re
 
 SHA-256: `eb73b0e0e79fa21231651fe01fdc9136c7d66517fcf0273f786528df1cfdc882`
 
-Sources: [`packages/research/research/src/types.ts:139`](../packages/research/research/src/types.ts)
+Sources: [`packages/research/research/src/types.ts:141`](../packages/research/research/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -4809,7 +4809,7 @@ Sources: [`packages/research/research/src/types.ts:70`](../packages/research/res
 | `status` | required | [`union (3 variants)`](#persistence-type-sha256-e1bce3cedb167ea84d4b5c045a2e48c4c44ac50ff8e0f1dc68b741e3d1431660) |
 | `statusCode` | optional | `number` |
 
-<a id="persistence-type-sha256-a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b"></a>
+<a id="persistence-type-sha256-9dd4e7a1ee792ac32be5c80f564bce8d49d346aa5567107f32d0f2407484782e"></a>
 
 <a id="persistence-type-packagesresearchresearchsrctypestsresearchstarted"></a>
 
@@ -4817,7 +4817,7 @@ Sources: [`packages/research/research/src/types.ts:70`](../packages/research/res
 
 ### `ResearchStarted`
 
-SHA-256: `a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b`
+SHA-256: `9dd4e7a1ee792ac32be5c80f564bce8d49d346aa5567107f32d0f2407484782e`
 
 Sources: [`packages/research/research/src/types.ts:123`](../packages/research/research/src/types.ts)
 
@@ -4835,6 +4835,7 @@ Sources: [`packages/research/research/src/types.ts:123`](../packages/research/re
 | `query` | required | `string` |
 | `reasoningEffort` | optional | `string` |
 | `requestKey` | optional | `string` |
+| `workflow` | optional | `string` |
 
 <a id="persistence-type-sha256-fab2bb09bc5e3b9db0685e8f5500b029af1a2b33e70bc703c1d5d0f596fbc1fd"></a>
 
@@ -8952,17 +8953,17 @@ SHA-256: `2a51521026afc8af908bb4dd436f5194339657b9cf0d0bc6297909fa0f29fd81`
 | `time` | required | `number` |
 | `type` | required | `"research/source"` |
 
-<a id="persistence-type-sha256-529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3"></a>
+<a id="persistence-type-sha256-a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c"></a>
 
 <a id="persistence-type-eventresearchstarted"></a>
 
 ### `{ type: "research/started" }`
 
-SHA-256: `529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3`
+SHA-256: `a75ce2460c0aff11afa12c5a18af38a952ca5d01294c8ed79bbda6f6f68f8f6c`
 
 | Property | Presence | Type |
 |---|---|---|
-| `data` | required | [`ResearchStarted`](#persistence-type-sha256-a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b) |
+| `data` | required | [`ResearchStarted`](#persistence-type-sha256-9dd4e7a1ee792ac32be5c80f564bce8d49d346aa5567107f32d0f2407484782e) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
 | `time` | required | `number` |

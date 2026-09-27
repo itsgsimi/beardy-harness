@@ -45,7 +45,7 @@ The [research subsystem reference](../../../docs/subsystems/research.md) records
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The abstract service declares the owner-scoped operations. `ResearchRunId` is a branded string; its serialized value is also the run Session ID. The run Session records its start, search and source outcomes, normalized findings, checkpoints, and terminal result; the caller Session records `research/linked`. The Session event map makes these types required on read by a harness that understands them. A trusted caller can select a general report category; the local provider refuses `fantasy_football` until its specialized workflow exists.
+The abstract service declares the owner-scoped operations. `ResearchRunId` is a branded string; its serialized value is also the run Session ID. The run Session records its start, search and source outcomes, normalized findings, checkpoints, and terminal result; the caller Session records `research/linked`. The Session event map makes these types required on read by a harness that understands them. A trusted caller can select a general report category, or pass a `ResearchWorkflow`: the provider records its name and prompt version, runs it with logged tool-free stages and the same ledger writes as the general engine, and commits its resolved report as the completed result.
 
 The native and Odysseus research tools use this package's page formatter and output schema. A page slices serialized JSON by Unicode code point, reports `next_offset` and `total_chars`, and carries the complete report artifact only when its caller supplies one. Both tools validate offsets before paging; an offset beyond the serialized response fails.
 
