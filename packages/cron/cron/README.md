@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The package runs agents on cron schedules. Configuration supplies read-only jobs; operators manage durable jobs through `cron_manage` and `/cron` within preset, workspace, count, interval, and approval limits. A started fire opens a Session with continuity notes. Every fire records an outcome, including `skipped` when the previous run or delivery remains pending. Discord delivery persists and retries without repeating model work. Shutdown interrupts active runs; restart records abandoned reservations and resumes at the next future match.
+The package runs agents on cron schedules. Configuration supplies read-only jobs; operators manage durable jobs through `cron_manage` and `/cron` within preset, workspace, count, interval, and approval limits. A started fire opens a Session with continuity notes. Every fire records an outcome, including `skipped` when prior work is pending or its local model route is intentionally unloaded. Discord delivery retries without repeating model work. Shutdown interrupts runs; restart records abandoned reservations and resumes at the next match.
 
 An active run exposes its `deliverChannel` to the Discord approval answerer only during that run. A run without a channel cannot obtain home-write approval.
 

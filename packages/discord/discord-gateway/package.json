@@ -40,6 +40,7 @@
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-cron": "workspace:*",
     "@deepseek-ai/dsh-health": "workspace:*",
+    "@deepseek-ai/dsh-local-model-control": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-permission-presets": "workspace:*",
     "@deepseek-ai/dsh-schedule": "workspace:*",
@@ -54,6 +55,7 @@
     "@deepseek-ai/dsh-user-questions": "workspace:*",
     "@deepseek-ai/dsh-workspace": "workspace:*"
   },
+  "peerDependenciesMeta": { "@deepseek-ai/dsh-local-model-control": { "optional": true } },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",
@@ -68,6 +70,7 @@
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-cron": "workspace:*",
     "@deepseek-ai/dsh-health": "workspace:*",
+    "@deepseek-ai/dsh-local-model-control": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-permission-presets": "workspace:*",
     "@deepseek-ai/dsh-schedule": "workspace:*",

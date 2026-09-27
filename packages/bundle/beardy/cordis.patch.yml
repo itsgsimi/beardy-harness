@@ -119,6 +119,11 @@
       config:
         jobs: []
 
+    # Personal backends, routes, groups, and operator presets are deployment data.
+    - id: local-model-control
+      name: '@deepseek-ai/dsh-local-model-control'
+      disabled: true
+
     # Endpoint targets and notice channel are supplied only by the deployment patch.
     - id: health
       name: '@deepseek-ai/dsh-health'

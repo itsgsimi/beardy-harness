@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { apply, assertConfig, Config, createSchedulerHost, mountJobs } from '../src/index.ts'
-import type { CronJobSpec, CronRunFinished, ResolvedConfig } from '../src/index.ts'
+import type { CronJobSpec, CronRunFinished, CronRunResult, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
 import { fakeTable } from './support.ts'
 import type { JobStateRecord } from '../src/domain.ts'
@@ -370,6 +370,27 @@ function storedRow(name: string, expression: string): Record<string, unknown> {
 const settle = (ms = 10): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('createSchedulerHost', () => {
+  it('records a local-model skip before opening an Agent Session', async () => {
+    const { ctx } = contextStub()
+    ctx.provide('localModels', {
+      unloadedForRoute: provider => provider === 'p' ? { backend: 'ornith',
+        intent: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } : undefined,
+      unloadedForHealthUrl: () => undefined,
+      backends: () => [],
+    })
+    const created = vi.spyOn(ctx.agents, 'create')
+    const skipped: CronRunResult[] = []
+    const host = createSchedulerHost(ctx, { turnTimeoutMs: 60_000, maxLiveRuns: 5,
+      onSkipped: (_job, _firedAt, result) => { skipped.push(result) } }, fakeScheduler().scheduler)
+    host.sync([{ ...JOB, notes: '' }])
+    host.trigger(JOB.name)
+    await vi.waitFor(() => { expect(skipped).toHaveLength(1) })
+    expect(skipped[0]?.failure?.code).toBe('LOCAL_MODEL_UNLOADED')
+    expect(skipped[0]?.failure?.message).toContain('ornith')
+    expect(created).not.toHaveBeenCalled()
+    await host.dispose()
+  })
+
   it('ignores callbacks from replaced or stopped timers and cancels a queued fire', async () => {
     const { ctx } = contextStub()
     const create = vi.spyOn(ctx.agents, 'create')
@@ -472,6 +493,29 @@ describe('createSchedulerHost', () => {
 })
 
 describe('apply', () => {
+  it('persists an intentional local-model skip with its reason and no Agent Session', async () => {
+    const { ctx, tables, emitted } = contextStub()
+    const create = vi.spyOn(ctx.agents, 'create')
+    ctx.provide('localModels', {
+      unloadedForRoute: provider => provider === 'p' ? { backend: 'ornith',
+        intent: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } : undefined,
+      unloadedForHealthUrl: () => undefined,
+      backends: () => [],
+    })
+    const fake = fakeScheduler()
+    await apply(ctx, config(), fake.scheduler)
+    fake.fire()
+    await vi.waitFor(() => {
+      const state = tables.get('state')?.rows.get(JOB.name) as JobStateRecord | undefined
+      expect(state?.lastRuns[0]).toMatchObject({ outcome: 'skipped', failure: { code: 'LOCAL_MODEL_UNLOADED' } })
+      expect(state?.lastRuns[0]?.failure?.message).toContain('unloaded by Goran')
+    })
+    expect(create).not.toHaveBeenCalled()
+    expect(emitted.find(item => item.event === 'cron/run-finished')).toMatchObject({
+      payload: { jobName: JOB.name, outcome: 'skipped' },
+    })
+  })
+
   it('records and delivers an overlapping scheduled fire as skipped', async () => {
     const releaseIdle = Promise.withResolvers<undefined>()
     const { ctx, tables, emitted } = contextStub({ agents: { create: async () => ({

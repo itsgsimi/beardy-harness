@@ -36,6 +36,53 @@ function fixture(statuses: number[], overrides: Partial<ResolvedConfig> = {}, cr
 }
 
 describe('configured endpoint health', () => {
+  it('pauses an intentionally unloaded endpoint without a down notice or HTTP request', async () => {
+    let paused = false
+    const notices: string[] = []
+    const fetcher = vi.fn(async () => new Response('', { status: 503 }))
+    const monitor = new HealthMonitor(config({ failureThreshold: 1 }), {
+      fetch: fetcher, resolveCredential: async () => undefined, now: () => 1,
+      deliver: async (transition) => { notices.push(transition.text); return true },
+      paused: () => paused ? { intent: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } : undefined,
+    })
+    monitors.push(monitor)
+    paused = true
+    expect(monitor.snapshot().probes[0]).toMatchObject({ state: 'paused', pausedBy: 'Goran',
+      pausedAt: '2026-09-27T18:00:00.000Z' })
+    await monitor.check()
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(notices).toEqual([])
+    paused = false
+    await monitor.check()
+    expect(monitor.snapshot().probes[0]?.state).toBe('down')
+    expect(notices).toEqual(['Probe main: down (HTTP 503).'])
+    paused = true
+    await monitor.check()
+    expect(monitor.snapshot().probes[0]?.state).toBe('paused')
+    expect(notices).toHaveLength(1)
+  })
+
+  it('suppresses a down transition when unload arrives during an HTTP check', async () => {
+    let paused = false
+    const entered = Promise.withResolvers<undefined>()
+    const response = Promise.withResolvers<Response>()
+    const notices: string[] = []
+    const monitor = new HealthMonitor(config({ failureThreshold: 1 }), {
+      fetch: async () => { entered.resolve(undefined); return await response.promise },
+      resolveCredential: async () => undefined, now: () => 1,
+      deliver: async (transition) => { notices.push(transition.text); return true },
+      paused: () => paused ? { intent: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } : undefined,
+    })
+    monitors.push(monitor)
+    const checking = monitor.check()
+    await entered.promise
+    paused = true
+    response.resolve(new Response('', { status: 503 }))
+    await checking
+    expect(monitor.snapshot().probes[0]?.state).toBe('paused')
+    expect(notices).toEqual([])
+  })
+
   it('goes down only after its failure threshold and recovers after its recovery threshold', async () => {
     const h = fixture([503, 503, 503, 200, 200, 200])
     await h.monitor.check()
@@ -194,6 +241,7 @@ describe('configured endpoint health', () => {
       credentials: { resolve: async () => undefined },
       serial: async () => true,
       provide: () => {},
+      get: () => undefined,
       on: () => () => {},
       effect: (mount: () => () => void | Promise<void>) => { disposeEffect = mount() },
       logger: { warn: () => {} },
@@ -219,6 +267,7 @@ describe('configured endpoint health', () => {
         credentials: { resolve: async () => undefined },
         serial: async () => true,
         provide: () => {},
+        get: () => undefined,
         on: () => () => {},
         effect: (mount: () => () => void | Promise<void>) => { disposeEffect = mount() },
         logger: { warn: (line: string) => { warned.resolve(line) } },
@@ -256,6 +305,7 @@ describe('configured endpoint health', () => {
         return true
       },
       provide: (_name: string, value: HealthStatus) => { status = value },
+      get: () => undefined,
       on: () => () => {},
       effect: (mount: () => () => void | Promise<void>) => { disposeEffect = mount() },
       logger: { warn: (line: string) => { warnings.push(line) } },

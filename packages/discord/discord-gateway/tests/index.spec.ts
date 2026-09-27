@@ -28,6 +28,10 @@ describe('health status lines', () => {
     const noNext: HealthStatus = { ...status, snapshot: () => ({ probes: [],
       lastCronFailure: { jobName: 'brief', sessionId: 's2', code: 'TIMED-OUT' } }) }
     expect(healthStatusLines(noNext)[1]).toBe('Last cron failure: brief, Session s2, TIMED-OUT, next none.')
+    const paused: HealthStatus = { ...status, snapshot: () => ({ probes: [
+      { name: 'ornith', state: 'paused', pausedBy: 'Goran', pausedAt: '2026-09-27T18:00:00.000Z' },
+    ] }) }
+    expect(healthStatusLines(paused)[0]).toBe('Probes: ornith paused (unloaded by Goran at 2026-09-27T18:00:00.000Z)')
   })
 
   it('reads the current health snapshot for each status command', () => {
@@ -37,6 +41,14 @@ describe('health status lines', () => {
     expect(currentHealthStatusLines(ctx)).toContain('Probes: main healthy')
     state = 'down'
     expect(currentHealthStatusLines(ctx)).toContain('Probes: main down')
+    ctx.provide('localModels', {
+      unloadedForRoute: () => undefined,
+      unloadedForHealthUrl: () => undefined,
+      backends: () => [{ name: 'ornith', routes: ['subagent'],
+        intent: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } },
+      { name: 'qwen-strix', routes: ['strix'] }],
+    })
+    expect(currentHealthStatusLines(ctx)).toContain('Local models: ornith unloaded by Goran at 2026-09-27T18:00:00.000Z')
   })
 })
 

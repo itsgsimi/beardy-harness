@@ -778,7 +778,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/cron/cron/src/index.ts:123`](../packages/cron/cron/src/index.ts)
+- `source`: [`packages/cron/cron/src/index.ts:124`](../packages/cron/cron/src/index.ts)
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
@@ -893,7 +893,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/discord/discord-gateway/src/index.ts:96`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:97`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -1557,7 +1557,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-health`
 
 - `inject`: `credentials`
-- `source`: [`packages/health/health/src/index.ts:31`](../packages/health/health/src/index.ts)
+- `source`: [`packages/health/health/src/index.ts:32`](../packages/health/health/src/index.ts)
 
 ```ts config-catalog
 /** Health polling and notification bounds. */
@@ -2262,6 +2262,59 @@ export interface ReplayModelConfig {
 export type Config = Readonly<Record<string, never>>
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-retry -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-local-model-control -->
+<a id="deepseek-aidsh-local-model-control"></a>
+
+## `@deepseek-ai/dsh-local-model-control`
+
+- `inject`: `commands` · `subprocess`
+- `source`: [`packages/health/local-model-control/src/index.ts:45`](../packages/health/local-model-control/src/index.ts)
+
+```ts config-catalog
+/** Controller configuration; no backend exists by default. */
+export interface Config {
+  /** Absolute path to the durable intentional-unload state. */
+  readonly stateFile: string
+  /** Operator name recorded for successful unloads. */
+  readonly operatorName: string
+  /** Preset IDs permitted to run human control commands. */
+  readonly allowedPresets: string[]
+  /** Fixed backends with distinct names and provider routes. */
+  readonly backends: BackendConfig[]
+  /** Named commands mapped to configured backend IDs. */
+  readonly groups?: Record<string, string[]>
+  /** Maximum duration of a control subprocess, in milliseconds. */
+  readonly commandTimeoutMs?: number
+  /** Interval between load health checks, in milliseconds. */
+  readonly healthPollMs?: number
+  /** Termination grace for a timed-out subprocess, in milliseconds. */
+  readonly graceMs?: number
+}
+
+/** One fixed deployment backend and its provider routes. */
+export interface BackendConfig {
+  /** Unique human-facing backend ID. */
+  readonly name: string
+  /** Local Docker or a remote halorun profile over SSH. */
+  readonly kind: 'docker' | 'halorun'
+  /** Docker container name for a Docker backend. */
+  readonly container?: string
+  /** Halorun profile name for a remote backend. */
+  readonly profile?: string
+  /** SSH user and host for a remote backend. */
+  readonly sshTarget?: string
+  /** Optional remote watchdog pause file for a halorun backend. */
+  readonly holdFile?: string
+  /** Exact provider route names blocked during intentional unload. */
+  readonly routes: string[]
+  /** HTTP endpoint checked after load and matched to a health probe. */
+  readonly healthUrl?: string
+  /** Maximum health wait after the load command succeeds, in milliseconds. */
+  readonly loadTimeoutMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-local-model-control -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-log-exporter -->
 <a id="deepseek-aidsh-log-exporter"></a>

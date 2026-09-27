@@ -20,6 +20,21 @@
   config:
     root: !!js dshHomePath('sessions')
     compression: none
+- id: local-model-control
+  disabled: false
+  config:
+    stateFile: !!js dshHomePath('local-model-control.json')
+    operatorName: Goran
+    allowedPresets: [beardy, beardy-discord]
+    backends:
+      - name: ornith
+        kind: docker
+        container: snapshot-ornith
+        routes: [subagent]
+        healthUrl: http://127.0.0.1:8000/v1/models
+        loadTimeoutMs: 300000
+    groups:
+      gaming: [ornith]
 - id: web-runtime
   config:
     openBrowser: false

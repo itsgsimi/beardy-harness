@@ -263,6 +263,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | Package | Config | Description |
 |---|---|---|
 | `@deepseek-ai/dsh-health` | yes | Configured HTTP endpoint health and bounded Host status for Beardy |
+| `@deepseek-ai/dsh-local-model-control` | yes | Human control and durable intentional-unload state for local model backends |
 
 ## hooks
 

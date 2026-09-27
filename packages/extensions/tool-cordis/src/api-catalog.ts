@@ -6209,7 +6209,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ProbeSnapshot',
-    declaration: 'export interface ProbeSnapshot {\n    readonly name: string;\n    readonly state: \'unknown\' | \'healthy\' | \'down\';\n    readonly checkedAt?: number;\n    readonly cause?: string;\n}',
+    declaration: 'export interface ProbeSnapshot {\n    readonly name: string;\n    readonly state: \'unknown\' | \'healthy\' | \'down\' | \'paused\';\n    readonly checkedAt?: number;\n    readonly cause?: string;\n    readonly pausedBy?: string;\n    readonly pausedAt?: string;\n}',
   },
   {
     name: 'ProductTelemetryRecord',

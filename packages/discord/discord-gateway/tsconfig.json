@@ -36,6 +36,9 @@
       "path": "../../health/health"
     },
     {
+      "path": "../../health/local-model-control"
+    },
+    {
       "path": "../../credentials/credentials"
     },
     {

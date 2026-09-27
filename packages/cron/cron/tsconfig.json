@@ -17,6 +17,7 @@
     { "path": "../../storage/storage-domain" },
     { "path": "../../interaction/user-approval" },
     { "path": "../../core/agent-default-model" },
+    { "path": "../../health/local-model-control" },
     { "path": "../../preset/agent-preset-registry" },
     { "path": "../../interaction/permission-presets" },
     { "path": "../../session/session-title" },
