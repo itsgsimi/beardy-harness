@@ -10,7 +10,10 @@ describe('cron delivery content', () => {
     ['no text, report wanted', { outcome: 'no-text-answer', text: '', reportOutcome: true }, 'The scheduled run finished without a text answer.'],
     ['timed out, report wanted', { outcome: 'timed-out', text: '', reportOutcome: true }, 'The scheduled run timed out.'],
     ['interrupted, report wanted', { outcome: 'interrupted', text: '', reportOutcome: true }, 'The scheduled run was interrupted.'],
-    ['failed to start, report wanted', { outcome: 'failed', text: '', reportOutcome: true }, 'The scheduled run could not start.'],
+    ['failed, report wanted', { outcome: 'failed', text: '', reportOutcome: true }, 'The scheduled run failed.'],
+    ['failed after text, code only', { outcome: 'failed', text: 'partial', failure: { code: 'SERVER', message: 'private detail' }, reportOutcome: true }, 'The scheduled run failed (SERVER).'],
+    ['failed with unsafe code', { outcome: 'failed', text: '', failure: { code: 'secret: abc', message: 'private detail' }, reportOutcome: true }, 'The scheduled run failed.'],
+    ['failed after text, report declined', { outcome: 'failed', text: 'partial', failure: { code: 'SERVER', message: 'private detail' }, reportOutcome: false }, undefined],
     ['no text, report declined', { outcome: 'timed-out', text: '', reportOutcome: false }, undefined],
   ]
   it.each(runs)('maps %s to the delivery text', (_name, run, expected) => {
@@ -38,7 +41,7 @@ describe('attachCronDelivery', () => {
       deliverChannelId: CHANNEL, reportOutcome: true,
     })
     await settle()
-    expect(h.posted[0]?.content).toBe('The scheduled run could not start.')
+    expect(h.posted[0]?.content).toBe('The scheduled run failed.')
   })
 
   it('ignores runs without a delivery channel and runs with nothing to say', async () => {

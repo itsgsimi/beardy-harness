@@ -13,9 +13,9 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-permission-presets'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-title'
-import { sleep, lastAssistantText, openUnattendedSession, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
+import { sleep, lastAssistantText, lastTurnEndReason, openUnattendedSession, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 /* jscpd:ignore-end */
 import type { CronJobSpec, CronRunResult, ScheduledJobSpec } from './types.ts'
@@ -87,6 +87,14 @@ export function runTitle(job: CronJobSpec, firedAt: number): string {
   return job.title ?? `${job.name} ${new Date(firedAt).toISOString()}`
 }
 
+/** Merge-extensible turn endings outside the completed case never supply a cron answer. */
+function completedTurn(reason: TurnEndReason): boolean {
+  switch (reason.kind) {
+    case 'completed': return true
+    default: return false
+  }
+}
+
 /**
  * Create a runner that turns cron fires into Agent Sessions.
  *
@@ -134,20 +142,48 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
           },
         }))
         signal.throwIfAborted()
+        const timeoutMs = job.turnTimeoutMs ?? deps.turnTimeoutMs
         const outcome = await Promise.race([
           agent.whenIdle().then(() => 'idle' as const),
-          (deps.wait ?? sleep)(deps.turnTimeoutMs, runSignal).then(() => 'timeout' as const),
+          (deps.wait ?? sleep)(timeoutMs, runSignal).then(() => 'timeout' as const),
         ])
         if (outcome === 'timeout') {
-          ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(deps.turnTimeoutMs)}ms; `
+          ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(timeoutMs)}ms; `
             + 'the run is cancelled and its session released')
           await release(session)
           return { outcome: 'timed-out', sessionId, text: '' }
         }
         signal.throwIfAborted()
         // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-        const answer = lastAssistantText(agent.session.ownEvents(), firstSeq)
+        const events = agent.session.ownEvents()
+        const ending = lastTurnEndReason(events, firstSeq)
         completed.add(session)
+        if (ending?.kind === 'error') {
+          const failure = { code: ending.error.code, message: ending.error.message }
+          ctx.logger.error(`dsh-cron: job "${job.name}" run failed (${failure.code}): ${failure.message}`)
+          return { outcome: 'failed', sessionId, text: '', failure }
+        }
+        if (ending?.kind === 'aborted' || ending?.kind === 'interrupted') {
+          return { outcome: 'interrupted', sessionId, text: '' }
+        }
+        if (ending === undefined || ending.kind === 'blocked') {
+          const failure = ending === undefined
+            ? { code: 'MISSING_TURN_END', message: 'The run became idle without a turn ending.' }
+            : { code: 'BLOCKED', message: 'The turn ended blocked.' }
+          ctx.logger.error(`dsh-cron: job "${job.name}" run failed (${failure.code}): ${failure.message}`)
+          return { outcome: 'failed', sessionId, text: '', failure }
+        }
+        if (ending.kind === 'max-tokens') {
+          const failure = { code: 'MAX_TOKENS', message: 'The turn reached its output token limit.' }
+          ctx.logger.error(`dsh-cron: job "${job.name}" run failed (${failure.code}): ${failure.message}`)
+          return { outcome: 'failed', sessionId, text: '', failure }
+        }
+        if (!completedTurn(ending)) {
+          const failure = { code: 'UNKNOWN_TURN_END', message: 'The turn ended with an unsupported reason.' }
+          ctx.logger.error(`dsh-cron: job "${job.name}" run failed (${failure.code}): ${failure.message}`)
+          return { outcome: 'failed', sessionId, text: '', failure }
+        }
+        const answer = lastAssistantText(events, firstSeq)
         if (answer === '') {
           ctx.logger.info(`dsh-cron: job "${job.name}" finished without a text answer`)
           return { outcome: 'no-text-answer', sessionId, text: '' }
@@ -159,7 +195,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         if (signal.aborted) return { outcome: 'interrupted', sessionId, text: '' }
         const failure = session === undefined ? 'could not start a session' : 'run reported a failure'
         ctx.logger.error(`dsh-cron: job "${job.name}" ${failure}: ${errorChain(error)}`)
-        return { outcome: 'failed', sessionId, text: '' }
+        return { outcome: 'failed', sessionId, text: '', failure: { code: 'UNKNOWN', message: errorChain(error) } }
       } finally {
         bound.abort(new Error('cron turn settled'))
       }

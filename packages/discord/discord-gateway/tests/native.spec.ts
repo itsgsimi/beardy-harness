@@ -40,7 +40,7 @@ function harness(overrides: Partial<NativeInteractionDeps> = {}, productionTrans
   const warn = vi.fn<NativeInteractionDeps['warn']>()
   const owner = createNativeInteractions({ signal: abort.signal,
     policy: { allowedUserIds: new Set([USER]), allowedChannelIds: new Set([GUILD_CHANNEL]),
-      guildRequireMention: true, botUserId: () => APP },
+      guildRequireMention: true, botUserId: () => APP, laneUserIds: new Set<string>() },
     settings: SETTINGS, applicationId: () => APP,
     commands: () => [{ name: 'status', description: 'Show status' }, { name: 'plan', description: 'Plan', input: { hint: 'Task' } }],
     execute, component: resolveComponent, ...(productionTransport ? {} : { transport: { reply, edit, followup } }), warn, ...overrides,
@@ -67,14 +67,14 @@ describe('native interaction execution', () => {
     expect(h.execute).not.toHaveBeenCalled()
     acknowledged.resolve(undefined)
     await vi.waitFor(() => { expect(h.edit).toHaveBeenCalledWith(subject, { content: 'Current status' }, expect.any(AbortSignal)) })
-    expect(h.execute).toHaveBeenCalledWith(CHANNEL, '/plan  first\nsecond ', expect.any(AbortSignal))
+    expect(h.execute).toHaveBeenCalledWith(CHANNEL, { userId: USER, directMessage: true }, '/plan  first\nsecond ', expect.any(AbortSignal))
   })
 
   it('admits an explicit command in an allowlisted guild channel without a mention', async () => {
     const h = harness()
     h.owner.handle({ ...interaction(), guildId: GUILD, channelId: GUILD_CHANNEL })
     await vi.waitFor(() => { expect(h.edit).toHaveBeenCalledTimes(1) })
-    expect(h.execute).toHaveBeenCalledWith(GUILD_CHANNEL, '/status', expect.any(AbortSignal))
+    expect(h.execute).toHaveBeenCalledWith(GUILD_CHANNEL, { userId: USER, directMessage: false }, '/status', expect.any(AbortSignal))
   })
 
   it.each([{ userId: '138391763999129699' }, { guildId: GUILD, channelId: CHANNEL }])('rejects an unauthorized invocation %j', async (overrides) => {
@@ -110,7 +110,7 @@ describe('native interaction execution', () => {
     const h = harness()
     h.owner.handle(component('dsh:command:status'))
     await vi.waitFor(() => { expect(h.edit).toHaveBeenCalledTimes(1) })
-    expect(h.execute).toHaveBeenCalledWith(CHANNEL, '/status', expect.any(AbortSignal))
+    expect(h.execute).toHaveBeenCalledWith(CHANNEL, { userId: USER, directMessage: true }, '/status', expect.any(AbortSignal))
     const prompt = { ...component('dsh:question:pending-id'), id: DiscordInteractionId('1472404859679670457') }
     h.owner.handle(prompt)
     await vi.waitFor(() => { expect(h.edit).toHaveBeenCalledTimes(2) })
@@ -206,7 +206,7 @@ describe('native interaction execution', () => {
     const entered = Promise.withResolvers<undefined>()
     const left = Promise.withResolvers<undefined>()
     const h = harness()
-    h.execute.mockImplementation(async (_channel, _line, signal) => {
+    h.execute.mockImplementation(async (_channel, _actor, _line, signal) => {
       entered.resolve(undefined)
       await new Promise<void>((_resolve, reject) => {
         signal.addEventListener('abort', () => { left.resolve(undefined); reject(new Error(TOKEN)) }, { once: true })

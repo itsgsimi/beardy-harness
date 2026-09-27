@@ -65,49 +65,7 @@ export async function openUnattendedSession(
   spec: UnattendedSessionSpec,
   signal: AbortSignal,
 ): Promise<UnattendedSession> {
-  ctx.permissionPresets.resolve(spec.permissionPreset)
-  const preset = await ctx.agentPresets.resolve(spec.agentPreset)
-  await using presetScope = await ctx.agentPresets.acquireScope(preset.id)
-  void presetScope
-  signal.throwIfAborted()
-
-  const workspace = await ctx.workspaceRegistry.create(spec.workspacePath)
-  signal.throwIfAborted()
-  const handle = await ctx.agents.create({
-    sessionId: spec.sessionId,
-    signal,
-    meta: { cwd: workspace.path, agentPreset: preset.id },
-    agentOptions: spec.agentOptions,
-    setup: async (agentCtx, agent) => {
-      await ctx.agentPresets.mount(agentCtx, preset.id)
-      return spec.setup?.(agentCtx, agent)
-    },
-  })
-
-  let attached = false
-  try {
-    signal.throwIfAborted()
-    await workspace.attachSession(spec.sessionId)
-    attached = true
-    signal.throwIfAborted()
-    ctx.permissionPresets.set(handle.agent.session, spec.permissionPreset)
-    ctx.sessionTitle.rename(handle.agent.session, spec.title)
-  } catch (error: unknown) {
-    if (attached) {
-      try {
-        await workspace.detachSession(spec.sessionId)
-      } catch (rollbackError: unknown) {
-        reportRollbackFailure(ctx, `Workspace detach for Session "${spec.sessionId}"`, rollbackError)
-      }
-    }
-    try {
-      await handle.dispose()
-    } catch (rollbackError: unknown) {
-      reportRollbackFailure(ctx, `Agent disposal for Session "${spec.sessionId}"`, rollbackError)
-    }
-    throw error
-  }
-  return { sessionId: spec.sessionId, handle, workspace }
+  return openSession(ctx, { kind: 'create', spec }, signal)
 }
 
 /** One resumed unattended Session, specified by the durable identity its ingress already holds. */
@@ -147,6 +105,16 @@ export async function resumeUnattendedSession(
   spec: ResumeUnattendedSessionSpec,
   signal: AbortSignal,
 ): Promise<UnattendedSession> {
+  return openSession(ctx, { kind: 'resume', spec }, signal)
+}
+
+/** Shared setup and rollback for create and resume; the mode owns Agent opening and titling. */
+async function openSession(
+  ctx: Context,
+  request: { kind: 'create'; spec: UnattendedSessionSpec } | { kind: 'resume'; spec: ResumeUnattendedSessionSpec },
+  signal: AbortSignal,
+): Promise<UnattendedSession> {
+  const { spec } = request
   ctx.permissionPresets.resolve(spec.permissionPreset)
   const preset = await ctx.agentPresets.resolve(spec.agentPreset)
   await using presetScope = await ctx.agentPresets.acquireScope(preset.id)
@@ -155,15 +123,24 @@ export async function resumeUnattendedSession(
 
   const workspace = await ctx.workspaceRegistry.create(spec.workspacePath)
   signal.throwIfAborted()
-  const handle = await ctx.agents.resume({
-    resumeSessionId: spec.sessionId,
-    agentOptions: spec.agentOptions,
-    signal,
-    setup: async (agentCtx, agent) => {
-      await ctx.agentPresets.mount(agentCtx, preset.id)
-      return spec.setup?.(agentCtx, agent)
-    },
-  })
+  const setup: AgentSetup = async (agentCtx, agent) => {
+    await ctx.agentPresets.mount(agentCtx, preset.id)
+    return spec.setup?.(agentCtx, agent)
+  }
+  const handle = request.kind === 'create'
+    ? await ctx.agents.create({
+      sessionId: spec.sessionId,
+      signal,
+      meta: { cwd: workspace.path, agentPreset: preset.id },
+      agentOptions: spec.agentOptions,
+      setup,
+    })
+    : await ctx.agents.resume({
+      resumeSessionId: spec.sessionId,
+      agentOptions: spec.agentOptions,
+      signal,
+      setup,
+    })
 
   let attached = false
   try {
@@ -172,6 +149,7 @@ export async function resumeUnattendedSession(
     attached = true
     signal.throwIfAborted()
     ctx.permissionPresets.set(handle.agent.session, spec.permissionPreset)
+    if (request.kind === 'create') ctx.sessionTitle.rename(handle.agent.session, request.spec.title)
   } catch (error: unknown) {
     if (attached) {
       try {

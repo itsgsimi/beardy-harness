@@ -9,6 +9,7 @@ import type { HttpFetchLimits, HttpFetchResolver } from '@deepseek-ai/dsh-web-fe
 import * as fetchPlugin from '@deepseek-ai/dsh-web-fetch-http'
 import { createPinnedLookup, isPublicIpAddress, publicHttpNetwork, requestPinned, resolvePublicAddresses } from '../src/network.ts'
 import {
+  assertHostNotBlocked,
   classifyContentType,
   decoderForCharset,
   isSameOrigin,
@@ -24,6 +25,7 @@ const limits: HttpFetchLimits = {
   timeoutMs: 5_000,
   maxRedirects: 5,
   userAgent: 'test-agent/1.0',
+  blockedHosts: [],
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void
@@ -64,6 +66,17 @@ describe('policy helpers', () => {
     const exact = `${prefix}${'a'.repeat(WEB_FETCH_MAX_URL_LENGTH - prefix.length)}`
     expect(validateFetchUrl(exact).href).toBe(exact)
     expect(() => validateFetchUrl(`${exact}a`)).toThrow(expect.objectContaining({ code: 'WEB_INVALID_URL' }))
+  })
+
+  it('blocks canonical hostnames and subdomains, but not lookalikes', () => {
+    const blocked = ['aliyuncs.com']
+    expect(() => { assertHostNotBlocked(new URL('https://aliyuncs.com./x'), blocked) }).toThrow(expect.objectContaining({
+      code: 'WEB_BLOCKED_URL',
+      message: 'fetching from host "aliyuncs.com" is blocked',
+    }))
+    expect(() => { assertHostNotBlocked(new URL('https://x.ALIYUNCS.com./x'), blocked) }).toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    expect(() => { assertHostNotBlocked(new URL('https://notaliyuncs.com/x'), blocked) }).not.toThrow()
+    expect(() => { assertHostNotBlocked(new URL('https://aliyuncs.com.org/x'), blocked) }).not.toThrow()
   })
 
   it('classifies content types', () => {
@@ -428,6 +441,35 @@ describe('HttpFetchProvider redirects', () => {
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_REDIRECT_BLOCKED' }))
   })
 
+  it.each(['aliyuncs.com.', 'x.ALIYUNCS.com.'])('blocks a redirect to %s before contacting that host', async (blockedHost) => {
+    const { port } = server.address() as AddressInfo
+    let requests = 0
+    handler = (_req, res) => {
+      requests++
+      res.writeHead(302, { location: `http://${blockedHost}/target` })
+      res.end()
+    }
+    const resolveAddresses = vi.fn<HttpFetchResolver>(async () => [{ address: '127.0.0.1', family: 4 }])
+    await expect(new HttpFetchProvider({ ...limits, blockedHosts: ['aliyuncs.com'] }, resolveAddresses)
+      .fetch({ url: `http://notaliyuncs.com:${port}/start` }))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    expect(requests).toBe(1)
+    expect(resolveAddresses).toHaveBeenCalledOnce()
+  })
+
+  it('follows a same-origin redirect on a non-matching lookalike host', async () => {
+    const { port } = server.address() as AddressInfo
+    handler = (req, res) => {
+      if (req.url === '/start') { res.writeHead(302, { location: '/end' }); res.end() }
+      else { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('allowed') }
+    }
+    const resolveAddresses: HttpFetchResolver = async () => [{ address: '127.0.0.1', family: 4 }]
+    const result = await new HttpFetchProvider({ ...limits, blockedHosts: ['aliyuncs.com'] }, resolveAddresses)
+      .fetch({ url: `http://notaliyuncs.com:${port}/start` })
+    expect(result.body.content).toBe('allowed')
+    expect(result.url).toBe(`http://notaliyuncs.com:${port}/end`)
+  })
+
   it('re-validates a redirect target, rejecting same-origin credentials in the Location', async () => {
     const { port } = server.address() as AddressInfo
     handler = (_req, res) => { res.writeHead(302, { location: `http://user:pass@127.0.0.1:${port}/` }); res.end() }
@@ -525,6 +567,21 @@ describe('HttpFetchProvider invalid URLs and abort', () => {
   it('rejects a non-http scheme before any network access', async () => {
     await expect(provider().fetch({ url: 'ftp://example.com' }))
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_INVALID_URL' }))
+  })
+
+  it.each(['aliyuncs.com.', 'x.ALIYUNCS.com.'])('rejects a direct fetch of %s before resolving it', async (blockedHost) => {
+    const resolveAddresses = vi.fn<HttpFetchResolver>()
+    await expect(new HttpFetchProvider({ ...limits, blockedHosts: ['aliyuncs.com'] }, resolveAddresses).fetch({ url: `https://${blockedHost}/page` }))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    expect(resolveAddresses).not.toHaveBeenCalled()
+  })
+
+  it('fetches a direct URL on a non-matching lookalike host', async () => {
+    const { port } = server.address() as AddressInfo
+    const resolveAddresses: HttpFetchResolver = async () => [{ address: '127.0.0.1', family: 4 }]
+    const result = await new HttpFetchProvider({ ...limits, blockedHosts: ['aliyuncs.com'] }, resolveAddresses)
+      .fetch({ url: `http://notaliyuncs.com:${port}/page` })
+    expect(result.body.content).toBe('default')
   })
 
   it('rejects credentials in the URL', async () => {
@@ -643,6 +700,29 @@ describe('web-fetch-http plugin registration', () => {
     await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
     await expect(ctx.plugin(fetchPlugin, { maxResponseBytes: -1 }))
       .rejects.toThrow(/maxResponseBytes must be a positive finite number/)
+  })
+
+  it('rejects malformed blocked host entries at construction', async () => {
+    for (const entry of ['https://aliyuncs.com', 'aliyuncs.com/path', 'aliyuncs.com:443', 'aliyuncs.com..', 'bad_host', '-aliyuncs.com', '', 'a'.repeat(64) + '.com']) {
+      const ctx = new Context()
+      await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
+      await expect(ctx.plugin(fetchPlugin, { blockedHosts: [entry] }))
+        .rejects.toThrow(/blockedHosts entry ".*" must be a bare DNS hostname/)
+    }
+  })
+
+  it('canonicalizes a mixed-case blocked host entry with a trailing dot', async () => {
+    const ctx = new Context()
+    await ctx.plugin(WebRuntime, { fetchProvider: LOCAL_FETCH_PROVIDER_ID })
+    await ctx.plugin(fetchPlugin, { blockedHosts: ['ALIYUNCS.COM.'] })
+    await expect(ctx.web.fetch({ url: 'https://x.ALIYUNCS.com./' }))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    await expect(ctx.web.fetch({ url: 'https://aliyuncs.com/' }))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
+    const { port } = server.address() as AddressInfo
+    handler = (_req, res) => { res.writeHead(302, { location: 'https://aliyuncs.com./' }); res.end() }
+    await expect(ctx.web.fetch({ url: `http://notaliyuncs.com:${port}/start` }))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_BLOCKED_URL' }))
   })
 
   it('rejects a zero timeout at construction', async () => {

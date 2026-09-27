@@ -24,8 +24,8 @@
   en: 8adf7f9ef2574dc9
   zh: 3ec0e8b530410130
 /deepseek-ai-dsh-cron/model-experience/fire-prompt/token-effect:
-  en: e1a5fd1978646d35
-  zh: 8b45c5855803b473
+  en: e2118771115bfca0
+  zh: f9b56f0e4fcc44e8
 /deepseek-ai-dsh-cron/model-experience/fire-prompt/kv-cache-effect:
   en: 11eb2f96b1f372d6
   zh: b46e95af943e5768
@@ -33,17 +33,17 @@
   en: 88bd8293707d2c75
   zh: 3a178587c5af43af
 /deepseek-ai-dsh-cron/model-experience/cron-manage-tool/what-the-model-sees:
-  en: 99e2845967072de4
-  zh: 6a2874a951f99a43
+  en: 7e9e71f5caedf069
+  zh: bdc44b4188c6553d
 /deepseek-ai-dsh-cron/model-experience/cron-manage-tool/token-effect:
-  en: 6bf216172520d577
-  zh: 1ae556d5edf6bf0c
+  en: 1b753ecda2182657
+  zh: 583b4b2dba4e0fcc
 /deepseek-ai-dsh-cron/model-experience/cron-manage-tool/kv-cache-effect:
   en: b37c37c560cf6b32
   zh: e76c0877b4732e6a
 /deepseek-ai-dsh-cron/known-limitations-and-deferred-work:
-  en: 4c07769652007701
-  zh: 5335c92bcbcdfbbd
+  en: d7edc6981bc26e9f
+  zh: a7ef921fe9075674
 /deepseek-ai-dsh-cron/known-limitations-and-deferred-work/dev-note:
   en: a0cb0712be492f61
   zh: 837b0df89da33aeb

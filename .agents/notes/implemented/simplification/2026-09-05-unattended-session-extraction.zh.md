@@ -12,6 +12,8 @@ Webhook 入口、cron 调度器与 Discord 网关各自手写了相同的根 Ses
 
 **由一个库拥有开启流程。** 新包 `packages/session/unattended-session/` 导出 `openUnattendedSession(ctx, spec, signal)`：完整的有序事务，含 standing key、信号绑定、在 standing/workspace/create/attach 之后的取消检查，以及带报告的回滚（已附加时先分离，再处置，各自独立 `try`，警告以 `unattended session:` 为前缀）。spec 携带调用方选定的带品牌 `sessionId`、预设名、工作区路径、标题、解析后的 `agentOptions`，以及在预设挂载后组合的可选额外 `AgentSetup`——webhook 的创建时模型选择即经此固定。提示词准入刻意留在各入口：`webhook`/`cron`/`discord` source block 由入口拥有，纳入 helper 只会为无共享收益的事强制引入判别式 spec。
 
+`resumeUnattendedSession` 复用相同的预设与工作区准备、附加、权限应用，以及分离和处置回滚。带判别字段的开启路径把 Agent 创建和仅创建时设置的标题同持久化日志恢复分开，使缺失的恢复日志保留自身的失败原因。
+
 **回合辅助函数一并迁移。** `sleep(ms, signal)`、返回 `'idle' | 'timeout'` 的 `awaitTurn(agent, { timeoutMs, signal, wait? })`，以及 `lastAssistantText(events, firstSeq)` 取代三份本地副本；Discord 回发器保留其已解析的 `wait` 接缝。消费方保留各自的结果日志与处置簿记（cron 的在跑上限、网关的按频道映射），因为这些是入口策略而非开启机制。
 
 ## Alternatives considered

@@ -339,6 +339,24 @@ it('imports the removed settings.yaml into the profile once and keeps rejected s
   expect(blocked.agentDefaultModel.currentSelection().model).toBe('legacy')
 })
 
+it('imports the legacy subagent model section into its Web profile entry', async () => {
+  const { ctx, home, profile, start } = await fixture({ modelSelection: true })
+  await ctx.fiber.dispose()
+  writeFileSync(join(home, 'settings.yaml'), 'subagent-model-selection:\n  enabled: true\n  allowedModels:\n    - provider: subagent\n      model: ornith\n')
+  const restored = await start()
+  await vi.waitFor(() => {
+    expect(restored.settings.describe().find(row => row.ns === 'subagent-model-selection-settings')?.value)
+      .toEqual({ enabled: true, allowedModels: [{ provider: 'subagent', model: 'ornith' }] })
+  })
+  expect(parse(readFileSync(profile.patchPath, 'utf8'))).toContainEqual({
+    id: 'subagent-model-selection-settings',
+    name: 'cordis:model-selection',
+    config: { enabled: true, allowedModels: [{ provider: 'subagent', model: 'ornith' }] },
+  })
+  expect(existsSync(join(home, 'settings.yaml'))).toBe(false)
+  expect(existsSync(join(home, 'settings.yaml.imported'))).toBe(true)
+})
+
 it('describes an entry whose required field only the profile supplies, and reports a failed refresh instead of crashing', async () => {
   const { ctx, profile, start } = await fixture({
     schema: z.object({ ordinary: z.string(), required: z.string().required(), count: z.number().default(2).volatile() }),

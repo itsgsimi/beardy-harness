@@ -30,7 +30,7 @@ kind: "package-reference"
 
 #### Token 影响
 
-每次触发对应一条用户消息——提示词、连续性指令与笔记——加上该运行自身工具调用产生的消息。每次运行都是独立会话，因此成本按触发重复，而不是累积进一段很长的对话；`turnTimeoutMs` 限制单次运行最多持续多久。
+每次触发对应一条用户消息——提示词、连续性指令与笔记——加上该运行自身工具调用产生的消息。每次运行都是独立会话，因此成本按触发重复，而不是累积进一段很长的对话；任务可选的 `turnTimeoutMs` 限制其运行时长，未设置时使用插件的 `turnTimeoutMs`。
 
 #### KV Cache 影响
 
@@ -40,11 +40,11 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-一个带 `action` 枚举的工具：`list`、`create`、`update`、`delete`、`pause`、`resume`、`run_now` 与 `note`。create 需要写明计划、时区、提示词、预设组合、工作区，可选标题与投递渠道。结果是简短的确认行；`list` 额外为每个任务给出一行，标明其来源（`config` 或 `stored`）与armed 状态。
+一个带 `action` 枚举的工具：`list`、`create`、`update`、`delete`、`pause`、`resume`、`run_now` 与 `note`。create 必须提供名称、计划、时区、提示词、预设组合与工作区；标题、任务专属超时和投递渠道可选。update 必须提供名称及至少一个修改字段；delete、pause、resume、run_now 必须提供名称；note 必须提供名称和替换笔记。结果是简短的确认行；`list` 额外为每个任务给出一行，标明其来源（`config` 或 `stored`）与armed 状态。
 
 #### Token 影响
 
-只要某个会话挂载了该工具，其 schema 就位于该会话的每一次请求里；每次调用追加一个小结果。护栏拒绝会以工具错误的形式返回并点明被违反的界限，因此一次被拒的创建只消耗一个回合。
+只要某个会话挂载了该工具，其 schema 就位于该会话的每一次请求里；每次调用追加一个小结果。缺少字段的错误会列出该操作所需字段。超过配置的 `notesMaxChars` 上限的笔记会被拒绝，并要求压缩内容；其他护栏拒绝会点明被违反的界限。
 
 #### KV Cache 影响
 
@@ -54,8 +54,8 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **放开之前创建保持锁定** —— `allowedAgentPresets`、`allowedPermissionPresets` 与 `allowedWorkspaceRoots` 默认为空，因此存储任务的创建会被拒绝，直到操作者在配置中列入允许的预设与根目录。
-- **受审批的写入需要审批服务** —— `requireApproval` 开启（默认）且没有挂载审批服务时，create、update、delete 会直接拒绝，而不是未经批准落地。
+- **放开之前创建保持锁定** —— `allowedAgentPresets`、`allowedPermissionPresets` 与 `allowedWorkspaceRoots` 默认为空，因此存储任务的创建会被拒绝，直到操作者在配置中列入允许的预设与根目录。创建和更新时通过 `realpath` 比较工作区与根目录；每次触发都会重新检查存储任务的工作区，若越出根目录就记录失败结果。
+- **受审批的写入需要审批服务** —— `requireApproval` 开启（默认）且没有挂载审批服务时，create、update、delete、resume、run_now 与 note 会直接拒绝，而不是未经批准落地。审批请求显示拟创建的任务或字段变化，工具只应用获批的值。
 - **投递需要接受交接的监听器** —— `cron/run-finished` 使用等待完成的串行交接。面向渠道的结果会保持待投递，直到监听器持久接受；调度器会等候该确认，再开始同一任务的下一次运行。
 - **停机期间错过的触发不补跑** —— 进程停止期间本应触发的计划会在恢复后被跳过；下一个计划时间照常运行。
 - **每个任务只重叠一次触发** —— 仍在运行的任务会让下一次触发被记为跳过而不是排队，因此单次运行时长超过自身周期就会失去这些触发。

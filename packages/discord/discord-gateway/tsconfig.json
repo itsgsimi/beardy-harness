@@ -76,6 +76,9 @@
     },
     {
       "path": "../../speech/speech-whisper"
+    },
+    {
+      "path": "../../core/tools"
     }
   ]
 }

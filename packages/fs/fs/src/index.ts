@@ -29,6 +29,7 @@ export {
   FsTargetKey,
   FsVersion,
 } from './types.ts'
+export { writeObservedText } from './observed-write.ts'
 export type {
   FsEditOutcome,
   FsEditRequest,

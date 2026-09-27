@@ -18,11 +18,16 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./path-segment": {
+      "types": "./lib/types/path-segment.d.ts",
+      "default": "./lib/path-segment.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
+    "lib/path-segment.js",
     "lib/worker.cjs",
     "lib/types/**/*.d.ts"
   ],

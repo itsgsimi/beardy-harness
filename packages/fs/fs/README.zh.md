@@ -37,6 +37,8 @@ kind: "package-reference"
 
 `watch(target, changed, signal)` 报告单个文件或目录直接子项的失效通知。观察就绪后，它返回调用方必须等待完成的异步关闭函数。signal 取消初始化；不支持监听的提供方直接拒绝，不使用轮询。
 
+已取得 `stat` 结果的插件可以调用 `writeObservedText`，依据该版本写入，并在写入前后发送 `fs/observed` 事件。调用方仍负责校验目标、取得批准，并传入所属会话的沙箱策略。
+
 -----
 
 <a id="understand-the-implementation"></a>

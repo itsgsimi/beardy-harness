@@ -9,14 +9,14 @@
   en: 5adffe418a2a85a8
   zh: 24dd893c9bf1abae
 /deepseek-ai-dsh-discord-gateway/summary:
-  en: 7eea3dfa8042a52b
-  zh: 69f373668e969624
+  en: a90eaf7d2f2e4325
+  zh: 0622c36d7c01351e
 /deepseek-ai-dsh-discord-gateway/table-of-contents:
   en: e4ac714740978f1b
   zh: 556cdad5408ab7d4
 /deepseek-ai-dsh-discord-gateway/conversation-behavior:
-  en: a67686683bee3f88
-  zh: a98f82f67b78c05d
+  en: dfc5d9995edbc0ef
+  zh: 46c8f32e76e9e4af
 /deepseek-ai-dsh-discord-gateway/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -24,14 +24,14 @@
   en: 34ee6fd60238e852
   zh: 413763157d42fb53
 /deepseek-ai-dsh-discord-gateway/model-experience/inbound-message/what-the-model-sees:
-  en: a9f1101251cb1282
-  zh: 563f3291a1501d7d
+  en: b6f8ffb52dbe922d
+  zh: 99811e6063b80b00
 /deepseek-ai-dsh-discord-gateway/model-experience/inbound-message/token-effect:
-  en: e16027465adf4eb7
-  zh: 696d9b4db43c0ea5
+  en: bca65fc3fdb6fde7
+  zh: ba46e2c80419b9c4
 /deepseek-ai-dsh-discord-gateway/model-experience/inbound-message/kv-cache-effect:
-  en: 09b0fc4d9b2dccc1
-  zh: 65761f6addca1418
+  en: aa7641bc33ab7a0e
+  zh: c7b14b5bdeaf424a
 /deepseek-ai-dsh-discord-gateway/model-experience/approval-and-question-prompts:
   en: c28af9bd313f2b21
   zh: d51b74fbfc4d2214
@@ -45,8 +45,8 @@
   en: d4fe16c7e194bbf7
   zh: a73ce99be90d1324
 /deepseek-ai-dsh-discord-gateway/known-limitations-and-deferred-work:
-  en: dd4d35d8077e3005
-  zh: f02b9b96e0f0b199
+  en: 0159da4037c09f07
+  zh: a91544ffd79a6cb2
 /deepseek-ai-dsh-discord-gateway/known-limitations-and-deferred-work/dev-note:
   en: 209c5333d011db47
   zh: 00bbed6f76376212

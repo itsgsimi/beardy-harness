@@ -66,17 +66,25 @@ describe('cron_manage tool', () => {
 
   it('creates a stored job without approval when the operator disabled the gate', async () => {
     const h = setup()
-    expect(await h.tool.execute(CREATE_ARGS, h.exec)).toMatchObject({ action: 'create', name: 'pr-check' })
+    expect(await h.tool.execute({ ...CREATE_ARGS, turn_timeout_ms: 12_000 }, h.exec))
+      .toMatchObject({ action: 'create', name: 'pr-check' })
     expect(h.jobsTable.rows.get('pr-check')?.createdBy).toBe('session-1')
+    expect(h.jobsTable.rows.get('pr-check')?.turnTimeoutMs).toBe(12_000)
   })
 
-  it('asks approval with a descriptive reason before creating', async () => {
+  it('asks approval with the complete proposed job before creating', async () => {
     const h = setup({}, { requireApproval: true, approvalOutcome: 'allowed-once' })
-    expect(await h.tool.execute(CREATE_ARGS, h.exec)).toMatchObject({ action: 'create' })
+    expect(await h.tool.execute({ ...CREATE_ARGS, title: 'PR sweep', turn_timeout_ms: 3_000, deliver_channel: 'chan-7' }, h.exec))
+      .toMatchObject({ action: 'create' })
     const [askCall] = h.approval?.request.mock.calls as unknown[][]
     const asked = (askCall?.[0] ?? {}) as { toolName?: string; callId?: string; reason?: string }
     expect(asked).toMatchObject({ toolName: 'cron_manage', callId: 'call-1' })
-    expect(asked.reason).toContain('Cron create: "pr-check"')
+    for (const detail of [
+      'name: "pr-check"', 'expression: "0 9 * * 1"', 'timezone: "Europe/Zagreb"',
+      'prompt: "Check open pull requests."', 'agentPreset: "beardy"',
+      'permissionPreset: "workspace-write"', 'workspacePath: "/srv/repo"',
+      'title: "PR sweep"', 'turnTimeoutMs: 3000', 'deliverChannelId: "chan-7"', 'enabled: true',
+    ]) expect(asked.reason).toContain(detail)
     expect(h.jobsTable.rows.has('pr-check')).toBe(true)
   })
 
@@ -93,11 +101,109 @@ describe('cron_manage tool', () => {
 
   it('patches stored jobs through update and refuses configured ones', async () => {
     const h = setup({ stored: [storedRow('pr-check')] }, { requireApproval: true, approvalOutcome: 'allowed-once' })
-    expect(await h.tool.execute({ action: 'update', name: 'pr-check', prompt: 'Check PRs nightly.' }, h.exec))
+    expect(await h.tool.execute({ action: 'update', name: 'pr-check', prompt: 'Check PRs nightly.', turn_timeout_ms: 3_000 }, h.exec))
       .toMatchObject({ action: 'update' })
     expect(h.jobsTable.rows.get('pr-check')?.prompt).toBe('Check PRs nightly.')
+    expect(h.jobsTable.rows.get('pr-check')?.turnTimeoutMs).toBe(3_000)
+    const reason = ((h.approval?.request.mock.calls as unknown[][])[0]?.[0] as { reason: string }).reason
+    expect(reason).toContain('prompt: "Check open pull requests." → "Check PRs nightly."')
+    expect(reason).toContain('turnTimeoutMs: (none) → 3000')
     await expect(h.tool.execute({ action: 'update', name: CONFIG_JOB.name, prompt: 'x' }, h.exec))
       .rejects.toThrow('comes from configuration')
+  })
+
+  it('approves every patched field and applies the copied proposal', async () => {
+    const h = setup({ stored: [storedRow('pr-check', { deliver: { kind: 'channel', channelId: 'chan-old' } })] },
+      { requireApproval: true, approvalOutcome: 'allowed-once' })
+    const args = {
+      action: 'update' as const, name: 'pr-check', expression: '0 10 * * 1', timezone: 'UTC',
+      prompt: 'Fresh prompt', agent_preset: 'beardy', permission_preset: 'workspace-write',
+      workspace_path: '/srv/new', title: 'Fresh title', turn_timeout_ms: 5_000, deliver_channel: '',
+    }
+    h.approval?.request.mockImplementation(async () => {
+      args.prompt = 'changed after approval'
+      return 'allowed-once'
+    })
+    await h.tool.execute(args, h.exec)
+    const reason = ((h.approval?.request.mock.calls as unknown[][])[0]?.[0] as { reason: string }).reason
+    for (const detail of [
+      'expression: "0 9 * * 1" → "0 10 * * 1"', 'timezone: "Europe/Zagreb" → "UTC"',
+      'prompt: "Check open pull requests." → "Fresh prompt"',
+      'agentPreset: "beardy" → "beardy"', 'permissionPreset: "workspace-write" → "workspace-write"',
+      'workspacePath: "/srv/repo" → "/srv/new"', 'title: (none) → "Fresh title"',
+      'turnTimeoutMs: (none) → 5000', 'deliverChannelId: "chan-old" → (none)',
+    ]) expect(reason).toContain(detail)
+    expect(h.jobsTable.rows.get('pr-check')).toMatchObject({ prompt: 'Fresh prompt', deliver: { kind: 'none' } })
+  })
+
+  it('applies the create proposal captured before approval', async () => {
+    const h = setup({}, { requireApproval: true, approvalOutcome: 'allowed-once' })
+    const args = { ...CREATE_ARGS, prompt: 'Approved prompt', deliver_channel: 'chan-7' }
+    h.approval?.request.mockImplementation(async () => {
+      args.prompt = 'changed after approval'
+      args.deliver_channel = 'other-channel'
+      return 'allowed-once'
+    })
+    await h.tool.execute(args, h.exec)
+    expect(h.jobsTable.rows.get('pr-check')).toMatchObject({ prompt: 'Approved prompt', deliver: { kind: 'channel', channelId: 'chan-7' } })
+  })
+
+  it.each(['resume', 'run_now', 'note'] as const)('%s requires granted approval when enabled', async (action) => {
+    const initiallyEnabled = action === 'run_now'
+    const options = { state: { [CONFIG_JOB.name]: { notes: 'Old note', lastRuns: [], enabled: initiallyEnabled } } }
+    const args = action === 'note'
+      ? { action, name: CONFIG_JOB.name, notes: 'New note' }
+      : { action, name: CONFIG_JOB.name }
+    for (const outcome of ['allowed-once', 'rejected', undefined] as const) {
+      const h = setup(options, { requireApproval: true, ...(outcome === undefined ? {} : { approvalOutcome: outcome }) })
+      if (outcome === 'allowed-once') {
+        await h.tool.execute(args, h.exec)
+        const reason = ((h.approval?.request.mock.calls as unknown[][])[0]?.[0] as { reason: string }).reason
+        expect(reason).toContain(`Cron ${action}:`)
+        if (action === 'note') {
+          expect(reason).toContain('notes: "Old note" → "New note"')
+          expect(h.stateTable.rows.get(CONFIG_JOB.name)?.notes).toBe('New note')
+        } else if (action === 'resume') {
+          expect(reason).toContain('enabled: false → true')
+          expect(h.stateTable.rows.get(CONFIG_JOB.name)?.enabled).toBe(true)
+        } else {
+          expect(reason).toContain('prompt: "Summarize the feeds."')
+          expect(h.runNow).toHaveBeenCalledWith(CONFIG_JOB.name)
+        }
+      } else {
+        await expect(h.tool.execute(args, h.exec))
+          .rejects.toThrow(outcome === 'rejected' ? 'was not approved (rejected)' : 'no approval service is mounted')
+        expect(h.stateTable.rows.get(CONFIG_JOB.name)).toMatchObject({ notes: 'Old note', enabled: initiallyEnabled })
+        expect(h.runNow).not.toHaveBeenCalled()
+      }
+    }
+  })
+
+  it('refuses a patch when its approved old value changes before the answer', async () => {
+    const h = setup({ stored: [storedRow('pr-check')] }, { requireApproval: true, approvalOutcome: 'allowed-once' })
+    h.approval?.request.mockImplementation(async () => {
+      h.jobsTable.rows.set('pr-check', storedRow('pr-check', { prompt: 'Changed meanwhile.' }))
+      return 'allowed-once'
+    })
+    await expect(h.tool.execute({ action: 'update', name: 'pr-check', prompt: 'Approved replacement.' }, h.exec))
+      .rejects.toThrow('changed while approval was pending')
+    expect(h.jobsTable.rows.get('pr-check')?.prompt).toBe('Changed meanwhile.')
+  })
+
+  it.each(['resume', 'run_now', 'note'] as const)('%s refuses a changed job after approval', async (action) => {
+    const h = setup({ state: { [CONFIG_JOB.name]: { notes: 'Old note', lastRuns: [], enabled: false } } },
+      { requireApproval: true, approvalOutcome: 'allowed-once' })
+    h.approval?.request.mockImplementation(async () => {
+      h.stateTable.rows.set(CONFIG_JOB.name, { notes: 'Changed meanwhile.', lastRuns: [], enabled: false })
+      return 'allowed-once'
+    })
+    const args = action === 'note'
+      ? { action, name: CONFIG_JOB.name, notes: 'Approved replacement.' }
+      : { action, name: CONFIG_JOB.name }
+    await expect(h.tool.execute(args, h.exec)).rejects.toThrow('changed while approval was pending')
+    expect(h.stateTable.rows.get(CONFIG_JOB.name)?.enabled).toBe(false)
+    expect(h.stateTable.rows.get(CONFIG_JOB.name)?.notes).toBe('Changed meanwhile.')
+    expect(h.runNow).not.toHaveBeenCalled()
   })
 
   it('pauses, resumes, and deletes stored jobs', async () => {
@@ -127,16 +233,20 @@ describe('cron_manage tool', () => {
     expect(noted.message).toContain('replaced')
     expect(h.stateTable.rows.get('morning-brief')?.notes).toBe('Weather source flaky.')
     await expect(h.tool.execute({ action: 'note', name: CONFIG_JOB.name, notes: 'x'.repeat(401) }, h.exec))
-      .rejects.toThrow('above the cap of 400')
+      .rejects.toThrow('above the cap of 400; condense the continuity notes and retry')
   })
 
   it('requires a name for every single-job action and full definitions on create', async () => {
     const h = setup()
-    await expect(h.tool.execute({ action: 'pause' }, h.exec)).rejects.toThrow('needs "name"')
+    await expect(h.tool.execute({ action: 'pause' }, h.exec)).rejects.toThrow('pause requires: name')
     await expect(h.tool.execute({ action: 'create', name: '  ', expression: '0 9 * * 1' }, h.exec))
-      .rejects.toThrow('needs "name"')
+      .rejects.toThrow('create requires: name, timezone, prompt, agent_preset, permission_preset, workspace_path')
     await expect(h.tool.execute({ action: 'create', name: 'half-defined', expression: '0 9 * * 1' }, h.exec))
-      .rejects.toThrow('agent preset "" is not allowed')
+      .rejects.toThrow('create requires: timezone, prompt, agent_preset, permission_preset, workspace_path')
+    await expect(h.tool.execute({ action: 'update', name: 'pr-check' }, h.exec))
+      .rejects.toThrow('update requires at least one of:')
+    await expect(h.tool.execute({ action: 'note', name: CONFIG_JOB.name }, h.exec))
+      .rejects.toThrow('note requires: notes')
   })
 
   it('accepts optional create fields and an agent-less execution', async () => {
@@ -154,12 +264,12 @@ describe('cron_manage tool', () => {
     await expect(gated.tool.execute(CREATE_ARGS, noAgent)).rejects.toThrow('requires an Agent-backed session')
   })
 
-  it('clears delivery on update and defaults missing notes to empty', async () => {
+  it('clears delivery on update and clears notes with an empty replacement', async () => {
     const h = setup({ stored: [storedRow('pr-check', { deliver: { kind: 'channel', channelId: 'chan-1' } })] })
     expect(await h.tool.execute({ action: 'update', name: 'pr-check', deliver_channel: '' }, h.exec))
       .toMatchObject({ action: 'update' })
     expect(h.jobsTable.rows.get('pr-check')?.deliver).toEqual({ kind: 'none' })
-    await h.tool.execute({ action: 'note', name: CONFIG_JOB.name }, h.exec)
+    await h.tool.execute({ action: 'note', name: CONFIG_JOB.name, notes: '' }, h.exec)
     expect(h.stateTable.rows.get('morning-brief')?.notes).toBe('')
   })
 
@@ -180,9 +290,9 @@ describe('cron_manage tool', () => {
     const deleteAsk = ((h.approval?.request.mock.calls as unknown[][])?.[0]?.[0] ?? {}) as { reason?: string }
     expect(deleteAsk.reason).toContain('Cron delete')
     await expect(h.tool.execute({ action: 'create', name: 'sparse' }, h.exec))
-      .rejects.toThrow('is not allowed')
+      .rejects.toThrow('create requires: expression, timezone, prompt, agent_preset, permission_preset, workspace_path')
     const calls = h.approval?.request.mock.calls as { reason?: string }[][]
-    expect(calls[1]?.[0]?.reason).toContain('"sparse" (? ?) preset ?/? in ?')
+    expect(calls).toHaveLength(1)
   })
 
   it('renders the message and job lines for display', async () => {
@@ -200,5 +310,15 @@ describe('cron_manage tool', () => {
     expect(h.tool.name).toBe('cron_manage')
     const action = (h.tool.parameters as { properties: Record<string, { enum?: string[] }> }).properties.action as { enum?: string[] }
     expect(action.enum).toContain('run_now')
+    const properties = (h.tool.parameters as { properties: Record<string, { description?: string; type?: string }> }).properties
+    expect(properties.name?.description).toContain('Required for create, update, delete, pause, resume, run_now, and note')
+    expect(properties.turn_timeout_ms).toMatchObject({ type: 'number' })
+    expect(h.tool.description).toContain('"update" requires name and at least one patch field')
+  })
+
+  it('keeps the complete model-visible schema in an owner-local expectation', async () => {
+    const h = setup()
+    await expect(JSON.stringify({ description: h.tool.description, parameters: h.tool.parameters }, null, 2) + '\n')
+      .toMatchFileSnapshot('./expected/cron-manage.schema.json')
   })
 })

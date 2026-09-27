@@ -7,7 +7,7 @@ import type { RoutingPolicy } from './conversation.ts'
 import { createDiscordInteractionTransport } from './interactions.ts'
 import type { DiscordInteraction, DiscordInteractionId, DiscordInteractionTransport } from './interactions.ts'
 import { CONVERSATION_CONTROLS, renderCards } from './presentation.ts'
-import type { GatewaySettings } from './types.ts'
+import type { DiscordCommandActor, GatewaySettings } from './types.ts'
 
 /** Services and cancellation owned by the gateway listener. */
 export interface NativeInteractionDeps {
@@ -15,9 +15,9 @@ export interface NativeInteractionDeps {
   readonly policy: RoutingPolicy
   readonly settings: GatewaySettings
   readonly applicationId: () => string
-  readonly commands: () => readonly CommandDescriptor[]
+  readonly commands: (actor: DiscordCommandActor) => readonly CommandDescriptor[]
   /** Execute the same command path used by channel messages, observing cancellation. */
-  readonly execute: (channelId: string, line: string, signal: AbortSignal) => Promise<CommandResult>
+  readonly execute: (channelId: string, actor: DiscordCommandActor, line: string, signal: AbortSignal) => Promise<CommandResult>
   /** Atomically resolve a pending prompt after its component has been acknowledged. */
   readonly component: (interaction: Extract<DiscordInteraction, { kind: 'component' }>, signal: AbortSignal) => Promise<string>
   readonly transport?: DiscordInteractionTransport
@@ -57,9 +57,11 @@ export function createNativeInteractions(deps: NativeInteractionDeps): NativeInt
   const privateReply = async (interaction: DiscordInteraction, text: string): Promise<void> => {
     await transport.reply(interaction, 4, { content: text, flags: 64 }, signal)
   }
+  // A user with an own lane runs commands only in direct messages, like every other form of input.
   const admitted = (interaction: DiscordInteraction): boolean =>
     deps.policy.allowedUserIds.has(interaction.userId)
-    && (interaction.guildId === '' || deps.policy.allowedChannelIds.has(interaction.channelId))
+    && (interaction.guildId === '' || (deps.policy.allowedChannelIds.has(interaction.channelId)
+      && !deps.policy.laneUserIds.has(interaction.userId)))
 
   const deliver = async (interaction: DiscordInteraction, text: string, title: string, controls: boolean): Promise<void> => {
     const bodies: DiscordMessageBody[] = deps.settings.richMessages
@@ -95,12 +97,13 @@ export function createNativeInteractions(deps: NativeInteractionDeps): NativeInt
         title = 'Request'
       } else {
         const command = interaction.kind === 'command' ? interaction.name : interaction.customId.slice('dsh:command:'.length)
-        if (!deps.commands().some(descriptor => descriptor.name === command)) {
+        const actor = { userId: interaction.userId, directMessage: interaction.guildId === '' }
+        if (!deps.commands(actor).some(descriptor => descriptor.name === command)) {
           text = 'This command is no longer available. Refresh the Discord command menu.'
           title = 'Command unavailable'
         } else {
           const args = interaction.kind === 'command' && interaction.arguments !== '' ? ` ${interaction.arguments}` : ''
-          const result = await deps.execute(interaction.channelId, `/${command}${args}`, signal)
+          const result = await deps.execute(interaction.channelId, actor, `/${command}${args}`, signal)
           text = result.text?.trim() ? result.text : 'Done.'
           title = result.kind === 'error' ? `/${command} failed` : `/${command}`
           controls = true

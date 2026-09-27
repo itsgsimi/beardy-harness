@@ -91,6 +91,7 @@ export const Config: z<{
     permissionPreset: z.string().required(),
     workspacePath: z.string().required(),
     title: z.string(),
+    turnTimeoutMs: z.number().min(1_000),
     deliverChannel: z.string(),
   })).default([]),
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_CRON_TURN_TIMEOUT_MS),
@@ -119,7 +120,7 @@ export interface ResolvedConfig {
   readonly allowedAgentPresets: string[]
   /** Permission presets a stored job may name; empty refuses every create. */
   readonly allowedPermissionPresets: string[]
-  /** Absolute roots a stored job's workspace path must sit inside. */
+  /** Absolute roots a stored job's canonical workspace path must sit inside. */
   readonly allowedWorkspaceRoots: string[]
   /** Most jobs the durable store may hold. */
   readonly maxStoredJobs: number
@@ -157,6 +158,9 @@ export function assertConfig(config: ResolvedConfig): void {
     }
     if (!isAbsolute(job.workspacePath)) {
       throw new Error(`dsh-cron: job "${job.name}" needs an absolute workspacePath, got "${job.workspacePath}"`)
+    }
+    if (job.turnTimeoutMs !== undefined && (!Number.isSafeInteger(job.turnTimeoutMs) || job.turnTimeoutMs < 1_000)) {
+      throw new Error(`dsh-cron: job "${job.name}" turnTimeoutMs must be a safe integer of at least 1000 milliseconds`)
     }
   }
   for (const root of config.allowedWorkspaceRoots) {
@@ -205,6 +209,8 @@ export interface SchedulerHostOptions {
   resolveJob?(name: string): HostJob | undefined
   /** Durably reserve the run before opening its Session. A failure prevents dispatch. */
   onStarting?(job: HostJob, firedAt: number, sessionId: SessionId): Promise<void>
+  /** Resolve a stored workspace again at fire time; a rejected path records a failed outcome. */
+  prepareRun?(job: HostJob): Promise<HostJob>
   /** Called once per settled run, after logging and before the fire guard releases. */
   onSettled?(job: HostJob, firedAt: number, result: CronRunResult): void | Promise<void>
 }
@@ -244,7 +250,17 @@ export function createSchedulerHost(
       if (current === undefined) return
       const sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)
       await options.onStarting?.(current, firedAt, sessionId)
-      const result = await runner.run(current, firedAt, sessionId)
+      let prepared = current
+      try {
+        prepared = await options.prepareRun?.(current) ?? current
+      } catch (error: unknown) {
+        await options.onSettled?.(current, firedAt, {
+          sessionId, outcome: 'failed', text: '',
+          failure: { code: 'WORKSPACE_OUTSIDE_ALLOWED_ROOTS', message: errorChain(error) },
+        })
+        return
+      }
+      const result = await runner.run(prepared, firedAt, sessionId)
       await options.onSettled?.(current, firedAt, result)
       await runner.trim(options.maxLiveRuns)
     })
@@ -370,6 +386,9 @@ export async function apply(
         firedAt, sessionId, reportOutcome: resolved.deliverOutcomes,
         ...(job.deliverChannelId === undefined ? {} : { deliverChannelId: job.deliverChannelId }),
       })
+    },
+    async prepareRun(job) {
+      return { ...job, workspacePath: await registry.resolveRunWorkspace(job) }
     },
     async onSettled(job, _firedAt, result) {
       await deliver(await registry.settleRun(job.name, result, resolved.keepRunHistory))

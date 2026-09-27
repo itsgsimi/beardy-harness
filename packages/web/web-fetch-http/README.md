@@ -47,6 +47,9 @@ Load the web service and the provider; configurable limits have safe defaults an
 | `timeoutMs` | `30,000` | Fetch timeout — a resource backstop, not the model-facing tool budget |
 | `maxRedirects` | `5` | Maximum same-origin redirect hops (`0` follows none) |
 | `userAgent` | `deepseek-harness/…` | `User-Agent` header sent on every request |
+| `blockedHosts` | `[]` | Bare DNS hostnames refused with their subdomains as `WEB_BLOCKED_URL`; case and one trailing dot are normalized at load |
+
+`blockedHosts` checks request and redirect hostnames before contact. It is hostname hygiene, not an IP/SSRF control. Direct connections retain public-address validation and pinning. A configured proxy resolves the destination itself, so proxied requests skip those local address checks; the proxy must enforce its own destination policy.
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-fetch-http) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -61,7 +64,7 @@ const page = await ctx.web.fetch({ url: 'https://example.com' })
 
 ### Transport behavior
 
-The provider keeps requests anonymous and bounded: it accepts only `http:` and `https:` URLs without embedded credentials and rejects URLs over 2,048 characters. It resolves each hostname once, rejects the complete result if any IPv4 or IPv6 address is not public unicast, and pins the connection to that validated set. IPv6 checks discover the active DNS64 prefix and reject translations to non-public IPv4. If that auxiliary discovery fails, a dual-stack hostname proceeds with its already validated IPv4 answers only, while an IPv6-only hostname fails closed. Each same-origin redirect repeats resolution and pinning; cross-origin redirects fail and require a fresh call. The provider also enforces byte, character, hop, and time caps, rejects unsupported content types, and sends an explicit product `User-Agent`.
+The provider keeps requests anonymous and bounded: it accepts only `http:` and `https:` URLs without embedded credentials and rejects URLs over 2,048 characters. For direct connections, it resolves each hostname once, rejects the complete result if any IPv4 or IPv6 address is not public unicast, and pins the connection to that validated set. IPv6 checks discover the active DNS64 prefix and reject translations to non-public IPv4. If that auxiliary discovery fails, a dual-stack hostname proceeds with its already validated IPv4 answers only, while an IPv6-only hostname fails closed. Each same-origin direct redirect repeats resolution and pinning; cross-origin redirects fail and require a fresh call. The provider also enforces byte, character, hop, and time caps, rejects unsupported content types, and sends an explicit product `User-Agent`.
 
 ### Failures and recovery
 

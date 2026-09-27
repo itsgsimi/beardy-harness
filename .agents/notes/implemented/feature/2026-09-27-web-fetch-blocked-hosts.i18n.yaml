@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-web-fetch-blocked-hosts.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-web-fetch-blocked-hosts.md
+/agent-note-configured-web-fetch-hostname-blocks:
+  en: fe0eece7f2abad20
+  zh: 57f46ac4ba21ac02
+/agent-note-configured-web-fetch-hostname-blocks/problem:
+  en: 627902858961551b
+  zh: f2ca5c1f56de681e
+/agent-note-configured-web-fetch-hostname-blocks/decision:
+  en: b8e0ec63a9d39546
+  zh: dc580807274c3ccb
+/agent-note-configured-web-fetch-hostname-blocks/alternatives-considered:
+  en: 93ea14c2e69389ee
+  zh: 9e903c61124b6bbc
+/agent-note-configured-web-fetch-hostname-blocks/consequences:
+  en: 70e41f6482290d8e
+  zh: f8d0f89cc4d4f099

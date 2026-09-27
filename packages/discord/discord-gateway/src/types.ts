@@ -72,6 +72,42 @@ export interface DiscordInboundReaction {
   readonly emojiName: string
 }
 
+/** Tool names one lane's conversation Agents keep or lose, applied through `tools.restrict()`. */
+export interface LaneToolFilter {
+  /** Tool names that stay visible; every other inherited tool is removed. */
+  readonly allow?: string[]
+  /** Tool names removed from visibility. */
+  readonly deny?: string[]
+}
+
+/**
+ * Session settings of one conversation lane. The deployment's top-level settings form the default
+ * lane; a user lane replaces them for one allowlisted user's direct messages, and that user is
+ * admitted nowhere else.
+ */
+export interface ConversationLane {
+  /** Allowlisted user whose direct messages run in this lane; absent for the default lane. */
+  readonly userId?: string
+  /** Absolute workspace the lane's Sessions run in. */
+  readonly workspacePath: string
+  /** Agent preset mounted into the lane's Sessions. */
+  readonly agentPreset: string
+  /** Permission preset applied to the lane's Sessions. */
+  readonly permissionPreset: string
+  /** Preset commands the lane refuses, including the deployment-wide exclusions. */
+  readonly excludedPresetCommands: readonly string[]
+  /** Restriction applied to each of the lane's conversation Agents; absent keeps every tool. */
+  readonly toolFilter?: LaneToolFilter
+}
+
+/** Identity and channel kind of one admitted command or interaction actor. */
+export interface DiscordCommandActor {
+  /** Admitted Discord user who invoked the command. */
+  readonly userId: string
+  /** Whether the invocation came from a direct-message channel. */
+  readonly directMessage: boolean
+}
+
 /** Reply forms a pending approval or question accepts from an allowlisted user. */
 export type DiscordAnswerForm = 'reaction' | 'text' | 'component'
 
@@ -99,12 +135,16 @@ export interface GatewaySettings extends OutboxSettings {
   readonly interactionReceiptLimit: number
   /** Retry delay after a failed cold reminder read or resume. */
   readonly wakeRetryMs: number
-  /** Workspace every routed conversation runs in. */
+  /** Workspace every default-lane conversation runs in. */
   readonly workspacePath: string
-  /** Agent preset mounted into each routed Session. */
+  /** Agent preset mounted into each default-lane Session. */
   readonly agentPreset: string
-  /** Permission preset applied to each routed Session. */
+  /** Permission preset applied to each default-lane Session. */
   readonly permissionPreset: string
+  /** Tool restriction for default-lane conversation Agents; absent keeps every tool. */
+  readonly toolFilter?: LaneToolFilter
+  /** Lanes keyed by the allowlisted user whose direct messages run in them. */
+  readonly userLanes: ReadonlyMap<string, ConversationLane>
   /** Prefix of the generated Session title, followed by the channel id. */
   readonly titlePrefix: string
   /** Longest inbound text handed to the agent; longer text is cut and marked. */

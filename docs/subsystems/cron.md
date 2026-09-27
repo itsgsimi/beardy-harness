@@ -8,6 +8,8 @@ Cron runs each accepted job fire in a separate unattended Session. This referenc
 
 Delivery consumers receive `CronRunFinished` after the scheduler commits terminal history and retained output. The pair `sessionId` and `firedAt` identifies one run across repeated handoffs. A reserved Session id can lack a log when Session creation fails.
 
+The logged turn ending determines the outcome. A failed result retains its error code and message in run history and pending delivery; Discord displays only a safe code. Partial text from a failed turn is not an answer.
+
 ```ts type-equiv
 /** How one accepted fire ended, retained in job history and delivery notices. */
 type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted'
@@ -22,6 +24,8 @@ interface CronRunResult {
   readonly sessionId: string
   /** Final assistant text of the run; empty when there was none. */
   readonly text: string
+  /** Failure facts from the turn ending or runner; absent for other outcomes. */
+  readonly failure?: { readonly code: string; readonly message: string }
 }
 ```
 

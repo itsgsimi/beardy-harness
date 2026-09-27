@@ -61,6 +61,8 @@ kind: "package-reference"
         apiKeyEnv: ACME_GATEWAY_API_KEY
         api: openai-completions
         baseURL: https://gateway.acme.example/v1
+        maxConcurrentRequests: 1
+        queueTimeoutMs: 30000
         compat:
           thinkingFormat: deepseek
         models:
@@ -86,9 +88,13 @@ kind: "package-reference"
 | `requestImagePixelBudget` | `4,194,304` | 每张确定性请求图片的总像素预算 |
 | `requestImageMaxBytes` | `1 MiB` | 每张请求图片在 base64 扩展前的编码字节目标 |
 | `maxRequestImageBytes` | `20 MiB` | base64 图片载荷总上限，保留图片超过时请求以 `IMAGE_OFFLOAD_REQUIRED` 失败 |
+| `maxConcurrentRequests` | 无（不限） | 一个适配器实例中，此提供方路由同时活跃的请求上限 |
+| `queueTimeoutMs` | 无（不设排队期限） | 等待已配置请求槽位的最长时间；要求设置 `maxConcurrentRequests` |
 | `retryPolicy` | normal，5 次重试 | 由 `dsh-llm-retry` 执行的提供方自有重试策略 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-llm-pi-ai)是每个受支持字段及其 JSDoc 的穷尽式真源。
+
+设置 `maxConcurrentRequests` 后，同一路由的槽位全部占用时，新请求按先进先出顺序排队。排队期间中止请求会将其移出队列。流成功、失败、中止、超时或消费者关闭后才释放槽位；`streamIdleTimeoutMs` 只在准入后开始计时。`queueTimeoutMs` 单独计算排队时间，过期的等待者以 `ADMISSION_TIMEOUT` 失败。该代码不在默认可重试集合中：向同一满队列重试只会增加负载，不会创造容量。路由可通过 `retryPolicy.retryableCodes` 显式启用重试。准入等待不单独记录日志；最终失败仍通过常规请求结果呈现。
 
 ### 登录提供方
 
@@ -114,7 +120,7 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 ### 失败与恢复
 
-pi-ai 不提供的路由需要 `api`、`baseURL` 与非空 `models` 列表；无法服务的 profile 会在写入处被拒绝，并点名路由与模型。失败携带稳定 code：无法使用的凭据以 `INVALID_CREDENTIAL` 失败并点名路由与引用，`apiKeyEnv` 引用解析为空的路由以 `MISSING_CREDENTIAL` 失败，未配置模型以 `UNKNOWN_MODEL` 失败，终止性提供方失败则区分 `QUOTA` 与暂时性 `RATE_LIMIT`。`GenerateOptions.stop` 以 `UNSUPPORTED_OPTION` 被拒绝，因为 pi-ai 的通用流式 UI 无法跨提供方保证它。
+pi-ai 不提供的路由需要 `api`、`baseURL` 与非空 `models` 列表；无法服务的 profile 会在写入处被拒绝，并点名路由与模型。失败携带稳定 code：无法使用的凭据以 `INVALID_CREDENTIAL` 失败并点名路由与引用，`apiKeyEnv` 引用解析为空的路由以 `MISSING_CREDENTIAL` 失败，未配置模型以 `UNKNOWN_MODEL` 失败，准入等待过期以默认不可重试的 `ADMISSION_TIMEOUT` 失败，终止性提供方失败则区分 `QUOTA` 与暂时性 `RATE_LIMIT`。`GenerateOptions.stop` 以 `UNSUPPORTED_OPTION` 被拒绝，因为 pi-ai 的通用流式 UI 无法跨提供方保证它。
 
 Config 更新严格验证发生变化的 provider。初始加载将已存储的目录故障保留为可编辑的 provider 诊断；未更改的故障 provider 不阻止其他编辑。可用模型仍可选择，无法解析的模型在网络 I/O 前失败。修复或删除问题配置会清除其诊断。
 
@@ -134,6 +140,8 @@ Config 更新严格验证发生变化的 provider。初始加载将已存储的�
 
 适配器建立在不可变快照与按操作解析之上。每个操作都会在第一次 `await` 前捕获整个快照——profile 加一个持有每条路由所构建 `Provider` 的 `createModels()` 集合——配置变更会构建新集合而非修改使用中的集合，因此在一个配置下开始的请求绝不会在另一个配置下结束。路由自己的凭据引用经 harness seam 解析，并以请求 `apiKey` 选项传入，pi-ai 将其视为优先级最高的 auth 覆盖——这正是明确失败引用语义的所在。该覆盖未覆盖的一切都经集合自身的 auth 到达 pi-ai：凭据存储持有登录写入、刷新轮换的记录（以 `llm-pi-ai/<provider id>` 寻址），auth context 回答提供方解析时提出的 ambient 问题。两者跨快照保持稳定，因此配置变更重建集合时不会忘记谁已登录。运行时 import 使用 pi-ai 的 provider、API 与 utility 入口；`src/models.ts` 提供本适配器所需的少量 model helper，而不会求值 pi-ai 聚合入口。
 
+准入由本适配器负责，因为其提供方 profile 拥有并发配置，其流分派负责空闲看门狗。提供方无关的 `dsh-llm` seam 没有跨不同适配器协调的共享队列策略或分派时机。一个适配器实例协调自身配置的提供方路由，包括共享 LLM 服务的进程内 `spawn` 子智能体。独立进程需要各自的限制或外部协调器。
+
 ### 源码地图
 
 | 文件 | 职责 |
@@ -142,6 +150,7 @@ Config 更新严格验证发生变化的 provider。初始加载将已存储的�
 | [`src/auth.ts`](src/auth.ts) | 覆盖 harness 凭据平面的凭据存储与 ambient auth context |
 | [`src/login.ts`](src/login.ts) | 面向提供登录的已安装提供方的授权流程 |
 | [`src/config.ts`](src/config.ts) | Profile schema、解析与可服务性校验 |
+| [`src/admission.ts`](src/admission.ts) | 逐路由请求准入、取消与排队期限 |
 | [`src/catalog.ts`](src/catalog.ts) | 已安装目录集成与漂移门禁 |
 | [`src/models.ts`](src/models.ts) | 基于 pi-ai 窄入口的 model collection、静态 provider 与 reasoning level |
 | [`src/provider.ts`](src/provider.ts) | 受支持协议表与提供方构建 |
@@ -230,6 +239,7 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 - **提供方 HTTP 状态不可用**——pi-ai 错误事件不跨提供方暴露稳定 HTTP 状态。
 - **重试策略由提供方自有，而非 SDK 重试**——pi-ai SDK 重试保持禁用，因此持久 agent（智能体）步骤与 `llm/retry` 事件拥有每个可见尝试，直接 `ctx.llm.stream()` 调用仍是单次尝试。
 - **流式工具调用参数只在调用结束时解析一次**——安装的 pi-ai 带有 [`patches/@earendil-works__pi-ai@0.85.1.patch`](../../../patches/@earendil-works__pi-ai@0.85.1.patch)，它移除了每个流适配器中对整段累计参数 JSON 的逐 delta 重新解析（上游 [earendil-works/pi#9265](https://github.com/earendil-works/pi/issues/9265)）；未打补丁时，数 MB 的参数流会在事件循环上消耗 O(n²) CPU，并使进程内所有会话停滞。在 `toolcall_end` 之前，pi-ai partial 的工具调用 `arguments` 保持为 `{}`；本适配器只读取 delta 字符串与最终参数。每次升级 pi-ai 时都要重新应用或撤销该补丁。
+- **准入仅在进程内协调**——共享同一模型服务器的独立 harness 进程需要各自的限制或外部协调器；本适配器无法统计另一进程中的请求。
 
 <a id="dev-note"></a>
 ### 开发备注

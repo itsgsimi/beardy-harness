@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-unattended-session` opens a root Agent Session for webhook, cron, and Discord entry points in one rollback-safe transaction. It resolves presets, creates the workspace and Agent, binds cancellation, attaches, applies permissions, and titles the Session. Each caller retains prompt admission and supplies its Session id prefix, title, model options, and extra setup. Shared helpers (`awaitTurn`, `sleep`, and `lastAssistantText`) bound turn waits. This is a library, not a Cordis plugin.
+`dsh-unattended-session` opens a root Agent Session for webhook, cron, and Discord entry points in one rollback-safe transaction. It resolves presets, creates the workspace and Agent, binds cancellation, attaches, applies permissions, and titles the Session. Each caller retains prompt admission and supplies its Session id prefix, title, model options, and extra setup. Shared helpers (`awaitTurn`, `sleep`, `lastAssistantText`, and `lastTurnEndReason`) bound waits and read turn results. This is a library, not a Cordis plugin.
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@ As an ingress author, build a spec, open through the helper, then admit your own
 
 ### Waiting for one turn
 
-`awaitTurn(agent, { timeoutMs, signal, wait? })` races the Agent's idle promise against the bound and reports `'idle'` or `'timeout'`; a rejected wait seam or a rejected idle promise also report `'timeout'`. `sleep(ms, signal)` is the default delay seam. `lastAssistantText(events, firstSeq)` returns the last non-empty assistant text committed at or after `firstSeq`, which is what an unattended caller posts back or logs.
+`awaitTurn(agent, { timeoutMs, signal, wait? })` races the Agent's idle promise against the bound and reports `'idle'` or `'timeout'`; a rejected wait seam or a rejected idle promise also report `'timeout'`. `sleep(ms, signal)` is the default delay seam. `lastAssistantText(events, firstSeq)` returns the last non-empty assistant text committed at or after `firstSeq`; `lastTurnEndReason(events, firstSeq)` reads the logged terminal reason so an unattended caller can distinguish an answer from failure or interruption.
 
 -----
 
@@ -54,7 +54,7 @@ One owned open sequence so three ingress plugins cannot drift. The order and rol
 | File | Role |
 |---|---|
 | [`src/open.ts`](src/open.ts) | Spec and result types, the open transaction, and reported rollback |
-| [`src/turn.ts`](src/turn.ts) | `sleep`, the bounded `awaitTurn` race, and `lastAssistantText` |
+| [`src/turn.ts`](src/turn.ts) | `sleep`, the bounded `awaitTurn` race, and logged turn output and ending helpers |
 
 ### Rollback contract
 

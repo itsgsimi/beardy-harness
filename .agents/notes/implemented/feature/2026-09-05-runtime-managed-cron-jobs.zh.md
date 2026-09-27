@@ -10,11 +10,13 @@ Status: implemented
 
 ## Decision
 
-存储的任务住在一个名为 `cron_jobs` 的存储域（storage domain）里，含两张表：`jobs` 存放存储的任务定义（加载时经 zod 校验），`state` 为配置与存储两种任务保存连续性笔记与近期运行结果。注册表把配置行与存储行合并成一个视图，并在构造时发现某个名字被两种来源同时占用时拒绝挂载。配置的任务在管理界面上除查看、立即运行和记笔记外保持只读；提示信息会说明这一点。
+存储的任务住在一个名为 `cron_jobs` 的存储域（storage domain）里，含两张表：`jobs` 存放存储的任务定义（加载时经 zod 校验），`state` 为配置与存储两种任务保存连续性笔记与近期运行结果。注册表把配置行与存储行合并成一个视图，并在构造时发现某个名字被两种来源同时占用时拒绝挂载。配置任务的定义在管理界面上保持只读；其启停状态、立即运行及笔记可以变更。
 
-`cron_manage` 是面向模型的工具（`list`、`create`、`update`、`delete`、`pause`、`resume`、`run_now`、`note`），`/cron` 是建于同一注册表之上面向人的命令。护栏是配置：`allowedAgentPresets`、`allowedPermissionPresets` 与 `allowedWorkspaceRoots`——默认全部为空，因此创建会被拒绝，直到操作者放开它们——外加 `maxStoredJobs`，以及用一个 paused croner 探针针对计划本身校验的 `minIntervalMs`。开启 `requireApproval`（默认）时，create、update、delete 在调用时刻请求审批服务；没有应答者挂载时它们直接拒绝，而不是未经批准落地。
+`cron_manage` 是面向模型的工具（`list`、`create`、`update`、`delete`、`pause`、`resume`、`run_now`、`note`），`/cron` 是建于同一注册表之上面向人的命令。护栏是配置：`allowedAgentPresets`、`allowedPermissionPresets` 与 `allowedWorkspaceRoots`——默认全部为空，因此创建会被拒绝，直到操作者放开它们——外加 `maxStoredJobs`，以及用一个 paused croner 探针针对计划本身校验的 `minIntervalMs`。创建、更新及每次触发时通过 `realpath` 比较存储任务的工作区与根目录；越界的触发在会话开启前记录失败结果。开启 `requireApproval`（默认）时，create、update、delete、resume、run_now 与 note 在调用时刻请求审批服务；没有应答者挂载时它们直接拒绝，而不是未经批准落地。审批请求显示完整的拟创建任务或修改内容，工具应用事先复制的提案。
 
 每次触发的首条消息携带任务提示词、一条固定的连续性指令、以及存储的笔记；没有笔记的运行会被要求在结束前通过工具的 `note` 动作写下下一次运行应当知道的事情。笔记以 `notesMaxChars` 为上限。一次完成的运行会发出类型化事件 `cron/run-finished`，带结果、最终文本、会话 id，以及（若已配置）投递渠道；Discord 网关的 `attachCronDelivery` 把该文本发到渠道，若没有文本且 `deliverOutcomes` 要求告知，则发一行结果说明。cron 本身不点名任何渠道平台。
+
+运行器先读取已准入轮次的 `turn/end` 原因，再确定结果：错误保留代码与消息，取消报告中断，完成但没有文本的轮次报告 `no-text-answer`。错误发生前写入的文本绝不会作为回答投递。任务可选的 `turnTimeoutMs` 覆盖插件上限；存储的定义、待投递结果和历史使用可选字段，因此缺少超时覆盖或失败细节的旧记录仍可读取。网关只发布适合展示的失败代码，绝不发布失败消息。
 
 定时器由调度器宿主承载（`sync`、`trigger`、按任务的 in-flight 守卫）。对 `jobs` 表的任何写入都会凭注册表当前视图重新排程所有定时器；in-flight 守卫在重排中存活，因此编辑一个存储任务既不会留下过期定时器，也不会让进行中的运行重复执行。
 
@@ -30,11 +32,13 @@ Status: implemented
 
 把笔记做成自由形式的会话记忆（curated memory、`dsh-memory`）在这一接缝上被否决：这里的连续性是每个任务一条有界字符串、每次触发逐字读取，而不是跨会话回忆；给无人值守的运行加一步检索会带来成本与不确定性。
 
+把任何带 assistant 文本的空闲轮次视为已回答被否决，因为轮次可能先提交文本，再记录错误。终态事件决定结果；只为完成的终态选取文本。
+
 ## Consequences
 
 自动结果投递与冷会话提醒恢复遵循[持久投递决策](2026-09-07-durable-personal-agent-delivery.zh.md)。
 
-模型现在可以重排时间表，因此影响范围由配置界定：预设、工作区根目录、数量、频率，以及（默认）每次变更一道审批。空白名单的默认值意味着在 profile 放开之前运行时创建是关闭的——这是刻意的，并写进了 README 的已知限制。
+模型现在可以重排时间表，因此影响范围由配置界定：预设、工作区根目录、数量、频率，以及（默认）对 create、update、delete、resume、run_now 和 note 的审批。空白名单的默认值意味着在 profile 放开之前运行时创建是关闭的——这是刻意的，并写进了 README 的已知限制。
 
 无人值守的运行没有应答者，因此来自无人值守会话的 `cron_manage` 写入在审批处会被拒绝，除非操作者关掉 `requireApproval`；配有 Discord 应答者的交互会话则像其他受闸工具一样用表情回应或回复来批准。
 

@@ -10,9 +10,10 @@ import { startListener } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
 import { buildDiscordCommandCatalog, DiscordInteractionId } from '../src/interactions.ts'
 import type { DiscordInteraction } from '../src/interactions.ts'
-import { BOT_USER, CHANNEL, inbound, SETTINGS, USER } from './support.ts'
+import { BOT_USER, CHANNEL, GUILD_CHANNEL, inbound, SETTINGS, USER } from './support.ts'
 
 const APP = '1472404859679670456'
+const OTHER = '138391763999129601'
 const ID = DiscordInteractionId('1472404859679670458')
 const CATALOG_PATH = `/api/v10/applications/${APP}/commands`
 const releases: (() => void)[] = []
@@ -31,6 +32,7 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     excludedPresetCommands: [...SETTINGS.excludedPresetCommands],
     answerers: [...SETTINGS.answerers],
     tokenEnv: 'DISCORD_SNAPSHOT_TOKEN',
+    userLanes: {},
     allowedUserIds: [USER],
     allowedChannelIds: [],
     nativeCommands: true,
@@ -43,24 +45,26 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
   }
 }
 
-function command(): DiscordInteraction {
+function command(): Extract<DiscordInteraction, { kind: 'command' }> {
   return { id: ID, applicationId: APP, token: 'private-interaction-token', userId: USER,
     channelId: CHANNEL, guildId: '', kind: 'command', name: 'status', arguments: '' }
 }
 
-async function listener(overrides: Partial<ResolvedConfig> = {}) {
+async function listener(overrides: Partial<ResolvedConfig> = {}, scoped?: Readonly<Record<string, readonly CommandDescriptor[]>>) {
   const abort = new AbortController()
   const connected = Promise.withResolvers<DiscordGatewayOptions>()
   const observer = new Set<() => void>()
   let descriptors: readonly CommandDescriptor[] = [{ name: 'plan', description: 'Plan the next task' }]
-  const listForScope = vi.fn(() => descriptors)
-  const scope = {}
+  const listForScope = vi.fn((scope: string) => scoped?.[scope] ?? descriptors)
   const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() }
   const removeObserver = vi.fn()
   const ctx = {
     logger,
     credentials: { resolve: async () => ({ value: 'private-bot-token' }) },
-    agentPresets: { resolve: async () => ({}), acquireScope: async () => ({ key: scope, [Symbol.asyncDispose]: async () => {} }) },
+    agentPresets: {
+      resolve: async () => ({}),
+      acquireScope: async (name: string) => ({ key: name, [Symbol.asyncDispose]: async () => {} }),
+    },
     permissionPresets: { resolve: () => ({}) },
     commands: { listForScope },
     on: (name: string, callback: () => void) => {
@@ -132,6 +136,39 @@ afterEach(async () => {
 })
 
 describe('native command synchronization owned by the gateway listener', () => {
+  it('publishes lane commands globally but checks the native actor before dispatch', async () => {
+    const h = await listener({ allowedUserIds: [USER, OTHER], allowedChannelIds: [GUILD_CHANNEL], userLanes: { [USER]: {
+      workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only',
+      excludedPresetCommands: [],
+    } } }, {
+      restricted: [{ name: 'inspect', description: 'Inspect the restricted workspace' }],
+    })
+    const calls = rest((call) => {
+      if (call.path === '/api/v10/applications/@me') return application()
+      if (call.path === CATALOG_PATH && call.method === 'GET') return Response.json([])
+      if (call.path === CATALOG_PATH && call.method === 'PUT') return Response.json(call.body)
+      if (call.path.endsWith('/callback')) return new Response(null, { status: 204 })
+      if (call.path.endsWith('/messages/@original')) return Response.json({ id: ID })
+      throw new Error(`Unexpected Discord request: ${call.path}`)
+    })
+    h.ready()
+    await vi.waitFor(() => { expect(calls.some(call => call.method === 'PUT' && call.path === CATALOG_PATH)).toBe(true) })
+    const catalog = calls.find(call => call.method === 'PUT' && call.path === CATALOG_PATH)?.body as { name: string }[]
+    expect(catalog.map(item => item.name)).toEqual(expect.arrayContaining(['plan', 'inspect']))
+
+    h.options.onInteraction?.({ ...command(), id: DiscordInteractionId('1472404859679670459'), name: 'plan' })
+    await vi.waitFor(() => { expect(calls.some(call => call.path.endsWith('/messages/@original'))).toBe(true) })
+    expect(h.execute).not.toHaveBeenCalled()
+    h.options.onInteraction?.({ ...command(), id: DiscordInteractionId('1472404859679670460'), name: 'inspect' })
+    await vi.waitFor(() => { expect(h.execute).toHaveBeenCalledTimes(1) })
+    expect(h.execute).toHaveBeenCalledWith(CHANNEL, { userId: USER, directMessage: true }, '/inspect', expect.any(AbortSignal))
+
+    h.options.onInteraction?.({ ...command(), id: DiscordInteractionId('1472404859679670461'),
+      userId: OTHER, channelId: GUILD_CHANNEL, guildId: '138391763999129603', name: 'plan' })
+    await vi.waitFor(() => { expect(h.execute).toHaveBeenCalledTimes(2) })
+    expect(h.execute).toHaveBeenCalledWith(GUILD_CHANNEL, { userId: OTHER, directMessage: false }, '/plan', expect.any(AbortSignal))
+  })
+
   it('skips an unchanged catalog and publishes a later registration change', async () => {
     const h = await listener()
     const reading = barrier()
@@ -273,7 +310,7 @@ describe('native command synchronization owned by the gateway listener', () => {
       expect(call.path).toContain('/callback')
       return new Response(null, { status: 204 })
     })
-    h.execute.mockImplementation(async (_channel, _line, signal) => {
+    h.execute.mockImplementation(async (_channel, _actor, _line, signal) => {
       if (signal === undefined) throw new Error('native command has no cancellation signal')
       commandSignal = signal
       commandEntered.resolve()
