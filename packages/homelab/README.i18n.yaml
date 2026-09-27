@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/homelab/README.md
+/:
+  en: 87eb1d2873542f69
+  zh: 94d505ca7c689ed1
+/homelab-beardy-observations:
+  en: f899f5cca3440d7d
+  zh: 5bd9ac6245959df1
+/homelab-beardy-observations/summary:
+  en: f464b724d81e5d42
+  zh: 3be01897947ff07d
+/homelab-beardy-observations/packages:
+  en: 7f15ba12bf601cfd
+  zh: 243f623eadb87c0e
+/homelab-beardy-observations/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

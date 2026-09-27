@@ -45,6 +45,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
+| `@deepseek-ai/dsh-tool-homelab` | `homelab` | `ctx.tools`, `ctx.subprocess`, `ctx.sessionProjections` | `tool/call`, `tool/result` | - | Each action runs one fixed Beardy argv. The `host` enum is the deployment's `allowedHosts` (one fixture ID here). Unless `allowedAgentPresets` is `any`, a caller whose current agent preset is not listed fails before a process starts. |
 | `@deepseek-ai/dsh-tool-weather` | `get_weather` | `ctx.tools`, `ctx.web` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
@@ -2846,6 +2847,50 @@ Get absolute paths to bundled Python and library directories, plus bundled Pytho
 ```
 
 Source: [`packages/skill/tool-workspace-dependencies/src/index.ts`](../packages/skill/tool-workspace-dependencies/src/index.ts)
+
+<a id="deepseek-aidsh-tool-homelab"></a>
+
+## `@deepseek-ai/dsh-tool-homelab`
+
+### `homelab`
+
+Read-only home-lab observations from the Beardy CLI. Actions: hosts (inventory), discover (LAN neighbors with names, common open ports, and MACs), dns (resolver liveness), disk (mount usage per inventory host), docker_status (all containers on one host; requires host), firewall_rules (managed OPNsense rules), router_leases (DHCP leases), net_top (top 10 traffic sources over the last hour), doctor (Beardy environment checks). Returns projected JSON rows with fixed failure codes. This tool cannot change anything.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "hosts",
+        "discover",
+        "dns",
+        "disk",
+        "docker_status",
+        "firewall_rules",
+        "router_leases",
+        "net_top",
+        "doctor"
+      ]
+    },
+    "host": {
+      "type": "string",
+      "description": "Inventory host ID; required for docker_status and rejected otherwise.",
+      "enum": [
+        "mini"
+      ]
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/homelab/tool-homelab/src/index.ts`](../packages/homelab/tool-homelab/src/index.ts)
+
+Each action runs one fixed Beardy argv. The `host` enum is the deployment's `allowedHosts` (one fixture ID here). Unless `allowedAgentPresets` is `any`, a caller whose current agent preset is not listed fails before a process starts.
 
 <a id="deepseek-aidsh-tool-weather"></a>
 

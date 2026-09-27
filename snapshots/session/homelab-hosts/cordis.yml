@@ -1,0 +1,12 @@
+- id: subprocess
+  disabled: true
+- insert:
+    - id: homelab-subprocess-fixture
+      name: './fixture.mjs'
+    - id: tool-homelab
+      name: '@deepseek-ai/dsh-tool-homelab'
+      config:
+        bdyPath: !!js process.getBuiltinModule('node:path').join(process.cwd(), 'beardy', 'bin', 'bdy')
+        secretsPath: !!js process.getBuiltinModule('node:path').join(process.cwd(), 'beardy', 'secrets.env')
+        allowedHosts: [mini]
+        allowedAgentPresets: any

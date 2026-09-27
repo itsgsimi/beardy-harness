@@ -1,0 +1,9 @@
+version: 1
+scenario: homelab-hosts
+profile: headless
+composition: homelab-hosts
+recording: authored
+permission: workspace-write
+header:
+  class: homelab-hosts
+  pin: true

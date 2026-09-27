@@ -65,6 +65,8 @@ The provider and model must name an admitted LLM route. The profile namespace gr
 
 Beardy also ships disabled `fantasy-yahoo` and `tool-fantasy` rows. A personal patch supplies the private DSH token path, one-time import source, caller-to-team map, and human authorization presets before enabling both rows. The [Fantasy provider](../../fantasy/fantasy-yahoo/README.md) owns authorization and refresh; the [tool](../../fantasy/tool-fantasy/README.md) returns bounded read-only results.
 
+The `tool-homelab` row is disabled until a personal patch supplies the Beardy executable, its secrets file, the Docker host allowlist, and the agent presets allowed to call it. The [homelab tool](../../homelab/tool-homelab/README.md) runs fixed read-only Beardy commands; leave presets that serve other people out of `allowedAgentPresets`.
+
 Beardy sends `web_search` to the SearXNG JSON endpoint at `http://127.0.0.1:8080` by default. Set `SEARXNG_BASE_URL` before launch to use another instance, and enable the `json` format in that instance's `search.formats` configuration. See the [SearXNG provider README](../../web/web-search-searxng/README.md) and [SearXNG Search API](https://docs.searxng.org/dev/search_api.html) for the endpoint contract.
 
 ### Deploy as an always-on Discord agent

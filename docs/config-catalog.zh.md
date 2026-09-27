@@ -4136,6 +4136,41 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-goal -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-homelab -->
+<a id="deepseek-aidsh-tool-homelab"></a>
+
+## `@deepseek-ai/dsh-tool-homelab`
+
+- `inject`: `tools` · `subprocess` · `sessionProjections`
+- `source`: [`packages/homelab/tool-homelab/src/index.ts:56`](../packages/homelab/tool-homelab/src/index.ts)
+
+```ts config-catalog
+/** Deployment-owned executable, authority, and resource limits. */
+export interface Config {
+  /** Absolute path of `bin/bdy` inside a Beardy checkout. */
+  bdyPath: string
+  /** Absolute path of Beardy's secrets file; forwarded as `BDY_SECRETS_FILE` and used for exact-value redaction. */
+  secretsPath: string
+  /** Inventory host IDs `docker_status` may name; an empty list removes that action. */
+  allowedHosts: string[]
+  /** Agent presets whose Sessions may run the tool, or `any` for every caller; others fail before a process starts. */
+  allowedAgentPresets: 'any' | string[]
+  /** Wall-clock deadline for one Beardy call in milliseconds. */
+  timeoutMs?: number
+  /** Beardy's own per-operation `--timeout` in seconds; must stay below `timeoutMs`. */
+  bdyTimeoutSeconds?: number
+  /** Grace period for the subprocess provider's termination procedure in milliseconds. */
+  graceMs?: number
+  /** In-memory stdout cap; a larger stream yields `STDOUT_CAP` instead of partial JSON. */
+  maxStdoutBytes?: number
+  /** Serialized result cap; trailing rows are dropped and counted in `omittedRows`. */
+  maxResultBytes?: number
+  /** Per-cell character cap applied after redaction. */
+  maxCellChars?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-homelab -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-jobs -->
 <a id="deepseek-aidsh-tool-jobs"></a>
 

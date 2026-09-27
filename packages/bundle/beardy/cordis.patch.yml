@@ -38,6 +38,12 @@
         units: us
         days: 3
 
+    # Read-only Beardy observations. A personal patch supplies the checkout,
+    # secrets file, Docker host IDs, and allowed agent presets before enabling it.
+    - id: tool-homelab
+      name: '@deepseek-ai/dsh-tool-homelab'
+      disabled: true
+
 # Beardy uses the local SearXNG JSON API for search, so no DeepSeek search
 # credential is needed. Set SEARXNG_BASE_URL to use another instance; the
 # The SearXNG provider resolves its endpoint through the launch-environment snapshot.

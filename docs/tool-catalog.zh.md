@@ -49,6 +49,7 @@
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
+| `@deepseek-ai/dsh-tool-homelab` | `homelab` | `ctx.tools`、`ctx.subprocess`、`ctx.sessionProjections` | `tool/call`、`tool/result` | - | 每个动作运行一条固定的 Beardy argv。`host` 枚举取自部署的 `allowedHosts`（此处为一个 fixture ID）。除非 `allowedAgentPresets` 为 `any`，当前 agent 预设未列出的调用方会在进程启动前失败。 |
 | `@deepseek-ai/dsh-tool-weather` | `get_weather` | `ctx.tools`、`ctx.web` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`、`ctx.credentials` | `tool/call`、`tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint、model、and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
@@ -2860,6 +2861,50 @@ todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为
 ```
 
 来源：[`packages/skill/tool-workspace-dependencies/src/index.ts`](../packages/skill/tool-workspace-dependencies/src/index.ts)
+
+<a id="deepseek-aidsh-tool-homelab"></a>
+
+## `@deepseek-ai/dsh-tool-homelab`
+
+### `homelab`
+
+通过 Beardy CLI 读取家庭实验室的只读观测。动作：hosts（主机清单）、discover（局域网邻居的名称、常见开放端口和 MAC）、dns（解析器存活状态）、disk（各清单主机的挂载点用量）、docker_status（某一主机上的全部容器；需要 host）、firewall_rules（受管 OPNsense 规则）、router_leases（DHCP 租约）、net_top（过去一小时流量最多的 10 个来源）、doctor（Beardy 环境检查）。返回投影后的 JSON 行与固定失败代码。此工具不能更改任何内容。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "hosts",
+        "discover",
+        "dns",
+        "disk",
+        "docker_status",
+        "firewall_rules",
+        "router_leases",
+        "net_top",
+        "doctor"
+      ]
+    },
+    "host": {
+      "type": "string",
+      "description": "Inventory host ID; required for docker_status and rejected otherwise.",
+      "enum": [
+        "mini"
+      ]
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+来源：[`packages/homelab/tool-homelab/src/index.ts`](../packages/homelab/tool-homelab/src/index.ts)
+
+每个动作运行一条固定的 Beardy argv。`host` 枚举取自部署的 `allowedHosts`（此处为一个 fixture ID）。除非 `allowedAgentPresets` 为 `any`，当前 agent 预设未列出的调用方会在进程启动前失败。
 
 <a id="deepseek-aidsh-tool-weather"></a>
 

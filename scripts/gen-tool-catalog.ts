@@ -6,8 +6,9 @@
  * `.agents/notes/archived/process/2026-07-02-tool-schema-catalog.md`.
  */
 
-import { globSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { chmodSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
@@ -80,6 +81,7 @@ import type { FantasyService } from '@deepseek-ai/dsh-fantasy'
 import * as ToolFantasy from '@deepseek-ai/dsh-tool-fantasy'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import * as ToolWeather from '@deepseek-ai/dsh-tool-weather'
+import * as ToolHomelab from '@deepseek-ai/dsh-tool-homelab'
 import WorkflowEngine from '@deepseek-ai/dsh-workflow'
 import type { WorkflowRun, WorkflowStartRequest } from '@deepseek-ai/dsh-workflow'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
@@ -675,6 +677,34 @@ const TOOL_PACKAGES: ToolPackage[] = [
     async mount(ctx) {
       // Schema harvest never prepares a payload; the directory need not exist.
       await ctx.plugin(ToolWorkspaceDependencies, { source: resolve(root, '.tmp/tool-catalog/primary-runtime') })
+    },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-homelab',
+    dir: 'tool-homelab',
+    source: 'packages/homelab/tool-homelab/src/index.ts',
+    requires: ['ctx.tools', 'ctx.subprocess', 'ctx.sessionProjections'],
+    writes: ['tool/call', 'tool/result'],
+    note: 'Each action runs one fixed Beardy argv. The `host` enum is the deployment\'s `allowedHosts` (one fixture ID here). Unless `allowedAgentPresets` is `any`, a caller whose current agent preset is not listed fails before a process starts.',
+    async mount(ctx) {
+      // Load validation needs a Beardy checkout shape; schema harvest never runs it.
+      const fixture = mkdtempSync(join(tmpdir(), 'dsh-tool-catalog-beardy-'))
+      mkdirSync(resolve(fixture, 'bin'), { recursive: true })
+      mkdirSync(resolve(fixture, 'src'), { recursive: true })
+      mkdirSync(resolve(fixture, 'inventory'), { recursive: true })
+      writeFileSync(resolve(fixture, 'bin/bdy'), '#!/bin/sh\nexit 97\n')
+      chmodSync(resolve(fixture, 'bin/bdy'), 0o755)
+      writeFileSync(resolve(fixture, 'src/cli.ts'), '')
+      writeFileSync(resolve(fixture, 'inventory/hosts.json'), '{"hosts":[{"id":"mini"}]}\n')
+      await ctx.plugin(LocalSubprocessRuntime)
+      try {
+        await ctx.plugin(ToolHomelab, {
+          bdyPath: resolve(fixture, 'bin/bdy'), secretsPath: resolve(fixture, 'secrets.env'),
+          allowedHosts: ['mini'], allowedAgentPresets: ['beardy'],
+        })
+      } finally {
+        rmSync(fixture, { recursive: true, force: true })
+      }
     },
   },
   {

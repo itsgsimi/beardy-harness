@@ -65,6 +65,8 @@ Beardy 随附的 `tool-odysseus-research` 桥接条目，以及原生 `research-
 
 Beardy 还随附默认禁用的 `fantasy-yahoo` 和 `tool-fantasy` 条目。个人补丁先提供私有 DSH token 路径、一次性导入来源、调用方到球队的映射及人工授权预设，再同时启用两项。[Fantasy 提供方](../../fantasy/fantasy-yahoo/README.zh.md)负责授权与刷新；[工具](../../fantasy/tool-fantasy/README.zh.md)返回有界只读结果。
 
+`tool-homelab` 条目默认禁用，个人补丁须提供 Beardy 可执行文件、其密钥文件、Docker 主机允许列表以及可调用它的 agent 预设。[homelab 工具](../../homelab/tool-homelab/README.zh.md)运行固定的只读 Beardy 命令；为他人服务的预设不要列入 `allowedAgentPresets`。
+
 Beardy 默认把 `web_search` 发往 `http://127.0.0.1:8080` 的 SearXNG JSON 端点。启动前设置 `SEARXNG_BASE_URL` 可改用其他实例，并在该实例的 `search.formats` 配置中启用 `json` 格式。端点契约见 [SearXNG provider README](../../web/web-search-searxng/README.zh.md) 与 [SearXNG Search API](https://docs.searxng.org/dev/search_api.html)。
 
 ### 部署为常驻的 Discord agent
