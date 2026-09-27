@@ -10,11 +10,13 @@ Configuration-only schedules made every job change an edit-and-restart. A runnin
 
 ## Decision
 
-Stored jobs live in a `cron_jobs` storage domain with two tables: `jobs` holds stored definitions (zod-validated on load), and `state` holds continuity notes and recent run outcomes for both configured and stored jobs. A registry merges configuration and stored rows into one view and refuses at construction to mount when a name is used by both origins. Configured jobs stay read-only through the management surfaces apart from listing, running now, and notes; the message says so.
+Stored jobs live in a `cron_jobs` storage domain with two tables: `jobs` holds stored definitions (zod-validated on load), and `state` holds continuity notes and recent run outcomes for both configured and stored jobs. A registry merges configuration and stored rows into one view and refuses at construction to mount when a name is used by both origins. Configured job definitions stay read-only through the management surfaces; their arm state, immediate runs, and notes can change.
 
-`cron_manage` is the model-facing tool (`list`, `create`, `update`, `delete`, `pause`, `resume`, `run_now`, `note`) and `/cron` the human command over the same registry. Guardrails are configuration: `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` — all empty by default, so creation is refused until the operator opens them — plus `maxStoredJobs`, and `minIntervalMs` checked against the schedule itself through a paused croner probe. Create, update, and delete ask the approval service at call time when `requireApproval` is on (the default); with no answerer mounted they refuse rather than land unapproved.
+`cron_manage` is the model-facing tool (`list`, `create`, `update`, `delete`, `pause`, `resume`, `run_now`, `note`) and `/cron` the human command over the same registry. Guardrails are configuration: `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` — all empty by default, so creation is refused until the operator opens them — plus `maxStoredJobs`, and `minIntervalMs` checked against the schedule itself through a paused croner probe. Stored workspaces and roots are compared by `realpath` at create, update, and every fire; a rejected fire records a failed outcome before a Session opens. Create, update, delete, resume, run_now, and note ask the approval service at call time when `requireApproval` is on (the default); with no answerer mounted they refuse rather than land unapproved. Approval shows the full proposed job or patch, and the tool applies a copied proposal.
 
 Every fire's first message carries the job prompt plus a fixed continuity instruction and the stored notes; a run with no notes is told to write what the next run should know before it finishes, through the tool's `note` action. Notes are capped at `notesMaxChars`. A finished run emits the typed event `cron/run-finished` with outcome, final text, session id, and — when configured — a delivery channel; the Discord gateway's `attachCronDelivery` posts that text to the channel, or a one-line outcome note when there is no text and `deliverOutcomes` asks for one. Cron itself names no channel platform.
+
+The runner reads the admitted turn's `turn/end` reason before selecting its result: errors retain code and message, aborts report interruption, and completed turns without text report `no-text-answer`. Text committed before an error is never delivered as an answer. A job's optional `turnTimeoutMs` overrides the plugin bound; stored definitions, pending outcomes, and history use optional fields so records written without the override or failure detail remain readable. The gateway publishes only a display-safe failure code, never the failure message.
 
 Timers are owned by a scheduler host (`sync`, `trigger`, per-job in-flight guard). Any write to the `jobs` table re-plans every timer from the registry's current view; in-flight guards survive the re-plan, so editing a stored job cannot leave a stale timer or double-run an active one.
 
@@ -30,11 +32,13 @@ Cron posting to Discord directly was rejected: delivery belongs to whoever owns 
 
 Making notes free-form session memory (curated memory, `dsh-memory`) was rejected for this seam: continuity here is one bounded string per job that every fire reads verbatim, not recall across sessions; a search step would add cost and nondeterminism to an unattended run.
 
+Treating any idle turn with assistant text as answered was rejected because a turn can commit text and then log an error. The terminal event decides the result; text is selected only for completed endings.
+
 ## Consequences
 
 Automatic outcome delivery and cold reminder recovery follow the [durable delivery decision](2026-09-07-durable-personal-agent-delivery.md).
 
-A model can now restructure the timetable, so blast radius is configuration-bounded: presets, workspace roots, count, frequency, and (by default) one approval per mutation. The empty-default allowlists mean runtime creation is dead until a profile opens it — deliberate, and stated in the README's Known Limitations.
+A model can now restructure the timetable, so blast radius is configuration-bounded: presets, workspace roots, count, frequency, and (by default) approval for create, update, delete, resume, run_now, and note. The empty-default allowlists mean runtime creation is dead until a profile opens it — deliberate, and stated in the README's Known Limitations.
 
 Unattended runs have no answerer, so `cron_manage` writes from an unattended session refuse on approval unless the operator turns `requireApproval` off; interactive sessions with the Discord answerers approve by reaction or reply as any other gated tool does.
 

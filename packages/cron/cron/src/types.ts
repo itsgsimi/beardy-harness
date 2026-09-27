@@ -37,6 +37,8 @@ export interface CronJobSpec {
   readonly workspacePath: string
   /** Session title; defaults to the job name followed by the fire time. */
   readonly title?: string
+  /** Per-run turn bound in milliseconds; absent uses the plugin's turnTimeoutMs. */
+  readonly turnTimeoutMs?: number
 }
 
 /** One configured job plus its channel-delivery target from plugin configuration. */
@@ -64,6 +66,8 @@ export interface CronRunResult {
   readonly sessionId: string
   /** Final assistant text of the run; empty when there was none. */
   readonly text: string
+  /** Failure facts from the turn ending or runner; absent for other outcomes. */
+  readonly failure?: { readonly code: string; readonly message: string }
 }
 
 /** A settled run retained until delivery listeners durably accept its outcome. */

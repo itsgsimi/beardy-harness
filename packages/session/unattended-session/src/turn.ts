@@ -5,7 +5,7 @@
  */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 /**
  * Sleep until `ms` passes or the signal aborts.
@@ -71,4 +71,18 @@ export function lastAssistantText(events: readonly SessionEvent[], firstSeq: num
     if (joined !== '') text = joined
   }
   return text
+}
+
+/**
+ * Terminal reason recorded for the turn admitted at `firstSeq`.
+ * @param events - session events to scan.
+ * @param firstSeq - next sequence number before the turn was admitted.
+ * @returns the turn's terminal reason, or undefined if no turn ended in the interval.
+ */
+export function lastTurnEndReason(events: readonly SessionEvent[], firstSeq: number): TurnEndReason | undefined {
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index]
+    if (event !== undefined && event.seq >= firstSeq && event.type === 'turn/end') return event.data.reason
+  }
+  return undefined
 }

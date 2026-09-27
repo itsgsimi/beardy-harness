@@ -30,7 +30,7 @@ A run's first request carries the job's `prompt`, a fixed continuity instruction
 
 #### Token effect
 
-One user message per fire — prompt, continuity instruction, and notes — plus whatever the run's own tool calls add. Each run is a separate session, so cost repeats per fire rather than accumulating into one long conversation; `turnTimeoutMs` bounds how long a single run may keep going.
+One user message per fire — prompt, continuity instruction, and notes — plus whatever the run's own tool calls add. Each run is a separate session, so cost repeats per fire rather than accumulating into one long conversation; a job's optional `turnTimeoutMs` bounds its run, with the plugin `turnTimeoutMs` as the default.
 
 #### KV Cache effect
 
@@ -40,11 +40,11 @@ Every fire starts a new session whose preset composition forms its own initial p
 
 #### What the model sees
 
-One tool with an `action` enum: `list`, `create`, `update`, `delete`, `pause`, `resume`, `run_now`, and `note`. Create names the schedule, timezone, prompt, preset pair, workspace, and optionally a title and a delivery channel. Results are short confirmation lines plus, for `list`, one line per job with its origin (`config` or `stored`) and arm state.
+One tool with an `action` enum: `list`, `create`, `update`, `delete`, `pause`, `resume`, `run_now`, and `note`. Create requires a name, schedule, timezone, prompt, preset pair, and workspace; a title, per-job timeout, and delivery channel are optional. Update requires a name and at least one patch field; delete, pause, resume, and run_now require a name; note requires a name and replacement notes. Results are short confirmation lines plus, for `list`, one line per job with its origin (`config` or `stored`) and arm state.
 
 #### Token effect
 
-The schema sits in every request of any session that has the tool mounted; each call adds one small result. Guardrail refusals come back as tool errors naming the violated bound, so a rejected create costs one round.
+The schema sits in every request of any session that has the tool mounted; each call adds one small result. Missing-field errors name the fields required by that action. Notes over the configured `notesMaxChars` cap are refused with a request to condense them; other guardrail refusals name the violated bound.
 
 #### KV Cache effect
 
@@ -54,8 +54,8 @@ Registration is static per composition, so the schema does not churn mid-session
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Creation stays locked until opened** — `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` default to empty, so a stored create is refused until the operator whitelists presets and roots in configuration.
-- **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, and delete refuse rather than land unapproved.
+- **Creation stays locked until opened** — `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` default to empty, so a stored create is refused until the operator whitelists presets and roots in configuration. Workspace and root paths are compared by `realpath` on create and update; every fire rechecks the stored workspace and records a failed outcome if it escapes the roots.
+- **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, delete, resume, run_now, and note refuse rather than land unapproved. Approval requests show the proposed job or field changes, and the tool applies the approved values.
 - **Delivery needs an accepting listener** — `cron/run-finished` uses an awaited serial handoff. A channel-bound outcome stays pending until a listener durably accepts it; the scheduler waits for that acceptance before starting another run of the same job.
 - **Fires during downtime are not made up** — a schedule that should have fired while the process was stopped is skipped when it comes back; the next scheduled time runs normally.
 - **One overlapping fire per job** — a still-running job causes the next fire to be logged as skipped rather than queued, so a run longer than its own period loses those fires.

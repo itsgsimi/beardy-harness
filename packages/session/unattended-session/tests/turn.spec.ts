@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { awaitTurn, lastAssistantText, sleep } from '../src/turn.ts'
+import { awaitTurn, lastAssistantText, lastTurnEndReason, sleep } from '../src/turn.ts'
 
 function agentReturning(idle: () => Promise<void>): Agent {
   return { whenIdle: idle } as unknown as Agent
@@ -82,5 +82,17 @@ describe('lastAssistantText', () => {
       { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '' }] } } },
     ] as unknown as SessionEvent[]
     expect(lastAssistantText(events, 0)).toBe('')
+  })
+})
+
+describe('lastTurnEndReason', () => {
+  it('selects only a terminal event logged after admission', () => {
+    const events = [
+      { seq: 1, type: 'turn/end', data: { reason: { kind: 'completed' } } },
+      { seq: 2, type: 'assistant/message', data: {} },
+      { seq: 3, type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'SERVER', message: 'failed' } } } },
+    ] as unknown as SessionEvent[]
+    expect(lastTurnEndReason(events, 2)).toEqual({ kind: 'error', error: { code: 'SERVER', message: 'failed' } })
+    expect(lastTurnEndReason(events, 4)).toBeUndefined()
   })
 })
