@@ -352,6 +352,7 @@ describe('discord-gateway real Loader composition', () => {
         `    allowedUserIds: ['${USER}']`,
         "- name: '@deepseek-ai/dsh-cron'",
         '  config:',
+        '    requireApproval: false',
         '    jobs:',
         '      - name: brief',
         "        expression: '0 7 * * *'",
