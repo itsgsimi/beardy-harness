@@ -79,11 +79,12 @@ describe('durable Discord outbox', () => {
     const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create', schedule } }] as SessionEvent[]
     const h = harness({ outboxStorage: storage, storedEvents: events,
       initialRecord: record({ deliveredThrough: 0 }), replyText: 'Door checked.' })
+    const append = vi.spyOn(h.agent.session, 'append')
     try {
       await h.router.recover()
       await vi.waitFor(() => { expect(h.posted.map(post => post.content)).toContain('Door checked.') })
       expect(h.calls).toContain('agent-resume:discord-old-session')
-      expect(events.some(event => event.type === 'schedule/change' && event.data.operation === 'dispatch')).toBe(true)
+      expect(append).toHaveBeenCalledWith('schedule/change', expect.objectContaining({ operation: 'dispatch' }))
     } finally {
       h.controller.abort()
       await h.router.dispose()

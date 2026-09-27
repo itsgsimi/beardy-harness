@@ -85,8 +85,8 @@ export class RepositoryCleaner {
     )
 
     // The root project-reference graph is the source of truth for live build targets.
-    // Each emitting project declares lib/types as outDir; its parent lib also owns
-    // the sibling runtime bundles, so the complete build output root is removed.
+    // Package projects emit to lib/types, whose parent also owns sibling runtime
+    // bundles. The root keyboard test and native entry outputs are exceptions.
     const projects = this.projects()
     for (const outputDirectory of this.buildOutputDirectories(projects)) {
       await this.addIfPresent(targets, outputDirectory, canonicalRoot)
@@ -180,13 +180,14 @@ export class RepositoryCleaner {
   private buildOutputDirectories(projects: readonly ts.ParsedCommandLine[]): string[] {
     const outputs = new Set<string>()
     const nativeEntryOutput = join(this.root, 'native/system/packages/entry/lib')
+    const desktopKeyboardTestOutput = join(this.root, 'lib/desktop-keyboard-test-types')
 
     for (const parsed of projects) {
       if (parsed.options.outDir === undefined) continue
       const typesDirectory = resolve(parsed.options.outDir)
       const outputDirectory = basename(typesDirectory) === 'types'
         ? dirname(typesDirectory)
-        : typesDirectory === nativeEntryOutput
+        : typesDirectory === nativeEntryOutput || typesDirectory === desktopKeyboardTestOutput
           ? typesDirectory
           : undefined
       if (outputDirectory === undefined) {
