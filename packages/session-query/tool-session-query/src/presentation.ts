@@ -12,6 +12,7 @@ import {
   type SessionLineageTrace,
   type SessionRecord,
   type SessionSearchHit,
+  sessionRecallOrigin,
 } from '@deepseek-ai/dsh-session-query'
 import type {
   SessionEvent,
@@ -30,7 +31,8 @@ interface SearchCollection<T> {
 }
 
 interface SessionSearchCallArgs {
-  readonly query: string
+  readonly query?: string
+  readonly view?: 'search' | 'recent'
 }
 
 interface EventSearchCallArgs {
@@ -50,24 +52,12 @@ function formatSessionSearch(
   titles: CompleteTitleMap,
   authorizedParents: ReadonlySet<SessionId>,
 ): string {
-  if (collected.items.length === 0) return formatEmptySessionSearch()
+  if (collected.items.length === 0) return formatEmptySessionSearch('search')
   const lines = [`Session search results (${collected.items.length}):`]
   for (const [index, hit] of collected.items.entries()) {
-    const parent = hit.header.parentSession === undefined
-      ? 'root'
-      : authorizedParents.has(hit.header.parentSession)
-        ? hit.header.parentSession
-        : '[outside workspace]'
-    const availability = [
-      hit.live ? 'live' : undefined,
-      hit.persisted ? 'persisted' : undefined,
-    ].filter((value): value is string => value !== undefined).join(', ') || 'unavailable'
     lines.push(
       '',
-      `${index + 1}. Session ${hit.header.id} — ${workspaceAccess.titleText(titles.get(hit.header.id))}`,
-      `   Created: ${formatTime(hit.header.createdAt)}`,
-      `   Parent: ${parent}`,
-      `   Availability: ${availability}`,
+      ...sessionLines(index, hit, titles, authorizedParents),
       `   Best match: seq ${hit.bestMatch.seq} | ${hit.bestMatch.type} | ${hit.bestMatch.surface} | ${formatTime(hit.bestMatch.time)}`,
       `   Snippet: ${hit.bestMatch.snippet}`,
     )
@@ -78,8 +68,44 @@ function formatSessionSearch(
   return lines.join('\n')
 }
 
-function formatEmptySessionSearch(): string {
-  return 'No prior session matches found.'
+function formatRecentSessions(
+  collected: SearchCollection<SessionRecord>,
+  titles: CompleteTitleMap,
+  authorizedParents: ReadonlySet<SessionId>,
+): string {
+  if (collected.items.length === 0) return formatEmptySessionSearch('recent')
+  const lines = [`Recent sessions, newest first (${collected.items.length}):`]
+  for (const [index, record] of collected.items.entries()) {
+    lines.push('', ...sessionLines(index, record, titles, authorizedParents))
+  }
+  if (collected.capped) {
+    lines.push('', 'Result cap reached. Set created_at_to before the oldest listed creation time to list older sessions.')
+  }
+  return lines.join('\n')
+}
+
+function sessionLines(
+  index: number,
+  record: SessionRecord,
+  titles: CompleteTitleMap,
+  authorizedParents: ReadonlySet<SessionId>,
+): string[] {
+  const parent = record.header.parentSession === undefined
+    ? 'root'
+    : authorizedParents.has(record.header.parentSession)
+      ? record.header.parentSession
+      : '[outside workspace]'
+  return [
+    `${index + 1}. Session ${record.header.id} — ${workspaceAccess.titleText(titles.get(record.header.id))}`,
+    `   Created: ${formatTime(record.header.createdAt)}`,
+    `   Origin: ${sessionRecallOrigin(record.header)}`,
+    `   Parent: ${parent}`,
+    `   Availability: ${availabilityText(record)}`,
+  ]
+}
+
+function formatEmptySessionSearch(view: 'search' | 'recent'): string {
+  return view === 'recent' ? 'No prior sessions found.' : 'No prior session matches found.'
 }
 
 function formatEventSearch(
@@ -209,7 +235,13 @@ function formatTime(value: number): string {
 }
 
 function presentSessionSearchCall(args: SessionSearchCallArgs): GenericCallView {
-  return { card: 'generic', kind: 'search', title: 'Search prior sessions', rawInput: args.query }
+  if (args.view === 'recent') return { card: 'generic', kind: 'search', title: 'List recent sessions' }
+  return {
+    card: 'generic',
+    kind: 'search',
+    title: 'Search prior sessions',
+    ...args.query === undefined ? {} : { rawInput: args.query },
+  }
 }
 
 function presentEventSearchCall(args: EventSearchCallArgs): GenericCallView {
@@ -243,6 +275,7 @@ function presentEventTargetCall(
 /** Text output and call-card presentation for every session-query tool. */
 export const presentation = {
   formatSessionSearch,
+  formatRecentSessions,
   formatEmptySessionSearch,
   formatEventSearch,
   formatSessionTrace,

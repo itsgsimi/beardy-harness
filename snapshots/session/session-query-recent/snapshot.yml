@@ -1,0 +1,11 @@
+version: 1
+scenario: session-query-recent
+profile: headless
+composition: session-query-recent
+recording: authored
+header:
+  class: session-query
+  pin: true
+replay:
+  override: true
+platform: posix

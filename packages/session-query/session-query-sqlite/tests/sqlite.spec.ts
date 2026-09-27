@@ -3,7 +3,7 @@ import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { DatabaseSync } from 'node:sqlite'
-import { chmod, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import SessionStore, { SessionLogOffset, SessionSeq, SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
@@ -370,6 +370,62 @@ describe('SQLite session search', () => {
       })
     await expect(ctx.sessionQuery.searchSessions({ query: 'AI' }))
       .resolves.toMatchObject({ items: [{ header: session.header, live: true, persisted: false }] })
+  })
+
+  it('ranks title matches and non-cron sessions first before the page limit and filters each origin', async () => {
+    const ctx = await liveContext({ path: ':memory:', defaultLimit: 10, maxLimit: 10 })
+    const cron = ctx.sessions.create(SessionId('cron-daily'), { seed: messageEvents('review review review') })
+    const delegated = ctx.sessions.create(SessionId('delegated'), {
+      seed: messageEvents('review review'),
+      meta: { parentSession: cron.id, delegationDepth: 1 },
+    })
+    const forked = ctx.sessions.create(SessionId('forked'), {
+      seed: messageEvents('review of the fork'),
+      meta: { parentSession: cron.id },
+    })
+    const interactive = ctx.sessions.create(SessionId('ordinary'), { seed: messageEvents('review') })
+    const discord = ctx.sessions.create(SessionId('discord-channel'), { seed: messageEvents('review') })
+    const titled = ctx.sessions.create(SessionId('titled'), { seed: messageEvents('other text') })
+    titled.append('session/title', { title: 'Review plans', messageSeqs: [], source: { kind: 'user' } })
+    const both = ctx.sessions.create(SessionId('titled-and-matched'), { seed: messageEvents('a review note') })
+    both.append('session/title', { title: 'Review notes', messageSeqs: [], source: { kind: 'user' } })
+
+    const all = await ctx.sessionQuery.searchSessions({ query: 'review' })
+    expect(all.items.map(hit => hit.header.id)).toEqual([
+      titled.id, both.id, discord.id, interactive.id, forked.id, cron.id, delegated.id,
+    ])
+    expect(all.items[0]?.bestMatch.type).toBe('session/title')
+    expect(all.items[1]?.bestMatch).toMatchObject({ type: 'user/message', snippet: 'a review note' })
+    expect((await ctx.sessionQuery.searchSessions({ query: 'review', limit: 1 })).items.map(hit => hit.header.id))
+      .toEqual([titled.id])
+    for (const [origin, ids] of [
+      ['cron', [cron.id, delegated.id]],
+      ['discord', [discord.id]],
+      ['interactive', [titled.id, both.id, interactive.id, forked.id]],
+    ] as const) {
+      const result = await ctx.sessionQuery.searchSessions({
+        query: 'review', sessionFilters: [{ kind: 'origin', values: [origin] }],
+      })
+      expect(result.items.map(hit => hit.header.id)).toEqual(ids)
+    }
+    const combined = await ctx.sessionQuery.searchSessions({
+      query: 'review', sessionFilters: [{ kind: 'origin', values: ['discord', 'cron'] }],
+    })
+    expect(combined.items.map(hit => hit.header.id)).toEqual([discord.id, cron.id, delegated.id])
+    await expect(ctx.sessionQuery.searchSessions({
+      query: 'review', sessionFilters: [{ kind: 'origin', values: [] }],
+    })).resolves.toEqual({ items: [] })
+  })
+
+  it('indexes the latest title rather than a superseded title', async () => {
+    const ctx = await liveContext()
+    const session = ctx.sessions.create(SessionId('renamed'))
+    session.append('session/title', { title: 'oldmarker', messageSeqs: [], source: { kind: 'user' } })
+    session.append('session/title', { title: 'newmarker', messageSeqs: [], source: { kind: 'user' } })
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'oldmarker' })).resolves.toEqual({ items: [] })
+    expect((await ctx.sessionQuery.searchSessions({ query: 'newmarker' })).items[0]?.bestMatch.type)
+      .toBe('session/title')
   })
 
   it('excludes assistant reasoning while indexing visible answer text', async () => {
@@ -880,6 +936,43 @@ describe('SQLite reconciliation and source lifecycle', () => {
       .resolves.toMatchObject({ items: [{ header: { id: SessionId('attached') } }] })
   })
 
+  it('observes a stored session removed between listing and reading as deleted', async () => {
+    const kept = header('kept')
+    const disappearing = header('closed-before-append')
+    TestPersistence.reset([
+      { meta: kept, events: messageEvents('needle kept') },
+      { meta: disappearing, events: messageEvents('needle gone') },
+    ])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: { id: disappearing.id } }, { header: { id: kept.id } }] })
+    TestPersistence.set({ meta: disappearing, events: messageEvents('needle changed') })
+    TestPersistence.listEffect = () => {
+      TestPersistence.listEffect = undefined
+      TestPersistence.entries.delete(disappearing.id)
+    }
+    TestPersistence.listSignals = []
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: { id: kept.id } }] })
+    expect(TestPersistence.listSignals).toHaveLength(2)
+  })
+
+  it('retries when a session missing at read time is listed again', async () => {
+    const flapping = header('flapping')
+    TestPersistence.reset([{ meta: flapping, events: messageEvents('needle') }])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    const open = vi.spyOn(TestPersistence.prototype, 'open')
+      .mockRejectedValueOnce(new SessionPersistenceNotFoundError(flapping.id))
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: { id: flapping.id } }] })
+    expect(open).toHaveBeenCalledTimes(2)
+    expect(TestPersistence.listSignals).toHaveLength(4)
+  })
+
   it('prefers a live owner that attaches during a persisted read and never mutates the store', async () => {
     const shared = header('attach-during-read', 10)
     const persistedEvents = messageEvents('persisted needle')
@@ -1048,7 +1141,46 @@ describe('SQLite reconciliation and source lifecycle', () => {
     expect(TestPersistence.reads.get(added.id)).toBe(1)
   })
 
-  it('fails after one retry when persistence snapshots keep changing', async () => {
+  it('retries when a listed session is replaced by another during observation', async () => {
+    const replaced = header('replaced')
+    const replacement = header('replacement')
+    TestPersistence.reset([
+      { meta: replaced, events: messageEvents('replaced needle') },
+      { meta: replacement, events: messageEvents('replacement needle') },
+    ])
+    // A refused log stays in the observed population without a successful read.
+    TestPersistence.unsupportedIds.add(replaced.id)
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    const snapshot = (session: SessionHeader): SessionPersistenceSnapshot => ({
+      header: session, revision: SessionPersistenceRevision(`test:${session.id}`),
+    })
+    TestPersistence.listOverride = () => [snapshot(TestPersistence.listSignals.length === 1 ? replaced : replacement)]
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: replacement }] })
+    expect(TestPersistence.listSignals).toHaveLength(4)
+  })
+
+  it('reports a failed cold read as a persistence failure and recovers on the next search', async () => {
+    const durable = header('unreadable')
+    TestPersistence.reset([{ meta: durable, events: messageEvents('durable needle') }])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    TestPersistence.readEffect = () => {
+      TestPersistence.readEffect = undefined
+      throw new Error('disk read failed')
+    }
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' })).rejects.toMatchObject({
+      code: 'SESSION_QUERY_PERSISTENCE_FAILED',
+      message: 'session-search persistence observation failed: disk read failed',
+    })
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ header: durable }] })
+  })
+
+  it('keeps the pre-read revision of a log appended during observation and reloads it next time', async () => {
     const durable = header('continuous-mutation')
     TestPersistence.reset([{ meta: durable, events: messageEvents('durable needle') }])
     const ctx = await liveContext()
@@ -1057,6 +1189,25 @@ describe('SQLite reconciliation and source lifecycle', () => {
     TestPersistence.listEffect = () => {
       lists += 1
       TestPersistence.set({ meta: durable, events: messageEvents(`durable needle ${lists}`) })
+    }
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ bestMatch: { snippet: 'durable needle 1' } }] })
+    expect(lists).toBe(2)
+    expect(TestPersistence.reads.get(durable.id)).toBe(1)
+    await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
+      .resolves.toMatchObject({ items: [{ bestMatch: { snippet: 'durable needle 3' } }] })
+    expect(TestPersistence.reads.get(durable.id)).toBe(2)
+  })
+
+  it('fails after one retry when the persisted population keeps changing', async () => {
+    TestPersistence.reset([{ meta: header('stable'), events: messageEvents('durable needle') }])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    let lists = 0
+    TestPersistence.listEffect = () => {
+      lists += 1
+      TestPersistence.set({ meta: header(`added-${lists}`), events: messageEvents('added needle') })
     }
 
     await expect(ctx.sessionQuery.searchSessions({ query: 'needle' }))
@@ -1851,6 +2002,57 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     expect(reader.header).toMatchObject(meta)
     await expect(reader.read()).resolves.toMatchObject({ events: [{ seq: SessionSeq(0) }] })
     await reader.close()
+    await persistence.dispose()
+  })
+
+  it('searches historical-format history while another stored session appends during observation', async () => {
+    const persistenceRoot = await temporaryPath('sessions')
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    const persistence = await ctx.plugin(JsonlSessionPersistence, { root: persistenceRoot, compression: 'none' })
+    await ctx.plugin(SqliteSessionQueryEngine, { path: ':memory:' })
+    const writer = await ctx.sessionPersistence.create(header('active-writer', 20))
+    await writer.append(messageEvents('active note'))
+    await writer.flush()
+    const historicalId = SessionId('historical')
+    const historicalPath = join(persistenceRoot, '_no-cwd', historicalId, 'session.v3.jsonl')
+    const message = { id: 'm1', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'historical needle' }] }
+    const rows = [
+      { type: 'agent/inbox/spliced', data: { target: 'next-turn', inserted: [message] } },
+      { type: 'turn/start', data: { turn: 1 } },
+      { type: 'user/message', data: message, surfaceOp: 'append' },
+      { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+    ].map((row, seq) => ({ ...row, seq, time: seq + 10 }))
+    await mkdir(dirname(historicalPath), { recursive: true })
+    await writeFile(historicalPath, [
+      { type: 'session', version: 3, id: historicalId, createdAt: 1, isSeeded: false, delegationDepth: 0 },
+      ...rows,
+    ].map(row => `${JSON.stringify(row)}\n`).join(''))
+    let appends = 0
+    const append = async (): Promise<void> => {
+      appends += 1
+      await writer.append([{ ...messageEvents(`active note ${appends}`)[0]!, seq: SessionSeq(appends) }])
+      await writer.flush()
+    }
+    // The backend folds every stored log into a historical-format revision, so
+    // any append elsewhere changes the historical Session's revision.
+    const historicalRevision = (await ctx.sessionPersistence.stat(historicalId))?.revision
+    await append()
+    expect((await ctx.sessionPersistence.stat(historicalId))?.revision).not.toBe(historicalRevision)
+    const open = ctx.sessionPersistence.open.bind(ctx.sessionPersistence)
+    vi.spyOn(ctx.sessionPersistence, 'open').mockImplementation(async (id, access, options) => {
+      if (id === historicalId) await append()
+      return open(id, access, options)
+    })
+
+    await expect(ctx.sessionQuery.searchSessions({ query: 'historical needle' }))
+      .resolves.toMatchObject({ items: [{ header: { id: historicalId }, persisted: true }] })
+    expect(appends).toBe(2)
+    await expect(ctx.sessionQuery.searchSessions({ query: 'active note 2' }))
+      .resolves.toMatchObject({ items: [{ header: { id: writer.id } }] })
+    expect(appends).toBe(3)
+    await writer.close()
     await persistence.dispose()
   })
 

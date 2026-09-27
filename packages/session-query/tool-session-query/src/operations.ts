@@ -53,11 +53,24 @@ interface SearchCollection<T> {
   readonly capped: boolean
 }
 
+/** Deployment-owned output bounds for the two `session_search` views. */
+interface SessionSearchLimits {
+  readonly maxSearchResults: number
+  readonly maxRecentSessions: number
+}
+
+type Caller = ReturnType<typeof workspaceAccess.callerOf>
+
+interface ListingContext {
+  readonly authorizedParents: ReadonlySet<SessionId>
+  readonly titles: Awaited<ReturnType<typeof workspaceAccess.readTitles>>
+}
+
 async function executeSessionSearch(
   ctx: Context,
   args: SessionSearchArgs,
   exec: ToolRunContext,
-  maxResults: number,
+  limits: SessionSearchLimits,
 ): Promise<string> {
   const caller = workspaceAccess.callerOf(exec, ctx)
   const cwd = caller.header.cwd
@@ -67,7 +80,7 @@ async function executeSessionSearch(
       'SESSION_QUERY_TOOL_UNAUTHORIZED',
     )
   }
-  const query = toolInput.normalizeQuery(args.query)
+  const mode = toolInput.sessionSearchMode(args)
   const sessionFilters = toolInput.buildSessionFilters(args)
   const eventFilters = toolInput.buildEventFilters({
     seqFrom: args.event_seq_from,
@@ -85,36 +98,52 @@ async function executeSessionSearch(
     const parentValues: Array<SessionId | null> = requestedParentIds
       ?.filter(id => authorizedParentIds.has(id)) ?? []
     if (args.include_root_sessions === true) parentValues.push(null)
-    if (parentValues.length === 0) return presentation.formatEmptySessionSearch()
+    if (parentValues.length === 0) return presentation.formatEmptySessionSearch(mode.view)
     sessionFilters.push({ kind: 'parent', values: parentValues })
   }
   sessionFilters.push({ kind: 'cwd', values: [cwd] })
+  const visible = (record: SessionRecord): boolean => record.header.id !== caller.id
+    && (requestedParentIds !== undefined || !isResearchStageSession(record.header))
+    && workspaceAccess.recordAuthorized(record, caller)
+
+  if (mode.view === 'recent') {
+    const records = (await serviceBoundary.call(ctx, exec.signal, 'recent session listing', () =>
+      ctx.sessionQuery.filterSessions(sessionFilters, exec.signal))).filter(visible)
+    const collected = {
+      items: records.slice(0, limits.maxRecentSessions),
+      capped: records.length > limits.maxRecentSessions,
+    }
+    const context = await readListingContext(ctx, caller, collected.items, exec.signal)
+    return presentation.formatRecentSessions(collected, context.titles, context.authorizedParents)
+  }
   const collected = await collectPages(
-    maxResults,
+    limits.maxSearchResults,
     exec.signal,
     cursor => serviceBoundary.call(ctx, exec.signal, 'session search', () =>
       ctx.sessionQuery.searchSessions({
-        query,
+        query: mode.query,
         sessionFilters,
         eventFilters,
         ...cursor === undefined ? {} : { cursor },
       }, { signal: exec.signal })),
-    hit => hit.header.id !== caller.id
-      && (requestedParentIds !== undefined || !isResearchStageSession(hit.header))
-      && workspaceAccess.recordAuthorized(hit, caller),
+    visible,
   )
+  const context = await readListingContext(ctx, caller, collected.items, exec.signal)
+  return presentation.formatSessionSearch(collected, context.titles, context.authorizedParents)
+}
 
-  const parentIds = collected.items
-    .map(hit => hit.header.parentSession)
+async function readListingContext(
+  ctx: Context,
+  caller: Caller,
+  records: readonly SessionRecord[],
+  signal: AbortSignal,
+): Promise<ListingContext> {
+  const parentIds = records
+    .map(record => record.header.parentSession)
     .filter((id): id is SessionId => id !== undefined)
-  const authorizedParents = await workspaceAccess.authorizeSessionIds(ctx, caller, parentIds, exec.signal)
-  const titles = await workspaceAccess.readTitles(
-    ctx,
-    caller,
-    collected.items.map(hit => hit.header.id),
-    exec.signal,
-  )
-  return presentation.formatSessionSearch(collected, titles, authorizedParents)
+  const authorizedParents = await workspaceAccess.authorizeSessionIds(ctx, caller, parentIds, signal)
+  const titles = await workspaceAccess.readTitles(ctx, caller, records.map(record => record.header.id), signal)
+  return { authorizedParents, titles }
 }
 
 async function executeEventSearch(

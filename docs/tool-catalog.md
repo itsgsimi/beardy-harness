@@ -2063,7 +2063,7 @@ Source: [`packages/session-query/tool-session-query/src/index.ts`](../packages/s
 
 ### `session_search`
 
-Search prior sessions in the caller workspace and return the strongest matching event from each session.
+Search prior sessions in the caller workspace and return the strongest matching event from each session, ranking title matches and non-cron sessions first; view recent lists the newest sessions without a query.
 
 ```json
 {
@@ -2071,7 +2071,25 @@ Search prior sessions in the caller workspace and return the strongest matching 
   "properties": {
     "query": {
       "type": "string",
-      "description": "Literal full-text query over prior session history."
+      "description": "Literal full-text query over prior session history. Required unless view is recent."
+    },
+    "view": {
+      "type": "string",
+      "description": "Omit or use search to rank query matches; use recent to list the newest prior sessions without a query.",
+      "enum": [
+        "search",
+        "recent"
+      ]
+    },
+    "origin": {
+      "type": "string",
+      "description": "Restrict to interactive, cron (scheduled), or discord sessions. Omit or use all for every origin.",
+      "enum": [
+        "interactive",
+        "cron",
+        "discord",
+        "all"
+      ]
     },
     "session_ids": {
       "type": "array",
@@ -2145,10 +2163,7 @@ Search prior sessions in the caller workspace and return the strongest matching 
         ]
       }
     }
-  },
-  "required": [
-    "query"
-  ]
+  }
 }
 ```
 

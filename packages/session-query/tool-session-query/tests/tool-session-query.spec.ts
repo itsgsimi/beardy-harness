@@ -294,6 +294,10 @@ describe('registration and schemas', () => {
       .toEqual([{ type: 'text', text: 'rendered' }])
     expect(mounted.ctx.tools.get('session_search')?.presentCall?.({ query: 'needle' }))
       .toEqual({ card: 'generic', kind: 'search', title: 'Search prior sessions', rawInput: 'needle' })
+    expect(mounted.ctx.tools.get('session_search')?.presentCall?.({}))
+      .toEqual({ card: 'generic', kind: 'search', title: 'Search prior sessions' })
+    expect(mounted.ctx.tools.get('session_search')?.presentCall?.({ view: 'recent', origin: 'cron' }))
+      .toEqual({ card: 'generic', kind: 'search', title: 'List recent sessions' })
     expect(mounted.ctx.tools.get('session_event_search')?.presentCall?.({ query: 'needle' }))
       .toEqual({ card: 'generic', kind: 'search', title: 'Search session events', rawInput: 'needle' })
     expect(mounted.ctx.tools.get('session_trace')?.presentCall?.({}))
@@ -346,6 +350,10 @@ describe('registration and schemas', () => {
       expect(() => { ToolSessionQuery.apply(mounted.ctx, { maxSearchResults }) })
         .toThrow('maxSearchResults')
     }
+    for (const maxRecentSessions of [0, 1.5, Number.NaN]) {
+      expect(() => { ToolSessionQuery.apply(mounted.ctx, { maxRecentSessions }) })
+        .toThrow('maxRecentSessions')
+    }
     for (const searchTimeoutMs of [0, 1.5, Number.POSITIVE_INFINITY, MAX_TIMER_DELAY_MS + 1]) {
       expect(() => { ToolSessionQuery.apply(mounted.ctx, { searchTimeoutMs }) })
         .toThrow(`no greater than ${MAX_TIMER_DELAY_MS}`)
@@ -355,7 +363,7 @@ describe('registration and schemas', () => {
 
   it('expresses the complete Node timer range in the Loader config schema', () => {
     expect(new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS }))
-      .toEqual({ maxSearchResults: 100, searchTimeoutMs: MAX_TIMER_DELAY_MS })
+      .toEqual({ maxSearchResults: 100, maxRecentSessions: 20, searchTimeoutMs: MAX_TIMER_DELAY_MS })
     expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: 1.5 })).toThrow()
     expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS + 1 })).toThrow()
   })
@@ -372,6 +380,17 @@ describe('input validation and translation', () => {
     [{ query: 'q', event_types: [] }, 'SESSION_QUERY_INVALID_FILTER'],
     [{ query: 'q', event_surfaces: [] }, 'SESSION_QUERY_INVALID_FILTER'],
     [{ query: 'q', event_surfaces: ['hidden'] }, 'INVALID_ARGS'],
+    [{}, 'SESSION_QUERY_INVALID_QUERY'],
+    [{ view: 'search' }, 'SESSION_QUERY_INVALID_QUERY'],
+    [{ view: 'recent', query: 'q' }, 'SESSION_QUERY_INVALID_QUERY'],
+    [{ view: 'recent', event_seq_from: 0 }, 'SESSION_QUERY_INVALID_FILTER'],
+    [{ view: 'recent', event_seq_to: 0 }, 'SESSION_QUERY_INVALID_FILTER'],
+    [{ view: 'recent', event_time_from: '2026-07-24T10:00:00Z' }, 'SESSION_QUERY_INVALID_FILTER'],
+    [{ view: 'recent', event_time_to: '2026-07-24T10:00:00Z' }, 'SESSION_QUERY_INVALID_FILTER'],
+    [{ view: 'recent', event_types: ['user/message'] }, 'SESSION_QUERY_INVALID_FILTER'],
+    [{ view: 'recent', event_surfaces: ['current'] }, 'SESSION_QUERY_INVALID_FILTER'],
+    [{ view: 'browse' }, 'INVALID_ARGS'],
+    [{ query: 'q', origin: 'unknown' }, 'INVALID_ARGS'],
     [{ query: 'q', event_seq_from: -1 }, 'SESSION_QUERY_INVALID_FILTER'],
     [{ query: 'q', event_seq_to: Number.MAX_SAFE_INTEGER + 1 }, 'SESSION_QUERY_INVALID_FILTER'],
     [{ query: 'q', event_seq_from: 2, event_seq_to: 1 }, 'SESSION_QUERY_INVALID_FILTER'],
@@ -601,6 +620,137 @@ describe('input validation and translation', () => {
       kind: 'parent',
       values: ['parent'],
     })
+  })
+})
+
+describe('recent session recall', () => {
+  it('returns a bounded newest-first page with titles, origin, parent, and availability without searching', async () => {
+    const mounted = await mount({ maxRecentSessions: 3 })
+    createSession(mounted.ctx, 'prior-old', '/work', 100)
+    createSession(mounted.ctx, 'prior-new', '/work', 150)
+    createSession(mounted.ctx, 'cron-daily', '/work', 200)
+    createSession(mounted.ctx, 'discord-channel', '/work', 199)
+    createSession(mounted.ctx, 'outside', '/other', 300)
+    createSession(mounted.ctx, 'stage', '/work', 250, SessionId('rp-native-parent'))
+    FakeQuery.titles.set(SessionId('cron-daily'), 'Daily report')
+
+    const result = await mounted.call('session_search', { view: 'recent' })
+    expect(result.isError).toBe(false)
+    expect(text(result)).toBe([
+      'Recent sessions, newest first (3):',
+      '',
+      '1. Session cron-daily — Daily report',
+      '   Created: 1970-01-01T00:00:00.200Z',
+      '   Origin: cron',
+      '   Parent: root',
+      '   Availability: live',
+      '',
+      '2. Session discord-channel — untitled',
+      '   Created: 1970-01-01T00:00:00.199Z',
+      '   Origin: discord',
+      '   Parent: root',
+      '   Availability: live',
+      '',
+      '3. Session prior-new — untitled',
+      '   Created: 1970-01-01T00:00:00.150Z',
+      '   Origin: interactive',
+      '   Parent: root',
+      '   Availability: live',
+      '',
+      'Result cap reached. Set created_at_to before the oldest listed creation time to list older sessions.',
+    ].join('\n'))
+    expect(FakeQuery.sessionRequests).toEqual([])
+
+    const older = text(await mounted.call('session_search', {
+      view: 'recent', created_at_to: '1970-01-01T00:00:00.149Z',
+    }))
+    expect(older).toContain('Recent sessions, newest first (1):')
+    expect(older).toContain('Session prior-old')
+    expect(older).not.toContain('Result cap reached.')
+  })
+
+  it('classifies delegated children by their parent and filters origins in both views', async () => {
+    const mounted = await mount()
+    const cron = createSession(mounted.ctx, 'cron-job', '/work', 30)
+    mounted.ctx.sessions.create(SessionId('delegated'), {
+      meta: { createdAt: 31, cwd: '/work', parentSession: cron.id, delegationDepth: 1 },
+    })
+    createSession(mounted.ctx, 'forked', '/work', 32, cron.id)
+    createSession(mounted.ctx, 'discord-channel', '/work', 20)
+    createSession(mounted.ctx, 'ordinary', '/work', 15)
+
+    const cronOnly = text(await mounted.call('session_search', { view: 'recent', origin: 'cron' }))
+    expect(cronOnly).toContain('Session cron-job')
+    expect(cronOnly).toContain('Session delegated')
+    expect(cronOnly).toContain('Parent: cron-job')
+    expect(cronOnly).not.toContain('Session forked')
+    expect(cronOnly).not.toContain('Session discord-channel')
+    expect(cronOnly).not.toContain('Session ordinary')
+    const interactive = text(await mounted.call('session_search', { view: 'recent', origin: 'interactive' }))
+    expect(interactive).toContain('Session forked')
+    expect(interactive).toContain('Session ordinary')
+    expect(interactive).not.toContain('Session delegated')
+    const all = text(await mounted.call('session_search', { view: 'recent', origin: 'all' }))
+    for (const id of ['cron-job', 'delegated', 'forked', 'discord-channel', 'ordinary']) {
+      expect(all).toContain(`Session ${id} `)
+    }
+
+    FakeQuery.sessionSearch = () => Promise.resolve({ items: [sessionHit('cron-job', '/work', 'needle')] })
+    const searched = text(await mounted.call('session_search', { query: 'needle', origin: 'cron' }))
+    expect(searched).toContain('   Origin: cron')
+    await mounted.call('session_search', { query: 'needle', origin: 'all' })
+    await mounted.call('session_search', { query: 'needle' })
+    expect(FakeQuery.sessionRequests[0]?.sessionFilters).toContainEqual({ kind: 'origin', values: ['cron'] })
+    for (const request of FakeQuery.sessionRequests.slice(1)) {
+      expect(request.sessionFilters).not.toContainEqual(expect.objectContaining({ kind: 'origin' }))
+    }
+  })
+
+  it('applies the same workspace, caller, research-stage, and parent checks as search', async () => {
+    const mounted = await mount()
+    const inside = createSession(mounted.ctx, 'inside', '/work', 10)
+    createSession(mounted.ctx, 'child', '/work', 11, inside.id)
+    const outside = createSession(mounted.ctx, 'outside', '/other', 20)
+    createSession(mounted.ctx, 'orphaned', '/work', 21, outside.id)
+    const stageParent = createSession(mounted.ctx, 'rp-native-run', '/work', 22)
+    createSession(mounted.ctx, 'stage', '/work', 23, stageParent.id)
+
+    const listed = text(await mounted.call('session_search', { view: 'recent' }))
+    expect(listed).toContain('Session inside')
+    expect(listed).toContain('Session orphaned')
+    expect(listed).toContain('   Parent: [outside workspace]')
+    expect(listed).toContain('   Parent: inside')
+    expect(listed).not.toContain('Session outside')
+    expect(listed).not.toContain('Session caller')
+    expect(listed).not.toContain('Session stage')
+
+    expect(text(await mounted.call('session_search', { view: 'recent', parent_session_ids: [outside.id] })))
+      .toBe('No prior sessions found.')
+    const children = text(await mounted.call('session_search', {
+      view: 'recent', parent_session_ids: [inside.id, stageParent.id],
+    }))
+    expect(children).toContain('Session child')
+    expect(children).toContain('Session stage')
+    expect(children).not.toContain('Session inside')
+    const roots = text(await mounted.call('session_search', { view: 'recent', include_root_sessions: true }))
+    expect(roots).toContain('Session inside')
+    expect(roots).not.toContain('Session child')
+    expect(text(await mounted.call('session_search', { view: 'recent', session_ids: [outside.id] })))
+      .toBe('No prior sessions found.')
+
+    const noWorkspace = await mount({}, null)
+    expect(errorCode(await noWorkspace.call('session_search', { view: 'recent' })))
+      .toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
+  })
+
+  it('translates a listing failure through the model-safe boundary', async () => {
+    const mounted = await mount()
+    vi.spyOn(mounted.ctx.sessionQuery, 'filterSessions').mockRejectedValueOnce(
+      new SessionQueryError('private listing detail', 'SESSION_QUERY_PERSISTENCE_FAILED'),
+    )
+    const result = await mounted.call('session_search', { view: 'recent' })
+    expect(errorCode(result)).toBe('SESSION_QUERY_PERSISTENCE_FAILED')
+    expect(text(result)).not.toContain('private listing detail')
   })
 })
 

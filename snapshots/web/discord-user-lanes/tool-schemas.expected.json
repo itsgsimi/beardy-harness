@@ -987,13 +987,31 @@
     },
     {
       "name": "session_search",
-      "description": "Search prior sessions in the caller workspace and return the strongest matching event from each session.",
+      "description": "Search prior sessions in the caller workspace and return the strongest matching event from each session, ranking title matches and non-cron sessions first; view recent lists the newest sessions without a query.",
       "parameters": {
         "type": "object",
         "properties": {
           "query": {
             "type": "string",
-            "description": "Literal full-text query over prior session history."
+            "description": "Literal full-text query over prior session history. Required unless view is recent."
+          },
+          "view": {
+            "type": "string",
+            "description": "Omit or use search to rank query matches; use recent to list the newest prior sessions without a query.",
+            "enum": [
+              "search",
+              "recent"
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "description": "Restrict to interactive, cron (scheduled), or discord sessions. Omit or use all for every origin.",
+            "enum": [
+              "interactive",
+              "cron",
+              "discord",
+              "all"
+            ]
           },
           "session_ids": {
             "type": "array",
@@ -1067,10 +1085,7 @@
               ]
             }
           }
-        },
-        "required": [
-          "query"
-        ]
+        }
       }
     },
     {

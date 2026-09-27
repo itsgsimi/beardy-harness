@@ -17,6 +17,7 @@ import type {
 } from '@deepseek-ai/dsh-session'
 import type { SessionTitleSnapshot } from '@deepseek-ai/dsh-session-title'
 import type { SessionSearchCursor } from './cursor.ts'
+import type { SessionRecallOrigin } from './origin.ts'
 
 export type { SessionSearchCursor } from './cursor.ts'
 
@@ -206,6 +207,7 @@ export type SessionResultFilter =
   | ({ kind: 'created-at' } & SessionResultRange)
   | { kind: 'parent'; values: readonly (SessionId | null)[] }
   | { kind: 'availability'; values: readonly SessionAvailability[] }
+  | { kind: 'origin'; values: readonly SessionRecallOrigin[] }
 
 /**
  * One event predicate. A filter array is ANDed; list-valued clauses are ORed.

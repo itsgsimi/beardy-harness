@@ -119,6 +119,7 @@ type SessionResultFilter =
   | ({ kind: 'created-at' } & SessionResultRange)
   | { kind: 'parent'; values: readonly (SessionId | null)[] }
   | { kind: 'availability'; values: readonly SessionAvailability[] }
+  | { kind: 'origin'; values: readonly SessionRecallOrigin[] }
 ```
 
 ```ts type-equiv
@@ -142,7 +143,7 @@ interface SessionEventSearchDocument extends SessionEventRecord {
 }
 ```
 
-`ctx.sessionQuery.filterSessions(filters)` applies `SessionResultFilter` to the complete logical corpus; `ctx.sessionQuery.filterEvents(sessionId, filters)` returns matching documents in ascending seq order. Messages, tool calls/results, todos, and failure/status detail contribute semantic text; reasoning blocks, blocked prompts, structural events, and stream chunks do not.
+`ctx.sessionQuery.filterSessions(filters)` applies `SessionResultFilter` to the complete logical corpus; `ctx.sessionQuery.filterEvents(sessionId, filters)` returns matching documents in ascending seq order. Messages, tool calls/results, todos, the latest Session title, and failure/status detail contribute semantic text; reasoning blocks, blocked prompts, structural events, and stream chunks do not.
 
 ## Full-text search pages
 

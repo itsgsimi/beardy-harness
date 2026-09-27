@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-session-query` 可让模型搜索既往会话、检查事件匹配、追踪关系，并读取精确事件数据。它的五个只读工具返回无游标文本；只有目标会话的 `cwd` 与调用方完全匹配时才允许跨会话访问，没有 `cwd` 的调用方只能检查自己。搜索默认排除调用方会话和研究阶段子 Session；明确指定父 Session 过滤条件时可纳入这些子 Session。达到部署结果上限时，工具要求模型缩小查询。本包是 opt-in；启用后，每次模型请求都会增加指引与五个工具 schema。
+使用 `dsh-tool-session-query` 可让模型列出或搜索既往会话、检查事件匹配、追踪关系，并读取精确事件数据。它的五个只读工具返回无游标文本；只有目标会话的 `cwd` 与调用方完全匹配时才允许跨会话访问，没有 `cwd` 的调用方只能检查自己。会话列表默认排除调用方会话和研究阶段子 Session；明确指定父会话过滤条件时可纳入它们。搜索结果达到上限时，工具要求模型缩小查询。本包是 opt-in；启用后，每次模型请求都会增加指引与五个工具 schema。
 
 ## 目录
 
@@ -36,6 +36,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `maxSearchResults` | `100` | 一次搜索调用返回的最大已授权命中数 |
+| `maxRecentSessions` | `20` | 一次近期视图调用返回的最大已授权 Session 数 |
 | `searchTimeoutMs` | `30000` | 附加到两个全文搜索工具的协作式截止时间 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-session-query)是每个受支持字段及其 JSDoc 的穷尽式真源。
@@ -44,13 +45,13 @@ kind: "package-reference"
 
 | 工具 | 模型得到什么 |
 |---|---|
-| `session_search` | 匹配字面查询的会话，经排序，带标题与最佳匹配摘录；始终省略调用方会话 |
+| `session_search` | 匹配字面查询的会话及其最佳匹配摘录，标题匹配与非 cron 会话排在前面；或在 `view: recent` 下无需查询列出最新会话。每项显示标题、创建时间、来源、父会话与可用性；始终省略调用方会话 |
 | `session_event_search` | 一个已授权会话内匹配字面查询的事件；针对当前会话时，在调用它的步骤之前停止 |
 | `session_trace` | 一个会话的已授权祖先链与后代树；未授权边界以不含隐藏 id 的标记出现 |
 | `session_event_trace` | 一个事件的位置替换与被引用源事件关系 |
 | `session_event_read` | 一个完整未删节事件（JSON），以及可选的相邻事件摘要 |
 
-工作区授权是保守的：跨会话访问要求目标与调用方会话的 `cwd` 严格相等，没有 `cwd` 的调用方只能检查自己。请求的父 id 会在搜索前去重并按权限检查；缺失与跨工作区猜测行为完全相同。搜索结果无游标：结果达到上限时请模型缩小查询，绝不暴露提供方游标、偏移、分页大小或模型可控上限。工具边界的时间戳是带时区限定的 ISO 8601，并转换为包含端点的 epoch 毫秒过滤器。
+工作区授权是保守的：跨会话访问要求目标与调用方会话的 `cwd` 严格相等，没有 `cwd` 的调用方只能检查自己。请求的父 id 会在搜索前去重并按权限检查；缺失与跨工作区猜测行为完全相同。`view: recent` 不接受查询或事件过滤器，按创建时间从新到旧列出已授权会话，最多返回 `maxRecentSessions` 个；结果达到上限时提示模型用 `created_at_to` 向前翻页。`origin` 在两种视图中都可选 `interactive`、`cron`、`discord` 或 `all`（默认）：cron 与 Discord 启动器签发 `cron-` 与 `discord-` Session id，subagent 子会话沿用其父会话的来源，其它 Session 都归为 `interactive`。搜索结果无游标：结果达到上限时请模型缩小查询，绝不暴露提供方游标、偏移、分页大小或模型可控上限。工具边界的时间戳是带时区限定的 ISO 8601，并转换为包含端点的 epoch 毫秒过滤器。
 
 ### 失败与恢复
 
@@ -90,7 +91,7 @@ kind: "package-reference"
 
 ### 操作流程
 
-每个执行器先派生调用方，把模型的参数规范化为服务过滤器，对照调用方工作区授权目标（或请求的父 id），然后通过服务边界收集结果。两个搜索工具在观察世代仍有效时内部翻页消费提供方游标，停在 `maxSearchResults`；由于一次搜索会消费与世代绑定的提供方游标，两个搜索工具与同级工具调用排他执行，而三个精确追踪/读取工具选择并行执行。血缘输出用不含隐藏会话 id 的标记替换未授权祖先与后代边界。
+每个执行器先派生调用方，把模型的参数规范化为服务过滤器，对照调用方工作区授权目标（或请求的父 id），然后通过服务边界收集结果。两个搜索工具在观察世代仍有效时内部翻页消费提供方游标，停在 `maxSearchResults`。近期视图改为读取 `ctx.sessionQuery.filterSessions`，因此部署禁用全文搜索时它仍可用。由于一次搜索会消费与世代绑定的提供方游标，两个搜索工具与同级工具调用排他执行，而三个精确追踪/读取工具选择并行执行。血缘输出用不含隐藏会话 id 的标记替换未授权祖先与后代边界。
 
 </details>
 
@@ -121,7 +122,7 @@ kind: "package-reference"
 ##### 既往历史指引
 
 ```markdown
-Use session_search to find relevant work from prior sessions, or session_event_search to search earlier events in one session. Search results are cursor-free and workspace-scoped. Follow a useful hit with session_trace, session_event_trace, or session_event_read when you need lineage, relationships, or exact data.
+Use session_search to find relevant work from prior sessions, or its recent view to list the newest ones; use session_event_search to search earlier events in one session. Search results are cursor-free and workspace-scoped. Follow a useful hit with session_trace, session_event_trace, or session_event_read when you need lineage, relationships, or exact data.
 ```
 
 #### Token 影响
@@ -150,11 +151,11 @@ Use session_search to find relevant work from prior sessions, or session_event_s
 
 #### 模型看到什么
 
-每次成功调用都会发出一个纯文本块。搜索结果包含标题与最佳匹配摘录；追踪包含全部已授权关系；事件读取包含未经删节的目标 JSON。通用 spill 策略可以用其预览、不透明定位信息与取回指引替换过大的内联文本。
+每次成功调用都会发出一个纯文本块。会话列表显示每个会话的标题、创建时间、来源、父会话与可用性；文本搜索还包含最佳匹配事件与摘录。追踪包含全部已授权关系；事件读取包含未经删节的目标 JSON。通用 spill 策略可以用其预览、不透明定位信息与取回指引替换过大的内联文本。
 
 #### Token 影响
 
-结果取决于数据，并保留在已记录工具历史中直到压缩（compaction）；`maxSearchResults` 限制搜索命中数。
+结果取决于数据，并保留在已记录工具历史中直到压缩（compaction）；`maxSearchResults` 限制搜索命中数，`maxRecentSessions` 限制近期视图条目数。
 
 #### KV Cache 影响
 
@@ -168,6 +169,7 @@ Use session_search to find relevant work from prior sessions, or session_event_s
 这些限制说明本包何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是任务积压。
 
 - **搜索有上限且无延续**——搜索最多返回部署上限，匹配更多时会请模型缩小查询；不提供延续 token。
+- **启发式来源**——来源读取第一方 Session id 命名空间与 subagent 子会话的直接父会话，因此自定义启动器 id 与更深的委派链会归为 `interactive`。
 - **保守的工作区身份**——工作区身份是字符串精确 `cwd` 相等，因此符号链接等价的路径不共享权限。
 - **无 spill 策略时内联载荷**——未挂载通用 spill 策略的自定义组合会以内联方式接收完整追踪与事件载荷。
 

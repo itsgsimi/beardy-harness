@@ -29,6 +29,16 @@ export const SQLITE_PORTABLE_VARIABLE_LIMIT = 32_766
 /** Supported outer-predicate budget that keeps SQLite FTS5 MATCH usable. */
 export const SQLITE_FTS5_OUTER_PREDICATE_LIMIT = 14
 
+const RECALL_ORIGIN_SOURCE_SQL
+  = 'CASE WHEN parent_session IS NOT NULL AND delegation_depth > 0 THEN parent_session ELSE session_id END'
+
+/**
+ * SQL form of `sessionRecallOrigin` over selected-document columns: the same
+ * id namespaces, with a subagent child classified by its direct parent's id.
+ */
+export const RECALL_ORIGIN_SQL = `(CASE WHEN (${RECALL_ORIGIN_SOURCE_SQL}) GLOB 'cron-*' THEN 'cron' `
+  + `WHEN (${RECALL_ORIGIN_SOURCE_SQL}) GLOB 'discord-*' THEN 'discord' ELSE 'interactive' END)`
+
 /**
  * Reject prospective SQLite binding growth beyond the portable ceiling.
  * @param count - binding count at the current construction boundary.
@@ -177,6 +187,9 @@ export function buildSessionWhere(filters: readonly SessionResultFilter[]): SqlW
         }
         break
       }
+      case 'origin':
+        addList(clauses, params, RECALL_ORIGIN_SQL, filter.values)
+        break
       default:
         unknownFilter(filter)
     }

@@ -18,6 +18,7 @@ import {
   filterSessionResults,
   materializeSessionEventResultFilters,
   materializeSessionResultFilters,
+  sessionRecallOrigin,
   type SessionQueryErrorCode,
 } from '@deepseek-ai/dsh-session-query'
 import { TestSessionQueryEngine } from './test-service.ts'
@@ -212,6 +213,39 @@ describe('session-query document and filter helpers', () => {
     expect(filterSessionResults(records, [{ kind: 'parent', values: [null] }])).toEqual([records[1]])
     expect(filterSessionResults(records, [{ kind: 'availability', values: ['persisted'] }])).toEqual([records[1]])
     expect(() => filterSessionResults(records, [{ kind: 'availability', values: ['remote' as never] }]))
+      .toThrow(expectCode('SESSION_QUERY_INVALID_FILTER'))
+  })
+
+  it('indexes only the latest title and classifies recall origins by id namespace and delegating parent', () => {
+    const title = (seq: number, value: string): SessionEvent => ({
+      type: 'session/title',
+      seq: SessionSeq(seq),
+      time: seq,
+      data: { title: value, messageSeqs: [], source: { kind: 'user' } },
+    })
+    expect(extractSessionEventText(title(0, 'Plan review'))).toBe('Plan review')
+    expect(buildSessionEventSearchDocuments(id, [title(0, 'old'), title(1, 'new')])
+      .map(document => [document.seq, document.type, document.text])).toEqual([[1, 'session/title', 'new']])
+
+    const cron = SessionId('cron-daily-1')
+    const records = [
+      { header: header('cron-daily-1'), live: true, persisted: false },
+      { header: header('delegated', { parentSession: cron, delegationDepth: 1 }), live: true, persisted: false },
+      { header: header('forked', { parentSession: cron, isSeeded: true }), live: true, persisted: false },
+      { header: header('discord-123-abc'), live: true, persisted: false },
+      { header: header('web'), live: true, persisted: false },
+    ]
+    expect(records.map(record => sessionRecallOrigin(record.header)))
+      .toEqual(['cron', 'cron', 'interactive', 'discord', 'interactive'])
+    expect(filterSessionResults(records, [{ kind: 'origin', values: ['cron'] }]).map(record => record.header.id))
+      .toEqual(['cron-daily-1', 'delegated'])
+    expect(filterSessionResults(records, [{ kind: 'origin', values: ['discord', 'interactive'] }])
+      .map(record => record.header.id)).toEqual(['forked', 'discord-123-abc', 'web'])
+    expect(materializeSessionResultFilters([{ kind: 'origin', values: ['cron'] }]))
+      .toEqual([{ kind: 'origin', values: ['cron'] }])
+    expect(() => materializeSessionResultFilters([{ kind: 'origin', values: ['webhook' as never] }]))
+      .toThrow(expectCode('SESSION_QUERY_INVALID_FILTER'))
+    expect(() => filterSessionResults(records, [{ kind: 'origin', values: ['webhook' as never] }]))
       .toThrow(expectCode('SESSION_QUERY_INVALID_FILTER'))
   })
 

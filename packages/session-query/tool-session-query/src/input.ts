@@ -15,10 +15,13 @@ import {
   type SessionEventMetadataFilter,
   type SessionEventSurface,
   type SessionResultFilter,
+  type SessionRecallOrigin,
 } from '@deepseek-ai/dsh-session-query'
 
 interface SessionSearchArgs {
-  query: string
+  query?: string
+  view?: 'search' | 'recent'
+  origin?: SessionRecallOrigin | 'all'
   session_ids?: string[]
   created_at_from?: string
   created_at_to?: string
@@ -43,7 +46,17 @@ interface EventFilterInput {
 }
 
 const sessionSearchParameters = {
-  query: { type: 'string', required: true, description: 'Literal full-text query over prior session history.' },
+  query: { type: 'string', description: 'Literal full-text query over prior session history. Required unless view is recent.' },
+  view: {
+    type: 'string',
+    enum: ['search', 'recent'],
+    description: 'Omit or use search to rank query matches; use recent to list the newest prior sessions without a query.',
+  },
+  origin: {
+    type: 'string',
+    enum: ['interactive', 'cron', 'discord', 'all'],
+    description: 'Restrict to interactive, cron (scheduled), or discord sessions. Omit or use all for every origin.',
+  },
   session_ids: { type: 'array', items: { type: 'string' }, description: 'Optional session ids to include.' },
   created_at_from: { type: 'string', description: 'Inclusive timezone-qualified ISO 8601 creation-time lower bound.' },
   created_at_to: { type: 'string', description: 'Inclusive timezone-qualified ISO 8601 creation-time upper bound.' },
@@ -97,7 +110,30 @@ function buildSessionFilters(args: SessionSearchArgs): SessionResultFilter[] {
     assertNonEmptyArray('availability', args.availability)
     filters.push({ kind: 'availability', values: args.availability })
   }
+  if (args.origin !== undefined && args.origin !== 'all') {
+    filters.push({ kind: 'origin', values: [args.origin] })
+  }
   return filters
+}
+
+/** Validated `session_search` view: a newest-first listing or a normalized text query. */
+type SessionSearchMode =
+  | { readonly view: 'recent' }
+  | { readonly view: 'search'; readonly query: string }
+
+function sessionSearchMode(args: SessionSearchArgs): SessionSearchMode {
+  if (args.view !== 'recent') return { view: 'search', query: normalizeQuery(args.query) }
+  if (args.query !== undefined) {
+    throw new SessionQueryError('the recent view does not accept a query', 'SESSION_QUERY_INVALID_QUERY')
+  }
+  if (
+    args.event_seq_from !== undefined || args.event_seq_to !== undefined
+    || args.event_time_from !== undefined || args.event_time_to !== undefined
+    || args.event_types !== undefined || args.event_surfaces !== undefined
+  ) {
+    throw new SessionQueryError('the recent view does not accept event filters', 'SESSION_QUERY_INVALID_FILTER')
+  }
+  return { view: 'recent' }
 }
 
 function materializeParentSessionIds(values: readonly string[] | undefined): SessionIdValue[] | undefined {
@@ -123,7 +159,10 @@ function buildEventFilters(input: EventFilterInput): SessionEventMetadataFilter[
   return filters
 }
 
-function normalizeQuery(value: string): string {
+function normalizeQuery(value: string | undefined): string {
+  if (value === undefined) {
+    throw new SessionQueryError('session search requires a query unless view is recent', 'SESSION_QUERY_INVALID_QUERY')
+  }
   const query = value.trim().replace(/\s+/gu, ' ')
   if (query.length === 0) {
     throw new SessionQueryError(
@@ -299,6 +338,7 @@ export const toolInput = {
   eventSearchParameters,
   targetSessionParameter,
   buildSessionFilters,
+  sessionSearchMode,
   materializeParentSessionIds,
   buildEventFilters,
   normalizeQuery,

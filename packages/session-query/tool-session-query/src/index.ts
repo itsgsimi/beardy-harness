@@ -21,6 +21,9 @@ export const inject = ['tools', 'systemPrompt', 'sessionQuery', 'sessionProjecti
 /** Default maximum number of authorized search hits returned by one call. */
 export const DEFAULT_MAX_SEARCH_RESULTS = 100
 
+/** Default maximum number of Sessions one `session_search` recent view returns. */
+export const DEFAULT_MAX_RECENT_SESSIONS = 20
+
 /** Default cooperative deadline for either full-text search tool. */
 export const DEFAULT_SEARCH_TIMEOUT_MS = 30_000
 
@@ -28,6 +31,8 @@ export const DEFAULT_SEARCH_TIMEOUT_MS = 30_000
 export interface Config {
   /** Maximum authorized hits returned by one search call. Defaults to 100. */
   maxSearchResults?: number
+  /** Maximum authorized Sessions returned by one recent-view call. Defaults to 20. */
+  maxRecentSessions?: number
   /** Cooperative full-text search deadline in milliseconds. Defaults to 30000. */
   searchTimeoutMs?: number
 }
@@ -35,11 +40,13 @@ export interface Config {
 /** Schemastery config for Loader defaults and generated configuration docs. */
 export const Config: z<Config> = z.object({
   maxSearchResults: z.number().step(1).min(1).default(DEFAULT_MAX_SEARCH_RESULTS),
+  maxRecentSessions: z.number().step(1).min(1).default(DEFAULT_MAX_RECENT_SESSIONS),
   searchTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_SEARCH_TIMEOUT_MS),
 })
 
 interface ResolvedConfig {
   readonly maxSearchResults: number
+  readonly maxRecentSessions: number
   readonly searchTimeoutMs: number
 }
 
@@ -49,9 +56,10 @@ const TEXT_OUTPUT = {
 }
 
 const PROMPT_TEXT =
-  'Use session_search to find relevant work from prior sessions, or session_event_search to search earlier '
-  + 'events in one session. Search results are cursor-free and workspace-scoped. Follow a useful hit with '
-  + 'session_trace, session_event_trace, or session_event_read when you need lineage, relationships, or exact data.'
+  'Use session_search to find relevant work from prior sessions, or its recent view to list the newest ones; '
+  + 'use session_event_search to search earlier events in one session. Search results are cursor-free and '
+  + 'workspace-scoped. Follow a useful hit with session_trace, session_event_trace, or session_event_read when '
+  + 'you need lineage, relationships, or exact data.'
 
 /** Register all five tools and their shared model guidance. */
 export function apply(ctx: Context, config: Config): void {
@@ -64,11 +72,12 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.tools.register(defineTool({
     name: 'session_search',
-    description: 'Search prior sessions in the caller workspace and return the strongest matching event from each session.',
+    description: 'Search prior sessions in the caller workspace and return the strongest matching event from each session, '
+      + 'ranking title matches and non-cron sessions first; view recent lists the newest sessions without a query.',
     parameters: toolInput.sessionSearchParameters,
     output: TEXT_OUTPUT,
     timeoutMs: resolved.searchTimeoutMs,
-    execute: (args, exec) => operations.executeSessionSearch(ctx, args, exec, resolved.maxSearchResults),
+    execute: (args, exec) => operations.executeSessionSearch(ctx, args, exec, resolved),
     presentCall: presentation.presentSessionSearchCall,
   }))
 
@@ -123,14 +132,18 @@ export function apply(ctx: Context, config: Config): void {
 
 function resolveConfig(config: Config): ResolvedConfig {
   const maxSearchResults = config.maxSearchResults ?? DEFAULT_MAX_SEARCH_RESULTS
+  const maxRecentSessions = config.maxRecentSessions ?? DEFAULT_MAX_RECENT_SESSIONS
   const searchTimeoutMs = config.searchTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS
   if (!Number.isSafeInteger(maxSearchResults) || maxSearchResults < 1) {
     throw new TypeError('tool-session-query: maxSearchResults must be a positive safe integer')
+  }
+  if (!Number.isSafeInteger(maxRecentSessions) || maxRecentSessions < 1) {
+    throw new TypeError('tool-session-query: maxRecentSessions must be a positive safe integer')
   }
   if (!Number.isInteger(searchTimeoutMs) || searchTimeoutMs < 1 || searchTimeoutMs > MAX_TIMER_DELAY_MS) {
     throw new TypeError(
       `tool-session-query: searchTimeoutMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`,
     )
   }
-  return { maxSearchResults, searchTimeoutMs }
+  return { maxSearchResults, maxRecentSessions, searchTimeoutMs }
 }

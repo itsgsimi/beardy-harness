@@ -12,7 +12,7 @@ SQLite 索引协调会为构建以 live 优先的语料而冷读取每一个已�
 
 ## Decision
 
-`session-query-sqlite` 中的 `_observeStable` 在每次冷读取周围捕获 `SessionFormatUnsupportedError`，让该条目保持未加载状态而不再向上抛出。协调本就只为索引挑选已加载的条目，于是一条被拒绝的日志只是不出现在索引中，而其它每一个 Session 都正常索引；任何其它读取失败仍然成为 `SESSION_QUERY_PERSISTENCE_FAILED`。针对已知 live Session 的读取从不查询持久化，因此该路径保持不变。
+`session-query-sqlite` 中的 `_observeStable` 在每次冷读取周围捕获 `SessionFormatUnsupportedError`，让该条目保持未加载状态而不再向上抛出。协调本就只为索引挑选已加载的条目，于是一条被拒绝的日志只是不出现在索引中，而其它每一个 Session 都正常索引；存储 Session 若在列出与冷读取之间被删除，会被视为已删除；其它读取失败仍然成为 `SESSION_QUERY_PERSISTENCE_FAILED`。针对已知 live Session 的读取从不查询持久化，因此该路径保持不变。
 
 搜索语料与列表就此达成一致：后端拒绝解析的内容对两者都不可见，而不再对其中之一致命。
 
@@ -28,6 +28,6 @@ SQLite 索引协调会为构建以 live 优先的语料而冷读取每一个已�
 
 ## Consequences
 
-搜索降级为可读语料而不再整体失败：携带 V3 之前历史的运维者仍能继续使用搜索，而 `session history storage is unavailable` 重新意味着后端本身不可达。被拒绝的日志会永久缺席结果，这在设计上是无声的——没有任何东西报告某一索引无法读取多少历史。在日志变得不可读之前已写入的索引行不会因该拒绝而被删除，因此这样的 Session 可能继续以其最后一次成功索引的 generation 命中。
+搜索降级为可读语料而不再整体失败：携带 V3 之前历史的运维者仍能继续使用搜索，而 `session history storage is unavailable` 不再报告格式拒绝。[会话搜索容忍并发追加](2026-09-27-session-search-tolerates-concurrent-appends.zh.md) 负责说明该消息的其余含义。被拒绝的日志会永久缺席结果，这在设计上是无声的——没有任何东西报告某一索引无法读取多少历史。在日志变得不可读之前已写入的索引行不会因该拒绝而被删除，因此这样的 Session 可能继续以其最后一次成功索引的 generation 命中。
 
 `session-query-sqlite/tests/sqlite.spec.ts` 把一个可读与一个格式拒绝的存储 Session 挂载到引擎之上，断言搜索页返回可读的命中、后续搜索仍然成功，以及被拒绝的 Session 不匹配任何结果。此路径的记录会话快照需要一个携带不可迁移日志的 fixture，而快照框架目前无法表达；这一覆盖缺口被明确说明而非掩饰。

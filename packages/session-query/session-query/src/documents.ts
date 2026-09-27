@@ -3,6 +3,7 @@
 import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { foldSurface } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-title'
 import type { SessionEventRecord, SessionEventSearchDocument, SessionEventSurface } from './types.ts'
 import { SessionQueryError } from './config.ts'
 import { extractSessionEventText } from './extraction.ts'
@@ -38,8 +39,10 @@ export function buildSessionEventSearchDocuments(
   events: readonly SessionEvent[],
 ): SessionEventSearchDocument[] {
   const surfaceBySeq = classifySurface(events)
+  const latestTitleSeq = events.findLast(event => event.type === 'session/title')?.seq
   const documents: SessionEventSearchDocument[] = []
   for (const event of events) {
+    if (event.type === 'session/title' && event.seq !== latestTitleSeq) continue
     const text = extractSessionEventText(event)
     if (text.length === 0) continue
     documents.push({

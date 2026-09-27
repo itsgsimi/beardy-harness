@@ -12,7 +12,7 @@ SQLite index reconciliation cold-reads every listed persisted Session to build i
 
 ## Decision
 
-`_observeStable` in `session-query-sqlite` catches `SessionFormatUnsupportedError` around each cold read and leaves that entry unloaded instead of propagating it. Reconciliation already selects only loaded entries for indexing, so a refused log is simply absent from the index while every other Session indexes normally; any other read failure still becomes `SESSION_QUERY_PERSISTENCE_FAILED`. Reads that target a known live Session never consult persistence, so that path is unchanged.
+`_observeStable` in `session-query-sqlite` catches `SessionFormatUnsupportedError` around each cold read and leaves that entry unloaded instead of propagating it. Reconciliation already selects only loaded entries for indexing, so a refused log is simply absent from the index while every other Session indexes normally; a stored Session removed between listing and cold reading is observed as deleted, while other read failures still become `SESSION_QUERY_PERSISTENCE_FAILED`. Reads that target a known live Session never consult persistence, so that path is unchanged.
 
 Search corpus and listing now agree: what the backend refuses to interpret is invisible to both, rather than fatal to one.
 
@@ -28,6 +28,6 @@ Search corpus and listing now agree: what the backend refuses to interpret is in
 
 ## Consequences
 
-Search degrades to the readable corpus instead of failing: operators with pre-V3 history keep search working, and `session history storage is unavailable` again means the backend itself is unreachable. A refused log stays out of results permanently, which is silent by design — nothing reports how much history a given index cannot read. An index row written before a log became unreadable is not deleted by the refusal, so such a Session can keep matching from its last successfully indexed generation.
+Search degrades to the readable corpus instead of failing: operators with pre-V3 history keep search working, and `session history storage is unavailable` no longer reports a format refusal. [Session search tolerates concurrent appends](2026-09-27-session-search-tolerates-concurrent-appends.md) owns the remaining meaning of that message. A refused log stays out of results permanently, which is silent by design — nothing reports how much history a given index cannot read. An index row written before a log became unreadable is not deleted by the refusal, so such a Session can keep matching from its last successfully indexed generation.
 
 `session-query-sqlite/tests/sqlite.spec.ts` mounts the engine over one readable and one format-refusing stored Session and asserts the search page returns the readable hit, that later searches still succeed, and that the refused Session matches nothing. A recorded-session snapshot for this path needs a fixture carrying an un-migratable log, which the snapshot harness cannot express today; that coverage gap is stated rather than papered over.
