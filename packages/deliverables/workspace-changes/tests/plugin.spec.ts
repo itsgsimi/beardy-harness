@@ -11,11 +11,13 @@ import * as WorkspaceChanges from '../src/index.ts'
 import { changes, endTurn, git, mutate, scratchDir, settle, startTurn, toolCall } from './support.ts'
 
 const cleanups: Array<() => Promise<unknown>> = []
+// These integration cases launch many git children; CI's coverage lane already grants this budget.
+const GIT_CASE_TIMEOUT_MS = 90_000
 afterEach(async () => {
   for (const cleanup of cleanups.reverse()) await cleanup()
   cleanups.length = 0
   vi.restoreAllMocks()
-})
+}, GIT_CASE_TIMEOUT_MS)
 
 const signal = new AbortController().signal
 
@@ -52,7 +54,7 @@ function announcedSeq(session: Session): number {
   return event.seq
 }
 
-describe('workspace-changes in a repository', () => {
+describe('workspace-changes in a repository', { timeout: GIT_CASE_TIMEOUT_MS }, () => {
   it('records the turn’s own changes and excludes the user’s prior uncommitted work', async () => {
     const cwd = await repository()
     await writeFile(join(cwd, 'b.txt'), 'x user\n')
@@ -327,7 +329,7 @@ describe('workspace-changes in a repository', () => {
   })
 })
 
-describe('workspace-changes without a repository', () => {
+describe('workspace-changes without a repository', { timeout: GIT_CASE_TIMEOUT_MS }, () => {
   it('summarizes file-tool edits only for a working directory outside any git repository', async () => {
     const cwd = await scratchDir('dsh-workspace-changes-plain-', cleanups)
     await writeFile(join(cwd, 'existing.txt'), 'before\n')
@@ -478,7 +480,7 @@ describe('workspace-changes without a repository', () => {
   })
 })
 
-describe('workspace-changes without git', () => {
+describe('workspace-changes without git', { timeout: GIT_CASE_TIMEOUT_MS }, () => {
   it('summarizes file-tool edits only, even inside a repository, and reports the absence once', async () => {
     const cwd = await repository()
     const { ctx } = await boot()
