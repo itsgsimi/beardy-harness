@@ -1,6 +1,8 @@
 /** Discord's external Gateway and REST peers for the recorded Beardy conversation. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type {} from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-cron'
 
 export const name = 'discord-snapshot-transport'
@@ -12,6 +14,7 @@ const BOT_USER_ID = '1472404859679670480'
 const CRON_STATUS_TOKEN = 'snapshot-cron-status-token'
 const STATUS_TOKEN = 'snapshot-status-token'
 const OUTPUT_PREFIX = 'DSH_DISCORD_SNAPSHOT '
+const PRESET_COMMANDS = ['compact', 'feedback', 'goal', 'permission', 'plan']
 
 /**
  * Install process-local transport peers before the real listener mounts.
@@ -28,12 +31,42 @@ export function apply(ctx: Context): void {
     let failureSent = false
     let statusSent = false
     let nextMessage = 1
+    const readyTasks: Promise<void>[] = []
 
     const emit = (value: unknown): void => { process.stdout.write(`${OUTPUT_PREFIX}${JSON.stringify(value)}\n`) }
     const dispatch = (type: string, data: unknown): void => {
       activeSocket?.dispatchEvent(new MessageEvent('message', {
         data: JSON.stringify({ op: 0, t: type, s: nextMessage++, d: data }),
       }))
+    }
+
+    // READY starts catalog sync; wait for the configured preset registrations to finish first.
+    const waitForPresetCommands = async (socket: FixtureSocket): Promise<void> => {
+      const presetIds = process.env.DSH_DISCORD_SNAPSHOT_PRESETS?.split(',')
+      if (presetIds === undefined || presetIds.length === 0) throw new Error('Discord snapshot has no preset readiness list')
+      const names = process.env.DSH_DISCORD_SNAPSHOT_CRON === '1' ? [...PRESET_COMMANDS, 'cron'] : PRESET_COMMANDS
+      const leases: Awaited<ReturnType<typeof ctx.agentPresets.acquireScope>>[] = []
+      try {
+        for (const id of presetIds) leases.push(await ctx.agentPresets.acquireScope(id))
+        const ready = Promise.withResolvers<void>()
+        const check = (): void => {
+          if (socket.readyState === 3 || leases.every(lease => {
+            const available = new Set(ctx.commands.listForScope(lease.key).map(command => command.name))
+            return names.every(name => available.has(name))
+          })) ready.resolve()
+        }
+        const removeObserver = ctx.on('commands/change', check)
+        socket.addEventListener('close', check)
+        try {
+          check()
+          await ready.promise
+        } finally {
+          removeObserver()
+          socket.removeEventListener('close', check)
+        }
+      } finally {
+        await Promise.all(leases.map(lease => lease[Symbol.asyncDispose]()))
+      }
     }
 
     class FixtureSocket extends EventTarget implements WebSocket {
@@ -72,7 +105,11 @@ export function apply(ctx: Context): void {
         if (typeof frame !== 'object' || frame === null || !('op' in frame) || frame.op !== 2) {
           throw new Error('Unexpected snapshot gateway opcode')
         }
-        dispatch('READY', { application: { id: APPLICATION_ID }, user: { id: BOT_USER_ID } })
+        readyTasks.push(waitForPresetCommands(this).then(() => {
+          if (this.readyState === 1) {
+            dispatch('READY', { application: { id: APPLICATION_ID }, user: { id: BOT_USER_ID } })
+          }
+        }))
       }
 
       close(): void {
@@ -170,10 +207,17 @@ export function apply(ctx: Context): void {
       throw new Error(`Unexpected snapshot Discord request: ${method} ${url.pathname}`)
     }
     ctx.provide('discordSnapshotTransport' as never, true as never)
-    return () => {
+    return async () => {
       activeSocket?.close()
-      globalThis.fetch = originalFetch
-      globalThis.WebSocket = originalSocket
+      try {
+        const settled = await Promise.allSettled(readyTasks)
+        for (const result of settled) {
+          if (result.status === 'rejected') throw result.reason
+        }
+      } finally {
+        globalThis.fetch = originalFetch
+        globalThis.WebSocket = originalSocket
+      }
     }
   })
 }

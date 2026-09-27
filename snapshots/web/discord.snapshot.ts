@@ -80,6 +80,8 @@ async function runScenario(fixture: string, scenarioDir: string): Promise<{
         DSH_SNAPSHOT_FILE: fixturePath,
         DSH_DISCORD_SNAPSHOT_TOKEN: 'snapshot-discord-token',
         DSH_DISCORD_SNAPSHOT_TASK: taskFromFixture(fixture),
+        DSH_DISCORD_SNAPSHOT_PRESETS: scenarioDir === richScenarioDir ? 'beardy-discord' : 'beardy,beardy-discord',
+        DSH_DISCORD_SNAPSHOT_CRON: scenarioDir === richScenarioDir ? '1' : '0',
       },
     })
     const child = spawn(launch.command, launch.args, {

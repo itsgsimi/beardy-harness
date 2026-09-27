@@ -39,6 +39,7 @@
 - insert:
     - id: discord-snapshot-transport
       name: ./discord-transport.ts
+      inject: [agentPresets, commands]
     - id: llm-replay
       name: '@deepseek-ai/dsh-llm-replay'
       config:
