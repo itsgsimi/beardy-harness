@@ -23,11 +23,16 @@ describe('dsh-beardy bundle', () => {
       readFileSync(resolve(root, 'package.json'), 'utf8'),
     ) as {
       dependencies?: Record<string, string>
-      dsh?: { bundle?: { patch?: string } }
+      dsh?: { bundle?: { patch?: string[] } }
     }
-    expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
+    expect(manifest.dsh?.bundle?.patch).toEqual([
+      './cordis.patch.yml',
+      './presets/beardy.patch.yml',
+      './presets/beardy-unattended.patch.yml',
+      './presets/beardy-discord.patch.yml',
+    ])
     const parsed: unknown = yaml.load(
-      readFileSync(resolve(root, manifest.dsh!.bundle!.patch!), 'utf8'),
+      readFileSync(resolve(root, manifest.dsh!.bundle!.patch![0]!), 'utf8'),
       { schema: entryListSchema },
     )
     expect(Array.isArray(parsed)).toBe(true)
@@ -37,12 +42,12 @@ describe('dsh-beardy bundle', () => {
       return Array.isArray(entry.insert) ? entry.insert.filter(isRecord) : [entry]
     })
     expect(rows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'agent-presets' }),
+      expect.objectContaining({ id: 'agent-preset-registry' }),
       expect.objectContaining({ id: 'session-query-sqlite' }),
       expect.objectContaining({ id: 'tool-session-query', name: '@deepseek-ai/dsh-tool-session-query' }),
       expect.objectContaining({ id: 'tool-web' }),
     ]))
-    expect(rows.find(row => row.id === 'agent-presets')?.config).toEqual({ default: 'beardy' })
+    expect(rows.find(row => row.id === 'agent-preset-registry')?.config).toEqual({ default: 'beardy' })
     expect(rows.find(row => row.id === 'session-query-sqlite')?.config).toEqual({
       path: { __jsExpr: "dshHomePath('session-search.sqlite')" },
       openAt: 'first-search',
@@ -66,31 +71,27 @@ describe('dsh-beardy bundle', () => {
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-search-searxng')
   })
 
-  it('layers the creator preset instead of duplicating its capability roster', () => {
+  it('declares Beardy in the profile preset layer with its memory instruction sources', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
-    const presetPath = resolve(root, '../../preset/agent-presets/presets/beardy/agent.cordis.yml')
+    const presetPath = resolve(root, 'presets/beardy.patch.yml')
     const parsed: unknown = yaml.load(readFileSync(presetPath, 'utf8'), { schema: entryListSchema })
     expect(Array.isArray(parsed)).toBe(true)
-    if (!Array.isArray(parsed) || !isRecord(parsed[0])) {
+    const first: unknown = Array.isArray(parsed) ? (parsed as unknown[])[0] : undefined
+    if (!isRecord(first) || !Array.isArray(first.insert)) {
       throw new TypeError('Beardy preset must contain an entry list')
     }
-    const entry = parsed[0]
-    expect(entry.id).toBe('creator')
-    expect(entry.name).toBe('@deepseek-ai/dsh-agent-presets/include')
-    if (!isRecord(entry.config)) throw new TypeError('Beardy include must have config')
-    expect(entry.config.path).toBe('../cordis/agent.cordis.yml')
-    if (!Array.isArray(entry.config.patches)) throw new TypeError('Beardy include must have patches')
-    const patchIds = entry.config.patches.flatMap(value =>
-      isRecord(value) && typeof value.id === 'string' ? [value.id] : [],
-    )
-    expect(patchIds).toEqual(expect.arrayContaining(['persona', 'agent-instructions']))
-    const instructions: unknown = parsed.find(value => isRecord(value) && value.id === 'agent-instructions')
+    const declaration: unknown = (first.insert as unknown[]).find(value => isRecord(value) && value.id === 'preset-beardy')
+    if (!isRecord(declaration) || !isRecord(declaration.config) || !Array.isArray(declaration.config.plugins)) {
+      throw new TypeError('Beardy preset declaration must contain plugins')
+    }
+    expect(declaration.config).toMatchObject({ id: 'beardy', picker: 'main' })
+    const instructions: unknown = declaration.config.plugins.find(value => isRecord(value) && value.id === 'agent-instructions')
     if (!isRecord(instructions) || !isRecord(instructions.config)) throw new TypeError('agent-instructions row config')
     expect(instructions.config.userGlobalInstructionCandidates)
       .toEqual(['AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'])
     expect(instructions.config.frozenUserGlobalInstructionCandidates)
       .toEqual(['USER.md', 'MEMORY.md'])
-    const rows = parsed.filter(isRecord)
+    const rows = declaration.config.plugins.filter(isRecord)
     expect(rows).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'tool-memory', name: '@deepseek-ai/dsh-tool-memory' }),
     ]))

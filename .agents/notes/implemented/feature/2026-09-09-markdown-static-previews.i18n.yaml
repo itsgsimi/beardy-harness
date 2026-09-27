@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-markdown-static-previews.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-09-markdown-static-previews.md
-2026-09-09-markdown-static-previews.md: 83ac4f3cffa5c8c8606b0558d69c64578f61f34f
-2026-09-09-markdown-static-previews.zh.md: 5ba739047b7447b79b9be541c7797ede23e8e55c
+/agent-note-static-markdown-fence-previews:
+  en: ae07154d5687f53f
+  zh: c840a2b4f03703fe
+/agent-note-static-markdown-fence-previews/problem:
+  en: c24dd6a5596fca9a
+  zh: 0bfc147b539f3401
+/agent-note-static-markdown-fence-previews/decision:
+  en: d72e34e4a9117bae
+  zh: 1ad0a9754653fc23
+/agent-note-static-markdown-fence-previews/alternatives-considered:
+  en: fad2b36351df3db9
+  zh: 54e7e000c094dc42
+/agent-note-static-markdown-fence-previews/consequences:
+  en: f507566dcaba672c
+  zh: 060cd0894836c259

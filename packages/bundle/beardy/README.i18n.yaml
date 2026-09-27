@@ -1,6 +1,115 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/bundle/beardy/README.md
-README.md: 6f66dea28a53c702c052c6000c78a1e08de4ebf0
-README.zh.md: 5ca7085e11fb80db54ebb272e8e3773dd4a20ae4
+/:
+  en: dcfa66b7e3e9dc1d
+  zh: 16d7ead96614c7ef
+/deepseek-ai-dsh-beardy:
+  en: 5edbb0397dee196f
+  zh: 820c221aec8e6178
+/deepseek-ai-dsh-beardy/summary:
+  en: a42e531c3950431f
+  zh: 62299296a72bf215
+/deepseek-ai-dsh-beardy/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-beardy/use-this-package:
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
+/deepseek-ai-dsh-beardy/use-this-package/run-the-shipped-beardy-profile:
+  en: 210a7cf72176e512
+  zh: 8d947dc18da8118b
+/deepseek-ai-dsh-beardy/use-this-package/deploy-as-an-always-on-discord-agent:
+  en: 541f0b53bc6ad1ea
+  zh: 8b3a62c39a90ce9a
+/deepseek-ai-dsh-beardy/use-this-package/add-the-bundle-to-another-profile:
+  en: 694a3f7730064832
+  zh: b633862a65de4b7f
+/deepseek-ai-dsh-beardy/use-this-package/what-you-get:
+  en: 1a13599078048ffb
+  zh: 6712381e159ba42a
+/deepseek-ai-dsh-beardy/understand-the-implementation:
+  en: 185ef9a6dd4bab88
+  zh: 220d5cb1ef730ea5
+/deepseek-ai-dsh-beardy/understand-the-implementation/source-map:
+  en: 73e17c975a866db2
+  zh: 700aa98df693873f
+/deepseek-ai-dsh-beardy/understand-the-implementation/invariant-ownership:
+  en: 99a2ccf1a6e52f3f
+  zh: 65da4e64cbbf85a7
+/deepseek-ai-dsh-beardy/further-exploration:
+  en: b266dd9f4d6ede3c
+  zh: 83cca7d60697beb3
+/deepseek-ai-dsh-beardy/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-beardy/model-experience/beardy-system-prompt:
+  en: 57568f3592ce6832
+  zh: 0e4ba19e5d012fa3
+/deepseek-ai-dsh-beardy/model-experience/beardy-system-prompt/what-the-model-sees:
+  en: 772ce68516f655c2
+  zh: b2cd7ac3d34dde4c
+/deepseek-ai-dsh-beardy/model-experience/beardy-system-prompt/what-the-model-sees/persona-text:
+  en: 638aa997e46c96e4
+  zh: 2fe096a1200a4ab9
+/deepseek-ai-dsh-beardy/model-experience/beardy-system-prompt/token-effect:
+  en: 371d28831239e0a8
+  zh: 1bb5b0bf6ac3dcd6
+/deepseek-ai-dsh-beardy/model-experience/beardy-system-prompt/kv-cache-effect:
+  en: 40f01d4d83e65469
+  zh: 5887c8edfd2feed7
+/deepseek-ai-dsh-beardy/model-experience/harness-authoring:
+  en: cfd812729d57502c
+  zh: c601e967a341ff5f
+/deepseek-ai-dsh-beardy/model-experience/harness-authoring/what-the-model-sees:
+  en: 1f2ef36e4a64a57c
+  zh: 219faf361499ffa8
+/deepseek-ai-dsh-beardy/model-experience/harness-authoring/token-effect:
+  en: 3eb15b4adc7cab6c
+  zh: 496f668c8bb34c6a
+/deepseek-ai-dsh-beardy/model-experience/harness-authoring/kv-cache-effect:
+  en: d5a2abe7629c6b81
+  zh: 55f38fcf796608f2
+/deepseek-ai-dsh-beardy/model-experience/soul-md-personality:
+  en: d4aa11c32c14cc63
+  zh: a8a96db2772bceb2
+/deepseek-ai-dsh-beardy/model-experience/soul-md-personality/what-the-model-sees:
+  en: a4c1180c567c13e0
+  zh: b57b0ca0abf4e582
+/deepseek-ai-dsh-beardy/model-experience/soul-md-personality/token-effect:
+  en: a6509032e99108e1
+  zh: 6194590a6c00673e
+/deepseek-ai-dsh-beardy/model-experience/soul-md-personality/kv-cache-effect:
+  en: 430f682bd775b7d7
+  zh: 59e8d517ce72ccb0
+/deepseek-ai-dsh-beardy/model-experience/curated-memory-and-clock:
+  en: 58ffcc9bd1e45d3f
+  zh: 683a96ca075bfd09
+/deepseek-ai-dsh-beardy/model-experience/curated-memory-and-clock/what-the-model-sees:
+  en: 87847dbae767514e
+  zh: 77d64f9b43c4cd3c
+/deepseek-ai-dsh-beardy/model-experience/curated-memory-and-clock/token-effect:
+  en: ad8678cf97739bb2
+  zh: f7104521f6a5b2ce
+/deepseek-ai-dsh-beardy/model-experience/curated-memory-and-clock/kv-cache-effect:
+  en: 77ed97efd0c03f56
+  zh: 4334fd26d1e1d1b6
+/deepseek-ai-dsh-beardy/model-experience/session-history-tools-web-search-and-web-fetch:
+  en: dbc9a272f9ca419c
+  zh: 40c16c430037052f
+/deepseek-ai-dsh-beardy/model-experience/session-history-tools-web-search-and-web-fetch/what-the-model-sees:
+  en: a73a424084b35aaf
+  zh: b2e67da1ac7de752
+/deepseek-ai-dsh-beardy/model-experience/session-history-tools-web-search-and-web-fetch/token-effect:
+  en: 5fc22e165f83263a
+  zh: 4196309b970fa7bc
+/deepseek-ai-dsh-beardy/model-experience/session-history-tools-web-search-and-web-fetch/kv-cache-effect:
+  en: d67104b10e026e45
+  zh: 2bda059d423d7e7e
+/deepseek-ai-dsh-beardy/known-limitations-and-deferred-work:
+  en: 34dd5fd0fd514bb1
+  zh: 8d44369ac58fedf1
+/deepseek-ai-dsh-beardy/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 4c879960b94cc733

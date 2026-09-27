@@ -60,7 +60,7 @@ async function listener(overrides: Partial<ResolvedConfig> = {}) {
   const ctx = {
     logger,
     credentials: { resolve: async () => ({ value: 'private-bot-token' }) },
-    agentPresets: { resolve: async () => ({}), standingKeyFor: async () => scope },
+    agentPresets: { resolve: async () => ({}), acquireScope: async () => ({ key: scope, [Symbol.asyncDispose]: async () => {} }) },
     permissionPresets: { resolve: () => ({}) },
     commands: { listForScope },
     on: (name: string, callback: () => void) => {

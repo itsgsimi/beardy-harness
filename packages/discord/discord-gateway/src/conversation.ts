@@ -16,7 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { CronRunOutcome } from '@deepseek-ai/dsh-cron'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
-import type {} from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { CommandDescriptor, CommandResult } from '@deepseek-ai/dsh-commands'
 import { deadline } from '@deepseek-ai/dsh-timeout'
@@ -37,7 +37,7 @@ import type {} from '@deepseek-ai/dsh-workspace'
 import { approvalOutcomeForLine, approvalOutcomeForReaction, buildApprovalPrompt, buildQuestionPrompt, parseQuestionAnswer } from './answerers.ts'
 import type { ConversationRecord, OutboxRecord } from './domain.ts'
 import { DiscordOutbox } from './outbox.ts'
-import { DiscordWakeCoordinator } from './wake.ts'
+import { DiscordWakeCoordinator, dispatchLegacyReminders } from './wake.ts'
 import { DISCORD_CHANNEL_TYPE_DM } from './gateway.ts'
 import { discordCommands, registerGatewayCommands } from './commands.ts'
 import type { DiscordInteraction } from './interactions.ts'
@@ -337,6 +337,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           || conversations.has(record.channelId)) return
         const live = await resumeConversation(record)
         if (inputAborted()) return
+        await dispatchLegacyReminders(ctx, live.handle.agent)
         if (live.handle.agent.status === 'idle') await flushDelivery(live, outbox)
       }).catch((error: unknown) => {
         if (!inputAborted()) throw error

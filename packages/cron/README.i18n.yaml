@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/cron/README.md
-README.md: c44dea12c2edfbb1b8239e361e09daeaa046bc9e
-README.zh.md: af8a69a860f4722140b711f44023550caa692f5e
+/:
+  en: cb9ec4a0210a886c
+  zh: f2d8f7f3c45d45e1
+/cron-unattended-scheduled-agent-runs:
+  en: b55ee2beed998662
+  zh: 5414528ca93d40fd
+/cron-unattended-scheduled-agent-runs/summary:
+  en: 4128ede24444258a
+  zh: b9560e492fb2ee02
+/cron-unattended-scheduled-agent-runs/table-of-contents:
+  en: 20b57e98faba99e4
+  zh: 636e4b5b59c26325
+/cron-unattended-scheduled-agent-runs/packages:
+  en: 14e54565af1d1809
+  zh: 8edc75dfc1c8a4d3
+/cron-unattended-scheduled-agent-runs/related-documentation:
+  en: 025809bb7e06ac88
+  zh: 2ec217f86b5a241a

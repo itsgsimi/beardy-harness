@@ -1,4 +1,4 @@
-/** Recorded Discord menus, rich replies, and native status through the shipped Web profile. */
+/** Recorded Discord menus, rich replies, and native status through the shipped Beardy profile. */
 
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
@@ -21,6 +21,7 @@ import {
   redactSessionSnapshotIds,
   refreshFixtureReplacements,
   scrubSessionSnapshot,
+  sessionFixtureName,
   sessionFixtureNames,
   stabilizeFixtureMessageIds,
   stabilizeRefreshLog,
@@ -63,12 +64,12 @@ async function runScenario(fixture: string): Promise<{
     await writeFile(fixturePath, fixture.replaceAll('{{cwd}}', cwd))
     const patchDir = join(cwd, '.patches')
     await mkdir(patchDir)
-    const patch = materializeProfilePatch(join(scenarioDir, 'cordis.yml'), cwd, patchDir, 0)
+    const patch = materializeProfilePatch(join(scenarioDir, 'cordis.yml'), cwd, 'beardy', patchDir, 0)
     const launch = resolveExampleLaunch({
       srcBin: join(repoRoot, 'apps/cli/src/bin.ts'),
       sourceImport: 'tsx/esm',
       tsconfigPath: join(repoRoot, 'tsconfig.base.json'),
-      configArgs: ['--profile', 'web', '--patch', patch, '--port', '0', '--no-open'],
+      configArgs: ['--profile', 'beardy', '--patch', patch, '--port', '0', '--no-open'],
       env: {
         DSH_HOME: join(cwd, '.dsh'),
         DSH_AGENTS_HOME: join(cwd, '.agents'),
@@ -133,7 +134,7 @@ async function runScenario(fixture: string): Promise<{
   }
 }
 
-it.skipIf(mode === 'record')(`${mode} Discord rich replies and native status through dsh --profile web`, async () => {
+it.skipIf(mode === 'record')(`${mode} Discord rich replies and native status through dsh --profile beardy`, async () => {
   const manifestPath = join(scenarioDir, 'snapshot.yml')
   const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
   expect(manifest.profile).toBe('web')
@@ -143,7 +144,7 @@ it.skipIf(mode === 'record')(`${mode} Discord rich replies and native status thr
   const fixturePath = join(scenarioDir, fixtureName)
   let expected = await readFile(fixturePath, 'utf8')
   const actual = await runScenario(expected)
-  const header = records(actual.content)[0] as { id: string; createdAt: number }
+  const header = records(actual.content)[0] as { id: string; createdAt: number; version: number }
   const context = { sessionIds: [header.id], cwd: actual.cwd }
   const prompts = normalizedSystemPrompts(actual.content, context)
   const schemas = normalizedToolSchemas(actual.content, context)
@@ -158,7 +159,7 @@ it.skipIf(mode === 'record')(`${mode} Discord rich replies and native status thr
         actual.content, expected, replacements, context,
       ))),
     ], [expected]))[0] as string
-    await writeFile(fixturePath, expected)
+    await writeFile(join(scenarioDir, sessionFixtureName(0, header.version)), expected)
     await writeFile(join(scenarioDir, 'system-prompt.expected.md'), prompt)
     await writeFile(join(scenarioDir, 'tool-schemas.expected.json'), schema)
     await writeFile(join(scenarioDir, 'discord.expected.json'), wire)

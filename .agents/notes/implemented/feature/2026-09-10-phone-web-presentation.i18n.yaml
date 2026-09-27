@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-phone-web-presentation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-10-phone-web-presentation.md
-2026-09-10-phone-web-presentation.md: 9d673936c30ce846d184fb0099d2f605397f2f12
-2026-09-10-phone-web-presentation.zh.md: 18c8c321edf817314e505ab29909db3c7414f9e5
+/agent-note-phone-presentation-of-the-web-surface:
+  en: 441c2be9c7c50d57
+  zh: 1e35c3d7e9a87aae
+/agent-note-phone-presentation-of-the-web-surface/problem:
+  en: c76d18111ec9643a
+  zh: 9c70634f78621d45
+/agent-note-phone-presentation-of-the-web-surface/decision:
+  en: 4c16b21abd58d8fa
+  zh: bdfc135ce8bc34be
+/agent-note-phone-presentation-of-the-web-surface/alternatives-considered:
+  en: 774c21daade2f0ff
+  zh: a77a7f11bccd0a32
+/agent-note-phone-presentation-of-the-web-surface/consequences:
+  en: 5e074629970be908
+  zh: 15e5653b5e927855

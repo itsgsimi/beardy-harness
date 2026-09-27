@@ -24,10 +24,10 @@ function durable(options: Parameters<typeof harness>[0] = {}) {
 }
 
 function finish(events: SessionEvent[], text: string, reason = 'completed'): void {
-  events.push({ seq: events.length, type: 'turn/start', data: { turn: 2 } } as SessionEvent)
+  events.push({ seq: events.length, type: 'turn/start', data: { turn: 2 } } as unknown as SessionEvent)
   events.push({ seq: events.length, type: 'assistant/message', data: { turn: 2, step: 1,
-    message: { content: [{ type: 'text', text }] } } } as SessionEvent)
-  events.push({ seq: events.length, type: 'turn/end', data: { turn: 2, reason: { kind: reason } } } as SessionEvent)
+    message: { content: [{ type: 'text', text }] } } } as unknown as SessionEvent)
+  events.push({ seq: events.length, type: 'turn/end', data: { turn: 2, reason: { kind: reason } } } as unknown as SessionEvent)
 }
 
 describe('durable Discord conversation delivery', () => {
@@ -104,7 +104,7 @@ describe('durable Discord conversation delivery', () => {
   it('wakes a persisted reminder in its recorded conversation and allows idle cleanup to re-arm it', async () => {
     vi.useFakeTimers()
     const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create',
-      schedule: createAfterScheduleRecord(ScheduleId('reminder'), 'Check the build', 1, Date.now()),
+      schedule: createAfterScheduleRecord(ScheduleId('reminder'), 'Check the build', 1, Date.now(), 'Check the build'),
     } }] as unknown as SessionEvent[]
     const { h } = durable({ storedEvents: events, initialRecord: record({ deliveredThrough: 1 }) })
     await h.router.recover()
@@ -131,7 +131,7 @@ describe('durable Discord conversation delivery', () => {
     'rechecks conversation ownership and activity for a cold wake: %s', async (mode) => {
       vi.useFakeTimers()
       const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create',
-        schedule: createAfterScheduleRecord(ScheduleId('reminder'), 'Check the build', 1, Date.now()),
+        schedule: createAfterScheduleRecord(ScheduleId('reminder'), 'Check the build', 1, Date.now(), 'Check the build'),
       } }] as unknown as SessionEvent[]
       const { h } = durable({ storedEvents: events, initialRecord: record({ deliveredThrough: 1 }),
         ...(mode === 'resume-error' ? { resumeError: 'other' } : {}) })

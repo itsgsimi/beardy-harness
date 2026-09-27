@@ -13,23 +13,25 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PresetPickerPlacement } from '@deepseek-ai/dsh-agent-presets/types'
+import type { PresetPickerPlacement } from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
-  IconAgentPresetOutline16, IconChevronDownOutline14, IconChevronRightOutline14, IconSettingsOutline16,
-  IconWarningOutline16, Menu, Toast, type MenuEntry,
+  IconAgentPresetOutlineRegular, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular,
+  IconSettingsOutlineRegular, IconWarningOutlineRegular, Menu, Toast, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { AgentPresetSeatState } from './seat-store.ts'
-import { presetDisplayText, presetPickerDescription } from './locales.ts'
+import { presetDisplayText } from './locales.ts'
 import { AgentPresetPickerSettings } from './AgentPresetPickerSettings.tsx'
 import css from './AgentPresetSeat.module.css'
 
 /** Registration-side business face for the hero chip. */
 export interface AgentPresetSeatInjected {
   hooks: {
+    /** Shared Developer tools preference; off hides the chip. */
+    developerTools: ObservableSnapshot<boolean>
     /** Seat snapshot bound by the renderer as useAgentPresetSeat. */
     agentPresetSeat: SnapshotStore<AgentPresetSeatState>
   }
@@ -58,16 +60,7 @@ const INTRO_CHAR_STAGGER_MS = 40
 const INTRO_TEXT_REVEAL_MS = 200
 const INTRO_CHAR_FADE_MS = 400
 
-/**
- * How long a refused switch holds before fading.
- *
- * Longer than the primitive's default because this banner is the only place
- * the refusal appears. The chip's label has already snapped back to the
- * preset the session still runs, and a preset the host refuses to MOUNT is
- * one discovery reported healthy — its row on the settings page carries no
- * reason to go back and read, because there was nothing to see until the
- * rows actually ran.
- */
+/** Duration of a selection-refusal banner, including a revision becoming unavailable during a pick. */
 const REFUSAL_HOLD_MS = 8000
 
 /**
@@ -89,10 +82,16 @@ export type AgentPresetSeatProps =
 /**
  * Render the new-session agent-preset chip.
  * @param props - composed slot props.
- * @returns the chip, or null when the deployment composes no presets.
+ * @returns The chip, or null outside the main view, with Developer tools off,
+ * or before the roster provides a preset choice.
  */
-export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, useAgentPresetSeat, t }: AgentPresetSeatProps) {
+export function AgentPresetSeat({
+  sessionId, useSessionRetainInfo, load, select, introduced, setPickerPlacement, useAgentPresetSeat, useDeveloperTools, t,
+}: AgentPresetSeatProps) {
+  const developerTools = useDeveloperTools(value => value)
   const state = useAgentPresetSeat(snapshot => snapshot)
+  const mainView = useSessionRetainInfo(info => sessionId === undefined
+    || (info?.retainedBy.mainView ?? 0) > 0)
   const [open, setOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [managing, setManaging] = useState(false)
@@ -100,8 +99,8 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
   // it rather than leaving the first one silently in place.
   const toastSeq = useRef(0)
   const [toast, setToast] = useState<{ seq: number; text: string } | null>(null)
-  const pickerVisible = useRef(state.showPicker)
-  pickerVisible.current = state.showPicker
+  const pickerVisible = useRef(developerTools)
+  pickerVisible.current = developerTools
 
   useEffect(() => {
     void load()
@@ -111,10 +110,10 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
   // state explicitly; otherwise an external off/on edit can revive an old
   // menu or refusal banner.
   useEffect(() => {
-    if (state.showPicker) return
+    if (developerTools) return
     setOpen(false)
     setToast(null)
-  }, [state.showPicker])
+  }, [developerTools])
 
   const chosen = state.options.find(option => option.id === state.current)
   const chosenText = chosen === undefined ? undefined : presetDisplayText(chosen, t)
@@ -143,7 +142,7 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
 
   // Nothing to choose between: the deployment composes no presets and every
   // session shares the host composition.
-  if (!state.showPicker || !ready) return null
+  if (!mainView || !developerTools || !ready) return null
 
   // One wrapper span: the chip is a flex row with a gap, so loose character
   // spans would each pick up the gap between them.
@@ -172,7 +171,7 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
       label: (
         <span className={css.item}>
           <span className={css.itemName}>{text.name}</span>
-          <span className={css.itemDesc}>{presetPickerDescription(option, t) ?? t('noDescription')}</span>
+          <span className={css.itemDesc}>{text.description ?? t('noDescription')}</span>
         </span>
       ),
     }
@@ -185,7 +184,7 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
     items.push({
       id: MORE_MODES_ID,
       expanded: moreOpen,
-      icon: moreOpen ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />,
+      icon: moreOpen ? <IconChevronDownOutlineRegular size={14} /> : <IconChevronRightOutlineRegular size={14} />,
       label: <span className={css.groupLabel}><span>{t('moreModes')}</span><span className={css.groupCount}>{more.length}</span></span>,
     })
     if (moreOpen) items.push(...more.map(modeItem))
@@ -197,7 +196,7 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
         open={open}
         onClose={() => { setOpen(false) }}
         items={items}
-        footer={[{ id: MANAGE_MODES_ID, label: t('manageModesAction'), icon: <IconSettingsOutline16 /> }]}
+        footer={[{ id: MANAGE_MODES_ID, label: t('manageModesAction'), icon: <IconSettingsOutlineRegular size={16} /> }]}
         selectedId={state.current}
         onSelect={(id) => {
           if (id === MORE_MODES_ID) {
@@ -238,9 +237,9 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
             disabled={state.busy}
             onClick={() => { setOpen(value => !value) }}
           >
-            <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
+            <IconAgentPresetOutlineRegular className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
             <span className={css.seatLabel}>{shownLabel}</span>
-            <IconChevronDownOutline14 className={css.chevron} />
+            <IconChevronDownOutlineRegular className={css.chevron} />
           </button>
         )}
       />
@@ -255,7 +254,7 @@ export function AgentPresetSeat({ load, select, introduced, setPickerPlacement, 
         <Toast
           key={toast.seq}
           text={toast.text}
-          icon={<IconWarningOutline16 />}
+          icon={<IconWarningOutlineRegular />}
           holdMs={REFUSAL_HOLD_MS}
           // The composer card, which is the content column this chip sits
           // above rather than inside — hence a page query, not `closest`.

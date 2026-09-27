@@ -14,7 +14,6 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import FileSettings from '@deepseek-ai/dsh-settings-file'
 import * as ToolResearch from '@deepseek-ai/dsh-tool-odysseus-research'
 
 
@@ -66,9 +65,6 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
     '- name: fixture-credentials',
-    "- name: '@deepseek-ai/dsh-settings-file'",
-    '  config:',
-    `    path: ${join(root, 'settings.yaml')}`,
     "- name: '@deepseek-ai/dsh-agent'",
     "- name: '@deepseek-ai/dsh-system-prompt'",
     "- name: '@deepseek-ai/dsh-tools'",
@@ -84,7 +80,6 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['fixture-credentials', credentialFixtures],
-    ['@deepseek-ai/dsh-settings-file', FileSettings],
     ['@deepseek-ai/dsh-agent', AgentRegistry],
     ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
     ['@deepseek-ai/dsh-tools', ToolRuntime],
@@ -139,14 +134,12 @@ it.each([
 })
 
 
-it('uses the saved research model for new jobs and refuses unavailable selections', async () => {
+it('uses the selected research worker for new jobs', async () => {
   const ctx = await boot([...VALID_CONFIG,
+    '    selectedWorker: flash',
     '    workers:', '      - id: flash', '        label: Flash', '        endpointId: flash-endpoint',
     '        model: flash-model', '        disableThinking: false',
   ])
-  const namespace = ctx.settings.describe().find(item => item.ns === 'odysseus-research')!.ns
-  await expect(ctx.settings.update(namespace, { worker: 'missing' })).rejects.toThrow()
-  await ctx.settings.update(namespace, { worker: 'flash' })
   const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response('{"session_id":"rp-flash","status":"running"}'))
   vi.stubGlobal('fetch', fetch)
   const result = await ctx.tools.execute({

@@ -2,8 +2,9 @@ import { Fragment, useCallback, useMemo, useRef, useState, useSyncExternalStore 
 import type { CSSProperties, ReactNode, Ref } from 'react'
 import clsx from 'clsx'
 import { writeClipboard } from '../clipboard.ts'
+import { CodeToolbar, type CodeToolbarLabels } from '../CodeToolbar.tsx'
 import { Tooltip } from '../Tooltip.tsx'
-import { IconCheckOutline16, IconCodeOutline16, IconCopyOutline16 } from '../icons/index.tsx'
+import { IconCheckOutlineRegular, IconCodeOutlineRegular, IconCopyOutlineRegular } from '../icons/index.tsx'
 import {
   StreamingHighlightSession, grammarLoadCount, highlightToHtml, subscribeGrammarLoaded,
 } from './highlight.ts'
@@ -37,7 +38,11 @@ export interface CodeBlockProps {
   copyLabel: string
   /** Copy-button label during the post-copy confirmation window. */
   copiedLabel: string
-  /** Headerless settled preview with hover/focus actions; copying always retains the source text. */
+  /** Enable the shared card toolbar and spacing; omit for custom toolbar layouts. */
+  toolbarLabels?: CodeToolbarLabels | undefined
+  /** With toolbarLabels, use the owner's wrapping preference and omit the toolbar's local wrap action. */
+  wrap?: boolean | undefined
+  /** Settled visual preview and labels for switching between the preview and source. */
   preview?: { content: ReactNode; previewLabel: string; sourceLabel: string } | undefined
 }
 
@@ -68,7 +73,8 @@ function renderLine(line: readonly HighlightSpan[], index: number): ReactNode {
 }
 
 export function CodeBlock({
-  code, lang, streaming, className, contentRef, lineNumbers = false, showHeader = true, copyLabel, copiedLabel, preview,
+  code, lang, streaming, className, contentRef, lineNumbers = false, showHeader = true,
+  copyLabel, copiedLabel, toolbarLabels, wrap, preview,
 }: CodeBlockProps) {
   const trimmed = code.endsWith('\n') ? code.slice(0, -1) : code
   const sourceLines = lineNumbers ? trimmed.split('\n') : undefined
@@ -156,6 +162,8 @@ export function CodeBlock({
   const [showSource, setShowSource] = useState(false)
   const previewAvailable = preview !== undefined && streaming !== true
   const showingPreview = previewAvailable && !showSource
+  const [localWrapped, setWrapped] = useState(true)
+  const wrapped = wrap ?? localWrapped
 
   const onCopy = useCallback(() => {
     if (copied) return
@@ -181,48 +189,39 @@ export function CodeBlock({
         <div dangerouslySetInnerHTML={{ __html: html }} />
       )
 
-  const copyActionLabel = copied ? copiedLabel : copyLabel
-  const copyAction = (
-    <button
-      type="button"
-      className={clsx(css.copyButton, previewAvailable && css.iconButton)}
-      aria-label={previewAvailable ? copyActionLabel : undefined}
-      onClick={onCopy}
-    >
-      {previewAvailable
-        ? <span aria-hidden="true">{copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}</span>
-        : copyActionLabel}
+  const previewAction = previewAvailable && <Tooltip label={showingPreview ? preview.sourceLabel : preview.previewLabel} side="top">
+    <button type="button" className={css.copyButton} aria-label={showingPreview ? preview.sourceLabel : preview.previewLabel}
+      onClick={() => { setShowSource(value => !value) }}>
+      <IconCodeOutlineRegular size={16} />
     </button>
-  )
+  </Tooltip>
 
   return (
-    <div ref={rootRef} className={clsx(css.block, 'md-code-block', lineNumbers && css.numbered, previewAvailable && css.preview, showingPreview && css.showingPreview, className)}
+    <div ref={rootRef} className={clsx(css.block, 'md-code-block', lineNumbers && css.numbered, toolbarLabels !== undefined && css.card, previewAvailable && css.preview, showingPreview && css.showingPreview, className)}
       data-line-numbers={lineNumbers || undefined}
+      data-code-wrap={toolbarLabels === undefined ? undefined : wrapped}
       style={sourceLines === undefined ? undefined : {
         '--dsl-code-block-line-number-width': `${Math.max(2, String(sourceLines.length).length)}ch`,
       } as CSSProperties}>
       {/* These paired attributes are stable semantic hooks for owner styling and DOM tests. */}
       {showHeader && <div className={css.bannerWrap}>
-        <div className={css.banner} data-code-block-banner>
+        {toolbarLabels !== undefined ? <CodeToolbar
+          lang={lang} labels={toolbarLabels} copyLabel={copyLabel} copiedLabel={copiedLabel}
+          copied={copied} wrapped={wrapped} onCopy={onCopy}
+          onWrap={wrap === undefined ? () => { setWrapped(value => !value) } : undefined}
+          extraAction={previewAction}
+        /> : <div className={css.banner} data-code-block-banner>
           {!previewAvailable && <div className={css.infostring}>{lang ?? ''}</div>}
           <div className={css.action}>
-            {previewAvailable && (
-              <Tooltip label={showingPreview ? preview.sourceLabel : preview.previewLabel} side="top">
-                <button
-                  type="button"
-                  className={clsx(css.copyButton, css.iconButton)}
-                  aria-label={showingPreview ? preview.sourceLabel : preview.previewLabel}
-                  onClick={() => { setShowSource(!showSource) }}
-                >
-                  <span aria-hidden="true"><IconCodeOutline16 /></span>
-                </button>
-              </Tooltip>
-            )}
-            {previewAvailable
-              ? <Tooltip label={copyActionLabel} side="top">{copyAction}</Tooltip>
-              : copyAction}
+            {previewAction}
+            <button type="button" className={css.copyButton}
+              aria-label={previewAvailable ? copied ? copiedLabel : copyLabel : undefined} onClick={onCopy}>
+              {previewAvailable
+                ? copied ? <IconCheckOutlineRegular size={16} /> : <IconCopyOutlineRegular size={16} />
+                : copied ? copiedLabel : copyLabel}
+            </button>
           </div>
-        </div>
+        </div>}
       </div>}
       {previewAvailable && <div hidden={!showingPreview}>{preview.content}</div>}
       {!showingPreview && <div ref={contentRef} className={css.content} data-code-block-content>{body}</div>}

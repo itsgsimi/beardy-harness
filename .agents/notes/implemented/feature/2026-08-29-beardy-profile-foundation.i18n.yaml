@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-29-beardy-profile-foundation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-beardy-profile-foundation.md
-2026-08-29-beardy-profile-foundation.md: b35fe5037384f387231d25903404bec86e3c1dde
-2026-08-29-beardy-profile-foundation.zh.md: 572ced947e1ae575e8fd543f59f20c066b7ba871
+/agent-note-beardy-profile-foundation:
+  en: bb9eaad2f7e28783
+  zh: 0ab19b038a64a2c9
+/agent-note-beardy-profile-foundation/problem:
+  en: e5c380dae79411ba
+  zh: c93849d1b7186107
+/agent-note-beardy-profile-foundation/decision:
+  en: f45da269156ff003
+  zh: b80b3835b289cbf8
+/agent-note-beardy-profile-foundation/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 6119e2aff3b6be5a
+/agent-note-beardy-profile-foundation/alternatives-considered/why-not-enable-the-history-and-web-rows-in-dsh-base:
+  en: 651eb54b319fb6a5
+  zh: 051de58e67a783b5
+/agent-note-beardy-profile-foundation/alternatives-considered/why-not-create-a-separate-beardy-launcher:
+  en: 98364678b77b5e5c
+  zh: 2f3f3fd3de5fa8b9
+/agent-note-beardy-profile-foundation/alternatives-considered/why-not-modify-agent-loop-for-beardy:
+  en: 8cce4078966dffd9
+  zh: 524cb8b6a6bdff74
+/agent-note-beardy-profile-foundation/consequences:
+  en: 7383c05667b25a77
+  zh: e470bd09a856645a

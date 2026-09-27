@@ -8,9 +8,18 @@ import type { AddressInfo } from 'node:net'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { IndexInjection, WebServer, WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
-import { API_PATH, Config, RpcId, apply, inject, type ClientRequest, type ConnectionConfig, type HostConnectionHandle } from '../src/index.ts'
+import {
+  API_PATH,
+  RpcId,
+  apply,
+  inject,
+  type ClientRequest,
+  type ConnectionConfig,
+  type HostConnectionHandle,
+  type PeerScope,
+} from '../src/index.ts'
 import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../src/http-bridge.ts'
-import { provideBrowserCredentials, type RecordCredentials } from './browser-credentials.ts'
+import { provideBrowserCredentials } from './browser-credentials.ts'
 
 /** Structural webServer fake recording both route registries. */
 function fakeHttpServer(
@@ -36,21 +45,21 @@ function fakeHttpServer(
 
 /** Bodyless GET carrying the given headers (enough for the trust fence + bridge). */
 function fakeRequest(headers: Record<string, string>, url = `${API_PATH}/session.list`): IncomingMessage {
-  const request = Readable.from([]) as unknown as IncomingMessage
+  const request = Readable.from([]) as IncomingMessage
   Object.assign(request, { url, method: 'GET', headers })
   return request
 }
 
 /** JSON POST carrying a complete client-request envelope. */
 function fakePost(headers: Record<string, string>, url: string, body: unknown): IncomingMessage {
-  const request = Readable.from([Buffer.from(JSON.stringify(body))]) as unknown as IncomingMessage
+  const request = Readable.from([Buffer.from(JSON.stringify(body))]) as IncomingMessage
   Object.assign(request, { url, method: 'POST', headers: { 'content-type': 'application/json', ...headers } })
   return request
 }
 
 /** Raw POST for malformed-body and media-type boundary cases. */
 function fakeRawPost(headers: Record<string, string>, url: string, body: string): IncomingMessage {
-  const request = Readable.from([Buffer.from(body)]) as unknown as IncomingMessage
+  const request = Readable.from([Buffer.from(body)]) as IncomingMessage
   Object.assign(request, { url, method: 'POST', headers })
   return request
 }
@@ -118,6 +127,64 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
 }
 
 describe('connection node half', () => {
+  it('runs request admission after authentication and removes it with its owning fiber', async () => {
+    const { ctx, routes, connection, dispose } = await mounted()
+    let admitted = 0
+    const guard = ctx.plugin({ apply(owner: Context) {
+      owner.on('connection/request', async (_request, response) => {
+        admitted++
+        response.writeHead(503)
+        response.end()
+      })
+    } })
+    try {
+      await guard.await()
+      const unauthorized = fakeResponse()
+      await routes[0]!.handler(fakeRequest({ host: 'localhost' }), unauthorized.response)
+      expect(unauthorized.state.status).toBe(401)
+      expect(admitted).toBe(0)
+      const headers = { host: 'localhost', cookie: browserCookie(connection, 'localhost') }
+      const refused = fakeResponse()
+      await routes[0]!.handler(fakeRequest(headers), refused.response)
+      expect(refused.state.status).toBe(503)
+      expect(admitted).toBe(1)
+      await guard.dispose()
+      const allowed = fakeResponse()
+      await routes[0]!.handler(fakeRequest(headers), allowed.response)
+      expect(allowed.state.status).toBe(404)
+      expect(admitted).toBe(1)
+    } finally { await guard.dispose(); await dispose() }
+  })
+
+  it('awaits delegated response transfer before releasing the admission listener', async () => {
+    const { ctx, routes, connection, dispose } = await mounted()
+    const entered = Promise.withResolvers<undefined>()
+    const finish = Promise.withResolvers<undefined>()
+    let completed = false
+    connection.fetch.register({ path: '/api/held', methods: ['GET'], requestBody: 'buffered',
+      async fetch() {
+        return new Response(new ReadableStream({ async start(controller) {
+          entered.resolve(undefined)
+          await finish.promise
+          controller.close()
+        } }))
+      },
+    })
+    const remove = ctx.on('connection/request', async (_request, _response, next) => {
+      await next()
+      completed = true
+    })
+    const response = fakeResponse()
+    const pending = routes[0]!.handler(fakeRequest({ host: 'localhost', cookie: browserCookie(connection, 'localhost') }, '/api/held'), response.response)
+    try {
+      await entered.promise
+      expect(completed).toBe(false)
+      finish.resolve(undefined)
+      await pending
+      expect(completed).toBe(true)
+    } finally { finish.resolve(undefined); await pending; remove(); await dispose() }
+  })
+
   it('provides the carrier-neutral service without a Web server', async () => {
     const ctx = new Context()
     provideBrowserCredentials(ctx)
@@ -210,7 +277,7 @@ describe('connection node half', () => {
     const { routes, connection, dispose } = await mounted({ trustedHosts: ['harness.example'] })
     const methods = [
       'session/openWorkspacePath',
-      'llm/discoverModels', 'skills/list', 'settings/openAgentPresetDirectory',
+      'llm/discoverModels', 'skills/list', 'agentPresets/list',
     ]
     for (const method of methods) {
       const denied = fakeResponse()
@@ -276,94 +343,6 @@ describe('connection node half', () => {
       cookie: browserCookie(connection, 'harness.example'),
     }))).toBeUndefined()
     await dispose()
-  })
-
-  it.each([{}, { insecureNoAuth: false }])('requires a browser session without an explicit opt-out: %j', async (config) => {
-    expect(new Config(config).insecureNoAuth).toBe(false)
-    const { connection, dispose } = await mounted(config)
-    try {
-      const request = fakeRequest({ host: '127.0.0.1:3080' }, '/')
-      expect(connection.requestRejection(request)).toBe(401)
-      const denied = fakeResponse()
-      expect(connection.authorizeIndex(request, denied.response)).toBe(false)
-      expect(denied.state.status).toBe(401)
-      expect(new URL(connection.authenticatedUrl('http://127.0.0.1:3080')).searchParams.has('token')).toBe(true)
-      expect(connection.requestRejection(fakeRequest({
-        host: '127.0.0.1:3080', cookie: browserCookie(connection, '127.0.0.1:3080'),
-      }))).toBeUndefined()
-    } finally {
-      await dispose()
-    }
-  })
-
-  it('serves trusted index and RPC requests without browser credentials only in explicit insecure mode', async () => {
-    const { ctx, connection, routes, dispose } = await mounted({
-      insecureNoAuth: true, trustedHosts: ['harness.example'],
-    })
-    try {
-      expect((ctx.credentials as unknown as RecordCredentials).modifies).toBe(0)
-      expect(connection.authenticatedUrl('http://harness.example:3080/index.html?token=obsolete#fragment'))
-        .toBe('http://harness.example:3080/')
-      for (const path of ['/', '/index.html']) {
-        const response = fakeResponse()
-        expect(connection.authorizeIndex(fakeRequest({ host: 'harness.example' }, path), response.response)).toBe(true)
-        expect(response.state).toEqual({})
-      }
-      const calls: string[] = []
-      const remove = connection.rpc.intercept('/api', endpoint => endpoint === 'settings/describe', async (endpoint) => {
-        calls.push(endpoint)
-        return { ok: true, value: { enabled: true } }
-      })
-      try {
-        const response = fakeResponse()
-        await routes[0]!.handler(fakePost({ host: 'harness.example' }, '/api/settings/describe', {
-          type: 'client-request', rpcId: RpcId('insecure-rpc'), method: 'settings/describe', payload: {},
-        }), response.response)
-        expect(response.state.status).toBe(200)
-        expect(JSON.parse(String(response.state.body))).toEqual({
-          type: 'server-response', rpcId: 'insecure-rpc', result: { ok: true, value: { enabled: true } },
-        })
-        expect(calls).toEqual(['settings/describe'])
-      } finally {
-        await remove()
-      }
-    } finally {
-      await dispose()
-    }
-  })
-
-  it('retains Host, Origin and Fetch-Metadata checks for insecure index, API and sibling routes', async () => {
-    const { connection, routes, dispose } = await mounted({
-      insecureNoAuth: true, trustedHosts: ['harness.example'],
-    })
-    try {
-      const refusedHeaders: Record<string, string>[] = [
-        {},
-        { host: 'attacker.example' },
-        { host: 'harness.example', origin: 'http://attacker.example' },
-        { host: 'harness.example', origin: 'null' },
-        { host: 'harness.example', 'sec-fetch-site': 'cross-site' },
-      ]
-      for (const headers of refusedHeaders) {
-        const request = fakeRequest(headers, '/')
-        expect(connection.requestRejection(request)).toBe(403)
-        const index = fakeResponse()
-        expect(connection.authorizeIndex(request, index.response)).toBe(false)
-        expect(index.state).toMatchObject({ status: 403, body: 'forbidden', headers: { 'cache-control': 'no-store' } })
-        const api = fakeResponse()
-        await routes[0]!.handler(fakeRequest(headers), api.response)
-        expect(api.state).toMatchObject({ status: 403, body: 'forbidden' })
-      }
-      const head = fakeRequest({ host: 'attacker.example' }, '/')
-      head.method = 'HEAD'
-      const index = fakeResponse()
-      expect(connection.authorizeIndex(head, index.response)).toBe(false)
-      expect(index.state.status).toBe(403)
-      expect(index.state.body).toBeUndefined()
-      expect(connection.requestRejection(fakeRequest({ host: '127.0.0.1:3080' }))).toBeUndefined()
-    } finally {
-      await dispose()
-    }
   })
 
   it('provides a disposable dedicated RPC channel', async () => {
@@ -499,6 +478,47 @@ describe('connection node half', () => {
     await fiber.dispose()
   })
 
+  it('admits every trusted, authenticated request as the operator Peer and hands each call that Peer', async () => {
+    const { connection, routes, dispose } = await mounted({ trustedHosts: ['harness.example'] })
+    const peers: PeerScope[] = []
+    const remove = connection.rpc.intercept(
+      '/api',
+      () => true,
+      async (_endpoint, _payload, _signal, peer) => {
+        peers.push(peer)
+        return { ok: true, value: null }
+      },
+    )
+    expect(connection.admit(fakeRequest({ host: 'other.example' }))).toEqual({ rejection: 403 })
+    expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080' }))).toEqual({ rejection: 401 })
+    const cookie = browserCookie(connection, '127.0.0.1:3080')
+    expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080', cookie }))).toEqual({ peer: connection.operator })
+
+    const route = routes.find(candidate => candidate.path === API_PATH)!
+    const request: ClientRequest = {
+      type: 'client-request',
+      rpcId: RpcId('rpc-peer'),
+      method: 'goals/create',
+      payload: { args: {} },
+    }
+    const answered = fakeResponse()
+    await route.handler(fakePost({ host: '127.0.0.1:3080', cookie }, '/api/goals/create', request), answered.response)
+    expect(JSON.parse(String(answered.state.body))).toMatchObject({ result: { ok: true, value: null } })
+    // A shell-owned carrier dispatches the shared handler without the bridge and speaks for the operator too.
+    const direct = await connection.createSharedFetchHandler('/api').fetch(new Request('http://127.0.0.1:3080/api/goals/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(request),
+    }))
+    expect(direct.status).toBe(200)
+    expect(peers).toEqual([connection.operator, connection.operator])
+
+    // Racing disposals share one completion, and the scope goes with the Connection.
+    await Promise.all([connection.operator.dispose(), connection.operator.dispose()])
+    await remove()
+    await dispose()
+  })
+
   it('applies the configured trust fence and JSON envelope checks to generic channels', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
@@ -625,7 +645,7 @@ describe('connection node half over a real HTTP server', () => {
         'settings/openSettingsDocument',
         'session/openWorkspacePath',
         'llm/discoverModels', 'skills/list',
-        'settings/openAgentPresetDirectory',
+        'agentPresets/list',
         'llm/listProviders', 'session/modelCatalog',
       ]
       for (const method of methods) {

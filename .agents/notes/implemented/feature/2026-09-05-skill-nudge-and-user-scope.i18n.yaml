@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-05-skill-nudge-and-user-scope.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-skill-nudge-and-user-scope.md
-2026-09-05-skill-nudge-and-user-scope.md: 5ac61b3286cc82aa9fad82fda853c924c1143014
-2026-09-05-skill-nudge-and-user-scope.zh.md: 91d75a6d4d93894bb13a6261c75afe2c46f99b76
+/agent-note-skill-self-improvement-through-user-scope-approval-gating-and-a-turn-nudge:
+  en: eb74012995b2d7c4
+  zh: 8a248fe1b6ce9c9d
+/agent-note-skill-self-improvement-through-user-scope-approval-gating-and-a-turn-nudge/problem:
+  en: b79e07fc828ad0ca
+  zh: ae93f84777496af1
+/agent-note-skill-self-improvement-through-user-scope-approval-gating-and-a-turn-nudge/decision:
+  en: 981af1f17faf389c
+  zh: 7b09bcea781303c9
+/agent-note-skill-self-improvement-through-user-scope-approval-gating-and-a-turn-nudge/alternatives-considered:
+  en: e132ef322b2eb1ae
+  zh: b1052c543a7c8b6f
+/agent-note-skill-self-improvement-through-user-scope-approval-gating-and-a-turn-nudge/consequences:
+  en: 9f3278be16a1594b
+  zh: bf57c592303f398c

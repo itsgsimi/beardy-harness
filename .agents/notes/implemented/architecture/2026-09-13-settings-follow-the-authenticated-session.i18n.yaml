@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-settings-follow-the-authenticated-session.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-settings-follow-the-authenticated-session.md
-2026-09-13-settings-follow-the-authenticated-session.md: 572beca81b2b224e5c16ffac2905ca566e3d194d
-2026-09-13-settings-follow-the-authenticated-session.zh.md: 4cb3790ae593f39b9b8ff147771ba17bd464ca8d
+/agent-note-settings-persistence-follows-the-authenticated-session-not-the-page-authority:
+  en: a6ab5015c3f557ec
+  zh: 4beadc0c40d3eba6
+/agent-note-settings-persistence-follows-the-authenticated-session-not-the-page-authority/problem:
+  en: 067985b4f58aa579
+  zh: c645956eb623d51c
+/agent-note-settings-persistence-follows-the-authenticated-session-not-the-page-authority/decision:
+  en: a7911a737e30fdcf
+  zh: ac5b4666a5f34972
+/agent-note-settings-persistence-follows-the-authenticated-session-not-the-page-authority/alternatives-considered:
+  en: fe3b12797ec4f026
+  zh: ab8131e4627a9d92
+/agent-note-settings-persistence-follows-the-authenticated-session-not-the-page-authority/consequences:
+  en: 07e5225f8b83d13c
+  zh: f7e734e30f97a06f

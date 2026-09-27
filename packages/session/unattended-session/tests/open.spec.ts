@@ -5,7 +5,7 @@ import { openUnattendedSession, resumeUnattendedSession } from '../src/open.ts'
 import type { ResumeUnattendedSessionSpec, UnattendedSessionSpec } from '../src/open.ts'
 
 type FailStep =
-  | 'permission-resolve' | 'preset-resolve' | 'standing' | 'workspace'
+  | 'permission-resolve' | 'preset-resolve' | 'scope' | 'workspace'
   | 'agent' | 'attach' | 'permission-set' | 'title'
 
 interface HarnessOptions {
@@ -58,10 +58,10 @@ function harness(options: HarnessOptions = {}) {
         if (options.failAt === 'preset-resolve') throw new Error('preset resolve failed')
         return { id: name }
       },
-      standingKeyFor: async (name: string) => {
-        calls.push(`standing:${name}`)
-        if (options.failAt === 'standing') throw new Error('standing failed')
-        return {}
+      acquireScope: async (name: string) => {
+        calls.push(`scope:${name}`)
+        if (options.failAt === 'scope') throw new Error('scope failed')
+        return { key: {}, [Symbol.asyncDispose]: async () => {} }
       },
       mount: async (_agentCtx: unknown, name: string) => { calls.push(`mount:${name}`) },
     },
@@ -119,7 +119,7 @@ describe('openUnattendedSession', () => {
     expect(h.calls).toEqual([
       'permission-resolve:read-only',
       'preset-resolve:standard',
-      'standing:standard',
+      'scope:standard',
       'workspace:/workspace',
       'agent-create',
       'mount:standard',
@@ -143,7 +143,7 @@ describe('openUnattendedSession', () => {
   })
 
   it.each([
-    'permission-resolve', 'preset-resolve', 'standing', 'workspace', 'agent', 'attach',
+    'permission-resolve', 'preset-resolve', 'scope', 'workspace', 'agent', 'attach',
   ] as const)('contains a %s failure before the attach completes', async (failAt) => {
     const h = harness({ failAt })
     await expect(openUnattendedSession(h.ctx, SPEC, h.controller.signal)).rejects.toThrow()
@@ -186,7 +186,7 @@ describe('resumeUnattendedSession', () => {
     expect(h.calls).toEqual([
       'permission-resolve:workspace-write',
       'preset-resolve:beardy',
-      'standing:beardy',
+      'scope:beardy',
       'workspace:/workspace',
       'agent-resume:discord-c1-1',
       'mount:beardy',

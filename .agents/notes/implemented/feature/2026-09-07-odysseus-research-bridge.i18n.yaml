@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-07-odysseus-research-bridge.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-07-odysseus-research-bridge.md
-2026-09-07-odysseus-research-bridge.md: 8e949217d7f3ea85f9e9f2c20498ddc3dddd6474
-2026-09-07-odysseus-research-bridge.zh.md: 208ad428a0475c9a495e72951d239d883e836496
+/agent-note-odysseus-research-jobs-with-explicit-worker-selection:
+  en: f988034838c70d3c
+  zh: 5bd15ca1a80f96ed
+/agent-note-odysseus-research-jobs-with-explicit-worker-selection/problem:
+  en: daccc11f7a9acf6a
+  zh: 7245b5c674682dcf
+/agent-note-odysseus-research-jobs-with-explicit-worker-selection/decision:
+  en: e7f21895ecbf950a
+  zh: f7afb2e0e22b7cd2
+/agent-note-odysseus-research-jobs-with-explicit-worker-selection/alternatives-considered:
+  en: a45d7b18010c47c4
+  zh: 05630edc1dd154d3
+/agent-note-odysseus-research-jobs-with-explicit-worker-selection/consequences:
+  en: e430d8c18d0870c1
+  zh: 80d22d75b69dadf0

@@ -46,7 +46,10 @@ export interface SkillCatalogSource {
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'skill-catalog': SkillCatalogSource
-    /** One notice shown to the model after a tool-heavy turn that saved no skill. */
+    /** One notice shown to the model after a tool-heavy turn that saved no skill.
+     * Readers preserve the notice without the skill plugin.
+     * @persistenceAttribution
+     */
     'skill-nudge': {
       readonly kind: 'skill-nudge'
       /** Completed tool calls in the turn this notice reports. */
@@ -108,7 +111,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   const skillTool = defineTool({
     name: 'skill',
-    description: 'Load the full instructions for an available skill. Call this with the exact skill name from the session skill catalog before acting on a task that names or clearly matches that skill.',
+    description: 'Load the full instructions for a skill. Call it before acting on a task that names or clearly matches a skill in the session skill catalog.',
     parameters: {
       name: { type: 'string', required: true, description: 'The exact skill name from the available skills list.' },
     },

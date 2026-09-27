@@ -358,14 +358,13 @@ export async function startListener(
   let removeObserver: (() => unknown) | undefined
   try {
     const credential = await resolveBotToken(ctx, config.tokenEnv)
-    await ctx.agentPresets.resolve(config.agentPreset)
+    await using presetScope = await ctx.agentPresets.acquireScope(config.agentPreset)
     ctx.permissionPresets.resolve(config.permissionPreset)
     let applicationId = ''
     let synchronized = ''
     let requestSync = (): void => {}
     if (config.nativeCommands || config.richMessages || config.answerers.includes('component')) {
-      const scope = await ctx.agentPresets.standingKeyFor(config.agentPreset)
-      const commands = () => discordCommands(ctx.commands.listForScope(scope), config.excludedPresetCommands)
+      const commands = () => discordCommands(ctx.commands.listForScope(presetScope.key), config.excludedPresetCommands)
       const { settings, policy } = toSettings(config, () => applicationId)
       native = createNativeInteractions({ signal: active, settings, policy, applicationId: () => applicationId,
         commands, execute: (channelId, line, requestSignal) => router.execute(channelId, line, requestSignal),
@@ -437,7 +436,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     ctx.logger.info('discord-gateway: mounted but disabled by configuration')
     return
   }
-  const presetScope = await ctx.agentPresets.standingKeyFor(resolved.agentPreset)
+  const presetScope = await ctx.agentPresets.acquireScope(resolved.agentPreset)
+  ctx.effect(() => async () => { await presetScope[Symbol.asyncDispose]() }, 'discord-gateway preset scope')
   const domain = await ctx.storageDomain.open(discordGatewayDomainSpec)
   const controller = new AbortController()
   let botUserId = ''
@@ -450,7 +450,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     table: domain.table('conversations'),
     outboxTable: domain.table('outbox'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
-    commands: () => discordCommands(ctx.commands.listForScope(presetScope), resolved.excludedPresetCommands),
+    commands: () => discordCommands(ctx.commands.listForScope(presetScope.key), resolved.excludedPresetCommands),
   })
   attachCronDelivery(ctx, router)
 

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId, type Message } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed, MessageSource } from '@deepseek-ai/dsh-llm'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import {
   SESSION_FORMAT_VERSION, Session, SessionId, type SessionEvent, type UserMessage,
@@ -16,6 +17,20 @@ import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'dsh-tool-skill': { kind: 'dsh-tool-skill' } & ContextFormed
+    'later-contribution': { kind: 'later-contribution' } & ContextFormed
+  }
+}
+
+type CheckpointSource = Extract<MessageSource, { readonly kind: 'compact-checkpoint' }>
+
+/** Build a typed checkpoint source for a skill projection fixture. */
+function checkpointSource(compactionId: string): CheckpointSource {
+  return { kind: 'compact-checkpoint', compactionId: compactionId as CheckpointSource['compactionId'] }
+}
 
 const testToolSignal = new AbortController().signal
 
@@ -311,7 +326,7 @@ describe('dsh-tool-skill', () => {
           ...decision.messages,
           createUserMessage({
             content: [{ type: 'text', text: 'later contribution' }],
-            source: { kind: 'plugin', plugin: 'later-contribution' },
+            source: { kind: 'later-contribution' },
           }),
         ],
       }
@@ -324,7 +339,7 @@ describe('dsh-tool-skill', () => {
         id: expect.any(String) as unknown,
         role: 'user',
         content: [{ type: 'text', text: 'later contribution' }],
-        source: { kind: 'plugin', plugin: 'later-contribution' },
+        source: { kind: 'later-contribution' },
       },
       {
         id: expect.any(String) as unknown,
@@ -585,7 +600,7 @@ describe('dsh-tool-skill', () => {
     }), { surfaceOp: 'append' })
     session.append('user/message', createUserMessage({
       content: catalogContent(['- `resumed-skill`: Resumed skill']),
-      source: { kind: 'plugin', plugin: 'dsh-tool-skill' },
+      source: { kind: 'dsh-tool-skill' },
     }), { surfaceOp: 'append' })
 
     await fireStep(ctx, agent, 1, 1)
@@ -679,7 +694,7 @@ describe('dsh-tool-skill', () => {
     if (initial === undefined) throw new Error('expected initial catalog')
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'compacted history' }],
-      source: { kind: 'plugin', plugin: 'compact' },
+      source: checkpointSource('skill-compaction'),
     }), {
       surfaceOp: { op: 'replace', startSeq: initial.seq, endSeq: initial.seq },
       sourceEventSeqs: [initial.seq],

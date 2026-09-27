@@ -423,14 +423,14 @@ export function trackSessionEvent(
       break
     case 'tool/result': {
       if (state.turnAgg === null) break
-      const block = event.data.message.content[0]
-      if (block.isError === true) state.turnAgg.toolErrors += 1
-      const pending = state.turnAgg.toolCallOrder.find(entry => entry.callId === block.toolCallId)
+      const message = event.data.message
+      if (message.isError === true) state.turnAgg.toolErrors += 1
+      const pending = state.turnAgg.toolCallOrder.find(entry => entry.callId === message.toolCallId)
       if (pending !== undefined) {
         pending.resultTime = event.time
-        pending.isError = block.isError === true
+        pending.isError = message.isError === true
         let resultChars = 0
-        for (const resultBlock of block.content) {
+        for (const resultBlock of message.content) {
           if (resultBlock.type === 'text') resultChars += utf8Length(resultBlock.text)
         }
         pending.resultChars = resultChars

@@ -8,7 +8,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
-import type {} from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -67,7 +67,8 @@ export async function openUnattendedSession(
 ): Promise<UnattendedSession> {
   ctx.permissionPresets.resolve(spec.permissionPreset)
   const preset = await ctx.agentPresets.resolve(spec.agentPreset)
-  await ctx.agentPresets.standingKeyFor(preset.id)
+  await using presetScope = await ctx.agentPresets.acquireScope(preset.id)
+  void presetScope
   signal.throwIfAborted()
 
   const workspace = await ctx.workspaceRegistry.create(spec.workspacePath)
@@ -148,7 +149,8 @@ export async function resumeUnattendedSession(
 ): Promise<UnattendedSession> {
   ctx.permissionPresets.resolve(spec.permissionPreset)
   const preset = await ctx.agentPresets.resolve(spec.agentPreset)
-  await ctx.agentPresets.standingKeyFor(preset.id)
+  await using presetScope = await ctx.agentPresets.acquireScope(preset.id)
+  void presetScope
   signal.throwIfAborted()
 
   const workspace = await ctx.workspaceRegistry.create(spec.workspacePath)

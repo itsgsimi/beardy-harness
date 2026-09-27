@@ -1,7 +1,7 @@
 /** Picker placement preferences, saved independently of session composition. */
 
 import { useEffect, useRef } from 'react'
-import type { PresetPickerPlacement } from '@deepseek-ai/dsh-agent-presets/types'
+import type { PresetPickerPlacement } from '@deepseek-ai/dsh-agent-preset-registry/types'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { AgentPresetSeatProps } from './AgentPresetSeat.tsx'
 import type { AgentPresetSeatState } from './seat-store.ts'

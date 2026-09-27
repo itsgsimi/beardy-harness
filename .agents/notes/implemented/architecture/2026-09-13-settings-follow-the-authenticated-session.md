@@ -14,19 +14,19 @@ The gate predated uniform authentication. [Browser launch-token authentication](
 
 ## Decision
 
-The browser reads and writes the Host settings document whenever it holds a connection. `SettingsDescribeMirror` and `SettingsScopeController` lose their `persistence` parameter, `SettingsScopeSnapshot` loses its `mode` field, and the mirror's status union loses `unavailable`. The scope's own `unavailable` status stays: it now names exactly one condition, a namespace the composition does not serve.
+The browser selects Host persistence and reads and writes the Host settings document whenever it holds a connection. `SettingsDescribeMirror` and `SettingsScopeController` retain their `persistence` parameter for explicit memory-mode consumers, and scope snapshots retain `mode`. The mirror's `unavailable` state applies to that explicit memory mode; a Host-backed scope uses `unavailable` when the composition does not serve its namespace.
 
 Who may call remains entirely a Host question, unchanged by this note: the media-type and authority fences from the [carrier-level browser trust decision](2026-07-28-api-browser-trust-boundary.md) admit a request, then Connection authenticates it unless [explicit token-free access](../feature/2026-09-09-explicit-token-free-web-access.md) is enabled. `trustedHosts` still grants no identity, and this decision adds no path by which it could — a client that reaches the settings methods at all has already satisfied whichever policy the deployment configured.
 
 `ui-settings-general` keeps its `isLoopback` branch. The Host document action opens a file on the Host's own screen, so the page authority is the right question for that one action, and `ctx.connection.isLoopback` remains its source.
 
-The welcome notice loses its process-local acknowledgement path, which existed only to give memory mode an answer. An unserved namespace now leaves the step in error rather than silently forgetting the acknowledgement.
+The welcome notice uses the Host acknowledgement in the browser composition. Its process-local path remains available to an explicitly supplied memory-mode scope. An unserved Host namespace leaves the step in error rather than silently forgetting the acknowledgement.
 
 ## Alternatives considered
 
 **Key the privileged surface on `trustedHosts`.** The configured authority list is the obvious lever for "let my LAN in", and it is the wrong one: the browser-trust decision states that `--trusted-host` extends the Host and Origin fence and grants no identity. Reading it as identity would rebuild the routing-facts authority model that token authentication removed, and would do it in the client, where the list is not even known.
 
-**Declare the fact on the Host and keep memory mode.** A field on `RemoteEventHostInfo` would put the decision where the facts live, and preserves a process-local mode for a genuinely untrusted viewer. No such viewer exists: the Host rejects a caller that fails its fences or its authentication before any frame is sent, so the field would be true for every client that could read it. The wire field and its plumbing would carry a distinction the system cannot express.
+**Declare the fact on the Host and select memory mode for remote browsers.** A field on `RemoteEventHostInfo` would put the decision where the facts live and preserve a process-local browser mode for a genuinely untrusted viewer. No such viewer exists: the Host rejects a caller that fails its fences or its authentication before any frame is sent, so the field would be true for every client that could read it. The wire field and its plumbing would carry a distinction the system cannot express.
 
 **Make the choice a validated `Config` field.** Deployment-varying choices belong in `cordis.yml`, but this one is not deployment-varying — it is a question the Host has already answered by admitting the connection. A knob would let a composition claim a restriction the Host does not enforce.
 

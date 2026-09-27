@@ -140,7 +140,11 @@ function contextStub(overrides: Record<string, unknown> = {}) {
     }),
     permissionPresets: { resolve: () => ({}), set: () => {} },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
-    agentPresets: { resolve: async (id: string) => ({ id }), standingKeyFor: async () => ({}), mount: async () => {} },
+    agentPresets: {
+      resolve: async (id: string) => ({ id }),
+      acquireScope: async () => ({ key: {}, [Symbol.asyncDispose]: async () => {} }),
+      mount: async () => {},
+    },
     workspaceRegistry: {
       create: async (path: string) => ({ path, attachSession: async () => {}, detachSession: async () => {} }),
     },

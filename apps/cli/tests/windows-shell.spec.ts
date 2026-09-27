@@ -18,8 +18,7 @@ import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { evaluate } from '@deepseek-ai/cordis-plugin-loader'
-import { SHIPPED_PRESET_ROOT } from '@deepseek-ai/dsh-agent-presets'
-import { composeEntries, initProfile, loadProfile, PROFILES_DIR } from '@deepseek-ai/dsh-app-boot'
+import { bundlePatchPaths, composeEntries, initProfile, loadProfile, PROFILES_DIR } from '@deepseek-ai/dsh-app-boot'
 
 /**
  * The effective disabled state of one row on one platform: a `!!js` expression
@@ -102,39 +101,16 @@ describe('the shipped shell composition (real bundle layers)', () => {
 })
 
 describe('shipped agent presets gate both shell tools by platform', () => {
-  const presetRoot = SHIPPED_PRESET_ROOT
+  const webBundle = fileURLToPath(new URL('../../../packages/bundle/web-app/', import.meta.url))
+  const webManifest = JSON.parse(readFileSync(join(webBundle, 'package.json'), 'utf8')) as { dsh: { bundle: { patch: string[] } } }
+  const presetRows = composeEntries([bundlePatchPaths(webBundle, webManifest.dsh.bundle).flatMap(file =>
+    yaml.load(readFileSync(file, 'utf8'), { schema: entryListSchema }) as import('@deepseek-ai/cordis-plugin-include').PatchOptions[])])
 
-  /**
-   * Rows a shipped preset mounts, following the one read-only include a preset
-   * may inherit its roster through: the included file's rows come first with
-   * its `patches` applied by id, then the preset's own rows.
-   */
-  function presetEntries(preset: string): unknown[] {
-    const dir = join(presetRoot, preset)
-    const parsed: unknown = yaml.load(readFileSync(join(dir, 'agent.cordis.yml'), 'utf8'), { schema: entryListSchema })
-    if (!Array.isArray(parsed)) throw new TypeError(`preset ${preset} must parse to an entry array`)
-    const resolved: unknown[] = []
-    for (const entry of parsed as unknown[]) {
-      const row = entry as { name?: unknown; config?: unknown } | null
-      if (typeof row !== 'object' || row === null || row.name !== '@deepseek-ai/dsh-agent-presets/include') {
-        resolved.push(entry)
-        continue
-      }
-      const config = row.config as { path: string; patches?: readonly { id?: string }[] }
-      const included: unknown = yaml.load(readFileSync(join(dir, config.path), 'utf8'), { schema: entryListSchema })
-      if (!Array.isArray(included)) throw new TypeError(`included preset ${config.path} must parse to an entry array`)
-      const patches = new Map((config.patches ?? []).map(patch => [patch.id, patch]))
-      for (const inherited of included as unknown[]) {
-        const candidate = inherited as { id?: string }
-        const patch = typeof candidate === 'object' && candidate !== null ? patches.get(candidate.id) : undefined
-        resolved.push(patch === undefined ? inherited : { ...candidate, ...patch })
-      }
-    }
-    return resolved
-  }
+  const definitions = presetRows.filter(row => row.name === '@deepseek-ai/dsh-agent-preset').map(row => row.config as import('@deepseek-ai/dsh-agent-preset-registry').PresetDefinition)
 
   it.each(['standard', 'ptc', 'cordis'])('preset %s gates its shell tool rows by platform', (preset) => {
-    const entries = presetEntries(preset)
+    const entries: unknown = definitions.find(row => row.id === preset)!.plugins
+    if (!Array.isArray(entries)) throw new TypeError(`preset ${preset} must parse to an entry array`)
     for (const [id, win32] of [['tool-bash', true], ['tool-pwsh', false]] as const) {
       const row = entries.find((entry): entry is Record<string, unknown> => (
         typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>).id === id
@@ -149,10 +125,7 @@ describe('shipped agent presets gate both shell tools by platform', () => {
   })
 
   it('minimal mounts no shell tool row and gates its persistent shell stack by platform', () => {
-    const entries: unknown = yaml.load(
-      readFileSync(join(presetRoot, 'minimal', 'agent.cordis.yml'), 'utf8'),
-      { schema: entryListSchema },
-    )
+    const entries: unknown = definitions.find(row => row.id === 'minimal')!.plugins
     if (!Array.isArray(entries)) throw new TypeError('minimal preset must parse to an entry array')
     for (const id of ['tool-bash', 'tool-pwsh']) {
       expect(entries.some(entry => (

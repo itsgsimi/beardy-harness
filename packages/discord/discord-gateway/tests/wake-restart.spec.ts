@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import { DiscordWakeCoordinator } from '../src/wake.ts'
+import { DiscordWakeCoordinator, dispatchLegacyReminders } from '../src/wake.ts'
 import type { ConversationRecord } from '../src/domain.ts'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -13,7 +13,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import * as toolSchedule from '@deepseek-ai/dsh-schedule'
+import ScheduleService from '@deepseek-ai/dsh-schedule'
 import {
   ScheduleId,
   createAfterScheduleRecord,
@@ -57,7 +57,7 @@ async function mountRuntime(root: string, adapter: RecordingAdapter): Promise<Co
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
   ctx.llm.registerAdapter(['mock'], adapter)
-  await ctx.plugin(toolSchedule)
+  await ctx.plugin(ScheduleService)
   return ctx
 }
 
@@ -101,7 +101,7 @@ describe('Discord reminder wake after restart', () => {
     const sessionId = SessionId('discord-reminder-restart')
     const first = await mountPersistence(root)
     const pending = first.sessions.create(sessionId, { meta: { cwd: root } })
-    const schedule = createAfterScheduleRecord(ScheduleId('schedule-1'), 'Time to check the build.', 1, Date.now() - 60_000)
+    const schedule = createAfterScheduleRecord(ScheduleId('schedule-1'), 'Time to check the build.', 1, Date.now() - 60_000, 'Check the build')
     pending.append('schedule/change', { version: 1, operation: 'create', schedule })
     const seed = await first.sessionPersistence.create(pending.header)
     await seed.append(pending.snapshotEvents())
@@ -125,6 +125,7 @@ describe('Discord reminder wake after restart', () => {
       const handle = await ctx.agents.resume({ resumeSessionId: SessionId(record.sessionId),
         agentOptions: { provider: 'mock', model: 'mock' } })
       live = true
+      await dispatchLegacyReminders(ctx, handle.agent)
       await dispatched
       await handle.agent.whenIdle()
       await ctx.sessions.flush(handle.agent.session)

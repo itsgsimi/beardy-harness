@@ -1,53 +1,75 @@
-/** Staged research-model choice over the Host-owned worker catalog. */
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { CardForm, textField, type CardActions, type CardFieldState, type CardShell } from './card-form.ts'
+/** Research worker selection over the active profile's configuration form. */
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 
-/** Settings namespace of the Odysseus bridge. */
+/** Profile entry containing the research tool configuration. */
 export const RESEARCH_NS = 'odysseus-research'
 
-/** User-selected worker and operator-owned picker entries. */
+/** Fields needed to present and select an operator-configured worker. */
 export interface ResearchSettings {
-  /** Worker used for the next research job. */
-  worker: string
-  /** Configured choices; the Host rejects catalog edits. */
-  choices: { id: string; label: string; model: string }[]
+  model: string
+  workerLabel?: string
+  workers?: { id: string; label: string; model: string }[]
+  selectedWorker?: string
 }
 
-/** Research card state. */
-export interface ResearchCardState extends CardShell {
-  /** Staged worker choice. */
-  worker: CardFieldState
-  /** Current configured models. */
-  choices: ResearchSettings['choices']
+/** Research picker snapshot. */
+export interface ResearchCardState {
+  status: 'loading' | 'ready' | 'unavailable'
+  writable: boolean
+  saving: boolean
+  selected: string
+  choices: readonly { id: string; label: string }[]
+  error: boolean
 }
 
-/** Reactive card and staged write actions. */
-export interface ResearchCardFace extends CardActions {
-  hooks: {
-    /** Model picker state. */
-    researchCard: SnapshotStore<ResearchCardState>
-  }
+/** Browser slot face for the research picker. */
+export interface ResearchCardFace {
+  hooks: { researchCard: SnapshotStore<ResearchCardState> }
+  selectWorker(id: string): Promise<void>
 }
 
-/** Edits only the selected worker; existing jobs keep their original model. */
+/** Keeps the picker aligned with the current profile revision. */
 export class ResearchCardController {
-  private readonly form: CardForm<ResearchSettings>
-  private readonly store: SnapshotStore<ResearchCardState>
+  private readonly store = createSnapshotStore<ResearchCardState>({
+    status: 'loading', writable: false, saving: false, selected: 'default', choices: [], error: false,
+  })
 
-  /** @param scope - Research settings synchronized with the Host. */
-  constructor(scope: SettingsScope<ResearchSettings>) {
-    this.form = new CardForm(scope, [textField('worker')])
-    this.store = this.form.bind(() => ({
-      ...this.form.shell(), worker: this.form.field('worker'), choices: scope.getSnapshot().value?.choices ?? [],
-    }))
+  /** @param form - shared Host configuration form for the research entry. */
+  constructor(private readonly form: ConfigForm<ResearchSettings>) {
+    form.subscribe(() => { this.derive() })
+    this.derive()
   }
 
-  /**
-   * Expose the model picker state and revision-fenced form actions.
-   * @returns Model picker state and revision-fenced form actions.
+  private derive(): void {
+    const form = this.form.getSnapshot()
+    const value = form.value
+    const choices = value === undefined ? [] : [
+      { id: 'default', label: value.workerLabel ?? value.model },
+      ...(value.workers ?? []).map(worker => ({ id: worker.id, label: worker.label })),
+    ]
+    this.store.set({
+      ...this.store.getSnapshot(), status: form.status, writable: form.writable,
+      selected: value?.selectedWorker ?? 'default', choices,
+    })
+  }
+
+  /** Expose current profile choices and the one-field save action.
+   * @returns the slot actions and observable picker state.
    */
   inject(): ResearchCardFace {
-    return { hooks: { researchCard: this.store }, ...this.form.actions() }
+    return {
+      hooks: { researchCard: this.store },
+      selectWorker: async (id) => {
+        this.store.set({ ...this.store.getSnapshot(), saving: true, error: false })
+        try {
+          if (!await this.form.set('selectedWorker', id)) this.store.set({ ...this.store.getSnapshot(), error: true })
+        } catch {
+          this.store.set({ ...this.store.getSnapshot(), error: true })
+        } finally {
+          this.store.set({ ...this.store.getSnapshot(), saving: false })
+        }
+      },
+    }
   }
 }

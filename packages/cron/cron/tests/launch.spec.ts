@@ -74,7 +74,7 @@ function harness(options: HarnessOptions = {}) {
         calls.push(`preset-resolve:${name}`)
         return { id: name }
       },
-      standingKeyFor: async (name: string) => { calls.push(`standing:${name}`); return {} },
+      acquireScope: async (name: string) => { calls.push(`scope:${name}`); return { key: {}, [Symbol.asyncDispose]: async () => {} } },
       mount: async (_ctx: unknown, name: string) => { calls.push(`mount:${name}`) },
     },
     workspaceRegistry: {
@@ -162,7 +162,7 @@ describe('job runner', () => {
     expect(result.sessionId).toContain('cron-morning-brief-')
     expect(h.calls).toEqual([
       'preset-resolve:beardy',
-      'standing:beardy',
+      'scope:beardy',
       'workspace:/workspace',
       'agent-create',
       'mount:beardy',

@@ -48,7 +48,6 @@
     "@deepseek-ai/dsh-agent-loop-testkit": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
-    "@deepseek-ai/dsh-settings": "workspace:^",
-    "@deepseek-ai/dsh-settings-file": "workspace:^"
+    "@deepseek-ai/dsh-settings": "workspace:^"
   }
 }

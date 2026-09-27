@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-09-27-downstream-v4-attribution.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-27-downstream-v4-attribution.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-09-27-downstream-v4-attribution:
+  en: bcf95362c3a7e971
+  zh: e18cf7a431fffef7
+/2026-09-27-downstream-v4-attribution/summary:
+  en: 621d524c97effa8d
+  zh: dd4dde6b2c019087
+/2026-09-27-downstream-v4-attribution/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-09-27-downstream-v4-attribution/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-09-27-downstream-v4-attribution/compatibility:
+  en: 63ea56a483712461
+  zh: 269fdeda7ac37184
+/2026-09-27-downstream-v4-attribution/verification:
+  en: 48ad10ef0514bded
+  zh: 7efe57d193dfc8e8
+/2026-09-27-downstream-v4-attribution/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

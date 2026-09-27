@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/speech/speech-whisper/README.md
-README.md: 7ac382b81815acfb1166e4309f9f111f9588b714
-README.zh.md: 5ea0dbd47bd6c4a85a2b5f3658f4c6fdcb0b568a
+/:
+  en: 34ff63efbb6d7533
+  zh: fd18ac5a1e7ee4c9
+/deepseek-ai-dsh-speech-whisper:
+  en: 0a63a36c86466ea0
+  zh: 4dc7350b3b9f8e43
+/deepseek-ai-dsh-speech-whisper/summary:
+  en: 95db569b0c2e560c
+  zh: 599f3cd4a198c0a3
+/deepseek-ai-dsh-speech-whisper/table-of-contents:
+  en: 23386452a66b2fbd
+  zh: 87239b065c03fe5a
+/deepseek-ai-dsh-speech-whisper/use-this-package:
+  en: 1945b173fdf749fb
+  zh: 580278066f00e131
+/deepseek-ai-dsh-speech-whisper/understand-the-implementation:
+  en: 81fd55b3abe06842
+  zh: 8c0d284fbacdd843
+/deepseek-ai-dsh-speech-whisper/further-exploration:
+  en: fac9f91809d50861
+  zh: fd465c113bc7d0e3
+/deepseek-ai-dsh-speech-whisper/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-speech-whisper/model-experience/user-transcript:
+  en: 8acf116cd3207638
+  zh: 32a4b116548a950b
+/deepseek-ai-dsh-speech-whisper/model-experience/user-transcript/what-the-model-sees:
+  en: 652dc6f502ae4ff0
+  zh: ec601ea39c87c03f
+/deepseek-ai-dsh-speech-whisper/model-experience/user-transcript/token-effect:
+  en: 54269bfe7fe864f1
+  zh: 8cbd08d40ec3d8d3
+/deepseek-ai-dsh-speech-whisper/model-experience/user-transcript/kv-cache-effect:
+  en: 28cbe9f1e7e5ede6
+  zh: b361d8b5d21c31ae
+/deepseek-ai-dsh-speech-whisper/known-limitations-and-deferred-work:
+  en: 0cc077ec4a7948a3
+  zh: 39d42a98db2a66eb
+/deepseek-ai-dsh-speech-whisper/known-limitations-and-deferred-work/dev-note:
+  en: 99775c27110f4b30
+  zh: 28bb197394e1d3a7

@@ -10,7 +10,7 @@ import { productWebBundleIsolation } from './product-isolation.ts'
 const src = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url))
 const STANDALONE_ERROR = 'apps/web is not a standalone application: bare Vite cannot inject window.__DSH_BOOT__. '
   + 'From a repository checkout, run `pnpm dsh web`; an installed package uses `dsh web`. '
-  + 'For client-plugin HMR, run `pnpm dsh web` together with `pnpm run dev:web`.'
+  + 'For client-plugin HMR, run `pnpm run dev:web`, which starts `dsh web` and the rebuild watchers together.'
 const DEFAULT_CLIENT_TITLE = 'DSH Local Build'
 
 /** Escape build-time text before placing it in the HTML title element. */
@@ -29,15 +29,15 @@ function clientDocumentTitle(): Plugin {
   }
 }
 
-/** Preserve preview licenses and Graphviz source availability in every browser distribution. */
-function previewNotices(): Plugin {
+/** Keep the redistribution license beside the bundled brand font. */
+function brandFontLicense(): Plugin {
   return {
-    name: 'dsh-preview-notices',
+    name: 'dsh-brand-font-license',
     async generateBundle() {
       this.emitFile({
         type: 'asset',
-        fileName: 'preview-third-party-notices.txt',
-        source: await readFile(src('../../packages/client/ui-primitives/THIRD_PARTY_PREVIEW_NOTICES.txt'), 'utf8'),
+        fileName: 'assets/fonts/Montserrat-OFL.txt',
+        source: await readFile(src('../../packages/client/ui-theme/src/styles/Montserrat-OFL.txt')),
       })
     },
   }
@@ -170,7 +170,7 @@ export default defineConfig({
   // directory, and the served index resolves identically from the site root.
   base: './',
   plugins: [
-    previewNotices(), rejectStandaloneServe(), clientDocumentTitle(), react(), emitPreviewPage(),
+    rejectStandaloneServe(), clientDocumentTitle(), brandFontLicense(), react(), emitPreviewPage(),
     productWebBundleIsolation(src('../..'), src('.')),
   ],
   build: {

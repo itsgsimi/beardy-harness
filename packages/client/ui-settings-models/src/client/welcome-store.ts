@@ -1,12 +1,11 @@
 /**
  * Welcome-notice state derived from the welcome settings scope. The scope is
- * the transport: the browser follows the durable Host section, and a
- * composition that does not serve the namespace leaves the step in error
- * rather than silently forgetting the acknowledgement.
+ * the transport: browser origins follow the accepted Host section. A memory
+ * scope, when supplied directly, keeps the acknowledgement process-local.
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION,
 } from '../onboarding-copy.ts'
@@ -39,20 +38,21 @@ function assertNever(_value: never): never {
   throw new Error('unexpected welcome settings status')
 }
 
-/** Coordinates durable Host acknowledgement of the current copy version. */
+/** Coordinates durable Host acknowledgement or a process-local memory scope. */
 export class WelcomeNoticeStore {
   /** uSES-safe state source shared by the registered welcome step. */
   readonly store: SnapshotStore<WelcomeNoticeState> = createSnapshotStore<WelcomeNoticeState>({
     status: 'idle', acknowledged: false, error: null,
   })
 
+  private localAcknowledged = false
   private saving = false
   private following: (() => void) | undefined
 
   /**
    * @param scope - the welcome settings namespace scope.
    */
-  constructor(private readonly scope: SettingsScope<WelcomeSection>) {}
+  constructor(private readonly scope: ConfigForm<WelcomeSection>) {}
 
   /**
    * Begin following the bound scope (idempotent) and publish its current answer.
@@ -65,12 +65,17 @@ export class WelcomeNoticeStore {
   }
 
   /**
-   * Persist this copy version. Success is judged against the state the write
-   * left behind, so a refused or failed write reports false after its
-   * recovery read settles.
-   * @returns true when the Host document holds the acknowledgement.
+   * Persist this copy version, or advance only this process for a memory scope.
+   * Success is judged against the state the write left behind, so a
+   * refused or failed write reports false after its recovery read settles.
+   * @returns true when the selected persistence mode holds the acknowledgement.
    */
   async acknowledge(): Promise<boolean> {
+    if (this.scope.getSnapshot().mode === 'memory') {
+      this.localAcknowledged = true
+      this.derive()
+      return true
+    }
     this.saving = true
     this.store.update((state) => { state.status = 'saving'; state.error = null })
     try {
@@ -98,6 +103,14 @@ export class WelcomeNoticeStore {
   private derive(): void {
     if (this.saving) return
     const scope = this.scope.getSnapshot()
+    if (scope.mode === 'memory') {
+      this.store.update((state) => {
+        state.status = 'ready'
+        state.acknowledged = this.localAcknowledged
+        state.error = null
+      })
+      return
+    }
     switch (scope.status) {
       case 'loading':
         this.store.update((state) => { state.status = 'loading'; state.error = null })

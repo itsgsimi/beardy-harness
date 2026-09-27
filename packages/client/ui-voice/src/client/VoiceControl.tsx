@@ -1,6 +1,6 @@
 /** Composer microphone using the same toolbar controls as the surrounding input. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, IconCloseOutline16, IconStopFill16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconCloseOutlineRegular, IconStopFillRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { recordAudio, transcribeAudio, type RecordingLimits } from './recording.ts'
@@ -78,8 +78,8 @@ export function VoiceControl({ append, useInput, t }: Props) {
       ? <Button variant="toolbar" size="sm" aria-label={t('start')} title={t('start')} disabled={locked || pendingText !== ''} onClick={() => { void start() }}><Microphone /></Button>
       : <>
         <span className={css.status} role="status"><span className={phase === 'recording' ? css.dot : undefined} />{t(phase)}</span>
-        {phase === 'recording' && <Button variant="toolbar" size="sm" aria-label={t('stop')} title={t('stop')} onClick={() => stop.current?.()}><IconStopFill16 /></Button>}
-        <Button variant="toolbar" size="sm" aria-label={t('cancel')} title={t('cancel')} onClick={cancel}><IconCloseOutline16 /></Button>
+        {phase === 'recording' && <Button variant="toolbar" size="sm" aria-label={t('stop')} title={t('stop')} onClick={() => stop.current?.()}><IconStopFillRegular /></Button>}
+        <Button variant="toolbar" size="sm" aria-label={t('cancel')} title={t('cancel')} onClick={cancel}><IconCloseOutlineRegular /></Button>
       </>}
     {pendingText !== '' && <Button variant="toolbar" size="sm" disabled={locked} title={pendingText} onClick={() => { if (append(pendingText)) setPendingText('') }}>{t('insert')}</Button>}
     {error !== null && <span className={css.error} role="status">{t(error)}</span>}

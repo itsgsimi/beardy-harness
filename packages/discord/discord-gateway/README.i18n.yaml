@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/discord/discord-gateway/README.md
-README.md: d013c997325f6fb529116dd5078491205552a8dd
-README.zh.md: 65df322059db77691486b08195046d32beb90065
+/:
+  en: 092091294ae72477
+  zh: 74a70f9017fbcec7
+/deepseek-ai-dsh-discord-gateway:
+  en: 5adffe418a2a85a8
+  zh: 24dd893c9bf1abae
+/deepseek-ai-dsh-discord-gateway/summary:
+  en: 7eea3dfa8042a52b
+  zh: 69f373668e969624
+/deepseek-ai-dsh-discord-gateway/table-of-contents:
+  en: e4ac714740978f1b
+  zh: 556cdad5408ab7d4
+/deepseek-ai-dsh-discord-gateway/conversation-behavior:
+  en: a67686683bee3f88
+  zh: a98f82f67b78c05d
+/deepseek-ai-dsh-discord-gateway/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-discord-gateway/model-experience/inbound-message:
+  en: 34ee6fd60238e852
+  zh: 413763157d42fb53
+/deepseek-ai-dsh-discord-gateway/model-experience/inbound-message/what-the-model-sees:
+  en: a9f1101251cb1282
+  zh: 563f3291a1501d7d
+/deepseek-ai-dsh-discord-gateway/model-experience/inbound-message/token-effect:
+  en: e16027465adf4eb7
+  zh: 696d9b4db43c0ea5
+/deepseek-ai-dsh-discord-gateway/model-experience/inbound-message/kv-cache-effect:
+  en: 09b0fc4d9b2dccc1
+  zh: 65761f6addca1418
+/deepseek-ai-dsh-discord-gateway/model-experience/approval-and-question-prompts:
+  en: c28af9bd313f2b21
+  zh: d51b74fbfc4d2214
+/deepseek-ai-dsh-discord-gateway/model-experience/approval-and-question-prompts/what-the-model-sees:
+  en: 25a65e567cabe619
+  zh: b576435d4d9d783f
+/deepseek-ai-dsh-discord-gateway/model-experience/approval-and-question-prompts/token-effect:
+  en: 5585872c47cdc928
+  zh: a18dece81b320903
+/deepseek-ai-dsh-discord-gateway/model-experience/approval-and-question-prompts/kv-cache-effect:
+  en: d4fe16c7e194bbf7
+  zh: a73ce99be90d1324
+/deepseek-ai-dsh-discord-gateway/known-limitations-and-deferred-work:
+  en: dd4d35d8077e3005
+  zh: f02b9b96e0f0b199
+/deepseek-ai-dsh-discord-gateway/known-limitations-and-deferred-work/dev-note:
+  en: 209c5333d011db47
+  zh: 00bbed6f76376212

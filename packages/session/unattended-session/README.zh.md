@@ -72,7 +72,7 @@ kind: "package-reference"
 - [Webhook 入口](../../webhook/webhook/README.zh.md) —— 每个经过验证的投递开启一个 Session 并准入自己的提示词。
 - [Cron 调度器](../../cron/cron/README.zh.md) —— 每次任务触发在回合界限内开启一个 Session。
 - [Discord 网关](../../discord/discord-gateway/README.zh.md) —— 每个会话频道开启一个 Session。
-- [Agent 预设](../../preset/agent-presets/README.zh.md) —— 事务最先执行的解析、standing key 与挂载。
+- [Agent 预设注册表](../../preset/agent-preset-registry/README.zh.md) —— 事务最先执行的解析、standing key 与挂载。
 - [工作区注册表](../../workspace/workspace/README.zh.md) —— 工作区创建与 Session 附加。
 
 -----

@@ -106,7 +106,10 @@ function contextStub(options: { token?: string; unknownPreset?: boolean } = {}) 
       resolve: async (ref: unknown) => (options.token === undefined ? undefined : { value: options.token, ref }),
     },
     agentPresets: {
-      standingKeyFor: async () => ({}),
+      acquireScope: async (name: string) => {
+        if (options.unknownPreset) throw new Error(`agent preset "${name}" is not registered`)
+        return { key: {}, [Symbol.asyncDispose]: async () => {} }
+      },
       resolve: async (name: string) => {
         if (options.unknownPreset) throw new Error(`agent preset "${name}" is not registered`)
         return { id: name }

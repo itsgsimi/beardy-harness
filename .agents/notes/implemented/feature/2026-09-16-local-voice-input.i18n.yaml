@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-local-voice-input.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-16-local-voice-input.md
-2026-09-16-local-voice-input.md: 3af6875d1a44dc0f927bd3828efaadc27cdb90ef
-2026-09-16-local-voice-input.zh.md: 26b951093c0d3cd75b6f60066c4f267563f5c771
+/agent-note-local-voice-input:
+  en: d6e19ced29805e80
+  zh: 209042c9fca619cb
+/agent-note-local-voice-input/problem:
+  en: fc551ca7f27a6c3d
+  zh: fe4bbb7ddb1ad976
+/agent-note-local-voice-input/decision:
+  en: 8d3af8869a4546be
+  zh: 99984b27de10e54f
+/agent-note-local-voice-input/alternatives-considered:
+  en: 4606fd0a2b536ad1
+  zh: a031a581f31cfe42
+/agent-note-local-voice-input/consequences:
+  en: fb8cd652cd71b1b2
+  zh: d6f1b543860d6cc6

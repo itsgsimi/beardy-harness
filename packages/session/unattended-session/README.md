@@ -72,7 +72,7 @@ Read these pages when the open transaction is not enough. They move from the con
 - [Webhook ingress](../../webhook/webhook/README.md) — opens a Session per verified delivery and admits its own prompt.
 - [Cron scheduler](../../cron/cron/README.md) — opens one Session per job fire under a turn bound.
 - [Discord gateway](../../discord/discord-gateway/README.md) — opens one Session per conversing channel.
-- [Agent presets](../../preset/agent-presets/README.md) — resolution, standing keys, and mounting that the transaction performs first.
+- [Agent preset registry](../../preset/agent-preset-registry/README.md) — resolution, standing keys, and mounting that the transaction performs first.
 - [Workspace registry](../../workspace/workspace/README.md) — workspace creation and Session attachment.
 
 -----

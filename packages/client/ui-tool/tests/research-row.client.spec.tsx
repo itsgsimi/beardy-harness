@@ -18,7 +18,10 @@ function props(meta: unknown, isError = false): Props {
     call: { name: 'odysseus_research', argsRaw: '{"action":"report","id":"rp-report"}' },
     content: [{ type: 'text', text: 'A short model page' }], isError, subCalls: [], meta,
   }
-  return { callId: 'research', toolName: 'odysseus_research', block, t, openFile: vi.fn(), sessionId: 's1' } as unknown as Props
+  return {
+    callId: 'research', toolName: 'odysseus_research', block, t, openFile: vi.fn(), sessionId: 's1',
+    useDisclosure: () => ({ expanded: false, toggle: vi.fn() }),
+  } as unknown as Props
 }
 
 it('opens the complete saved artifact and releases its download URL on close', () => {

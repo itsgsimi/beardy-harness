@@ -6,7 +6,10 @@
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
-    /** One prompt handed to an agent because a cron expression fired. */
+    /** One prompt handed to an agent because a cron expression fired.
+     * Readers preserve the message and attribution without the scheduler.
+     * @persistenceAttribution
+     */
     cron: {
       readonly kind: 'cron'
       /** Configured job name, unique within the plugin's job list. */

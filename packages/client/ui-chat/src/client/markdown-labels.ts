@@ -11,7 +11,7 @@ import type { ChatViewSlotProps } from './contract/slots.ts'
 export function markdownLabels(t: ChatViewSlotProps['t']): MarkdownLabels {
   const status = { loading: t('markdown.preview.loading'), error: t('markdown.preview.error') }
   return {
-    code: { copyLabel: t('copy'), copiedLabel: t('copied') },
+    code: { copyLabel: t('copy'), copiedLabel: t('copied'), toolbarLabels: { codeLabel: t('codeBlock.title'), wrapLabel: t('codeBlock.wrap'), unwrapLabel: t('codeBlock.unwrap') } },
     footnotes: t('markdown.footnotes'),
     preview: {
       preview: t('markdown.preview.preview'),

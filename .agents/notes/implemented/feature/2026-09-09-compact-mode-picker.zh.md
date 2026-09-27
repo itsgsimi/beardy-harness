@@ -10,11 +10,11 @@ Status: implemented
 
 ## 决策
 
-Preset 展示元数据发布可选的 `picker` 显示位置：`main`、`more` 或 `hidden`。`agent-presets` 设置命名空间按 id 保存覆盖该元数据的用户偏好。远程名单保持完整，并投影解析后的显示位置；未指定显示位置时，自定义 preset 保持可见。[Preset 包](../../../../packages/preset/agent-presets/README.zh.md) 独立于[会话组装](../architecture/2026-08-03-per-session-agent-presets.zh.md)拥有这些展示默认值。
+Preset 声明发布可选的 `picker` 显示位置：`main`、`more` 或 `hidden`。`agent-preset-registry` 设置命名空间按 id 保存覆盖该元数据的用户偏好。远程名单保持完整，并投影解析后的显示位置；未指定显示位置时，自定义 preset 保持可见。[Preset 注册表](../../../../packages/preset/agent-preset-registry/README.zh.md) 独立于[会话组装](../architecture/2026-09-18-declarative-agent-presets.zh.md)拥有这些展示默认值。
 
 [Web 选择器](../../../../packages/client/ui-agent-preset/README.zh.md) 渲染主列表和一个可折叠的「更多模式」分组，并为随附模式显示简短的本地化描述。即使当前模式被隐藏或分组，选择器也会将其置于主列表。管理模式通过现有宿主设置写入器更改显示位置；保存被拒绝时显示错误，不改变已显示的偏好。隐藏的 preset 保留正常的发现、直接选择和会话标签行为。
 
-[复制的 preset](../simplification/2026-08-08-copy-only-preset-authoring.zh.md) 不继承源 preset 的排序和选择器显示位置，因此没有自身已保存覆盖值的副本会出现在主列表中。设置页面保留损坏的 preset 以便修复；选择器及其显示位置对话框使用健康名单。
+新的 YAML 声明如果未指定显示位置，也没有自身已保存的覆盖值，就会出现在主列表中。设置页面保留损坏的 preset 以供检查；选择器及其显示位置对话框使用健康名单。
 
 ## 考虑过的替代方案
 

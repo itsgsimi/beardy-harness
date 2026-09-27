@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-voice/README.md
-README.md: 89dbb10b77cb180d57a90cb7503df01c316f0995
-README.zh.md: e6b12716395bbac2e8474a0673a53bf71b621b48
+/:
+  en: 34ff63efbb6d7533
+  zh: fd18ac5a1e7ee4c9
+/deepseek-ai-dsh-client-ui-voice:
+  en: 6cbac9cbb64ddd90
+  zh: a614426e5c238d0b
+/deepseek-ai-dsh-client-ui-voice/summary:
+  en: 83855476b1b2837d
+  zh: 9b618e2e5635f94e
+/deepseek-ai-dsh-client-ui-voice/table-of-contents:
+  en: 23386452a66b2fbd
+  zh: 87239b065c03fe5a
+/deepseek-ai-dsh-client-ui-voice/use-this-package:
+  en: 305942fb6a14735b
+  zh: c53f57b951d3f0fe
+/deepseek-ai-dsh-client-ui-voice/understand-the-implementation:
+  en: 7688d3a805fc0e81
+  zh: 5513e2a6b795d9ff
+/deepseek-ai-dsh-client-ui-voice/further-exploration:
+  en: fac9f91809d50861
+  zh: fd465c113bc7d0e3
+/deepseek-ai-dsh-client-ui-voice/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-client-ui-voice/model-experience/user-transcript:
+  en: 8acf116cd3207638
+  zh: 32a4b116548a950b
+/deepseek-ai-dsh-client-ui-voice/model-experience/user-transcript/what-the-model-sees:
+  en: 498b0b26ea390133
+  zh: 453fff6841aab3c6
+/deepseek-ai-dsh-client-ui-voice/model-experience/user-transcript/token-effect:
+  en: 54269bfe7fe864f1
+  zh: 8cbd08d40ec3d8d3
+/deepseek-ai-dsh-client-ui-voice/model-experience/user-transcript/kv-cache-effect:
+  en: 28cbe9f1e7e5ede6
+  zh: b361d8b5d21c31ae
+/deepseek-ai-dsh-client-ui-voice/known-limitations-and-deferred-work:
+  en: cca1e57ba4cfd85b
+  zh: 9348072bac63638a
+/deepseek-ai-dsh-client-ui-voice/known-limitations-and-deferred-work/dev-note:
+  en: 99775c27110f4b30
+  zh: 28bb197394e1d3a7

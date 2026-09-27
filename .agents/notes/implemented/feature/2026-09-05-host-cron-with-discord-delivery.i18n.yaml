@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-05-host-cron-with-discord-delivery.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-host-cron-with-discord-delivery.md
-2026-09-05-host-cron-with-discord-delivery.md: 62525b3f74360277176b11b57876abe808872a28
-2026-09-05-host-cron-with-discord-delivery.zh.md: 0006d765cf0c6ca5cf993a0d73cb03f94bcecaac
+/agent-note-host-scoped-cron-jobs-with-discord-delivery:
+  en: fe30113c6bcc38cc
+  zh: c057af841633746c
+/agent-note-host-scoped-cron-jobs-with-discord-delivery/problem:
+  en: 5c1a09920387e643
+  zh: 40a343f4d79090db
+/agent-note-host-scoped-cron-jobs-with-discord-delivery/decision:
+  en: 10c84eaca9995071
+  zh: 798c53a5182c2fff
+/agent-note-host-scoped-cron-jobs-with-discord-delivery/alternatives-considered:
+  en: 4ce8aada820d2d33
+  zh: 5c0c0669657a9842
+/agent-note-host-scoped-cron-jobs-with-discord-delivery/consequences:
+  en: d484f32dd07a9e25
+  zh: d7335b5a091b980f

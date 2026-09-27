@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-12-search-skips-format-refusing-session-logs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-12-search-skips-format-refusing-session-logs.md
-2026-09-12-search-skips-format-refusing-session-logs.md: 771eca059910cf71a17c7448a0da890c16780f0b
-2026-09-12-search-skips-format-refusing-session-logs.zh.md: cb2a47d06e1ab19b99e9572414bab2befb8b05aa
+/agent-note-search-skips-format-refusing-session-logs:
+  en: 93191eb48f9e1ee2
+  zh: ab7ab90d30d0cae2
+/agent-note-search-skips-format-refusing-session-logs/problem:
+  en: a900dcd001fbde08
+  zh: 4e1b0c12386065d7
+/agent-note-search-skips-format-refusing-session-logs/decision:
+  en: 3cf7f939b3cb32de
+  zh: 8e7d69bc5e2510bd
+/agent-note-search-skips-format-refusing-session-logs/alternatives-considered:
+  en: cf57e33bbe36a42b
+  zh: f0ca06a339aa04ed
+/agent-note-search-skips-format-refusing-session-logs/consequences:
+  en: 8b61a576fe4dcffb
+  zh: 29b3bed6a0db7cd8

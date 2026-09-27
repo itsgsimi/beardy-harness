@@ -1,13 +1,5 @@
 - menu:
-  - menuitem "Standard mode Full coding agent":
-    - text: Standard mode Full coding agent
-    - img
-  - menuitem "Beardy mode Coding with personality and memory"
-  - menuitem "Refusing mode Resolves, then refuses to start."
-  - separator
-  - menuitem "More modes 3":
-    - img
-    - text: More modes 3
-  - menuitem "Manage modes…":
-    - img
-    - text: Manage modes…
+  - menuitem "Standard mode Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed."
+  - menuitem "PTC mode Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results."
+  - menuitem "Minimal mode The agent works using only a terminal tool. Useful for testing and comparing its basic performance."
+  - menuitem "Creator mode Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode."

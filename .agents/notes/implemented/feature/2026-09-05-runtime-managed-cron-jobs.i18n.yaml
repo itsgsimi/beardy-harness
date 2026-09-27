@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-05-runtime-managed-cron-jobs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-runtime-managed-cron-jobs.md
-2026-09-05-runtime-managed-cron-jobs.md: 0d58aa6132bdcd97659a3bcac7acfeaa09f8ed57
-2026-09-05-runtime-managed-cron-jobs.zh.md: 2468e735c08d898a40d2a176cf28ab3e1c3c452b
+/agent-note-runtime-managed-cron-jobs-with-guardrails-notes-and-delivery:
+  en: 90ac2ac3a46c658b
+  zh: d743453bd9119554
+/agent-note-runtime-managed-cron-jobs-with-guardrails-notes-and-delivery/problem:
+  en: b12c952cf77aeeb8
+  zh: 916fea5fb6b1bb73
+/agent-note-runtime-managed-cron-jobs-with-guardrails-notes-and-delivery/decision:
+  en: 31deb8b6d4268f8f
+  zh: 3b3d823156f45838
+/agent-note-runtime-managed-cron-jobs-with-guardrails-notes-and-delivery/alternatives-considered:
+  en: 8042e650bb08c730
+  zh: 3366e5986dbac4c5
+/agent-note-runtime-managed-cron-jobs-with-guardrails-notes-and-delivery/consequences:
+  en: 9b41ea981b5d1c55
+  zh: a5f7673542200911

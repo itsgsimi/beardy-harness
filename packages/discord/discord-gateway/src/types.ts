@@ -9,7 +9,10 @@ import type { OutboxSettings } from './outbox.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
-    /** One message admitted from Discord for the user to converse with an agent. */
+    /** One message admitted from Discord for the user to converse with an agent.
+     * Readers preserve the message and attribution without the gateway.
+     * @persistenceAttribution
+     */
     discord: {
       readonly kind: 'discord'
       /** Guild the message came from; empty for a direct message. */

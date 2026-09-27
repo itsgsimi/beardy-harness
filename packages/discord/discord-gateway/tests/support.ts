@@ -211,7 +211,7 @@ export function harness(options: HarnessOptions = {}) {
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     agentPresets: {
       resolve: async (name: string) => { calls.push(`preset-resolve:${name}`); return { id: name } },
-      standingKeyFor: async (name: string) => { calls.push(`standing:${name}`); return {} },
+      acquireScope: async (name: string) => { calls.push(`scope:${name}`); return { key: {}, [Symbol.asyncDispose]: async () => {} } },
       mount: async (_ctx: unknown, name: string) => { calls.push(`mount:${name}`) },
     },
     workspaceRegistry: {

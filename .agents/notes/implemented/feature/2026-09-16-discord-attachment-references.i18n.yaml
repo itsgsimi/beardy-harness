@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-discord-attachment-references.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-16-discord-attachment-references.md
-2026-09-16-discord-attachment-references.md: c876b9448d11f47aeae19990df53e12a8c25e8ba
-2026-09-16-discord-attachment-references.zh.md: 903796ec9cb50938a74f99847f17277a8827c70e
+/agent-note-discord-attachments-remain-available-to-the-agent:
+  en: e878876b0cd93229
+  zh: ff5786c5f80f30b5
+/agent-note-discord-attachments-remain-available-to-the-agent/problem:
+  en: d13c8b419279b318
+  zh: 9b33a6805fe8153f
+/agent-note-discord-attachments-remain-available-to-the-agent/decision:
+  en: 05262f9640456750
+  zh: 0e20fd9dbbc978f9
+/agent-note-discord-attachments-remain-available-to-the-agent/alternatives-considered:
+  en: 1f13bf4d0bc35961
+  zh: 9c243e27c034b48d
+/agent-note-discord-attachments-remain-available-to-the-agent/consequences:
+  en: 4d90837c460b71f0
+  zh: 1da32e7f616eb367

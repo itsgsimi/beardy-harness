@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-07-discord-native-interactions-and-presentation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-07-discord-native-interactions-and-presentation.md
-2026-09-07-discord-native-interactions-and-presentation.md: b3f565366d93ab23b198f4208f76ab11874ccb66
-2026-09-07-discord-native-interactions-and-presentation.zh.md: bd26e8756b1d386450be1e32df18eb63340efccd
+/agent-note-native-discord-interactions-and-durable-message-presentation:
+  en: 51db50a94cab1589
+  zh: b182b8f51575cae4
+/agent-note-native-discord-interactions-and-durable-message-presentation/problem:
+  en: b4a3011f39e05c9b
+  zh: 1eab6657c39a9526
+/agent-note-native-discord-interactions-and-durable-message-presentation/decision:
+  en: f50b0cf85348c3a3
+  zh: 9a225e5f06352627
+/agent-note-native-discord-interactions-and-durable-message-presentation/alternatives-considered:
+  en: 58815cfc9a5bc356
+  zh: 7136f6e305c95cf7
+/agent-note-native-discord-interactions-and-durable-message-presentation/consequences:
+  en: c201d92c68fb6cfd
+  zh: 709c1de8b1b7061f

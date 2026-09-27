@@ -1,6 +1,49 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/training-export/README.md
-README.md: 61acfeb97eb94dc82c9e68cc65ae159bb16da6da
-README.zh.md: 0d951f9cfb5d8176e9dfef3d19c846cf9b6d5a04
+/:
+  en: 62097609388f12e9
+  zh: 4caa39526926d438
+/deepseek-ai-dsh-experimental-training-export:
+  en: 0932e582c8e1e7ad
+  zh: 441dfc10018fe035
+/deepseek-ai-dsh-experimental-training-export/summary:
+  en: 8ce27767517c5533
+  zh: d4b20a08be022bb6
+/deepseek-ai-dsh-experimental-training-export/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 52384aee991ac542
+/deepseek-ai-dsh-experimental-training-export/use-this-package:
+  en: da5e73be9c635221
+  zh: a9052eaee3ecf70a
+/deepseek-ai-dsh-experimental-training-export/use-this-package/configuration:
+  en: e4098375913d36ab
+  zh: 5c1ae376e3edc1c3
+/deepseek-ai-dsh-experimental-training-export/use-this-package/what-to-expect:
+  en: 99a61d1484292280
+  zh: 2633cbd3ad09908b
+/deepseek-ai-dsh-experimental-training-export/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: cb10586867415838
+/deepseek-ai-dsh-experimental-training-export/understand-the-implementation/design-concept:
+  en: db892eca5faf1284
+  zh: 81d1073b5f680de9
+/deepseek-ai-dsh-experimental-training-export/understand-the-implementation/source-map:
+  en: 18a276cdb1fb329b
+  zh: a6cb9bcfe093d714
+/deepseek-ai-dsh-experimental-training-export/understand-the-implementation/workspace-capture:
+  en: aba64bcd5f639a1e
+  zh: 84c69df7816bd030
+/deepseek-ai-dsh-experimental-training-export/model-experience:
+  en: b8e3894d573ccff5
+  zh: db60f2f469dd6429
+/deepseek-ai-dsh-experimental-training-export/model-experience/kv-cache-effect:
+  en: b17861c1fe72da24
+  zh: 8ffead5249122f2c
+/deepseek-ai-dsh-experimental-training-export/known-limitations-and-deferred-work:
+  en: f16d302ae98dac2c
+  zh: 0a1e9c0e633f491d
+/deepseek-ai-dsh-experimental-training-export/known-limitations-and-deferred-work/dev-note:
+  en: 6793804986823f56
+  zh: 1e2bae7590b0dc9d

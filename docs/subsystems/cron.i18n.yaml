@@ -1,6 +1,10 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for cron.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/cron.md
-cron.md: d6e472b45a38d468589da866ae54b95adca2d83d
-cron.zh.md: 2e8bb3352b6b06f85aec7209229060956f76db68
+/cron:
+  en: 7826da83baf67608
+  zh: c01b18137f0c211b
+/cron/run-results:
+  en: 9803bd7b929953ca
+  zh: 1856c656607411f2

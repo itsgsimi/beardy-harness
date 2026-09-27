@@ -4,12 +4,44 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { foldScheduleEvents } from '@deepseek-ai/dsh-schedule'
+import {
+  foldScheduleEvents, renderRecurringReminderBatchFraming, renderReminderFraming,
+} from '@deepseek-ai/dsh-schedule'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { ConversationRecord } from './domain.ts'
 
-/** Cold-session timer owner; the resumed session's Schedule plugin dispatches its own reminders. */
+/**
+ * Deliver due reminders retained in a Discord Session's historical event log.
+ * Their dispatch marker and inbox splice share one Session flush, so recovery
+ * cannot arm the same one-shot reminder after its delivery is durable.
+ * @param ctx - Session persistence owner.
+ * @param agent - Resumed Discord Agent carrying the historical reminders.
+ * @returns Number of reminders placed in the Agent inbox.
+ */
+export async function dispatchLegacyReminders(ctx: Context, agent: Agent): Promise<number> {
+  // oxlint-disable-next-line typescript/no-deprecated -- Historical V3 reminders remain live for Discord-owned Sessions.
+  const due = foldScheduleEvents(agent.session.ownEvents()).active
+    .filter(record => Date.parse(record.scheduledAt) <= Date.now())
+  for (const record of due) {
+    const title = record.title ?? 'Reminder'
+    const text = record.kind === 'every'
+      ? renderRecurringReminderBatchFraming([{ record: { ...record, title }, occurrenceAt: record.scheduledAt }])
+      : renderReminderFraming({ ...record, title })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'schedule' } }))
+    agent.session.append('schedule/change', record.kind === 'every'
+      ? { version: 1, operation: 'dispatch', id: record.id, acceptedAt: new Date().toISOString() }
+      : { version: 1, operation: 'dispatch', id: record.id })
+  }
+  if (due.length > 0 && !await ctx.sessions.flush(agent.session)) {
+    throw new Error('Discord legacy reminder inbox was not persisted')
+  }
+  return due.length
+}
+
+/** Cold-session timer owner for persisted Discord Session reminders. */
 export class DiscordWakeCoordinator {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly tasks = new Set<Promise<void>>()

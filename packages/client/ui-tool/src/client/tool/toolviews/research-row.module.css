@@ -5,7 +5,7 @@
 .open {
   padding: 8px 12px;
   border: 1px solid var(--border-color, #ddd);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: inherit;
   background: transparent;
   cursor: pointer;

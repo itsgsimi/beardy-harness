@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-29-beardy-skill-management.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-beardy-skill-management.md
-2026-08-29-beardy-skill-management.md: 88de548d5f36100f5bf6b1fda05db94112eb1b63
-2026-08-29-beardy-skill-management.zh.md: 4bdb3a9391f67f62c7d231e0daa9f381d21e0998
+/agent-note-beardy-skill-management:
+  en: 1fd93bbfe5ea520c
+  zh: b2cf6a2bdb7f1c72
+/agent-note-beardy-skill-management/problem:
+  en: 53fc06f09a0e5099
+  zh: ded47114f9af1ebf
+/agent-note-beardy-skill-management/decision:
+  en: f3ec2359e5a590c3
+  zh: d340c78b13eb51cc
+/agent-note-beardy-skill-management/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 6119e2aff3b6be5a
+/agent-note-beardy-skill-management/alternatives-considered/why-not-ask-the-model-to-use-write-or-shell-directly:
+  en: bc2f7825649d4d1e
+  zh: cff2f3c659c68a49
+/agent-note-beardy-skill-management/alternatives-considered/why-not-add-a-skill-specific-storage-provider:
+  en: 5cd82cd971f2f499
+  zh: 80032a75be397413
+/agent-note-beardy-skill-management/alternatives-considered/why-not-implement-recursive-directory-deletion:
+  en: 0661cf1b97ca16ae
+  zh: 9ba7ec9df508bbec
+/agent-note-beardy-skill-management/consequences:
+  en: 4b15b55b7a3cfb5b
+  zh: 107fb5858b97b94a

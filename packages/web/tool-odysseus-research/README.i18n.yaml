@@ -1,6 +1,43 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/tool-odysseus-research/README.md
-README.md: 010656232ac766c926916dcc5d5b22971d00ab73
-README.zh.md: 2a43b322b90d35601c2bcc135729d81262d65c80
+/:
+  en: 47b9e57ee33275b7
+  zh: ce732b5c4938010a
+/deepseek-ai-dsh-tool-odysseus-research:
+  en: 168f9a4faf7418a1
+  zh: 7ea095e987b6d345
+/deepseek-ai-dsh-tool-odysseus-research/summary:
+  en: e01ae67e7d324405
+  zh: f308b657ee1f3e72
+/deepseek-ai-dsh-tool-odysseus-research/table-of-contents:
+  en: 32fbbc3fe6cd0419
+  zh: 0a86e8f198237e2c
+/deepseek-ai-dsh-tool-odysseus-research/configuration:
+  en: 822a45d00a73fb4c
+  zh: 6423e7543e6ccecc
+/deepseek-ai-dsh-tool-odysseus-research/operations:
+  en: afe87b81854c73ae
+  zh: bd3f8cfb8033f39b
+/deepseek-ai-dsh-tool-odysseus-research/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-odysseus-research/model-experience/research-tool:
+  en: 59f8edfd2790aecb
+  zh: b6d60f1f309aaec4
+/deepseek-ai-dsh-tool-odysseus-research/model-experience/research-tool/what-the-model-sees:
+  en: 9c24af81c11e3a01
+  zh: be4a79b516dc65d0
+/deepseek-ai-dsh-tool-odysseus-research/model-experience/research-tool/token-effect:
+  en: 5acc10e76b928a48
+  zh: 2bb2acca74d870b0
+/deepseek-ai-dsh-tool-odysseus-research/model-experience/research-tool/kv-cache-effect:
+  en: a80ef658e5289955
+  zh: 959b52410c6d9681
+/deepseek-ai-dsh-tool-odysseus-research/known-limitations-and-deferred-work:
+  en: 9bec6c87334b0da2
+  zh: cf51bb4dcba2183b
+/deepseek-ai-dsh-tool-odysseus-research/known-limitations-and-deferred-work/dev-note:
+  en: a45f88eeb9a8174e
+  zh: b5be3aab75a41283

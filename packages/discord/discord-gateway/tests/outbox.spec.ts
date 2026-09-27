@@ -123,14 +123,14 @@ describe('durable Discord outbox', () => {
     try {
       await h.router.recover()
       expect(h.table.records.get(CHANNEL)?.deliveredThrough).toBe(0)
-      events.push({ seq: 2, type: 'turn/start', data: { turn: 2 } } as SessionEvent,
+      events.push({ seq: 2, type: 'turn/start', data: { turn: 2 } } as unknown as SessionEvent,
         { seq: 3, type: 'assistant/message', data: { turn: 2, step: 1,
-          message: { content: [{ type: 'text', text: 'Turn B done.' }] } } } as SessionEvent,
-        { seq: 4, type: 'turn/end', data: { turn: 2, reason: { kind: 'completed' } } } as SessionEvent,
-        { seq: 5, type: 'turn/start', data: { turn: 3 } } as SessionEvent,
+          message: { content: [{ type: 'text', text: 'Turn B done.' }] } } } as unknown as SessionEvent,
+        { seq: 4, type: 'turn/end', data: { turn: 2, reason: { kind: 'completed' } } } as unknown as SessionEvent,
+        { seq: 5, type: 'turn/start', data: { turn: 3 } } as unknown as SessionEvent,
         { seq: 6, type: 'assistant/message', data: { turn: 3, step: 1,
-          message: { content: [{ type: 'text', text: 'Still working.' }] } } } as SessionEvent,
-        { seq: 7, type: 'step/end', data: { turn: 3, step: 1 } } as SessionEvent)
+          message: { content: [{ type: 'text', text: 'Still working.' }] } } } as unknown as SessionEvent,
+        { seq: 7, type: 'step/end', data: { turn: 3, step: 1 } } as unknown as SessionEvent)
       records.clear()
       await h.router.recover()
       await vi.advanceTimersByTimeAsync(0)

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-downstream-chat-visual-previews.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-10-downstream-chat-visual-previews.md
-2026-09-10-downstream-chat-visual-previews.md: d8cd634505f7b64321a4b4ab9dfc334ba2de125b
-2026-09-10-downstream-chat-visual-previews.zh.md: 83a28d066119bded0f3ddda750e1986aa3f6aa0a
+/agent-note-downstream-re-land-of-chat-visual-previews:
+  en: 6551b6ac35b2e637
+  zh: 7edb62be8f63a8b7
+/agent-note-downstream-re-land-of-chat-visual-previews/problem:
+  en: fe80f7c669279d79
+  zh: 120554bf9ab414b6
+/agent-note-downstream-re-land-of-chat-visual-previews/decision:
+  en: dace5c86c22a3de6
+  zh: 76bf322cdb310408
+/agent-note-downstream-re-land-of-chat-visual-previews/alternatives-considered:
+  en: 827cefb03c1c899f
+  zh: 65a963c1b888eb28
+/agent-note-downstream-re-land-of-chat-visual-previews/consequences:
+  en: 4a88fe3963dff76c
+  zh: 8ec50f5130f14489

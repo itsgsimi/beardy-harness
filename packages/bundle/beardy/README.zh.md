@@ -11,7 +11,7 @@ Odysseus 深度研究需显式启用：在个人配置档补丁中启用默认�
 
 ## 概述
 
-Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。它保留 Creator mode 工具，并增加身份、`$DSH_HOME/SOUL.md` 个性文件、跨会话策展记忆、会话搜索、对话时钟以及 Web 搜索和抓取。可选的定时运行与 Discord 投递需要 `DISCORD_BOT_TOKEN`；组合包不附带 cron 任务。在 `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 中配置简报、目的地、工作区和权限。已启用但缺少配置的条目会在 schema 校验时失败。
+Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备历史感知能力的 agent profile。它声明的 `beardy`、`beardy-unattended` 和 `beardy-discord` preset 包含身份、跨会话策展记忆、会话搜索、对话时钟以及 Web 搜索和抓取。可选的定时运行与 Discord 投递需要 `DISCORD_BOT_TOKEN`；组合包不附带 cron 任务。在 `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 中配置简报、目的地、工作区和权限。已启用但缺少配置的条目会在 schema 校验时失败。
 
 ## 目录
 
@@ -134,7 +134,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-beardy
 <details>
 <summary>实现内部细节 — 点击展开</summary>
 
-patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-sqlite`，选择 `searxng` web provider，禁用 DeepSeek 搜索行，启用 `tool-web`，并插入 `tool-session-query`、`time-context` 以及按 token 门控的 `tool-discord`、`discord-gateway` 与 `cron` 行。Beardy preset 通过只读的 `agent-presets` include 行把自身身份、作为全局指令候选的策展记忆文件以及 `memory` 工具叠加到 Creator mode 之上；`beardy-unattended` 与 `beardy-discord` 由它派生，各自附加 persona 语句并收紧 `memory` 的审批。SearXNG 负责 Web 搜索传输与结果映射，搜索后端持有独立的派生 SQLite 数据库，历史工具 Consumer 负责面向模型的 schema、指引与工作区授权。组合包自身不持有任何运行时服务或可变状态。
+patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-sqlite`，选择 `searxng` web provider，禁用 DeepSeek 搜索行，启用 `tool-web`，并插入 `tool-session-query`、`time-context` 以及按 token 门控的 `tool-discord`、`discord-gateway` 与 `cron` 行。三个 profile YAML 声明通过 `agent-preset-registry` 注册 `beardy`、`beardy-unattended` 和 `beardy-discord`；每个声明都包含 persona、作为全局指令候选的策展记忆文件和 `memory` 工具。无人值守与 Discord 声明增加各自的回复指引，并要求记忆写入经过审批。SearXNG 负责 Web 搜索传输与结果映射，搜索后端持有独立的派生 SQLite 数据库，历史工具 Consumer 负责面向模型的 schema、指引与工作区授权。组合包自身不持有任何运行时服务或可变状态。
 
 ### 源码地图
 

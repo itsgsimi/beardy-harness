@@ -4,7 +4,7 @@
 
 # The scoped Beardy preset owns identity and personality. A host-level persona
 # would be shadowed by the standard preset's scoped persona.
-- id: agent-presets
+- id: agent-preset-registry
   config:
     default: beardy
 
@@ -83,3 +83,7 @@
       disabled: !!js process.env.DISCORD_BOT_TOKEN === undefined
       config:
         jobs: []
+
+# Keep the Host Schedule available to Discord sessions while cron retains its own unattended runs.
+- id: schedule
+  disabled: false

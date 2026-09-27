@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-inline-visual-feedback.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-10-inline-visual-feedback.md
-2026-09-10-inline-visual-feedback.md: db79810b2794f92f3b432e7074b24fa8e2155802
-2026-09-10-inline-visual-feedback.zh.md: dd20b0840765b11078bf489ac5c5166dd080932c
+/agent-note-inline-visual-feedback:
+  en: 0c3795b03fb228c9
+  zh: 46fe68e236959af8
+/agent-note-inline-visual-feedback/problem:
+  en: 81c36d4bffdd84d3
+  zh: 510055f9002d9e04
+/agent-note-inline-visual-feedback/decision:
+  en: 0c6e4924e98b2098
+  zh: 7c92cfc0367b9215
+/agent-note-inline-visual-feedback/alternatives-considered:
+  en: a2c2eec005dfb3f6
+  zh: 212bfd0469071845
+/agent-note-inline-visual-feedback/consequences:
+  en: fdbf7952e38004dd
+  zh: 881878bfdf99c1e2

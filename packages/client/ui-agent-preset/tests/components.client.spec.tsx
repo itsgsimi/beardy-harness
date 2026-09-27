@@ -6,10 +6,12 @@
  * tools, so the choice is only ever offered before one starts.
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SessionRetainInfo } from '@deepseek-ai/dsh-api-session-controller/client'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { AgentPresetLabel } from '../src/client/AgentPresetLabel.tsx'
 import type { AgentPresetLabelProps } from '../src/client/AgentPresetLabel.tsx'
 import { AgentPresetSeat } from '../src/client/AgentPresetSeat.tsx'
@@ -23,31 +25,23 @@ afterEach(cleanup)
 const ROSTER_READY: AgentPresetSettingsState = {
   status: 'ready',
   error: null,
-  options: [{ id: 'standard', trust: 'system', name: '标准模式' }, { id: 'mine', trust: 'user' }],
+  options: [{ id: 'standard' }, { id: 'mine' }],
 }
 
 const SEAT_READY: AgentPresetSeatState = {
-  showPicker: true,
   current: 'standard',
   options: [
-    { id: 'standard', trust: 'system', name: '标准模式', description: '完整的编码 agent。' },
-    { id: 'mine', trust: 'user' },
+    { id: 'standard' },
+    { id: 'mine' },
   ],
   busy: false,
-  error: null,
-  introduce: false,
   pickerSaving: false,
   pickerError: null,
+  error: null,
+  introduce: false,
 }
 
-const GROUPED_OPTIONS: AgentPresetSeatState['options'] = [
-  { id: 'standard', trust: 'system', picker: 'main' },
-  { id: 'beardy', trust: 'system', picker: 'main' },
-  { id: 'minimal', trust: 'system', picker: 'more' },
-  { id: 'cordis', trust: 'system', picker: 'more' },
-  { id: 'beardy-discord', trust: 'system', picker: 'hidden' },
-  { id: 'mine', trust: 'user' },
-]
+const useSessionRetainInfo = <Selected,>(selector: (value: undefined) => Selected): Selected => selector(undefined)
 
 /** The runtime's own `{name}` substitution, so a test reads the shown text. */
 function translate(key: keyof typeof en, params?: Record<string, unknown>): string {
@@ -60,20 +54,24 @@ function translate(key: keyof typeof en, params?: Record<string, unknown>): stri
 function renderSeat(
   state: Partial<AgentPresetSeatState> = {},
   select: () => Promise<string | undefined> = () => Promise.resolve(undefined),
+  session?: { id: string; retainInfo: SessionRetainInfo | undefined },
+  enabled = true,
 ) {
   const store = createSnapshotStore<AgentPresetSeatState>({ ...SEAT_READY, ...state })
-  const actions = {
-    load: vi.fn(() => Promise.resolve()),
-    select: vi.fn(select),
-    introduced: vi.fn(),
-    setPickerPlacement: vi.fn(() => Promise.resolve()),
-  }
-  render(<AgentPresetSeat {...({
+  const developerTools = createSnapshotStore(enabled)
+  const actions = { load: vi.fn(() => Promise.resolve()), select: vi.fn(select), introduced: vi.fn() }
+  const props = {
     ...actions,
+    sessionId: session === undefined ? undefined : SessionId(session.id),
+    useDeveloperTools: bindSnapshotSelector(developerTools),
     useAgentPresetSeat: bindSnapshotSelector(store),
+    useSessionRetainInfo: session === undefined
+      ? useSessionRetainInfo
+      : <Selected,>(selector: (value: SessionRetainInfo | undefined) => Selected) => selector(session.retainInfo),
     t: translate,
-  } as unknown as AgentPresetSeatProps)} />)
-  return { ...actions, store }
+  } as AgentPresetSeatProps
+  render(<AgentPresetSeat {...props} />)
+  return { ...actions, developerTools }
 }
 
 function renderLabel(
@@ -97,9 +95,20 @@ function renderLabel(
 }
 
 describe('the new-session chip', () => {
-  it('renders nothing while the picker is disabled', () => {
-    renderSeat({ showPicker: false })
+  it('renders nothing while Developer tools are off', () => {
+    renderSeat({}, undefined, undefined, false)
 
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('renders only for a Session retained by the main view', () => {
+    renderSeat({}, undefined, {
+      id: 's1', retainInfo: { referenceCount: 1, retainedBy: { mainView: 1 } },
+    })
+    expect(screen.getByRole('button')).toBeTruthy()
+    cleanup()
+
+    renderSeat({}, undefined, { id: 's1', retainInfo: undefined })
     expect(screen.queryByRole('button')).toBeNull()
   })
 
@@ -116,11 +125,26 @@ describe('the new-session chip', () => {
 
     fireEvent.click(screen.getByRole('button'))
 
-    expect(screen.getByText(en.presetStandardSummary)).toBeTruthy()
+    // The id alone never said what a preset does; the description is the
+    // whole reason a preset can publish metadata at all.
+    expect(screen.getByText(en.presetStandardDescription)).toBeTruthy()
     // A preset that published none still reads as a row, with its id standing
     // in for the name.
     expect(screen.getByText(en.noDescription)).toBeTruthy()
     expect(screen.getByText('mine')).toBeTruthy()
+  })
+
+  it('closes the picker immediately when developer tools turn off without changing the staged preset', () => {
+    const actions = renderSeat()
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText(en.presetStandardDescription)).toBeTruthy()
+    act(() => { actions.developerTools.set(false) })
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByText(en.presetStandardDescription)).toBeNull()
+    expect(actions.select).not.toHaveBeenCalled()
+    act(() => { actions.developerTools.set(true) })
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button').textContent).toContain(en.presetStandardName)
   })
 
   it('falls back to the id when the staged preset published no name', () => {
@@ -174,130 +198,6 @@ describe('the new-session chip', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
-  })
-
-  it('shows main and unclassified modes, and reveals additional modes without closing', () => {
-    const actions = renderSeat({ options: GROUPED_OPTIONS })
-    fireEvent.click(screen.getByRole('button'))
-
-    expect(screen.getByRole('menuitem', { name: /Standard mode/ })).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: /Beardy mode/ })).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: /mine/ })).toBeTruthy()
-    expect(screen.queryByRole('menuitem', { name: /Minimal mode/ })).toBeNull()
-    expect(screen.queryByRole('menuitem', { name: /Beardy Discord/ })).toBeNull()
-    const more = screen.getByRole('menuitem', { name: /^More modes/ })
-    expect(more.textContent).toContain('2')
-    expect(more.getAttribute('aria-expanded')).toBe('false')
-
-    more.focus()
-    fireEvent.click(more)
-    expect(screen.getByRole('menu')).toBeTruthy()
-    expect(more.getAttribute('aria-expanded')).toBe('true')
-    expect(document.activeElement).toBe(more)
-    expect(screen.getByRole('menuitem', { name: /Minimal mode/ })).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: /Creator mode/ })).toBeTruthy()
-    expect(screen.queryByRole('menuitem', { name: /Beardy Discord/ })).toBeNull()
-
-    fireEvent.click(more)
-    expect(more.getAttribute('aria-expanded')).toBe('false')
-    expect(document.activeElement).toBe(more)
-    expect(screen.queryByRole('menuitem', { name: /Minimal mode/ })).toBeNull()
-    expect(actions.select).not.toHaveBeenCalled()
-  })
-
-  it.each(['more', 'hidden'] as const)('keeps the active mode in the main list when placed in %s', (picker) => {
-    renderSeat({
-      current: 'minimal',
-      options: GROUPED_OPTIONS.map(option => option.id === 'minimal' ? { ...option, picker } : option),
-    })
-    fireEvent.click(screen.getByRole('button'))
-
-    expect(screen.getAllByRole('menuitem', { name: /Minimal mode/ })).toHaveLength(1)
-    const more = screen.getByRole('menuitem', { name: /^More modes/ })
-    expect(more.getAttribute('aria-expanded')).toBe('false')
-    expect(more.textContent).toContain('1')
-    fireEvent.click(more)
-    expect(screen.getAllByRole('menuitem', { name: /Minimal mode/ })).toHaveLength(1)
-  })
-
-  it('keeps the disclosure preference when the picker is reopened', () => {
-    renderSeat({ options: GROUPED_OPTIONS })
-    fireEvent.click(screen.getByRole('button'))
-    fireEvent.click(screen.getByRole('menuitem', { name: /^More modes/ }))
-    fireEvent.keyDown(document, { key: 'Escape' })
-    fireEvent.click(screen.getByRole('button'))
-
-    expect(screen.getByRole('menuitem', { name: /^More modes/ }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('menuitem', { name: /Minimal mode/ })).toBeTruthy()
-  })
-
-  it('offers additional choices while the current mode is absent from the refreshed roster', () => {
-    renderSeat({ current: 'arriving', options: [{ id: 'minimal', trust: 'system', picker: 'more' }] })
-    fireEvent.click(screen.getByRole('button', { name: 'arriving' }))
-
-    expect(screen.queryByRole('separator')).toBeNull()
-    fireEvent.click(screen.getByRole('menuitem', { name: /^More modes/ }))
-    expect(screen.getByRole('menuitem', { name: /Minimal mode/ })).toBeTruthy()
-  })
-})
-
-describe('picker placement management', () => {
-  it('lists hidden modes, writes the selected placement, and returns to the picker', () => {
-    const actions = renderSeat({ options: GROUPED_OPTIONS })
-    fireEvent.click(screen.getByRole('button'))
-    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
-
-    const dialog = screen.getByRole('dialog', { name: en.manageModes })
-    expect(screen.queryByRole('menu')).toBeNull()
-    expect(within(dialog).getAllByRole('combobox')).toHaveLength(GROUPED_OPTIONS.length)
-    expect(within(dialog).getByRole('combobox', { name: 'mine placement' })).toHaveProperty('value', 'main')
-    const hidden = within(dialog).getByRole('combobox', { name: 'Beardy Discord placement' })
-    expect(hidden).toHaveProperty('value', 'hidden')
-    expect(within(hidden).getAllByRole('option').map(option => option.textContent))
-      .toEqual([en.pickerMain, en.pickerMore, en.pickerHidden])
-
-    fireEvent.change(hidden, { target: { value: 'more' } })
-    expect(actions.setPickerPlacement).toHaveBeenCalledWith('beardy-discord', 'more')
-    expect(actions.select).not.toHaveBeenCalled()
-    fireEvent.click(within(dialog).getByRole('button', { name: en.done }))
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByRole('menu')).toBeTruthy()
-  })
-
-  it('disables every placement control while saving', () => {
-    renderSeat({ options: GROUPED_OPTIONS, pickerSaving: true })
-    fireEvent.click(screen.getByRole('button'))
-    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
-
-    for (const select of screen.getAllByRole('combobox')) expect(select).toHaveProperty('disabled', true)
-  })
-
-  it('announces a failed placement save in the manager', () => {
-    renderSeat({ options: GROUPED_OPTIONS, pickerError: 'Settings file is read-only' })
-    fireEvent.click(screen.getByRole('button'))
-    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
-
-    expect(screen.getByRole('alert').textContent).toBe('Settings file is read-only')
-    expect(screen.getByRole('combobox', { name: 'Beardy Discord placement' })).toHaveProperty('value', 'hidden')
-  })
-
-  it.each([false, true])('restores focus after saving unless focus moved elsewhere (%s)', (moveFocus) => {
-    const { store } = renderSeat({ options: GROUPED_OPTIONS })
-    fireEvent.click(screen.getByRole('button'))
-    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
-    const placement = screen.getByRole('combobox', { name: 'Beardy Discord placement' })
-    placement.focus()
-    fireEvent.change(placement, { target: { value: 'more' } })
-    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: true }) })
-    const done = screen.getByRole('button', { name: en.done })
-    // jsdom cannot blur disabled fields; an enabled control can transfer focus to the body.
-    done.focus()
-    if (!moveFocus) done.blur()
-    expect(document.activeElement).toBe(moveFocus ? done : document.body)
-
-    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: false }) })
-
-    expect(document.activeElement).toBe(moveFocus ? done : placement)
   })
 })
 
@@ -356,7 +256,7 @@ describe('the chip introduce cue', () => {
     vi.useFakeTimers()
     const actions = renderSeat({
       current: 'creator',
-      options: [{ id: 'creator', trust: 'user', name: 'CreatorMode' }],
+      options: [{ id: 'creator', name: 'CreatorMode' }],
       introduce: true,
     })
 
@@ -382,7 +282,7 @@ describe('the chip introduce cue', () => {
     vi.useFakeTimers()
     renderSeat({
       current: 'creator',
-      options: [{ id: 'creator', trust: 'user', name: '创造模式' }],
+      options: [{ id: 'creator', name: '创造模式' }],
       introduce: true,
     })
 
@@ -398,7 +298,7 @@ describe('the chip introduce cue', () => {
     vi.useFakeTimers()
     const actions = renderSeat({
       current: 'creator',
-      options: [{ id: 'creator', trust: 'user', name: 'C' }],
+      options: [{ id: 'creator', name: 'C' }],
       introduce: true,
     })
 
@@ -419,7 +319,7 @@ describe('the chip introduce cue', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
     const actions = renderSeat({
       current: 'creator',
-      options: [{ id: 'creator', trust: 'user', name: '' }],
+      options: [{ id: 'creator', name: '' }],
       introduce: true,
     })
 

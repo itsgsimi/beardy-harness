@@ -1,7 +1,7 @@
 /** Research report artifacts rendered from durable tool-result metadata. */
 import { useEffect, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import { IconBrowseOutline16, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconBrowseOutlineRegular, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
@@ -47,7 +47,7 @@ type ResearchRowProps = ToolCallViewProps & PropsLocale<'conversation'>
  * @param props - Durable call metadata, row state, and localized copy.
  * @returns Tool row and an accessible native report dialog.
  */
-export function ResearchRow({ toolName, block, inspect, t }: ResearchRowProps) {
+export function ResearchRow({ toolName, block, inspect, useDisclosure, t }: ResearchRowProps) {
   const model = toolRowModel(toolName, block)
   const artifact = 'kind' in block && !block.isError ? artifactFromMeta(block.meta) : null
   const [open, setOpen] = useState(false)
@@ -64,7 +64,7 @@ export function ResearchRow({ toolName, block, inspect, t }: ResearchRowProps) {
   }, [open, document])
   return (
     <>
-      <ToolRow t={t} variant={model.variant} toolName={toolName} icon={<IconBrowseOutline16 size={14} />}
+      <ToolRow useDisclosure={useDisclosure} t={t} variant={model.variant} toolName={toolName} icon={<IconBrowseOutlineRegular size={14} />}
         title={t('research.title')} summary={artifact?.id ?? model.summary}
         output={artifact === null ? model.output : null} errorSummary={model.errorSummary}
         state={model.state} inspect={inspect} />

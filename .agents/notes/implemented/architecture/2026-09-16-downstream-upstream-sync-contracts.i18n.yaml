@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-downstream-upstream-sync-contracts.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-downstream-upstream-sync-contracts.md
-2026-09-16-downstream-upstream-sync-contracts.md: 90f9ce4e0420f54ac49957db5586f2b322e77dab
-2026-09-16-downstream-upstream-sync-contracts.zh.md: 24d0d6bbb58ee956a4be7ec0a10e47b788d11fc1
+/agent-note-contracts-reconciled-when-downstream-merged-the-0-1-6-alpha-1-spine:
+  en: 1b4ab0c69a2e3aed
+  zh: a87a7e1150d975ba
+/agent-note-contracts-reconciled-when-downstream-merged-the-0-1-6-alpha-1-spine/problem:
+  en: 59fc48b0bc171b0f
+  zh: e382817c5fc1a52a
+/agent-note-contracts-reconciled-when-downstream-merged-the-0-1-6-alpha-1-spine/decision:
+  en: 7c04d3465aadd0b6
+  zh: c256a73c45881782
+/agent-note-contracts-reconciled-when-downstream-merged-the-0-1-6-alpha-1-spine/alternatives-considered:
+  en: 7d41ccea1f6949f0
+  zh: 5e19dc853a9763f6
+/agent-note-contracts-reconciled-when-downstream-merged-the-0-1-6-alpha-1-spine/consequences:
+  en: d350b8985d3f4e57
+  zh: 3c0ab374fa0bc133

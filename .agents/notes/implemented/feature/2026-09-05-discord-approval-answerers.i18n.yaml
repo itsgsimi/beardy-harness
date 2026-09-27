@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-05-discord-approval-answerers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-discord-approval-answerers.md
-2026-09-05-discord-approval-answerers.md: 9ba157d5a00bebeb1c7925865ae6520dd091ce96
-2026-09-05-discord-approval-answerers.zh.md: 0aed50716115014817813f463884d5375eacce55
+/agent-note-discord-approval-and-question-answerers-over-reactions-and-replies:
+  en: b50dbd0727f341e6
+  zh: 22d4697573593dd8
+/agent-note-discord-approval-and-question-answerers-over-reactions-and-replies/problem:
+  en: 3d7c3a6871de623d
+  zh: 06e4865feebc3648
+/agent-note-discord-approval-and-question-answerers-over-reactions-and-replies/decision:
+  en: f183dab85cfb707b
+  zh: 51043ba4abfacf88
+/agent-note-discord-approval-and-question-answerers-over-reactions-and-replies/alternatives-considered:
+  en: f3f3fc99574f1a18
+  zh: 9eb2732a38887671
+/agent-note-discord-approval-and-question-answerers-over-reactions-and-replies/consequences:
+  en: 0543d8223b2eb740
+  zh: dc3d34a693454b41

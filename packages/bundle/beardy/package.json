@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-beardy",
   "description": "The Beardy agent bundle: persistent session search, history tools, SearXNG web search, web fetching, and the Beardy persona over dsh-base and dsh-web-app",
-  "version": "0.1.5-rc.1",
+  "version": "0.1.7-rc.2",
   "publishConfig": {
     "access": "public"
   },
@@ -20,17 +20,26 @@
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./src/*": "./src/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./presets/*.patch.yml": "./presets/*.patch.yml"
   },
   "files": [
     "lib/index.js",
     "cordis.patch.yml",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "presets/beardy.patch.yml",
+    "presets/beardy-unattended.patch.yml",
+    "presets/beardy-discord.patch.yml"
   ],
   "license": "MIT",
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/beardy.patch.yml",
+        "./presets/beardy-unattended.patch.yml",
+        "./presets/beardy-discord.patch.yml"
+      ]
     }
   },
   "dependencies": {
@@ -42,7 +51,9 @@
     "@deepseek-ai/dsh-tool-memory": "workspace:^",
     "@deepseek-ai/dsh-tool-odysseus-research": "workspace:^",
     "@deepseek-ai/dsh-tool-session-query": "workspace:^",
-    "@deepseek-ai/dsh-web-search-searxng": "workspace:^"
+    "@deepseek-ai/dsh-web-search-searxng": "workspace:^",
+    "@deepseek-ai/dsh-agent-preset": "workspace:*",
+    "@deepseek-ai/dsh-agent-preset-registry": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^"

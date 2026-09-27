@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-05-discord-durable-conversations.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-05-discord-durable-conversations.md
-2026-09-05-discord-durable-conversations.md: bd724461a5ac0c69a5cc1681dcf003e3ef6b47d5
-2026-09-05-discord-durable-conversations.zh.md: 1b0c0069b338ed03ac9b3d487cf2bc8f31706e7a
+/agent-note-durable-discord-conversations-with-resume-commands-and-proactive-delivery:
+  en: 30a561dad75deb79
+  zh: 05fd3699dcc9421e
+/agent-note-durable-discord-conversations-with-resume-commands-and-proactive-delivery/problem:
+  en: 7b8f96b47a98a035
+  zh: 0cb4f6c190a04fb0
+/agent-note-durable-discord-conversations-with-resume-commands-and-proactive-delivery/decision:
+  en: 3ea4717e5368058f
+  zh: b02ae83b95ab067d
+/agent-note-durable-discord-conversations-with-resume-commands-and-proactive-delivery/alternatives-considered:
+  en: bddf7659b0029111
+  zh: 4f4c3223b5c0661d
+/agent-note-durable-discord-conversations-with-resume-commands-and-proactive-delivery/consequences:
+  en: 69e9f2796fdda22c
+  zh: b0916238d382847a

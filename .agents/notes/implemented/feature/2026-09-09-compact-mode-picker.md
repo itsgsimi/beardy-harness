@@ -10,11 +10,11 @@ The new-session picker mixes general-purpose agents, specialist compositions, an
 
 ## Decision
 
-Preset display metadata publishes an optional `picker` placement: `main`, `more`, or `hidden`. The `agent-presets` settings namespace carries per-id overrides over that metadata. The remote roster remains complete and projects the resolved placement; absent placement keeps a custom preset visible. The [preset package](../../../../packages/preset/agent-presets/README.md) owns these display defaults independently of [session composition](../architecture/2026-08-03-per-session-agent-presets.md).
+Preset declarations publish an optional `picker` placement: `main`, `more`, or `hidden`. The `agent-preset-registry` settings namespace carries per-id overrides over that metadata. The remote roster remains complete and projects the resolved placement; absent placement keeps a custom preset visible. The [preset registry](../../../../packages/preset/agent-preset-registry/README.md) owns these display defaults independently of [session composition](../architecture/2026-09-18-declarative-agent-presets.md).
 
 The [Web picker](../../../../packages/client/ui-agent-preset/README.md) renders a main list and one collapsible More modes group, with concise localized descriptions for shipped modes. It promotes the current selection into the main list even when that mode is hidden or grouped. Manage modes changes placement through the existing host settings writer and reports refused saves without changing the shown preference. Hidden presets retain their normal discovery, direct-selection, and session-label behavior.
 
-[Copied presets](../simplification/2026-08-08-copy-only-preset-authoring.md) drop the source's ordering and picker placement, so a copy without its own saved override appears in the main list. Settings retains broken presets for repair; the picker and its placement dialog operate on the healthy roster.
+A new YAML declaration without picker placement or its own saved override appears in the main list. Settings retains broken presets for inspection; the picker and its placement dialog operate on the healthy roster.
 
 ## Alternatives considered
 

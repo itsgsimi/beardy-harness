@@ -75,7 +75,7 @@ describe('conversation router', () => {
     expect(h.calls).toEqual([
       'permission-resolve:danger-full-access',
       'preset-resolve:beardy',
-      'standing:beardy',
+      'scope:beardy',
       'workspace:/workspace',
       'agent-create',
       'mount:beardy',

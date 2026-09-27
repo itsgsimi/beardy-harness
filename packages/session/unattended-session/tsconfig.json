@@ -14,7 +14,7 @@
     { "path": "../../core/session" },
     { "path": "../../interaction/permission-presets" },
     { "path": "../../llm/llm" },
-    { "path": "../../preset/agent-presets" },
+    { "path": "../../preset/agent-preset-registry" },
     { "path": "../../session/session-title" },
     { "path": "../../workspace/workspace" }
   ]

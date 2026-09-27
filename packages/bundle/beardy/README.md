@@ -11,7 +11,7 @@ Odysseus deep research is opt-in: enable the disabled `tool-odysseus-research` r
 
 ## Summary
 
-The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. It keeps the Creator mode tools and adds identity, a `$DSH_HOME/SOUL.md` personality file, curated cross-session memory, session search, a conversation clock, and Web search and fetching. Optional scheduled runs and Discord delivery require `DISCORD_BOT_TOKEN`; the bundle ships no cron jobs. Configure briefs, destinations, workspace, and permissions in `$DSH_HOME/profiles/<profile>/cordis.patch.yml`. An enabled entry with missing configuration fails schema validation.
+The Beardy bundle adds a persistent, history-aware agent profile over `dsh-base` and `dsh-web-app`. Its declared `beardy`, `beardy-unattended`, and `beardy-discord` presets include identity, curated cross-session memory, session search, a conversation clock, and Web search and fetching. Optional scheduled runs and Discord delivery require `DISCORD_BOT_TOKEN`; the bundle ships no cron jobs. Configure briefs, destinations, workspace, and permissions in `$DSH_HOME/profiles/<profile>/cordis.patch.yml`. An enabled entry with missing configuration fails schema validation.
 
 ## Table of Contents
 
@@ -134,7 +134,7 @@ The bundle contributes a patch layer; it is not a library or an application bin.
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The patch selects the shipped `beardy` agent preset, overrides `session-query-sqlite`, selects the `searxng` web provider, disables the DeepSeek search row, enables `tool-web`, and inserts `tool-session-query`, `time-context`, and the token-gated `tool-discord`, `discord-gateway`, and `cron` rows. The Beardy preset uses the read-only `agent-presets` include row to layer its identity, the curated memory files as global instruction candidates, and the `memory` tool over Creator mode; `beardy-unattended` and `beardy-discord` derive from it with their own persona addenda and stricter `memory` approval. SearXNG owns Web search transport and result mapping, the search backend owns a separate derived SQLite database, and the history-tool consumer owns model-facing schemas, guidance, and workspace authorization. The bundle itself owns no runtime service or mutable state.
+The patch selects the shipped `beardy` agent preset, overrides `session-query-sqlite`, selects the `searxng` web provider, disables the DeepSeek search row, enables `tool-web`, and inserts `tool-session-query`, `time-context`, and the token-gated `tool-discord`, `discord-gateway`, and `cron` rows. Three profile YAML declarations register `beardy`, `beardy-unattended`, and `beardy-discord` with `agent-preset-registry`; each declares its persona, curated memory files as global instruction candidates, and the `memory` tool. The unattended and Discord declarations add their own reply guidance and require approval for memory writes. SearXNG owns Web search transport and result mapping, the search backend owns a separate derived SQLite database, and the history-tool consumer owns model-facing schemas, guidance, and workspace authorization. The bundle itself owns no runtime service or mutable state.
 
 ### Source map
 

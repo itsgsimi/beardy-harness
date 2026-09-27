@@ -15,7 +15,7 @@ afterEach(async () => {
 
 function reminder(seconds: number, seq = 0): SessionEvent {
   return { seq, type: 'schedule/change', data: { version: 1, operation: 'create',
-    schedule: createAfterScheduleRecord(ScheduleId(`schedule-${String(seq)}`), 'reminder', seconds, Date.now()),
+    schedule: createAfterScheduleRecord(ScheduleId(`schedule-${String(seq)}`), 'reminder', seconds, Date.now(), 'Reminder'),
   } } as SessionEvent
 }
 

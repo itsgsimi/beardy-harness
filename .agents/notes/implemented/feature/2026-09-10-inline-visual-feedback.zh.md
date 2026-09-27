@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-[交付工具包](../../../../packages/fs/tool-present/README.zh.md) 注册 `present_visual`，用于截图、图表、GIF、SVG 示意图和自包含 HTML 原型。调用方提供已有路径、有意义的标题及发现说明。读取遵循 Session 文件系统并保留原始字节。可配置上限覆盖完整序列化交付，包括 base64 膨胀和说明文本。最终工具成功通知追加现有交付事件，使原生和嵌套调用共享策略、所有权及回放行为。模型和程序返回值包含简短回执，不包含文件负载。
+[交付工具包](../../../../packages/deliverables/tool-present/README.zh.md) 注册 `present_visual`，用于截图、图表、GIF、SVG 示意图和自包含 HTML 原型。调用方提供已有路径、有意义的标题及发现说明。读取遵循 Session 文件系统并保留原始字节。可配置上限覆盖完整序列化交付，包括 base64 膨胀和说明文本。最终工具成功通知追加现有交付事件，使原生和嵌套调用共享策略、所有权及回放行为。模型和程序返回值包含简短回执，不包含文件负载。
 
 [Web 交付插件](../../../../packages/client/ui-deliverables/README.zh.md) 将这些快照发布为带说明、放大查看和原始文件下载的内联 Chat 节点。节点自有的 `processDisclosure: 'independent'` 使面向用户的结果在已完成轮次折叠中间过程后保持可见。HTML 使用启用脚本的不透明来源 iframe，并设置严格的子资源策略；SVG 使用图片元素，不注入标记。预览不接收父页面回调、应用来源或文件系统访问能力。HTML iframe 内部自行导航不是支持的工作流；该沙箱不替代操作系统沙箱，也不限制 JavaScript 执行时间。
 
