@@ -777,13 +777,16 @@ export interface Config {
 ## `@deepseek-ai/dsh-cron`
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
-- `source`: [`packages/cron/cron/src/index.ts:113`](../packages/cron/cron/src/index.ts)
+- `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
+- `source`: [`packages/cron/cron/src/index.ts:123`](../packages/cron/cron/src/index.ts)
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
 export interface ResolvedConfig {
   /** Jobs to mount at load; an empty list still mounts the management surfaces. */
   readonly jobs: ConfiguredCronJob[]
+  /** Model choice inherited by every job without its own override, including stored jobs. */
+  readonly modelSelection?: ConfiguredModelSelection
   /** Longest wait for one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted per process before the oldest are released. */
@@ -812,6 +815,8 @@ export interface ResolvedConfig {
 
 /** One configured job plus its channel-delivery target from plugin configuration. */
 export interface ConfiguredCronJob extends CronJobSpec {
+  /** Exact model choice for this configured job; overrides the cron-wide choice. */
+  readonly modelSelection?: ConfiguredModelSelection | undefined
   /** Channel id where a finished run's final text is delivered; absent means none. */
   readonly deliverChannel?: string
 }
@@ -887,7 +892,8 @@ export interface Config {
 ## `@deepseek-ai/dsh-discord-gateway`
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
-- `source`: [`packages/discord/discord-gateway/src/index.ts:95`](../packages/discord/discord-gateway/src/index.ts)
+- `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:97`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -928,6 +934,8 @@ export interface Config {
   readonly agentPreset: string
   /** Permission preset applied to each conversation Session. */
   readonly permissionPreset: string
+  /** Exact route and effort for new Discord Sessions; omission inherits the current default. */
+  readonly modelSelection?: ConfiguredModelSelection | undefined
   /** Tool restriction for default-lane conversation Agents; every name must be visible when a Session opens. Defaults to none. */
   readonly toolFilter?: LaneToolFilter | undefined
   /**

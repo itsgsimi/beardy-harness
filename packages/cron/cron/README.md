@@ -15,10 +15,17 @@ An active run exposes its configured `deliverChannel` to the Discord approval an
 
 ## Table of Contents
 
+- [Model selection](#model-selection)
 - [Commands](#commands)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+-----
+
+## Model selection
+
+`modelSelection: { provider, model, reasoningEffort? }` on the cron row selects an exact route for every fire, including stored jobs; a configured job can override it with its own `modelSelection`. Without either choice, the run inherits the full current `agentDefaultModel` selection. Explicit choices are checked against the registered adapter when cron mounts and again before the fire opens its Session; an unknown route or unsupported effort fails with the job or config field named. The effective choice appears in the Session's `request/header`.
 
 -----
 

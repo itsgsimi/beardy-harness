@@ -6806,7 +6806,7 @@ SHA-256: `0d767eaaa6cf41ca349d431a36ff9826912b9f83dc9a26fe849c799d36e18078`
 
 SHA-256: `86384be7bcf7d19280ee9a09e0b601b40c23b38af8c9b2b28cc43c4b53329828`
 
-来源：[`packages/discord/discord-gateway/src/types.ts:16`](../packages/discord/discord-gateway/src/types.ts)
+来源：[`packages/discord/discord-gateway/src/types.ts:17`](../packages/discord/discord-gateway/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

@@ -7,7 +7,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
+import type { AgentHandle, AgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-permission-presets'
@@ -27,12 +27,8 @@ export interface UnattendedSessionSpec {
   readonly workspacePath: string
   /** Title applied after the attach succeeds. */
   readonly title: string
-  /** Provider and model handed to Agent creation; resolved by the caller from its own selection or override. */
-  readonly agentOptions: {
-    readonly provider: string
-    readonly model: string
-    readonly maxTokens?: number
-  }
+  /** Model options handed to Agent creation; resolved by the caller from its own selection or override. */
+  readonly agentOptions: AgentOptions & { readonly provider: string; readonly model: string }
   /** Extra setup composed inside the Agent scope after the preset mounts, such as pinning a model selection. */
   readonly setup?: AgentSetup
 }
@@ -78,12 +74,8 @@ export interface ResumeUnattendedSessionSpec {
   readonly permissionPreset: string
   /** Fully qualified workspace directory that owns the Session. */
   readonly workspacePath: string
-  /** Provider and model handed to Agent resume; resolved by the caller from its own selection. */
-  readonly agentOptions: {
-    readonly provider: string
-    readonly model: string
-    readonly maxTokens?: number
-  }
+  /** Model options handed to Agent resume; callers retain a logged choice when present. */
+  readonly agentOptions: AgentOptions & { readonly provider: string; readonly model: string }
   /** Extra setup composed inside the Agent scope after the preset mounts. */
   readonly setup?: AgentSetup
 }

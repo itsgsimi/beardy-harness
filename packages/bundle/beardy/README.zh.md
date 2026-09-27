@@ -53,6 +53,8 @@ DISCORD_BOT_TOKEN=...
 DISCORD_CHANNEL_ID=<channel snowflake that discord_send targets>
 DISCORD_DM_USER_IDS=<user ids allowed as direct-message targets>
 DISCORD_ALLOWED_USER_IDS=<user ids whose inbound messages the gateway answers>
+BEARDY_LANE_PROVIDER=<registered provider route whose model supports medium>
+BEARDY_LANE_MODEL=<exact model id with medium effort>
 SEARXNG_BASE_URL=http://127.0.0.1:8080
 ```
 
@@ -72,9 +74,17 @@ SEARXNG_BASE_URL=http://127.0.0.1:8080
     workspacePath: /srv/beardy-workspace
     agentPreset: beardy-discord
     permissionPreset: danger-full-access
+    modelSelection:
+      provider: !!js process.env.BEARDY_LANE_PROVIDER
+      model: !!js process.env.BEARDY_LANE_MODEL
+      reasoningEffort: medium
 
 - id: cron
   config:
+    modelSelection:
+      provider: !!js process.env.BEARDY_LANE_PROVIDER
+      model: !!js process.env.BEARDY_LANE_MODEL
+      reasoningEffort: medium
     jobs:
       - name: morning-brief
         expression: '0 7 * * *'
@@ -85,6 +95,8 @@ SEARXNG_BASE_URL=http://127.0.0.1:8080
         deliverChannel: !!js process.env.DISCORD_CHANNEL_ID
         prompt: Prepare the morning brief.
 ```
+
+设置这些环境变量前，先从已注册的模型目录选择确切的提供方和模型。网关与 cron 在挂载时拒绝适配器不支持的路由或推理力度；官方 DeepSeek 路由不接受 `medium`。已配置的 cron 任务可设置自己的 `modelSelection`；持久化任务继承 cron 顶层选择。省略任一行的 `modelSelection` 时，会继承完整的当前默认选择，包括推理力度。已有 Discord Session 恢复时沿用日志中的选择，Web 保留自己的模型选择器。
 
 用 systemd 运行它，使其在注销与重启后存活：
 

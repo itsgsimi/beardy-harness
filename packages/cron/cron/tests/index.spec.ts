@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { apply, assertConfig, createSchedulerHost, mountJobs } from '../src/index.ts'
+import { apply, assertConfig, Config, createSchedulerHost, mountJobs } from '../src/index.ts'
 import type { CronJobSpec, CronRunFinished, ResolvedConfig } from '../src/index.ts'
 import type { Scheduler } from '../src/schedule.ts'
 import { fakeTable } from './support.ts'
@@ -45,6 +45,46 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
 }
 
 describe('assertConfig', () => {
+  it('parses a top-level choice and a configured job override', () => {
+    const parsed = Config(config({ jobs: [{ ...JOB, modelSelection: {
+      provider: 'job', model: 'model', reasoningEffort: 'medium',
+    } }], modelSelection: { provider: 'top', model: 'model', reasoningEffort: 'medium' } }))
+    expect(parsed.modelSelection).toEqual({ provider: 'top', model: 'model', reasoningEffort: 'medium' })
+    expect(parsed.jobs[0]?.modelSelection).toEqual({ provider: 'job', model: 'model', reasoningEffort: 'medium' })
+  })
+
+  it('rejects a configured effort before opening the durable store', async () => {
+    const { ctx, tables } = contextStub({ llm: { resolveModelInfo: async () => ({
+      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [] },
+    }) } })
+    await expect(apply(ctx, config({ modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }))).rejects.toThrow('dsh-cron: modelSelection: provider "local" model "coder" does not support reasoning effort "medium"')
+    expect(tables.size).toBe(0)
+  })
+
+  it('validates each configured job override before opening the durable store', async () => {
+    const { ctx, tables } = contextStub({ llm: { resolveModelInfo: async () => ({
+      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [] },
+    }) } })
+    await expect(apply(ctx, config({ jobs: [{ ...JOB, modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }] }))).rejects.toThrow('dsh-cron: job "morning-brief" modelSelection: provider "local" model "coder" does not support reasoning effort "medium"')
+    expect(tables.size).toBe(0)
+  })
+
+  it('mounts a supported cron-wide selection', async () => {
+    const resolveModelInfo = vi.fn(async () => ({
+      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [{ id: 'medium', name: 'Medium' }] },
+    }))
+    const { ctx, tools } = contextStub({ llm: { resolveModelInfo } })
+    await apply(ctx, config({ modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }), fakeScheduler().scheduler)
+    expect(resolveModelInfo).toHaveBeenCalledWith('local', 'coder')
+    expect(tools).toHaveLength(1)
+  })
+
   it('accepts a job list that can run', () => {
     expect(() => { assertConfig(config()) }).not.toThrow()
     expect(() => { assertConfig(config({ jobs: [] })) }).not.toThrow()
@@ -165,14 +205,34 @@ function contextStub(overrides: Record<string, unknown> = {}) {
   const emitTo = (event: string, payload: unknown): void => {
     for (const listener of listeners) if (listener.event === event) listener.handler(payload as never)
   }
+  const testContext = new Context().extend({ ...ctx, ...overrides })
+  if (overrides.llm !== undefined) testContext.provide('llm', overrides.llm as never)
   return {
-    ctx: new Context().extend({ ...ctx, ...overrides }),
+    ctx: testContext,
     logger, handle, disposers, emitted, tools, commands, tables, emitTo,
     domainClosed: () => domainClosed,
   }
 }
 
 describe('mountJobs', () => {
+  it('mounts a cron-wide selection without changing the default service', async () => {
+    const { ctx } = contextStub({ llm: { resolveModelInfo: async () => ({
+      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [{ id: 'medium', name: 'Medium' }] },
+    }) } })
+    const created = vi.spyOn(ctx.agents, 'create')
+    const fake = fakeScheduler()
+    const mounted = mountJobs(ctx, config({ modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }), fake.scheduler)
+    fake.fire()
+    await expect.poll(() => created.mock.calls.length).toBe(1)
+    expect(created).toHaveBeenCalledWith(expect.objectContaining({
+      agentOptions: { provider: 'local', model: 'coder', reasoningEffort: 'medium' },
+    }))
+    expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'p', model: 'm' })
+    await mounted.dispose()
+  })
+
   it('schedules every job and logs its next run', async () => {
     const { ctx, logger } = contextStub()
     const fake = fakeScheduler()

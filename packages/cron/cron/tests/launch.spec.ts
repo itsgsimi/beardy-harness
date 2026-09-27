@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionSeq, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
-import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
+import { createAssistantMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import { CONTINUITY_WITHOUT_NOTES, CONTINUITY_WITH_NOTES, createJobRunner, runPrompt, runTitle } from '../src/launch.ts'
 import type { ScheduledJobSpec } from '../src/types.ts'
+import { makeRegistry, storedRow } from './support.ts'
 
 const FIRED_AT = Date.parse('2026-09-04T05:00:00.000Z')
 
@@ -19,6 +21,7 @@ const JOB: ScheduledJobSpec = {
 }
 
 interface HarnessOptions {
+  readonly modelSelection?: ConfiguredModelSelection
   /** Assistant text the run commits; empty means the agent produced no text. */
   readonly replyText?: string
   /** Never settle whenIdle, so the bound expires. */
@@ -39,6 +42,7 @@ interface HarnessOptions {
 /** Context carrying only what a scheduled run touches, recording each step. */
 function harness(options: HarnessOptions = {}) {
   const calls: string[] = []
+  const selections: string[] = []
   const events: SessionEvent[] = []
   let idleResolve: () => void = () => {}
   const agent = {
@@ -81,7 +85,11 @@ function harness(options: HarnessOptions = {}) {
       },
       set: (_session: unknown, name: string) => { calls.push(`permission-set:${name}`) },
     },
-    agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
+    agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm', reasoningEffort: ReasoningEffortId('high') }) },
+    llm: { resolveModelInfo: async (provider: string, model: string) => ({
+      provider, id: model, name: model,
+      reasoning: { efforts: [{ id: ReasoningEffortId('medium'), name: 'Medium' }] },
+    }) },
     agentPresets: {
       resolve: async (name: string) => {
         calls.push(`preset-resolve:${name}`)
@@ -105,8 +113,12 @@ function harness(options: HarnessOptions = {}) {
       },
     },
     agents: {
-      create: async (createOptions: { setup?: (agentCtx: unknown) => Promise<void> }) => {
+      create: async (createOptions: {
+        setup?: (agentCtx: unknown) => Promise<void>
+        agentOptions?: { provider?: string; model?: string; reasoningEffort?: string }
+      }) => {
         calls.push('agent-create')
+        selections.push(JSON.stringify(createOptions.agentOptions))
         await createOptions.setup?.({ on: () => () => {} })
         return handle
       },
@@ -120,15 +132,17 @@ function harness(options: HarnessOptions = {}) {
   }
   const controller = new AbortController()
   const testContext = new Context().extend(ctx)
+  testContext.provide('llm', ctx.llm as never)
   const runner = createJobRunner({
     ctx: testContext,
     signal: controller.signal,
     turnTimeoutMs: options.turnTimeoutMs ?? 1_000,
+    ...options.modelSelection === undefined ? {} : { modelSelection: options.modelSelection },
     ...(options.rejectWait === true ? { wait: () => Promise.reject(new Error('scheduler gone')) }
       : options.wait === undefined ? {} : { wait: options.wait }),
   })
   return {
-    runner, calls, events, handle, controller, ctx: testContext,
+    runner, calls, selections, events, handle, controller, ctx: testContext,
     releaseIdle: () => { idleResolve() },
   }
 }
@@ -163,6 +177,36 @@ describe('run prompt', () => {
 })
 
 describe('job runner', () => {
+  it('inherits the full default selection when no cron choice is configured', async () => {
+    const h = harness()
+    await h.runner.run(JOB, FIRED_AT)
+    expect(h.selections).toContain('{"provider":"p","model":"m","reasoningEffort":"high"}')
+  })
+
+  it('uses a configured job override ahead of the cron-wide selection', async () => {
+    const h = harness({ modelSelection: { provider: 'top', model: 'top-model', reasoningEffort: 'medium' } })
+    await h.runner.run({ ...JOB, modelSelection: { provider: 'job', model: 'job-model', reasoningEffort: 'medium' } }, FIRED_AT)
+    expect(h.selections).toContain('{"provider":"job","model":"job-model","reasoningEffort":"medium"}')
+  })
+
+  it('applies the cron-wide selection to a stored job without an override', async () => {
+    const h = harness({ modelSelection: { provider: 'top', model: 'top-model', reasoningEffort: 'medium' } })
+    const { registry } = makeRegistry([], { stored: [storedRow('stored-brief')] })
+    const stored = registry.find('stored-brief')
+    expect(stored?.origin).toBe('stored')
+    if (stored === undefined) throw new Error('stored job missing')
+    await h.runner.run(stored, FIRED_AT)
+    expect(h.selections).toContain('{"provider":"top","model":"top-model","reasoningEffort":"medium"}')
+    expect(h.ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'p', model: 'm', reasoningEffort: 'high' })
+  })
+
+  it('refuses an effort absent from the exact route metadata before creating an Agent', async () => {
+    const h = harness({ modelSelection: { provider: 'top', model: 'top-model', reasoningEffort: 'xhigh' } })
+    const result = await h.runner.run(JOB, FIRED_AT)
+    expect(result.failure?.message).toContain('does not support reasoning effort "xhigh"')
+    expect(h.calls).not.toContain('agent-create')
+  })
+
   it('hands over the notes with the prompt when the job carries them', async () => {
     const h = harness({ replyText: 'ok' })
     await h.runner.run({ ...JOB, notes: 'Second run.' }, FIRED_AT)

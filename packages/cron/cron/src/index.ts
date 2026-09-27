@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
+import { validateModelSelection, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
 export { cronApprovalRoute, registerCronApprovalRoute } from './launch.ts'
@@ -68,8 +69,15 @@ export const DEFAULT_CRON_KEEP_RUN_HISTORY = 5
 /** Delay before retrying finished output that no delivery listener durably accepted. */
 export const DEFAULT_CRON_DELIVERY_RETRY_MS = 30_000
 
+const modelSelectionSchema = z.object({
+  provider: z.string().required(),
+  model: z.string().required(),
+  reasoningEffort: z.union([z.string(), z.const(undefined)]),
+})
+
 export const Config: z<{
   jobs: ConfiguredCronJob[]
+  modelSelection?: ConfiguredModelSelection | undefined
   turnTimeoutMs: number
   maxLiveRuns: number
   allowedAgentPresets: string[]
@@ -94,7 +102,9 @@ export const Config: z<{
     title: z.string(),
     turnTimeoutMs: z.number().min(1_000),
     deliverChannel: z.string(),
+    modelSelection: z.union([modelSelectionSchema, z.const(undefined)]),
   })).default([]),
+  modelSelection: z.union([modelSelectionSchema, z.const(undefined)]),
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_CRON_TURN_TIMEOUT_MS),
   maxLiveRuns: z.number().min(1).default(DEFAULT_CRON_MAX_LIVE_RUNS),
   allowedAgentPresets: z.array(z.string()).default([]),
@@ -113,6 +123,8 @@ export const Config: z<{
 export interface ResolvedConfig {
   /** Jobs to mount at load; an empty list still mounts the management surfaces. */
   readonly jobs: ConfiguredCronJob[]
+  /** Model choice inherited by every job without its own override, including stored jobs. */
+  readonly modelSelection?: ConfiguredModelSelection
   /** Longest wait for one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted per process before the oldest are released. */
@@ -202,6 +214,8 @@ export interface SchedulerHost extends MountedJobs {
 
 /** Options of one scheduler host. */
 export interface SchedulerHostOptions {
+  /** Model choice inherited by jobs without a configured override. */
+  readonly modelSelection?: ConfiguredModelSelection
   /** Longest wait for one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted before the oldest are released. */
@@ -233,7 +247,10 @@ export function createSchedulerHost(
   scheduler: Scheduler = cronerScheduler,
 ): SchedulerHost {
   const controller = new AbortController()
-  const runner = createJobRunner({ ctx, signal: controller.signal, turnTimeoutMs: options.turnTimeoutMs })
+  const runner = createJobRunner({
+    ctx, signal: controller.signal, turnTimeoutMs: options.turnTimeoutMs,
+    ...options.modelSelection === undefined ? {} : { modelSelection: options.modelSelection },
+  })
   const inFlight = new Map<string, Promise<unknown>>()
   const armed = new Map<string, HostJob>()
   const timers: { stop(): void }[] = []
@@ -319,7 +336,8 @@ export function createSchedulerHost(
 export function mountJobs(ctx: Context, config: ResolvedConfig, scheduler: Scheduler = cronerScheduler): MountedJobs {
   const host = createSchedulerHost(
     ctx,
-    { turnTimeoutMs: config.turnTimeoutMs, maxLiveRuns: config.maxLiveRuns },
+    { turnTimeoutMs: config.turnTimeoutMs, maxLiveRuns: config.maxLiveRuns,
+      ...config.modelSelection === undefined ? {} : { modelSelection: config.modelSelection } },
     scheduler,
   )
   host.sync(config.jobs.map(job => ({ ...job, notes: '' })))
@@ -340,6 +358,14 @@ export async function apply(
   scheduler: Scheduler = cronerScheduler,
 ): Promise<void> {
   assertConfig(resolved)
+  if (resolved.modelSelection !== undefined) {
+    await validateModelSelection(ctx, resolved.modelSelection, 'dsh-cron: modelSelection')
+  }
+  for (const job of resolved.jobs) {
+    if (job.modelSelection !== undefined) {
+      await validateModelSelection(ctx, job.modelSelection, `dsh-cron: job "${job.name}" modelSelection`)
+    }
+  }
   const configDelivery = new Map<string, string>()
   for (const job of resolved.jobs) {
     if (job.deliverChannel !== undefined) configDelivery.set(job.name, job.deliverChannel)
@@ -380,6 +406,7 @@ export async function apply(
   const host = createSchedulerHost(ctx, {
     turnTimeoutMs: resolved.turnTimeoutMs,
     maxLiveRuns: resolved.maxLiveRuns,
+    ...resolved.modelSelection === undefined ? {} : { modelSelection: resolved.modelSelection },
     resolveJob(name) {
       const job = registry.find(name)
       return job?.enabled === true ? job : undefined

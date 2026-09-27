@@ -61,6 +61,9 @@ describe('dsh-beardy bundle', () => {
       searchProvider: 'searxng',
       fetchProvider: 'http',
     })
+    expect(rows.find(row => row.id === 'agent-default-model')).toBeUndefined()
+    expect(rows.find(row => row.id === 'discord-gateway')).not.toHaveProperty('config.modelSelection')
+    expect(rows.find(row => row.id === 'cron')).not.toHaveProperty('config.modelSelection')
     expect(rows.find(row => row.id === 'web-search-deepseek')?.disabled).toBe(true)
     expect(rows.find(row => row.id === 'web-search-searxng')).toEqual(expect.objectContaining({
       name: '@deepseek-ai/dsh-web-search-searxng',

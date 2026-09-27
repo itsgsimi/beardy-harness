@@ -15,10 +15,18 @@ kind: "package-reference"
 
 ## 目录
 
+- [模型选择](#model-selection)
 - [命令](#commands)
 - [模型体验](#model-experience)
 - [已知限制与后续工作](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
+
+-----
+
+<a id="model-selection"></a>
+## 模型选择
+
+cron 行上的 `modelSelection: { provider, model, reasoningEffort? }` 为每次触发选择确切路由，包括持久任务；已配置任务可以用自己的 `modelSelection` 覆盖它。两处都未设置时，运行继承完整的当前 `agentDefaultModel` 选择。显式选择在 cron 挂载时及触发创建 Session 前依据已注册的适配器检查；未知路由或不支持的推理力度会报错并指明任务或配置字段。有效选择记录在 Session 的 `request/header` 中。
 
 -----
 

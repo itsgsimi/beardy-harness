@@ -6,6 +6,7 @@
  */
 
 import type { OutboxSettings } from './outbox.ts'
+import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -113,6 +114,8 @@ export type DiscordAnswerForm = 'reaction' | 'text' | 'component'
 
 /** Validated plugin settings the conversation router reads, detached from schemastery types. */
 export interface GatewaySettings extends OutboxSettings {
+  /** Validated selection for new conversations; absent samples the default at creation. */
+  readonly modelSelection?: ModelSelection
   /** Render command and lifecycle notices as Discord cards. */
   readonly richMessages: boolean
   /** Preset commands owned by another UI and omitted from Discord. */

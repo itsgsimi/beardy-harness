@@ -6,11 +6,13 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { ModelSelection } from '@deepseek-ai/dsh-agent'
+import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import type { HealthStatus } from '@deepseek-ai/dsh-health'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { sleep } from '@deepseek-ai/dsh-unattended-session'
+import { sleep, validateModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import { attachCronDelivery, createConversationRouter } from './conversation.ts'
@@ -129,6 +131,8 @@ export interface Config {
   readonly agentPreset: string
   /** Permission preset applied to each conversation Session. */
   readonly permissionPreset: string
+  /** Exact route and effort for new Discord Sessions; omission inherits the current default. */
+  readonly modelSelection?: ConfiguredModelSelection | undefined
   /** Tool restriction for default-lane conversation Agents; every name must be visible when a Session opens. Defaults to none. */
   readonly toolFilter?: LaneToolFilter | undefined
   /**
@@ -208,6 +212,11 @@ export const Config: z<Config> = z.object({
   workspacePath: z.string().required(),
   agentPreset: z.string().required(),
   permissionPreset: z.string().required(),
+  modelSelection: z.union([z.object({
+    provider: z.string().required(),
+    model: z.string().required(),
+    reasoningEffort: z.union([z.string(), z.const(undefined)]),
+  }), z.const(undefined)]),
   toolFilter: optionalToolFilterSchema,
   userLanes: z.dict(z.object({
     workspacePath: z.string().required(),
@@ -242,9 +251,10 @@ export const Config: z<Config> = z.object({
 export type ResolvedUserLane = Required<Omit<UserLaneConfig, 'toolFilter'>> & Pick<UserLaneConfig, 'toolFilter'>
 
 /** Complete configuration after schemastery applies every field default; `toolFilter` stays optional. */
-export type ResolvedConfig = Required<Omit<Config, 'toolFilter' | 'userLanes'>> & Pick<Config, 'toolFilter'> & {
-  readonly userLanes: Record<string, ResolvedUserLane>
-}
+export type ResolvedConfig = Required<Omit<Config, 'toolFilter' | 'userLanes' | 'modelSelection'>>
+  & Pick<Config, 'toolFilter' | 'modelSelection'> & {
+    readonly userLanes: Record<string, ResolvedUserLane>
+  }
 
 /** A Discord user or channel id is a snowflake: 17 to 20 decimal digits. */
 const SNOWFLAKE_PATTERN = /^\d{17,20}$/
@@ -455,11 +465,12 @@ export async function startListener(
     }
     await using scopes = await resolvePresetScopes(ctx, config)
     let applicationId = ''
+    const currentApplicationId = (): string => applicationId
     let synchronized = ''
     let requestSync = (): void => {}
     if (config.nativeCommands || config.richMessages || config.answerers.includes('component')) {
       const catalog = laneCommandCatalog(ctx, scopes)
-      const { settings, policy } = toSettings(config, () => applicationId)
+      const { settings, policy } = toSettings(config, currentApplicationId)
       const defaultLane: ConversationLane = {
         workspacePath: settings.workspacePath, agentPreset: settings.agentPreset,
         permissionPreset: settings.permissionPreset, excludedPresetCommands: settings.excludedPresetCommands,
@@ -475,7 +486,7 @@ export async function startListener(
             return true
           })
       }
-      native = createNativeInteractions({ signal: active, settings, policy, applicationId: () => applicationId,
+      native = createNativeInteractions({ signal: active, settings, policy, applicationId: currentApplicationId,
         commands: actorCommands, execute: (channelId, actor, line, requestSignal) => router.execute(channelId, actor, line, requestSignal),
         component: (interaction, requestSignal) => router.component(interaction, requestSignal),
         warn: (message) => { ctx.logger.warn(message) },
@@ -494,18 +505,20 @@ export async function startListener(
             })
             synchronized = signature
           } catch (error: unknown) {
-            if (aborted()) return
+            if (aborted()) break
             ctx.logger.warn(`discord-gateway: native command sync failed; retrying: ${errorChain(error)}`)
             requested = true
-            try { await sleep(config.commandSyncRetryMs, active) } catch { return }
+            try { await sleep(config.commandSyncRetryMs, active) } catch { break }
           }
         }
+        syncing = undefined
       }
       requestSync = (): void => {
         if (!config.nativeCommands || applicationId === '' || active.aborted) return
         requested = true
         if (syncing !== undefined) return
-        syncing = sync().finally(() => { syncing = undefined; if (requested && !active.aborted) requestSync() })
+        // Assign the in-flight promise before a catalog pass that may finish without awaiting.
+        syncing = Promise.resolve().then(sync)
       }
       if (config.nativeCommands) removeObserver = ctx.on('commands/change', requestSync)
     }
@@ -593,6 +606,15 @@ export function healthStatusLines(status: HealthStatus | undefined): string[] {
 }
 
 /**
+ * Read current host health when a gateway status command is answered.
+ * @param ctx - Host context carrying the current health service.
+ * @returns Lines appended to the status command.
+ */
+export function currentHealthStatusLines(ctx: Context): string[] {
+  return healthStatusLines(ctx.get('healthStatus'))
+}
+
+/**
  * Mount the Discord listener: validate configuration, open the durable conversation records, own
  * one cancellation for the connection, and dispose the gateway socket and every live conversation
  * Session when the fiber goes away. Durable records survive; only live handles are released.
@@ -602,6 +624,10 @@ export function healthStatusLines(status: HealthStatus | undefined): string[] {
 export async function apply(ctx: Context, config: Config): Promise<void> {
   const resolved = config as ResolvedConfig
   assertConfig(resolved)
+  let modelSelection: ModelSelection | undefined
+  if (resolved.modelSelection !== undefined) {
+    modelSelection = await validateModelSelection(ctx, resolved.modelSelection, 'discord-gateway: modelSelection')
+  }
   if (!resolved.enabled) {
     ctx.logger.info('discord-gateway: mounted but disabled by configuration')
     return
@@ -612,7 +638,10 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   const domain = await ctx.storageDomain.open(discordGatewayDomainSpec)
   const controller = new AbortController()
   let botUserId = ''
-  const { settings, policy } = toSettings(resolved, () => botUserId)
+  const { settings: configuredSettings, policy } = toSettings(resolved, () => botUserId)
+  const settings: GatewaySettings = {
+    ...configuredSettings, ...modelSelection === undefined ? {} : { modelSelection },
+  }
   const router = createConversationRouter({
     ctx,
     signal: controller.signal,
@@ -622,7 +651,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     outboxTable: domain.table('outbox'),
     resolveToken: () => resolveBotToken(ctx, resolved.tokenEnv),
     commands: catalog,
-    statusDetails: () => healthStatusLines(ctx.get('healthStatus')),
+    statusDetails: currentHealthStatusLines.bind(undefined, ctx),
   })
   attachCronDelivery(ctx, router)
   ctx.on('health/transition', async (transition): Promise<true> => {

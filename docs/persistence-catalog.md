@@ -6804,7 +6804,7 @@ Sources: [`packages/cron/cron/src/types.ts:13`](../packages/cron/cron/src/types.
 
 SHA-256: `86384be7bcf7d19280ee9a09e0b601b40c23b38af8c9b2b28cc43c4b53329828`
 
-Sources: [`packages/discord/discord-gateway/src/types.ts:16`](../packages/discord/discord-gateway/src/types.ts)
+Sources: [`packages/discord/discord-gateway/src/types.ts:17`](../packages/discord/discord-gateway/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

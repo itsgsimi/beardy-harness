@@ -265,6 +265,44 @@ describe('native command synchronization owned by the gateway listener', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('reports a native command failure without exposing the command error', async () => {
+    const h = await listener()
+    const calls = rest((call) => {
+      if (call.path === '/api/v10/applications/@me') return application()
+      if (call.path === CATALOG_PATH && call.method === 'GET') return Response.json([])
+      if (call.path === CATALOG_PATH && call.method === 'PUT') return Response.json(call.body)
+      if (call.path.endsWith('/callback')) return new Response(null, { status: 204 })
+      if (call.path.endsWith('/messages/@original')) return Response.json({ id: ID })
+      throw new Error(`Unexpected Discord request: ${call.path}`)
+    })
+    h.execute.mockRejectedValue(new Error('private command detail'))
+    h.ready()
+    await vi.waitFor(() => { expect(calls.some(call => call.method === 'PUT')).toBe(true) })
+    h.options.onInteraction?.(command())
+    await vi.waitFor(() => {
+      expect(h.logger.warn).toHaveBeenCalledWith(`discord-gateway: native interaction ${ID} execution failed`)
+    })
+    expect(h.logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('private command detail'))
+  })
+
+  it('stops a pending command catalog retry when the listener is disposed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const h = await listener()
+    const failed = barrier()
+    h.logger.warn.mockImplementation(() => { failed.resolve() })
+    rest((call) => {
+      if (call.path === '/api/v10/applications/@me') {
+        return Response.json({ message: 'temporarily unavailable' }, { status: 503 })
+      }
+      throw new Error(`Unexpected Discord request: ${call.path}`)
+    })
+    h.ready()
+    await failed.promise
+    h.abort.abort()
+    await h.done
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('rechecks Discord after a fresh READY even when the local command roster has not changed', async () => {
     const h = await listener()
     const reading = barrier()
