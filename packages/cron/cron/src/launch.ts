@@ -52,7 +52,7 @@ export interface JobRunnerDeps {
   readonly ctx: Context
   /** Cancellation of the scheduler these runs belong to. */
   readonly signal: AbortSignal
-  /** Longest wait for one run's turn before it is reported as timed out. */
+  /** Longest wait from Session creation through one run's turn before it is timed out. */
   readonly turnTimeoutMs: number
   /** Delay seam used by the per-run bound. */
   readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>
@@ -95,11 +95,11 @@ ${job.notes}`
 export interface JobRunner {
   /** Run one fire of one job and report how it ended, with its session and final text. */
   run(job: ScheduledJobSpec, firedAt: number, sessionId?: SessionId): Promise<CronRunResult>
-  /** Runs whose Sessions are still mounted. */
+  /** Retained runs whose Session release has not begun. */
   live(): number
-  /** Dispose the oldest runs until at most `max` remain mounted. */
+  /** Dispose the oldest completed runs until at most `max` remain mounted. */
   trim(max: number): Promise<void>
-  /** Dispose every Session this runner started. */
+  /** Start disposal of every retained Session, bounding each handle's teardown wait. */
   dispose(): Promise<void>
 }
 
@@ -131,9 +131,12 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   const { ctx, signal } = deps
   const mounted: UnattendedSession[] = []
   const completed = new Set<UnattendedSession>()
+  const retiring = new Set<Promise<void>>()
 
   /** Mount a Session for one fire, with the job's presets and workspace. */
-  async function openSession(job: ScheduledJobSpec, firedAt: number, sessionId: SessionId): Promise<UnattendedSession> {
+  async function openSession(
+    job: ScheduledJobSpec, firedAt: number, sessionId: SessionId, runSignal: AbortSignal,
+  ): Promise<UnattendedSession> {
     const choice = job.modelSelection ?? deps.modelSelection
     const selection = choice === undefined
       ? ctx.agentDefaultModel.currentSelection()
@@ -145,7 +148,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
       workspacePath: job.workspacePath,
       title: runTitle(job, firedAt),
       agentOptions: selection,
-    }, signal)
+    }, runSignal)
   }
 
   return {
@@ -154,9 +157,34 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
       let releaseApprovalRoute: (() => void) | undefined
       const bound = new AbortController()
       const runSignal = AbortSignal.any([signal, bound.signal])
+      const timeoutMs = job.turnTimeoutMs ?? deps.turnTimeoutMs
+      const expiry = (deps.wait ?? sleep)(timeoutMs, runSignal).then(() => 'timeout' as const)
       try {
         signal.throwIfAborted()
-        session = await openSession(job, firedAt, sessionId)
+        const opening = openSession(job, firedAt, sessionId, runSignal)
+        const releaseLate = (): void => {
+          void opening.then(late => disposeHandle(ctx, late, timeoutMs)).catch((error: unknown) => {
+            if (!runSignal.aborted) ctx.logger.warn(`dsh-cron: late Session creation failed: ${errorChain(error)}`)
+          })
+        }
+        let opened: { kind: 'opened'; value: UnattendedSession } | { kind: 'timeout' }
+        try {
+          opened = await Promise.race([
+            opening.then(value => ({ kind: 'opened' as const, value })),
+            expiry.then(() => ({ kind: 'timeout' as const })),
+          ])
+        } catch (error: unknown) {
+          if (signal.aborted) releaseLate()
+          throw error
+        }
+        if (opened.kind === 'timeout') {
+          bound.abort(new Error('cron run timed out'))
+          releaseLate()
+          ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(timeoutMs)}ms; `
+            + 'Session creation was cancelled')
+          return { outcome: 'timed-out', sessionId, text: '' }
+        }
+        session = opened.value
         mounted.push(session)
         signal.throwIfAborted()
         const agent = session.handle.agent
@@ -173,15 +201,15 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
           },
         }))
         signal.throwIfAborted()
-        const timeoutMs = job.turnTimeoutMs ?? deps.turnTimeoutMs
         const outcome = await Promise.race([
           agent.whenIdle().then(() => 'idle' as const),
-          (deps.wait ?? sleep)(timeoutMs, runSignal).then(() => 'timeout' as const),
+          expiry,
         ])
         if (outcome === 'timeout') {
           ctx.logger.warn(`dsh-cron: job "${job.name}" did not settle within ${String(timeoutMs)}ms; `
-            + 'the run is cancelled and its session released')
-          await release(session)
+            + 'the run is cancelled and its session release started')
+          bound.abort(new Error('cron run timed out'))
+          void release(session)
           return { outcome: 'timed-out', sessionId, text: '' }
         }
         signal.throwIfAborted()
@@ -222,7 +250,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         ctx.logger.info(`dsh-cron: job "${job.name}" finished in session ${sessionId}`)
         return { outcome: 'answered', sessionId, text: answer }
       } catch (error: unknown) {
-        if (session !== undefined) await release(session)
+        if (session !== undefined) void release(session)
         if (signal.aborted) return { outcome: 'interrupted', sessionId, text: '' }
         const failure = session === undefined ? 'could not start a session' : 'run reported a failure'
         ctx.logger.error(`dsh-cron: job "${job.name}" ${failure}: ${errorChain(error)}`)
@@ -243,7 +271,8 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
     },
 
     async dispose(): Promise<void> {
-      for (const session of [...mounted]) await release(session)
+      await Promise.all([...mounted].map(session => release(session)))
+      await Promise.all(retiring)
     },
   }
 
@@ -252,16 +281,28 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
     if (index !== -1) {
       mounted.splice(index, 1)
       completed.delete(session)
-      await disposeHandle(ctx, session)
+      const disposal = disposeHandle(ctx, session, deps.turnTimeoutMs)
+      retiring.add(disposal)
+      try {
+        await disposal
+      } finally {
+        retiring.delete(disposal)
+      }
     }
   }
 }
 
-/** Dispose one run's Agent, reporting rather than propagating a teardown failure. */
-async function disposeHandle(ctx: Context, session: UnattendedSession): Promise<void> {
+/** Await one Agent's disposal up to the plugin timeout and report unresolved teardown. */
+async function disposeHandle(ctx: Context, session: UnattendedSession, timeoutMs: number): Promise<void> {
+  const bound = new AbortController()
   try {
-    await session.handle.dispose()
+    await Promise.race([
+      session.handle.dispose(),
+      sleep(timeoutMs, bound.signal).then(() => { throw new Error(`disposal timed out after ${String(timeoutMs)}ms`) }),
+    ])
   } catch (error: unknown) {
     ctx.logger.warn(`dsh-cron: disposal of session ${session.sessionId} failed: ${errorChain(error)}`)
+  } finally {
+    bound.abort(new Error('cron Session disposal settled'))
   }
 }

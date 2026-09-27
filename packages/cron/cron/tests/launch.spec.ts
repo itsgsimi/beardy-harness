@@ -28,8 +28,6 @@ interface HarnessOptions {
   readonly hang?: boolean
   readonly failStart?: 'preset' | 'workspace' | 'attach' | 'title'
   readonly turnTimeoutMs?: number
-  /** Reject the delay seam instead of waiting on the runner's own sleep. */
-  readonly rejectWait?: boolean
   /** Reject whenIdle, as a turn that fails outright does. */
   readonly rejectIdle?: boolean
   /** Terminal event the agent logs before becoming idle. */
@@ -138,8 +136,7 @@ function harness(options: HarnessOptions = {}) {
     signal: controller.signal,
     turnTimeoutMs: options.turnTimeoutMs ?? 1_000,
     ...options.modelSelection === undefined ? {} : { modelSelection: options.modelSelection },
-    ...(options.rejectWait === true ? { wait: () => Promise.reject(new Error('scheduler gone')) }
-      : options.wait === undefined ? {} : { wait: options.wait }),
+    ...(options.wait === undefined ? {} : { wait: options.wait }),
   })
   return {
     runner, calls, selections, events, handle, controller, ctx: testContext,
@@ -258,8 +255,12 @@ describe('job runner', () => {
   })
 
   it('reports a failed delay while the turn is pending as failed', async () => {
-    const h = harness({ hang: true, rejectWait: true })
-    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
+    const wait = Promise.withResolvers<undefined>()
+    const h = harness({ hang: true, wait: () => wait.promise })
+    const running = h.runner.run(JOB, FIRED_AT)
+    await vi.waitFor(() => { expect(h.calls.some(call => call.startsWith('followup:'))).toBe(true) })
+    wait.reject(new Error('scheduler gone'))
+    expect((await running).outcome).toBe('failed')
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     h.releaseIdle()
   })
@@ -319,12 +320,50 @@ describe('job runner', () => {
 
   it('times out a pending run at its job-specific bound', async () => {
     const seen: number[] = []
+    const expiry = Promise.withResolvers<undefined>()
     const h = harness({ hang: true, turnTimeoutMs: 5_000,
-      wait: async (ms) => { seen.push(ms) } })
-    expect((await h.runner.run({ ...JOB, turnTimeoutMs: 1_500 }, FIRED_AT)).outcome).toBe('timed-out')
+      wait: async (ms) => { seen.push(ms); await expiry.promise } })
+    const running = h.runner.run({ ...JOB, turnTimeoutMs: 1_500 }, FIRED_AT)
+    await vi.waitFor(() => { expect(h.calls.some(call => call.startsWith('followup:'))).toBe(true) })
+    expiry.resolve(undefined)
+    expect((await running).outcome).toBe('timed-out')
     expect(seen).toEqual([1_500])
     expect(h.handle.dispose).toHaveBeenCalledTimes(1)
     h.releaseIdle()
+  })
+
+  it('applies the run bound while Session creation is stalled', async () => {
+    const opening = Promise.withResolvers<ReturnType<typeof harness>['handle']>()
+    const entered = Promise.withResolvers<undefined>()
+    const h = harness({ wait: async () => {} })
+    h.ctx.agents.create = vi.fn().mockImplementation(async () => { entered.resolve(undefined); return await opening.promise })
+    const running = h.runner.run(JOB, FIRED_AT)
+    await entered.promise
+    try {
+      const result = await Promise.race([running, new Promise<'stalled'>(resolve => setTimeout(() => { resolve('stalled') }, 100))])
+      expect(result).toMatchObject({ outcome: 'timed-out' })
+    } finally {
+      h.controller.abort(new Error('test done'))
+      opening.resolve(h.handle)
+      await running
+    }
+  })
+
+  it('reports a timed-out run while its Session disposal is stalled', async () => {
+    const disposalEntered = Promise.withResolvers<undefined>()
+    const releaseDisposal = Promise.withResolvers<undefined>()
+    const h = harness({ hang: true, wait: async () => {} })
+    h.handle.dispose.mockImplementation(async () => { disposalEntered.resolve(undefined); await releaseDisposal.promise })
+    const running = h.runner.run(JOB, FIRED_AT)
+    await disposalEntered.promise
+    try {
+      const result = await Promise.race([running, new Promise<'stalled'>(resolve => setTimeout(() => { resolve('stalled') }, 100))])
+      expect(result).toMatchObject({ outcome: 'timed-out' })
+    } finally {
+      releaseDisposal.resolve(undefined)
+      await running
+      h.releaseIdle()
+    }
   })
 
   it('cancels a waiting run when the scheduler is cancelled without an error reason', async () => {
@@ -379,6 +418,15 @@ describe('job runner', () => {
     await h.runner.dispose()
     expect(h.runner.live()).toBe(0)
     expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('disposal of session'))
+  })
+
+  it('bounds disposal of a completed Session', async () => {
+    const h = harness({ replyText: 'ok', turnTimeoutMs: 5 })
+    await h.runner.run(JOB, FIRED_AT)
+    h.handle.dispose.mockImplementation(async () => { await new Promise<void>(() => {}) })
+    await h.runner.dispose()
+    expect(h.runner.live()).toBe(0)
+    expect(h.ctx.logger.warn).toHaveBeenCalledWith(expect.stringContaining('disposal timed out after 5ms'))
   })
 
   it('does not dispose an active Session again when cancellation follows disposal', async () => {

@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
-import { validateModelSelection, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
+import { sleep, validateModelSelection, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
 export { cronApprovalRoute, registerCronApprovalRoute } from './launch.ts'
@@ -48,7 +48,7 @@ export const inject = [
   'workspaceRegistry',
 ]
 
-/** Longest wait for one run's turn before it is reported as timed out. */
+/** Longest wait from Session creation through the turn before a run is timed out. */
 export const DEFAULT_CRON_TURN_TIMEOUT_MS = 600_000
 
 /** Runs whose Sessions stay mounted per job list before the oldest is released. */
@@ -125,7 +125,7 @@ export interface ResolvedConfig {
   readonly jobs: ConfiguredCronJob[]
   /** Model choice inherited by every job without its own override, including stored jobs. */
   readonly modelSelection?: ConfiguredModelSelection
-  /** Longest wait for one run's answer, in milliseconds. */
+  /** Longest wait from Session creation through one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted per process before the oldest are released. */
   readonly maxLiveRuns: number
@@ -216,25 +216,27 @@ export interface SchedulerHost extends MountedJobs {
 export interface SchedulerHostOptions {
   /** Model choice inherited by jobs without a configured override. */
   readonly modelSelection?: ConfiguredModelSelection
-  /** Longest wait for one run's answer, in milliseconds. */
+  /** Longest wait from Session creation through one run's answer, in milliseconds. */
   readonly turnTimeoutMs: number
   /** Most recent runs kept mounted before the oldest are released. */
   readonly maxLiveRuns: number
   /** Resolve the current definition and notes when a timer fires; undefined skips a removed job. */
   resolveJob?(name: string): HostJob | undefined
-  /** Durably reserve the run before opening its Session. A failure prevents dispatch. */
-  onStarting?(job: HostJob, firedAt: number, sessionId: SessionId): Promise<void>
+  /** Durably reserve the run before opening its Session; `false` means the fire was recorded as skipped. */
+  onStarting?(job: HostJob, firedAt: number, sessionId: SessionId): Promise<boolean | void>
   /** Resolve a stored workspace again at fire time; a rejected path records a failed outcome. */
   prepareRun?(job: HostJob): Promise<HostJob>
   /** Called once per settled run, after logging and before the fire guard releases. */
   onSettled?(job: HostJob, firedAt: number, result: CronRunResult): void | Promise<void>
+  /** Called for an overlapping fire without waiting for the active run. */
+  onSkipped?(job: HostJob, firedAt: number, result: CronRunResult & { outcome: 'skipped' }): void | Promise<void>
 }
 
 /**
  * Create the live timer set: one overlap-guarded fire path, re-planable while runs are in flight.
  *
- * A job that is still running when its expression matches again is skipped with a warning rather
- * than started twice, so a slow run cannot stack up sessions.
+ * A job that is still running when its expression matches again is skipped and handed to
+ * `onSkipped` without starting another Session.
  *
  * @param ctx - registrant context carrying Session-creating services and the logger.
  * @param options - turn bound, live-run bound, and the settled-run hook.
@@ -252,6 +254,8 @@ export function createSchedulerHost(
     ...options.modelSelection === undefined ? {} : { modelSelection: options.modelSelection },
   })
   const inFlight = new Map<string, Promise<unknown>>()
+  const trimmings = new Set<Promise<void>>()
+  const skips = new Set<Promise<void>>()
   const armed = new Map<string, HostJob>()
   const timers: { stop(): void }[] = []
 
@@ -260,6 +264,16 @@ export function createSchedulerHost(
     const running = inFlight.get(job.name)
     if (running !== undefined) {
       ctx.logger.warn(`dsh-cron: job "${job.name}" is still running; this fire is skipped`)
+      const skipped: CronRunResult & { outcome: 'skipped' } = {
+        sessionId: SessionId(`cron-skipped-${job.name}-${randomUUID()}`), outcome: 'skipped', text: '',
+        failure: { code: 'PREVIOUS_RUN_IN_PROGRESS', message: 'The previous run was still in progress.' },
+      }
+      const recording = Promise.resolve().then(async () => {
+        await options.onSkipped?.(job, firedAt, skipped)
+      }).catch((error: unknown) => {
+        ctx.logger.error(`dsh-cron: job "${job.name}" skipped fire could not be recorded: ${errorChain(error)}`)
+      }).finally(() => { skips.delete(recording) })
+      skips.add(recording)
       return false
     }
     const run = Promise.resolve().then(async () => {
@@ -267,7 +281,7 @@ export function createSchedulerHost(
       const current = options.resolveJob === undefined ? job : options.resolveJob(job.name)
       if (current === undefined) return
       const sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)
-      await options.onStarting?.(current, firedAt, sessionId)
+      if (await options.onStarting?.(current, firedAt, sessionId) === false) return
       let prepared = current
       try {
         prepared = await options.prepareRun?.(current) ?? current
@@ -280,13 +294,18 @@ export function createSchedulerHost(
       }
       const result = await runner.run(prepared, firedAt, sessionId)
       await options.onSettled?.(current, firedAt, result)
-      await runner.trim(options.maxLiveRuns)
     })
       .catch((error: unknown) => {
         ctx.logger.error(`dsh-cron: job "${job.name}" run reported a failure: ${errorChain(error)}`)
       })
       .finally(() => {
-        inFlight.delete(job.name)
+        if (inFlight.get(job.name) === run) inFlight.delete(job.name)
+        const trimming = runner.trim(options.maxLiveRuns)
+          .catch((error: unknown) => {
+            ctx.logger.error(`dsh-cron: releasing completed sessions failed: ${errorChain(error)}`)
+          })
+          .finally(() => { trimmings.delete(trimming) })
+        trimmings.add(trimming)
       })
     inFlight.set(job.name, run)
     return true
@@ -319,6 +338,8 @@ export function createSchedulerHost(
       for (const timer of timers.splice(0)) timer.stop()
       armed.clear()
       await Promise.all(inFlight.values())
+      await Promise.all(skips)
+      await Promise.all(trimmings)
       await runner.dispose()
     },
   }
@@ -392,9 +413,19 @@ export async function apply(
     const operation = Promise.resolve().then(async () => {
       const job = registry.find(payload.jobName)
       const next = job === undefined ? undefined : nextFireAt(job)
-      const accepted = await ctx.serial('cron/run-finished', {
-        ...payload, ...(next === undefined ? {} : { nextFireAt: next }),
-      })
+      const timeoutMs = job?.turnTimeoutMs ?? resolved.turnTimeoutMs
+      const bound = new AbortController()
+      let accepted: true | undefined
+      try {
+        accepted = await Promise.race([
+          ctx.serial('cron/run-finished', {
+            ...payload, ...(next === undefined ? {} : { nextFireAt: next }),
+          }),
+          sleep(timeoutMs, bound.signal).then(() => { throw new Error(`dsh-cron: job "${payload.jobName}" outcome handoff timed out after ${String(timeoutMs)}ms`) }),
+        ])
+      } finally {
+        bound.abort(new Error('cron outcome handoff settled'))
+      }
       if (payload.deliverChannelId !== undefined && accepted !== true) {
         throw new Error(`dsh-cron: job "${payload.jobName}" has no delivery listener accepting its outcome`)
       }
@@ -402,6 +433,18 @@ export async function apply(
     }).finally(() => { handoffs.delete(payload.sessionId) })
     handoffs.set(payload.sessionId, operation)
     return operation
+  }
+  function startDelivery(payload: CronRunFinished): void {
+    void deliver(payload).catch((error: unknown) => {
+      ctx.logger.error(`dsh-cron: job "${payload.jobName}" outcome delivery remains pending: ${errorChain(error)}`)
+    })
+  }
+  async function recordSkipped(job: HostJob, firedAt: number, result: CronRunResult & { outcome: 'skipped' }): Promise<void> {
+    const payload = await registry.recordSkipped(job.name, {
+      firedAt, sessionId: SessionId(result.sessionId), reportOutcome: resolved.deliverOutcomes,
+      ...(job.deliverChannelId === undefined ? {} : { deliverChannelId: job.deliverChannelId }),
+    }, result, resolved.keepRunHistory)
+    startDelivery(payload)
   }
   const host = createSchedulerHost(ctx, {
     turnTimeoutMs: resolved.turnTimeoutMs,
@@ -412,8 +455,17 @@ export async function apply(
       return job?.enabled === true ? job : undefined
     },
     async onStarting(job, firedAt, sessionId) {
-      const pending = registry.pendingOutcome(job.name)
-      if (pending !== undefined) await deliver(pending)
+      try {
+        const pending = registry.pendingOutcome(job.name)
+        if (pending !== undefined) await deliver(pending)
+      } catch (error: unknown) {
+        ctx.logger.warn(`dsh-cron: job "${job.name}" could not deliver its previous outcome; this fire is skipped: ${errorChain(error)}`)
+        await recordSkipped(job, firedAt, {
+          sessionId: SessionId(`cron-skipped-${job.name}-${randomUUID()}`), outcome: 'skipped', text: '',
+          failure: { code: 'PREVIOUS_OUTCOME_PENDING', message: 'The previous outcome still awaits delivery.' },
+        })
+        return false
+      }
       await registry.beginRun(job.name, {
         firedAt, sessionId, reportOutcome: resolved.deliverOutcomes,
         ...(job.deliverChannelId === undefined ? {} : { deliverChannelId: job.deliverChannelId }),
@@ -423,8 +475,9 @@ export async function apply(
       return { ...job, workspacePath: await registry.resolveRunWorkspace(job) }
     },
     async onSettled(job, _firedAt, result) {
-      await deliver(await registry.settleRun(job.name, result, resolved.keepRunHistory))
+      startDelivery(await registry.settleRun(job.name, result, resolved.keepRunHistory))
     },
+    onSkipped: recordSkipped,
   }, scheduler)
   const deliveryController = new AbortController()
   async function retryOutcomes(outcomes: readonly CronRunFinished[]): Promise<void> {
@@ -438,10 +491,7 @@ export async function apply(
     }
   }
   const retryTimer = setInterval(() => {
-    void retryOutcomes([...domain.table('state').keys()].flatMap((name) => {
-      const pending = registry.pendingOutcome(name)
-      return pending === undefined ? [] : [pending]
-    }))
+    void retryOutcomes([...domain.table('state').keys()].flatMap(name => registry.pendingOutcomes(name)))
   }, resolved.deliveryRetryMs)
   ctx.effect(() => async () => {
     deliveryController.abort()

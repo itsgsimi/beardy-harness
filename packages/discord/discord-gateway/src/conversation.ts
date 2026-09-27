@@ -1279,6 +1279,7 @@ const CRON_OUTCOME_LINES: Record<CronRunOutcome, string | undefined> = {
   'timed-out': 'The scheduled run timed out.',
   interrupted: 'The scheduled run was interrupted.',
   failed: 'The scheduled run failed.',
+  skipped: undefined,
 }
 
 /**
@@ -1294,6 +1295,13 @@ export function cronDeliveryContent(run: FinishedCronRun): string | undefined {
     const label = run.jobName === undefined ? 'The scheduled run' : `The scheduled run "${run.jobName}"`
     const safeCode = code !== undefined && /^[A-Z][A-Z0-9_-]{0,63}$/u.test(code) ? code : 'FAILED'
     return `${label} failed (${safeCode}). Session: ${run.sessionId || 'unavailable'}. Next fire: ${run.nextFireAt ?? 'none'}.`
+  }
+  if (run.outcome === 'skipped') {
+    const label = run.jobName === undefined ? 'The scheduled run' : `The scheduled run "${run.jobName}"`
+    const reason = run.failure?.code === 'PREVIOUS_OUTCOME_PENDING'
+      ? 'its previous outcome is awaiting delivery'
+      : 'its previous run was still in progress'
+    return `${label} was skipped because ${reason}. Next fire: ${run.nextFireAt ?? 'none'}.`
   }
   return CRON_OUTCOME_LINES[run.outcome]
 }

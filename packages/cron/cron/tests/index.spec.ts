@@ -137,7 +137,9 @@ function fakeScheduler() {
   }
   return {
     scheduler,
-    fire: (expression = '0 7 * * *') => { ticks.get(expression)?.(Date.parse('2026-09-04T05:00:00.000Z')) },
+    fire: (expression = '0 7 * * *', firedAt = Date.parse('2026-09-04T05:00:00.000Z')) => {
+      ticks.get(expression)?.(firedAt)
+    },
     tickCount: () => started - stopped,
     stoppedCount: () => stopped,
     withoutNextRun: () => { next = undefined },
@@ -405,6 +407,43 @@ describe('createSchedulerHost', () => {
     await closing
   })
 
+  it('fires the next job match while disposal of an older job is stalled', async () => {
+    const disposalEntered = Promise.withResolvers<undefined>()
+    const releaseDisposal = Promise.withResolvers<undefined>()
+    const settled: string[] = []
+    let created = 0
+    const { ctx } = contextStub({ agents: { create: async () => {
+      const index = created++
+      const events = [
+        { seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'done' }] } } },
+        { seq: 2, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+      ]
+      return {
+        agent: {
+          session: { seq: 0, ownEvents: () => events }, followup: () => {}, whenIdle: async () => {},
+        },
+        dispose: async () => { if (index === 0) { disposalEntered.resolve(undefined); await releaseDisposal.promise } },
+      }
+    } } })
+    const fake = fakeScheduler()
+    const host = createSchedulerHost(ctx, {
+      turnTimeoutMs: 60_000, maxLiveRuns: 1,
+      onSettled: (job) => { settled.push(job.name) },
+    }, fake.scheduler)
+    host.sync([{ ...JOB, notes: '' }, { ...JOB, name: 'second', expression: '5 7 * * *', notes: '' }])
+    try {
+      fake.fire()
+      await vi.waitFor(() => { expect(settled).toEqual([JOB.name]) })
+      fake.fire('5 7 * * *')
+      await disposalEntered.promise
+      fake.fire('5 7 * * *')
+      await vi.waitFor(() => { expect(settled).toEqual([JOB.name, 'second', 'second']) })
+    } finally {
+      releaseDisposal.resolve(undefined)
+      await host.dispose()
+    }
+  })
+
   it('fires an armed job on trigger and ignores names that are not armed', async () => {
     const { ctx, logger } = contextStub()
     const fake = fakeScheduler()
@@ -433,6 +472,68 @@ describe('createSchedulerHost', () => {
 })
 
 describe('apply', () => {
+  it('records and delivers an overlapping scheduled fire as skipped', async () => {
+    const releaseIdle = Promise.withResolvers<undefined>()
+    const { ctx, tables, emitted } = contextStub({ agents: { create: async () => ({
+      agent: {
+        session: { seq: 0, ownEvents: () => [] }, followup: () => {},
+        whenIdle: () => releaseIdle.promise,
+      },
+      dispose: async () => {},
+    }) } })
+    const fake = fakeScheduler()
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }] }), fake.scheduler)
+    try {
+      fake.fire()
+      await vi.waitFor(() => {
+        expect(tables.get('state')?.rows.get(JOB.name)).toHaveProperty('activeRun')
+      })
+      fake.fire()
+      await vi.waitFor(() => {
+        const state = tables.get('state')?.rows.get(JOB.name) as JobStateRecord | undefined
+        expect(state?.lastRuns[0]).toMatchObject({
+          outcome: 'skipped', failure: { code: 'PREVIOUS_RUN_IN_PROGRESS' },
+        })
+      })
+      expect(emitted.find(item => item.event === 'cron/run-finished' && (item.payload as CronRunFinished).outcome === 'skipped'))
+        .toMatchObject({ payload: { jobName: JOB.name, reportOutcome: true, deliverChannelId: 'c' } })
+    } finally {
+      releaseIdle.resolve(undefined)
+    }
+  })
+
+  it('records a delivery-blocked fire after its preceding run settled', async () => {
+    vi.useFakeTimers()
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<true>()
+    const handoffs: CronRunFinished[] = []
+    const serial = vi.fn(async (_event: string, payload: CronRunFinished) => {
+      handoffs.push(payload)
+      entered.resolve(undefined)
+      return await release.promise
+    })
+    const h = contextStub({ serial })
+    const create = vi.spyOn(h.ctx.agents, 'create')
+    const fake = fakeScheduler()
+    await apply(h.ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }], turnTimeoutMs: 1_000 }), fake.scheduler)
+    try {
+      fake.fire()
+      await entered.promise
+      await vi.advanceTimersByTimeAsync(0)
+      fake.fire('0 7 * * *', Date.parse('2026-09-05T05:00:00.000Z'))
+      await vi.advanceTimersByTimeAsync(1_000)
+      const state = h.tables.get('state')?.rows.get(JOB.name) as JobStateRecord | undefined
+      expect(state?.lastRuns[0]).toMatchObject({
+        outcome: 'skipped', failure: { code: 'PREVIOUS_OUTCOME_PENDING' },
+      })
+      expect(create).toHaveBeenCalledTimes(1)
+      expect(handoffs.some(payload => payload.outcome === 'skipped')).toBe(true)
+    } finally {
+      release.resolve(true)
+      await vi.advanceTimersByTimeAsync(0)
+    }
+  })
+
   it('records a failed fire when a stored workspace symlink is retargeted outside its root', async () => {
     const base = await mkdtemp(join(process.cwd(), '.cron-fire-test-'))
     const root = join(base, 'allowed')

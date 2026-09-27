@@ -9,9 +9,9 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The package runs unattended agents on cron schedules. Configuration supplies read-only jobs; operators manage durable jobs through `cron_manage` and `/cron`, within preset, workspace, count, interval, and approval limits. Each fire opens a Session, injects continuity notes, records its outcome, and avoids overlapping runs. Discord delivery remains durable and retries without repeating model work. Shutdown interrupts active runs; restart records abandoned reservations and resumes at the next future schedule match.
+The package runs agents on cron schedules. Configuration supplies read-only jobs; operators manage durable jobs through `cron_manage` and `/cron` within preset, workspace, count, interval, and approval limits. A started fire opens a Session with continuity notes. Every fire records an outcome, including `skipped` when the previous run or delivery remains pending. Discord delivery persists and retries without repeating model work. Shutdown interrupts active runs; restart records abandoned reservations and resumes at the next future match.
 
-An active run exposes its configured `deliverChannel` to the Discord approval answerer only for that run's lifetime. A run without a channel cannot obtain a home-write approval.
+An active run exposes its `deliverChannel` to the Discord approval answerer only during that run. A run without a channel cannot obtain home-write approval.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ An active run exposes its configured `deliverChannel` to the Discord approval an
 
 ## Commands
 
-`/cron status [name]` works in Discord and Web command input without a model turn. It shows the last retained outcome, Session id, elapsed duration when recorded, failure code and cause, and the next armed fire. Earlier history without duration displays `unknown`. A failed run's existing Discord outcome notice includes its job, Session id, failure code, and next fire; the scheduler sends no second failure notice.
+`/cron status [name]` works in Discord and Web command input without a model turn. It shows the last retained outcome, outcome id, elapsed duration when recorded, failure or skip code and cause, and the next armed fire. A skipped fire has no Session. Earlier history without duration displays `unknown`. A failed run's existing Discord outcome notice includes its job, Session id, failure code, and next fire; a skipped fire uses that same outcome path when notices are enabled.
 
 -----
 
@@ -72,10 +72,10 @@ Registration is static per composition, so the schema does not churn mid-session
 
 - **Creation stays locked until opened** — `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` default to empty, so a stored create is refused until the operator whitelists presets and roots in configuration. Workspace and root paths are compared by `realpath` on create and update; every fire rechecks the stored workspace and records a failed outcome if it escapes the roots.
 - **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, delete, resume, run_now, and note refuse rather than land unapproved. Approval requests show the proposed job or field changes, and the tool applies the approved values.
-- **Delivery needs an accepting listener** — `cron/run-finished` uses an awaited serial handoff. A channel-bound outcome stays pending until a listener durably accepts it; the scheduler waits for that acceptance before starting another run of the same job.
+- **Delivery needs an accepting listener** — `cron/run-finished` uses a bounded serial handoff. A channel-bound outcome stays pending until a listener durably accepts it. If the previous run's output cannot be delivered within the job's timeout, the next fire records `skipped` with `PREVIOUS_OUTCOME_PENDING`. Skipped notices retry without blocking later starts.
 - **Fires during downtime are not made up** — a schedule that should have fired while the process was stopped is skipped when it comes back; the next scheduled time runs normally.
-- **One overlapping fire per job** — a still-running job causes the next fire to be logged as skipped rather than queued, so a run longer than its own period loses those fires.
-- **Sessions accumulate** — completed runs are released oldest-first past `maxLiveRuns`; active runs remain mounted until they settle. Durable Session logs stay on disk.
+- **One overlapping fire per job** — a still-running job causes the next fire to be recorded as `skipped` with `PREVIOUS_RUN_IN_PROGRESS` rather than queued. The history row and optional Discord notice retain the reason. Session cleanup of other jobs does not hold the overlap guard.
+- **Sessions accumulate** — completed runs are released oldest-first past `maxLiveRuns`; active runs remain mounted until they settle. A handle whose disposal never settles may retain resources after its release timeout; cron logs the unresolved teardown and continues. Durable Session logs stay on disk.
 
 
 <a id="dev-note"></a>

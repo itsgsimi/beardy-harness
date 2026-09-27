@@ -97,8 +97,12 @@ export interface JobRegistry {
   beginRun(name: string, run: ActiveRunRecord): Promise<void>
   /** Store the terminal outcome and its pending delivery in the same durable write. */
   settleRun(name: string, result: CronRunResult, keepHistory: number): Promise<CronRunFinished>
+  /** Record an overlapping fire without replacing the active run or its delivery. */
+  recordSkipped(name: string, run: ActiveRunRecord, result: CronRunResult & { outcome: 'skipped' }, keepHistory: number): Promise<CronRunFinished>
   /** Pending delivery for one job, or undefined after its handoff was acknowledged. */
   pendingOutcome(name: string): CronRunFinished | undefined
+  /** Every retained delivery awaiting acknowledgement for one job. */
+  pendingOutcomes(name: string): CronRunFinished[]
   /** Clear a delivered outcome only when it still names the acknowledged Session. */
   acknowledgeOutcome(name: string, sessionId: string): Promise<void>
   /** Mark uncompleted reservations interrupted and return all outcomes awaiting delivery. */
@@ -356,7 +360,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
       await changeState(async () => {
         requireStored(name, 'delete')
         const state = stateOf(name)
-        if (state.activeRun !== undefined || state.pendingOutcome !== undefined) {
+        if (state.activeRun !== undefined || state.pendingOutcome !== undefined || (state.pendingSkips?.length ?? 0) > 0) {
           registryError(`job "${name}" has a run or delivery pending; pause it and wait before deleting`)
         }
         await deps.jobsTable.delete(name)
@@ -408,20 +412,45 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
           ...(result.failure === undefined ? {} : { failure: result.failure }) }
         await deps.stateTable.put(name, {
           ...state,
-          lastRuns: [entry, ...state.lastRuns].slice(0, keepHistory),
+          lastRuns: [...state.lastRuns, entry].sort((left, right) => right.firedAt - left.firedAt).slice(0, keepHistory),
           pendingOutcome,
         })
         return finishedPayload(name, pendingOutcome)
+      })
+    },
+    async recordSkipped(name, run, result, keepHistory) {
+      return await changeState(async () => {
+        const state = stateOf(name)
+        const pending = { ...run, ...result, sessionId: run.sessionId }
+        const entry = { firedAt: run.firedAt, sessionId: run.sessionId, outcome: result.outcome,
+          durationMs: 0, ...(result.failure === undefined ? {} : { failure: result.failure }) }
+        await deps.stateTable.put(name, {
+          ...state,
+          lastRuns: [...state.lastRuns, entry].sort((left, right) => right.firedAt - left.firedAt).slice(0, keepHistory),
+          pendingSkips: [...state.pendingSkips ?? [], pending],
+        })
+        return finishedPayload(name, pending)
       })
     },
     pendingOutcome(name) {
       const pending = stateOf(name).pendingOutcome
       return pending === undefined ? undefined : finishedPayload(name, pending)
     },
+    pendingOutcomes(name) {
+      const state = stateOf(name)
+      return [...(state.pendingSkips ?? []), ...(state.pendingOutcome === undefined ? [] : [state.pendingOutcome])]
+        .map(pending => finishedPayload(name, pending))
+    },
     async acknowledgeOutcome(name, sessionId) {
       await changeState(async () => {
-        const { pendingOutcome, ...state } = stateOf(name)
-        if (pendingOutcome?.sessionId === sessionId) await deps.stateTable.put(name, state)
+        const current = stateOf(name)
+        const { pendingOutcome, pendingSkips, ...state } = current
+        const remainingSkips = pendingSkips?.filter(pending => pending.sessionId !== sessionId)
+        await deps.stateTable.put(name, {
+          ...state,
+          ...(pendingOutcome?.sessionId === sessionId || pendingOutcome === undefined ? {} : { pendingOutcome }),
+          ...(remainingSkips === undefined || remainingSkips.length === 0 ? {} : { pendingSkips: remainingSkips }),
+        })
       })
     },
     async recoverRuns(keepHistory) {
@@ -430,10 +459,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
           await registry.settleRun(name, { outcome: 'interrupted', sessionId: state.activeRun.sessionId, text: '' }, keepHistory)
         }
       }
-      return [...deps.stateTable.keys()].flatMap((name) => {
-        const pending = registry.pendingOutcome(name)
-        return pending === undefined ? [] : [pending]
-      })
+      return [...deps.stateTable.keys()].flatMap(name => registry.pendingOutcomes(name))
     },
   }
   return registry

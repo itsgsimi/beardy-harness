@@ -316,6 +316,39 @@ describe('job registry continuity state', () => {
     expect(registry.pendingOutcome(CONFIG_JOB.name)).toBeUndefined()
   })
 
+  it('keeps skipped fires and their delivery separate from the active run', async () => {
+    const h = makeRegistry([CONFIG_JOB])
+    const active = { firedAt: 1, sessionId: SessionId('active'), reportOutcome: true, deliverChannelId: 'c' }
+    const skipped = { firedAt: 2, sessionId: SessionId('skip'), reportOutcome: true, deliverChannelId: 'c' }
+    const result = { sessionId: SessionId('skip'), outcome: 'skipped' as const, text: '',
+      failure: { code: 'PREVIOUS_RUN_IN_PROGRESS', message: 'The previous run was still in progress.' } }
+    await h.registry.beginRun(CONFIG_JOB.name, active)
+    const payload = await h.registry.recordSkipped(CONFIG_JOB.name, skipped, result, 3)
+    expect(h.stateTable.rows.get(CONFIG_JOB.name)).toMatchObject({
+      activeRun: active, lastRuns: [{ firedAt: 2, outcome: 'skipped', failure: result.failure }],
+    })
+    expect(h.registry.pendingOutcomes(CONFIG_JOB.name)).toEqual([payload])
+    const reopened = reopenRegistry({ jobsTable: h.jobsTable.rows, stateTable: h.stateTable.rows }, [CONFIG_JOB])
+    expect(await reopened.recoverRuns(3)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ outcome: 'interrupted', sessionId: 'active' }), payload,
+    ]))
+    await reopened.acknowledgeOutcome(CONFIG_JOB.name, 'skip')
+    expect(reopened.pendingOutcomes(CONFIG_JOB.name)).toEqual([expect.objectContaining({ sessionId: 'active' })])
+    expect(reopened.find(CONFIG_JOB.name)?.lastRuns.map(run => run.outcome)).toEqual(['skipped', 'interrupted'])
+  })
+
+  it('lets the next run start while a skipped notice is pending', async () => {
+    const { registry, stateTable } = makeRegistry([CONFIG_JOB])
+    await registry.recordSkipped(CONFIG_JOB.name, {
+      firedAt: 1, sessionId: SessionId('skip'), reportOutcome: true, deliverChannelId: 'c',
+    }, { sessionId: SessionId('skip'), outcome: 'skipped', text: '',
+      failure: { code: 'PREVIOUS_RUN_IN_PROGRESS', message: 'The previous run was still in progress.' } }, 3)
+    await registry.beginRun(CONFIG_JOB.name, { firedAt: 2, sessionId: SessionId('next'), reportOutcome: true })
+    expect(stateTable.rows.get(CONFIG_JOB.name)).toMatchObject({
+      activeRun: { sessionId: 'next' }, pendingSkips: [{ sessionId: 'skip' }],
+    })
+  })
+
   it('recovers interrupted work and finished undelivered output without duplicating history', async () => {
     const active = { firedAt: 2, sessionId: SessionId('active'), reportOutcome: true, deliverChannelId: 'c' }
     const { registry, stateTable } = makeRegistry([CONFIG_JOB], { state: {

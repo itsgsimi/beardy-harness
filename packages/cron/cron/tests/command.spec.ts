@@ -45,6 +45,15 @@ describe('/cron subcommands', () => {
     expect((await runCronSubcommand('status morning-brief', old, deps)).text).toContain('duration unknown')
   })
 
+  it('shows a skipped fire as an outcome without a Session', async () => {
+    const { registry } = makeRegistry([CONFIG_JOB], { state: { 'morning-brief': {
+      notes: '', lastRuns: [{ firedAt: 1, sessionId: 'cron-skipped-id', outcome: 'skipped', durationMs: 0,
+        failure: { code: 'PREVIOUS_RUN_IN_PROGRESS', message: 'The previous run was still in progress.' } }],
+    } } })
+    expect((await runCronSubcommand('status morning-brief', registry, deps)).text)
+      .toContain('skipped at 1970-01-01T00:00:00.001Z (Outcome cron-skipped-id, duration 0 ms, cause PREVIOUS_RUN_IN_PROGRESS: The previous run was still in progress.)')
+  })
+
   it('marks paused stored jobs and omits a next-run time for them', async () => {
     const { registry } = makeRegistry([], { stored: [storedRow('pr-check', { enabled: false })] })
     const result = await runCronSubcommand('list', registry, deps)

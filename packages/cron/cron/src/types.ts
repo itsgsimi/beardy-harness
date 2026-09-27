@@ -64,30 +64,30 @@ export interface ScheduledJobSpec extends CronJobSpec {
   readonly deliverChannelId?: string
 }
 
-/** How one accepted fire ended, retained in job history and delivery notices. */
-export type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted'
+/** How one scheduled fire ended, retained in job history and delivery notices. */
+export type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted' | 'skipped'
 
-/** What one settled run reports back to the scheduler. */
+/** What one settled fire reports back to the scheduler. */
 export interface CronRunResult {
-  /** How the run ended. */
+  /** How the fire ended. */
   readonly outcome: CronRunOutcome
-  /** Reserved Session id; its log may be absent when creation failed. */
+  /** Outcome id; a skipped fire has no Session log. */
   readonly sessionId: string
   /** Final assistant text of the run; empty when there was none. */
   readonly text: string
-  /** Failure facts from the turn ending or runner; absent for other outcomes. */
+  /** Failure or skip reason; absent when neither applies. */
   readonly failure?: { readonly code: string; readonly message: string }
 }
 
-/** A settled run retained until delivery listeners durably accept its outcome. */
+/** A settled fire retained until delivery listeners durably accept its outcome. */
 export interface CronRunFinished extends CronRunResult {
-  /** Name of the job whose run settled. */
+  /** Name of the job whose fire settled. */
   readonly jobName: string
-  /** Epoch milliseconds of the fire that started the run. */
+  /** Epoch milliseconds of the scheduled or triggered fire. */
   readonly firedAt: number
   /** Channel destination; absent means no channel delivery. */
   readonly deliverChannelId?: string
-  /** Whether an empty answer should produce an outcome notice. */
+  /** Whether an outcome without answer text should produce a notice. */
   readonly reportOutcome: boolean
   /** Next armed fire, resolved from the current job definition when delivery occurs. */
   readonly nextFireAt?: string
@@ -96,11 +96,11 @@ export interface CronRunFinished extends CronRunResult {
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * One cron run settled, carrying the text a delivery lane may forward. The scheduler emits it
-     * after recording the run in the job's history; delivering to a channel belongs to whichever
+     * One cron fire settled, carrying the text a delivery lane may forward. The scheduler emits it
+     * after recording the outcome in the job's history; delivering to a channel belongs to whichever
      * listener owns one.
      * Listeners resolve after durably accepting delivery. A rejected listener leaves the outcome
-     * pending for another handoff; listeners must deduplicate by Session id and fire time.
+     * pending for another handoff; listeners must deduplicate by outcome id and fire time.
      * @param payload - Persisted run result, job identity, fire time, and delivery policy.
      * @returns `true` after durable delivery acceptance, or undefined when the listener does not own delivery.
      * @mode serial
