@@ -128,6 +128,16 @@ describe('parseMessageCreate', () => {
     expect(parseMessageCreate({ ...base, attachments: [{ filename: 'a.png', url: 'https://example.org/a.png' }] })?.content).toContain('save week 2\n\nAttachments')
   })
 
+  it('defaults a voice attachment with missing size to zero', () => {
+    const message = parseMessageCreate({
+      id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: '',
+      attachments: [{ filename: 'note.ogg', url: 'https://example.org/note.ogg', content_type: 'audio/ogg' }],
+    })
+    expect(message?.audioAttachments).toEqual([{
+      filename: 'note.ogg', url: 'https://example.org/note.ogg', size: 0,
+    }])
+  })
+
   it('reads mention ids and the author of a replied-to message', () => {
     const message = parseMessageCreate({
       id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: 'you',
@@ -188,6 +198,35 @@ describe('parseMessageCreate', () => {
 })
 
 describe('connectDiscordGateway', () => {
+  it.each([
+    [4004, 'authentication failed'],
+    [4010, 'invalid shard'],
+    [4011, 'sharding required'],
+    [4012, 'invalid API version'],
+    [4013, 'invalid intents'],
+    [4014, 'disallowed intents'],
+  ])('stops on fatal close code %i (%s)', async (code, description) => {
+    const sockets: FakeSocket[] = []
+    const statuses: GatewayStatus[] = []
+    const wait = vi.fn(async () => {})
+    const connecting = connectDiscordGateway({
+      token: 'tok', socketFactory: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+      onMessage: () => {}, onStatus: status => statuses.push(status), wait,
+    }, new AbortController().signal)
+    sockets[0]!.emit('close', { code })
+    await expect(connecting).rejects.toThrow(`Discord Gateway closed with code ${String(code)} (${description}); listener stopped`)
+    expect(sockets).toHaveLength(1)
+    expect(wait).not.toHaveBeenCalled()
+    expect(statuses).toEqual([
+      { kind: 'connecting' },
+      { kind: 'stopped', reason: `Discord Gateway closed with code ${String(code)} (${description}); listener stopped` },
+    ])
+  })
+
   it('dispatches validated native interactions and ignores malformed interaction identities', async () => {
     const interactions: DiscordInteraction[] = []
     await withGateway(async (sockets) => {

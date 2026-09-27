@@ -80,14 +80,11 @@ describe('assertConfig', () => {
     expect(parsed.modelSelection).toEqual({ provider: 'local', model: 'coder', reasoningEffort: 'medium' })
   })
 
-  it('rejects an unsupported configured effort when the gateway mounts', async () => {
+  it('mounts with an explicit selection before the adapter registers', async () => {
     const ctx = new Context()
-    ctx.provide('llm', { resolveModelInfo: async () => ({
-      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [] },
-    }) } as never)
     await expect(apply(ctx, config({ enabled: false, modelSelection: {
       provider: 'local', model: 'coder', reasoningEffort: 'medium',
-    } }))).rejects.toThrow('discord-gateway: modelSelection: provider "local" model "coder" does not support reasoning effort "medium"')
+    } }))).resolves.toBeUndefined()
   })
 
   it('mounts disabled without requiring an LLM registry when no choice is configured', async () => {
@@ -312,7 +309,7 @@ describe('startListener', () => {
     await apply(owner, config({ modelSelection: {
       provider: 'local', model: 'coder', reasoningEffort: 'medium',
     } }))
-    expect(resolveModelInfo).toHaveBeenCalledWith('local', 'coder')
+    expect(resolveModelInfo).not.toHaveBeenCalled()
     await entered.promise
     expect(healthTransition).toBeDefined()
     await healthTransition?.({ id: 'health:transition-1', channelId: CHANNEL, text: 'Probe main: down.' })

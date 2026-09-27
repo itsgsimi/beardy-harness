@@ -10,7 +10,7 @@ Discord 对话、计划运行和 Web Session 对延迟与成本的要求不同�
 
 ## 决定
 
-Discord 网关和 cron 配置都可以选择确切的 provider、model 与可选推理力度。已配置的 cron 任务可以覆盖 cron 顶层选择；持久任务继承该选择，持久记录无需改变。没有显式选择时，每个新 Session 读取完整的当前 `agentDefaultModel` 选择。显式选择在插件挂载时依据已注册的适配器解析，cron 在每次触发打开 Session 前再次检查。不支持的路由或推理力度会报错并指明所属配置字段。
+Discord 网关和 cron 配置都可以选择确切的 provider、model 与可选推理力度。已配置的 cron 任务可以覆盖 cron 顶层选择；持久任务继承该选择，持久记录无需改变。没有显式选择时，每个新 Session 读取完整的当前 `agentDefaultModel` 选择。显式选择在对话或 cron 运行打开 Session 时依据已注册的适配器解析，此时提供方行已挂载。不支持的路由或推理力度会报错并指明所属配置字段。
 
 Discord 恢复时从 Session 日志读取最后一个完整的 `request/header`，并将其选择交给 Agent 恢复。没有请求头的 Session 回退到当前网关选择。因此，新配置只影响未来的对话与触发，不改变既有对话或 Web 模型选择器。普通 `request/header` 记录每个生成请求的有效选择；无需新增 Session 事件或迁移 cron 存储。
 
@@ -28,4 +28,4 @@ Discord 恢复时从 Session 日志读取最后一个完整的 `request/header`�
 
 ## 结果
 
-操作者须为每条显式路由选择适配器支持的推理力度。官方 DeepSeek 路由不支持 `medium`；本地适配器可通过确切模型元数据公开它。验证在首个 Session 前及 cron 触发时运行，使适配器目录变更不能悄悄把任务导向不支持的选择。
+操作者须为每条显式路由选择适配器支持的推理力度。官方 DeepSeek 路由不支持 `medium`；本地适配器可通过确切模型元数据公开它。验证在每次新对话或 cron 触发时运行，使适配器目录变更不能悄悄把任务导向不支持的选择。

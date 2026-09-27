@@ -53,24 +53,24 @@ describe('assertConfig', () => {
     expect(parsed.jobs[0]?.modelSelection).toEqual({ provider: 'job', model: 'model', reasoningEffort: 'medium' })
   })
 
-  it('rejects a configured effort before opening the durable store', async () => {
+  it('mounts a cron-wide choice before an adapter is registered', async () => {
     const { ctx, tables } = contextStub({ llm: { resolveModelInfo: async () => ({
       provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [] },
     }) } })
     await expect(apply(ctx, config({ modelSelection: {
       provider: 'local', model: 'coder', reasoningEffort: 'medium',
-    } }))).rejects.toThrow('dsh-cron: modelSelection: provider "local" model "coder" does not support reasoning effort "medium"')
-    expect(tables.size).toBe(0)
+    } }), fakeScheduler().scheduler)).resolves.toBeUndefined()
+    expect(tables.size).toBeGreaterThan(0)
   })
 
-  it('validates each configured job override before opening the durable store', async () => {
+  it('mounts job overrides before an adapter is registered', async () => {
     const { ctx, tables } = contextStub({ llm: { resolveModelInfo: async () => ({
       provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [] },
     }) } })
     await expect(apply(ctx, config({ jobs: [{ ...JOB, modelSelection: {
       provider: 'local', model: 'coder', reasoningEffort: 'medium',
-    } }] }))).rejects.toThrow('dsh-cron: job "morning-brief" modelSelection: provider "local" model "coder" does not support reasoning effort "medium"')
-    expect(tables.size).toBe(0)
+    } }] }), fakeScheduler().scheduler)).resolves.toBeUndefined()
+    expect(tables.size).toBeGreaterThan(0)
   })
 
   it('mounts a supported cron-wide selection', async () => {
@@ -81,7 +81,7 @@ describe('assertConfig', () => {
     await apply(ctx, config({ modelSelection: {
       provider: 'local', model: 'coder', reasoningEffort: 'medium',
     } }), fakeScheduler().scheduler)
-    expect(resolveModelInfo).toHaveBeenCalledWith('local', 'coder')
+    expect(resolveModelInfo).not.toHaveBeenCalled()
     expect(tools).toHaveLength(1)
   })
 

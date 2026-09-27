@@ -22,6 +22,28 @@ describe('durable conversation records', () => {
     expect(h.selections[0]).toEqual({ provider: 'lane', model: 'model', reasoningEffort: 'medium' })
   })
 
+  it('reports an unsupported configured effort when the first conversation opens', async () => {
+    const h = harness({ modelSelection: {
+      provider: 'lane', model: 'model', reasoningEffort: ReasoningEffortId('medium'),
+    }, modelEfforts: [] })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections).toEqual([])
+    expect(h.warnings).toContainEqual(expect.stringContaining(
+      'discord-gateway: modelSelection: provider "lane" model "model" does not support reasoning effort "medium"',
+    ))
+  })
+
+  it('reports an unknown configured route when the first conversation opens', async () => {
+    const h = harness({ modelSelection: { provider: 'missing', model: 'model' }, unresolvedModel: true })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections).toEqual([])
+    expect(h.warnings).toContainEqual(expect.stringContaining(
+      'discord-gateway: modelSelection: provider "missing" model "model" cannot be resolved',
+    ))
+  })
+
   it('leaves the shared Web default selection untouched by a Discord override', async () => {
     const webChoice = { provider: 'web', model: 'chosen', reasoningEffort: ReasoningEffortId('high') }
     const h = harness({ defaultSelection: webChoice, modelSelection: {
@@ -45,6 +67,15 @@ describe('durable conversation records', () => {
     h.router.handle(inbound())
     await drain()
     expect(h.selections[0]).toEqual({ provider: 'old', model: 'old-model', reasoningEffort: 'medium' })
+  })
+
+  it('validates the current gateway choice for a headerless resumed Session', async () => {
+    const h = harness({ initialRecord: record(), modelSelection: {
+      provider: 'new', model: 'new-model', reasoningEffort: ReasoningEffortId('medium'),
+    } })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections[0]).toEqual({ provider: 'new', model: 'new-model', reasoningEffort: 'medium' })
   })
 
   it('resumes the recorded session instead of creating a new one', async () => {

@@ -14,7 +14,7 @@ export interface ConfiguredModelSelection {
 }
 
 /**
- * Validate an explicit lane choice against the registered adapter before any Session opens.
+ * Validate an explicit lane choice against the registered adapter when a Session opens.
  * @param ctx - Context with the LLM registry.
  * @param choice - Deployment-supplied exact route and effort.
  * @param subject - Config field named in failures.

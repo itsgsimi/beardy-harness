@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader, { type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
+import LlmRuntime from '@deepseek-ai/dsh-llm'
+import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import * as Cron from '../../../cron/cron/src/index.ts'
 import * as DiscordGateway from '../src/index.ts'
 
@@ -26,6 +28,7 @@ afterEach(async () => {
 /** One assistant answer per turn, so the mounted router has something to post back. */
 interface FixtureAgentRecord {
   readonly created: string[]
+  readonly selections?: { provider: string; model: string; reasoningEffort?: string }[]
   readonly followedUp: string[]
   readonly messages: string[]
   readonly tools: { name: string; execute?: (args: unknown, exec: unknown) => Promise<unknown> }[]
@@ -66,8 +69,13 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
           apply({ commands: { register: () => () => {} } })
         } })
       ctx.provide('agents' as never, {
-        create: async (options: { sessionId: string; setup?: (agentCtx: unknown) => Promise<void> }) => {
+        create: async (options: {
+          sessionId: string
+          agentOptions: { provider: string; model: string; reasoningEffort?: string }
+          setup?: (agentCtx: unknown) => Promise<void>
+        }) => {
           record.created.push(options.sessionId)
+          record.selections?.push(options.agentOptions)
           await compositionSetup(options)
           return fakeHandle(options.sessionId)
         },
@@ -158,6 +166,8 @@ async function boot(
     ['fixture-dependencies', fixtureDependencies(token, record)],
     ['@deepseek-ai/dsh-discord-gateway', DiscordGateway],
     ['@deepseek-ai/dsh-cron', Cron],
+    ['test-llm-service', LlmRuntime],
+    ['@deepseek-ai/dsh-llm-pi-ai', LlmPiAi],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -206,6 +216,46 @@ function unloaded(ctx: Context): string[] {
 }
 
 describe('discord-gateway real Loader composition', () => {
+  it('mounts Discord and cron before a later pi-ai provider row and runs the selected effort', { timeout: 60_000 }, async () => {
+    const record: FixtureAgentRecord = { created: [], selections: [], followedUp: [], messages: [], tools: [] }
+    const ctx = await boot([
+      "- name: 'test-llm-service'",
+      ...GATEWAY_ROWS,
+      `    allowedUserIds: ['${USER}']`,
+      '    enabled: false',
+      '    modelSelection: { provider: acme-gateway, model: acme-think, reasoningEffort: medium }',
+      "- name: '@deepseek-ai/dsh-cron'",
+      '  config:',
+      '    requireApproval: false',
+      '    modelSelection: { provider: acme-gateway, model: acme-think, reasoningEffort: medium }',
+      '    jobs:',
+      '      - name: brief',
+      "        expression: '0 7 * * *'",
+      "        timezone: 'Europe/Zagreb'",
+      "        prompt: 'Write the morning brief.'",
+      '        agentPreset: beardy',
+      '        permissionPreset: workspace-write',
+      `        workspacePath: ${process.cwd()}`,
+      "- name: '@deepseek-ai/dsh-llm-pi-ai'",
+      '  config:',
+      '    providers:',
+      '      acme-gateway:',
+      '        api: openai-completions',
+      '        baseURL: https://acme.test',
+      '        models:',
+      '          - id: acme-think',
+      '            reasoningEfforts: { medium: medium }',
+    ], 'fixture-token', record)
+    expect(unloaded(ctx)).toEqual([])
+    const model = await ctx.llm.resolveModelInfo('acme-gateway', 'acme-think')
+    expect(model.reasoning?.efforts.map(effort => effort.id)).toContain('medium')
+    const run = record.tools.find(tool => tool.name === 'cron_manage')?.execute
+    expect(run).toBeTypeOf('function')
+    await run?.({ action: 'run_now', name: 'brief' }, { callId: 'c1', signal: new AbortController().signal })
+    await vi.waitFor(() => { expect(record.selections).toHaveLength(1) })
+    expect(record.selections).toEqual([{ provider: 'acme-gateway', model: 'acme-think', reasoningEffort: 'medium' }])
+  })
+
   it('mounts with the listener off and dials nothing out', { timeout: 60_000 }, async () => {
     const sockets: string[] = []
     vi.stubGlobal('WebSocket', function Fake(url: string) {
