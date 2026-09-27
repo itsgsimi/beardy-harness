@@ -573,6 +573,22 @@ describe('dsh-tool-skill', () => {
     expect(catalogMessages(session)).toHaveLength(3)
   })
 
+  it('keeps pruned skill reload guidance in a replacement catalog when management is enabled', async () => {
+    const home = await tempDir('tool-managed-catalog')
+    const ctx = await setup(home, { enableSkillManagement: true })
+    ctx.skills.register({ name: 'first-skill', description: 'First skill', source: 'runtime', content: 'First body.' })
+    const session = Session.create(SessionId('managed-catalog'))
+    const agent = sessionAgent(session)
+    openMessageTurn(session)
+    await composePrefixForAgent(ctx, agent)
+    await fireStep(ctx, agent, 1, 1)
+    ctx.skills.register({ name: 'second-skill', description: 'Second skill', source: 'runtime', content: 'Second body.' })
+    await fireStep(ctx, agent, 1, 2)
+    const addition = catalogMessages(session)[1]
+    if (addition?.type !== 'user/message') throw new Error('expected catalog addition')
+    expect(JSON.stringify(addition.data.content)).toContain('reload that skill by name')
+  })
+
   it('resumes from the durable entries of the latest visible catalog', async () => {
     // Catalog identity lives on `source.entries`: the model-facing prose does
     // not decide whether a republish is needed, so a seeded message is

@@ -35,6 +35,8 @@ kind: "package-reference"
 
 用默认模式加载本包；故障安全默认值是 `read-only`，需要 agent（智能体）可写入工作区的部署必须显式选择 `workspace-write`。
 
+可信的 memory 与 skill 工具取得 `allowed-once` 后，可向本服务申请一次性的精确文件系统变更许可。该许可与执行策略分离，不会进入 shell 或 subprocess 的可写根目录。
+
 ```yaml
 - name: '@deepseek-ai/dsh-sandbox-policy'
   config:

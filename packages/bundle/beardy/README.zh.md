@@ -160,7 +160,7 @@ patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-
 
 - [Bundle package map](../README.zh.md) — DSH 随附的各 profile 层。
 - [app-boot profile contract](../../boot/app-boot/README.zh.md) — profile 初始化与 patch 优先级。
-- [Memory tool package](../../memory/tool-memory/README.zh.md) — 策展的 `USER.md` / `MEMORY.md` 编辑器。
+- [Memory tool package](../../memory/tool-memory/README.zh.md) — 有界的核心事实和按需读取的主题文件；Beardy 预设要求 home 写入经过审批。
 - [Session query package](../../session-query/tool-session-query/README.zh.md) — Beardy 暴露给模型的历史工具。
 - [SQLite search backend](../../session-query/session-query-sqlite/README.zh.md) — 持久的派生索引。
 - [Generated composition graph](../../../apps/cli/composition.md) — 每个随附 profile 的确切行。

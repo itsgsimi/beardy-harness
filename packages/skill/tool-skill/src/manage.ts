@@ -44,6 +44,8 @@ export interface SkillManageOptions {
   readonly enableUserScope: boolean
   /** Route every mutation through the approval service before touching a file. */
   readonly requireApproval: boolean
+  /** Allow one approved user-scope mutation outside the workspace. */
+  readonly allowApprovedHomeWrites: boolean
 }
 
 /** Longest description excerpt shown in an approval reason. */
@@ -132,7 +134,15 @@ export function applySkillManageTool(
       // fallback workspace root), which refused paths inside the calling
       // session's own workspace — the standing bug this closes.
       const sandboxPolicy = sessionPolicy(ctx, exec)
-      await fs.makeDirectory(await fs.resolve(rootPath, { signal: exec.signal }), exec.signal, sandboxPolicy)
+      const policyService: SandboxPolicyService | undefined = ctx.get('sandboxPolicy')
+      const allowanceFor = (path: string) => scope === 'user' && options.allowApprovedHomeWrites
+        && sandboxPolicy?.mode === 'workspace-write'
+        ? policyService?.approveFsMutation(sandboxPolicy, paths.boundaryPath, path)
+        : undefined
+      const directory = await fs.resolve(rootPath, { signal: exec.signal })
+      if (await fs.stat(directory, exec.signal) === undefined) {
+        await fs.makeDirectory(directory, exec.signal, sandboxPolicy, allowanceFor(rootPath))
+      }
       const filePath = join(rootPath, `${args.name}.md`)
       const filePathInfo = await fs.lstat(filePath, undefined, exec.signal)
       if (filePathInfo?.type === 'symlink') throw new Error(`skill "${args.name}" is a symbolic link and cannot be managed`)
@@ -148,7 +158,7 @@ export function applySkillManageTool(
       if (args.action === 'delete') {
         if (existing === undefined) throw new Error(`skill "${args.name}" does not exist in the ${scope} skill directory`)
         if (existing.type !== 'file') throw new Error(`skill "${args.name}" is not a regular file`)
-        await fs.removeFile(target, exec.signal, sandboxPolicy)
+        await fs.removeFile(target, exec.signal, sandboxPolicy, allowanceFor(filePath), existing.version)
         ctx.emit('fs/observed', target, { kind: 'absent' }, exec)
         return { action: args.action, name: args.name, path: target.displayPath, status: 'deleted' }
       }
@@ -163,7 +173,7 @@ export function applySkillManageTool(
       if (existing !== undefined && existing.type !== 'file') {
         throw new Error(`skill "${args.name}" is not a regular file`)
       }
-      const outcome = await writeObservedText(ctx, fs, target, content, existing, exec, exec.signal, sandboxPolicy)
+      const outcome = await writeObservedText(ctx, fs, target, content, existing, exec, exec.signal, sandboxPolicy, allowanceFor(filePath))
       return {
         action: args.action,
         name: args.name,

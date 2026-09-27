@@ -47,6 +47,7 @@ Load the plugin together with the skill registry and at least one provider. Mana
 | `enableSkillManagement` | `false` | Expose the `skill_manage` mutation tool; requires `ctx.fs` at runtime |
 | `enableUserSkillManagement` | `false` | Let `skill_manage` write the Harness-home user root (`$DSH_HOME/skills`) that every session loads |
 | `requireApproval` | `false` | Ask the approval service before any create, update, or delete; without a mounted answerer the write is refused |
+| `allowApprovedHomeWrites` | `false` | With approval and user-scope management enabled, grant the exact approved home file or skills directory under `workspace-write` |
 | `nudgeAfterToolCalls` | `0` | Tool calls in one settled turn that trigger the save-it-as-a-skill notice; `0` disables the nudge |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-skill) is the exhaustive source for every accepted field.
@@ -55,7 +56,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 - **A session catalog.** When model-invocable skills exist and the `skill` tool is visible, the agent receives a durable user-role message before its first request, listing each skill's name and a capped description; the message tells the model to load a skill with the tool before acting on it, and never to infer instructions from the summary alone.
 - **A loader tool.** The model calls `skill` with the exact skill name and receives the full instruction body plus resource guidance in a canonical `<skill_content>` block; the result is retained as ordinary tool history.
-- **A management tool.** When `ctx.fs` is mounted, the model calls `skill_manage` to create, update, or delete a flat skill file in the workspace, or in the Harness-home user root when user-scope management is enabled. The operation uses the filesystem provider's mutation and sandbox policy and accepts only kebab-case names inside the selected root. With `requireApproval`, a refusal changes nothing.
+- **A management tool.** When `ctx.fs` is mounted, the model calls `skill_manage` to create, update, or delete a flat skill file in the workspace, or in the Harness-home user root when user-scope management is enabled. The operation accepts only kebab-case names inside the selected root. `allowApprovedHomeWrites` permits one exact home mutation after `allowed-once`; deletion checks the observed file version. A refusal changes nothing.
 - **A save-it-as-a-skill nudge.** When `nudgeAfterToolCalls` is positive and a turn ends after enough completed tool calls without using `skill_manage`, one logged notice enters the next request. Delegated subagent child sessions are never tallied, so they receive no notice: skill authorship stays with the top-level session that dispatched the work.
 - **Explicit user invocation.** A `/name` token in direct user input that names a user-invocable skill injects that skill's instructions into the step, without the model having to load it.
 - **Live catalog updates.** Later membership, description, or visibility changes append a complete replacement catalog; removing every skill appends an empty catalog that retires older names.

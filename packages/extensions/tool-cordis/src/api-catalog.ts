@@ -1124,27 +1124,27 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'one entry per direct child, in stable name order.',
       },
       {
-        signature: 'abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>',
+        signature: 'abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, ): Promise<void>',
         description: 'Create a directory and its missing parents. The operation is idempotent when the target is already a directory and participates in the same per-call sandbox policy as file mutations.',
-        parameters: [{ name: 'target', description: 'the directory target to create.' }, { name: 'signal', description: 'aborts before the directory is created.' }, { name: 'sandboxPolicy', description: 'the per-call policy for a sandboxing backend.' }],
+        parameters: [{ name: 'target', description: 'the directory target to create.' }, { name: 'signal', description: 'aborts before the directory is created.' }, { name: 'sandboxPolicy', description: 'the per-call policy for a sandboxing backend.' }, { name: 'allowance', description: 'one-use exact home target from an approved trusted tool.' }],
         returns: 'completion after the directory exists.',
       },
       {
-        signature: 'abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>',
+        signature: 'abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, expectedVersion?: FsVersion, ): Promise<void>',
         description: 'Remove one regular file. Directory removal is intentionally not part of this seam; callers must not turn a model-visible file operation into recursive deletion by accident.',
-        parameters: [{ name: 'target', description: 'the regular-file target to remove.' }, { name: 'signal', description: 'aborts before removal takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call policy for a sandboxing backend.' }],
+        parameters: [{ name: 'target', description: 'the regular-file target to remove.' }, { name: 'signal', description: 'aborts before removal takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call policy for a sandboxing backend.' }, { name: 'allowance', description: 'one-use exact home target from an approved trusted tool.' }, { name: 'expectedVersion', description: 'observed version required for removal, when supplied.' }],
         returns: 'completion after the file is absent.',
       },
       {
-        signature: 'abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>',
+        signature: 'abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, ): Promise<FsWriteOutcome>',
         description: 'Atomically create or replace UTF-8 text. `expected` guards intent and staleness; omission allows unconditional overwrite.',
-        parameters: [{ name: 'target', description: 'the resolved target to write.' }, { name: 'content', description: 'the full new file content.' }, { name: 'expected', description: 'the write intent guarding the write; omit for unconditional.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this write runs under; a sandboxing backend fences the write by it, the bare backend ignores it. Omit to leave the backend its own default.' }],
+        parameters: [{ name: 'target', description: 'the resolved target to write.' }, { name: 'content', description: 'the full new file content.' }, { name: 'expected', description: 'the write intent guarding the write; omit for unconditional.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this write runs under; a sandboxing backend fences the write by it, the bare backend ignores it. Omit to leave the backend its own default.' }, { name: 'allowance', description: 'one-use exact home target from an approved trusted tool.' }],
         returns: 'the outcome, including the version the write produced.',
       },
       {
-        signature: 'abstract editText( target: FsTarget, edit: FsEditRequest, expected?: { version: FsVersion }, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsEditOutcome>',
+        signature: 'abstract editText( target: FsTarget, edit: FsEditRequest, expected?: { version: FsVersion }, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, ): Promise<FsEditOutcome>',
         description: 'Atomically edit literal text. When supplied, the version guard is checked before matching so stale content reports `FS_STALE_VERSION`; omission edits the current content without a freshness precondition.',
-        parameters: [{ name: 'target', description: 'the resolved target to edit.' }, { name: 'edit', description: 'the literal search/replace request.' }, { name: 'expected', description: 'the version guard; omit for an unconditional edit.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this edit runs under; a sandboxing backend fences the edit by it, the bare backend ignores it. Omit to leave the backend its own default.' }],
+        parameters: [{ name: 'target', description: 'the resolved target to edit.' }, { name: 'edit', description: 'the literal search/replace request.' }, { name: 'expected', description: 'the version guard; omit for an unconditional edit.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this edit runs under; a sandboxing backend fences the edit by it, the bare backend ignores it. Omit to leave the backend its own default.' }, { name: 'allowance', description: 'one-use exact home target from an approved trusted tool.' }],
         returns: 'the outcome, including the version the edit produced.',
       },
     ],
@@ -1830,6 +1830,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Resolve the complete policy for one capability call. An approved explicit mode outranks the session\'s last `sandbox/mode` event, which outranks the deployment default. A session cwd is its workspace-write boundary; the configured root is the fallback for agentless calls and sessions without a cwd.',
         parameters: [{ name: 'request', description: 'optional session and approved mode override.' }],
         returns: 'the fully resolved per-call mode and absolute workspace root.',
+      },
+      {
+        signature: 'approveFsMutation(policy: SandboxExecutionPolicy, homePath: string, targetPath: string): FsMutationAllowance',
+        description: 'Issue one exact filesystem mutation after a tool receives `allowed-once`. The ticket is separate from the execution policy, so shell and subprocess policies cannot inherit it.',
+        parameters: [{ name: 'policy', description: 'calling session\'s resolved policy.' }, { name: 'homePath', description: 'configured Harness home.' }, { name: 'targetPath', description: 'exact file or directory to mutate.' }],
+        returns: 'a one-use filesystem allowance.',
       },
       {
         signature: 'overrideOf(session: Session): SandboxMode | undefined',
@@ -5224,6 +5230,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'FsInfo',
     declaration: 'export interface FsInfo {\n    version: FsVersion;\n    type: \'file\' | \'directory\' | \'other\';\n    size?: number;\n}',
+  },
+  {
+    name: 'FsMutationAllowance',
+    declaration: 'export interface FsMutationAllowance {\n    readonly targetPath: string;\n    readonly homePath: string;\n}',
   },
   {
     name: 'FsObservation',

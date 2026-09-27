@@ -777,7 +777,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-cron`
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
-- `source`: [`packages/cron/cron/src/index.ts:112`](../packages/cron/cron/src/index.ts)
+- `source`: [`packages/cron/cron/src/index.ts:113`](../packages/cron/cron/src/index.ts)
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
@@ -1451,7 +1451,7 @@ export interface Config {
 
 - `inject`: `sandboxPolicy`
 - `refs`: [`LocalConfig`](#deepseek-aidsh-fs-local)
-- `source`: [`packages/fs/fs-sandbox/src/index.ts:45`](../packages/fs/fs-sandbox/src/index.ts)
+- `source`: [`packages/fs/fs-sandbox/src/index.ts:47`](../packages/fs/fs-sandbox/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2714,7 +2714,7 @@ export interface Config {
 
 - `inject`: `sessionProjections`
 - `refs`: [`SandboxMode`](subsystems/sandbox.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:71`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:85`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -3945,7 +3945,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-memory`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/memory/tool-memory/src/index.ts:35`](../packages/memory/tool-memory/src/index.ts)
+- `source`: [`packages/memory/tool-memory/src/index.ts:40`](../packages/memory/tool-memory/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration; every tunable is a validated field changeable from cordis.yml. */
@@ -3958,8 +3958,16 @@ export interface Config {
   readonly memoryMaxChars?: number
   /** Character cap for one entry. Defaults to 400. */
   readonly entryMaxChars?: number
+  /** Complete topic document cap in characters. */
+  readonly topicMaxChars?: number
+  /** Maximum number of topic files, including retired topics. */
+  readonly topicMaxFiles?: number
+  /** Maximum topic document returned by read. */
+  readonly topicReadMaxChars?: number
   /** Ask the approval service before every write. Defaults to false; set true for unattended presets. */
   readonly requireApproval?: boolean
+  /** Permit one exact Harness-home mutation after approval in workspace-write mode. */
+  readonly allowApprovedHomeWrites?: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-memory -->
@@ -4153,6 +4161,8 @@ export interface Config {
   enableUserSkillManagement?: boolean
   /** Create, update, and delete ask the approval service before they touch a file. */
   requireApproval?: boolean
+  /** Permit approved user-scope mutations in the Harness home under workspace-write. */
+  allowApprovedHomeWrites?: boolean
   /** Tool calls in one settled turn that trigger the save-it-as-a-skill nudge; 0 disables. */
   nudgeAfterToolCalls?: number
 }
@@ -4429,7 +4439,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-user-approval`
 
-- `source`: [`packages/interaction/user-approval/src/index.ts:135`](../packages/interaction/user-approval/src/index.ts)
+- `source`: [`packages/interaction/user-approval/src/index.ts:146`](../packages/interaction/user-approval/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. All optional — `static Config` supplies the defaults. */

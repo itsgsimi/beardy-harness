@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-approved-home-topic-memory.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-approved-home-topic-memory.md
+/agent-note-approved-home-writes-and-topic-memory:
+  en: 10403db1c93bc872
+  zh: 248779d5d583feba
+/agent-note-approved-home-writes-and-topic-memory/problem:
+  en: 3afa157907b6b1d6
+  zh: 9f3e4b9aded1a8fe
+/agent-note-approved-home-writes-and-topic-memory/decision:
+  en: 6bf02e913e2d0ca2
+  zh: 58bbd077e4c12e79
+/agent-note-approved-home-writes-and-topic-memory/alternatives-considered:
+  en: e7d4e2a5dba688db
+  zh: 55e2dc1f7f35f147
+/agent-note-approved-home-writes-and-topic-memory/consequences:
+  en: 1fceb4168b6663b1
+  zh: e7c69ef4ead03278

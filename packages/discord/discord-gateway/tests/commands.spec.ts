@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { registerGatewayCommands } from '../src/commands.ts'
-import { CHANNEL, drain, harness, inbound } from './support.ts'
+import { CHANNEL, USER, drain, harness, inbound } from './support.ts'
 
 describe('registerGatewayCommands', () => {
   const contexts: Context[] = []
@@ -180,6 +180,48 @@ describe('command dispatch through the router', () => {
     h.releaseIdle()
   })
 
+  it('shows that a completed answer is being delivered while the turn is still active', async () => {
+    const h = harness({ replyText: 'done', hang: true, reactionStatus: true, turnTimeoutMs: 5_000 })
+    h.router.handle(inbound())
+    await drain()
+    const status = await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/status')
+    expect(status.text).toContain('Delivering the reply.')
+    h.releaseIdle()
+  })
+
+  it('holds turn-running commands until the active Agent becomes idle', async () => {
+    const h = harness({ replyText: 'x', hang: true, turnTimeoutMs: 5_000 })
+    h.router.handle(inbound())
+    await drain()
+    const actor = { userId: USER, directMessage: true }
+    expect((await h.router.execute(CHANNEL, actor, '/compact')).text).toContain('A turn is running')
+    h.emitStatus(h.agent, 'running')
+    expect((await h.router.execute(CHANNEL, actor, '/status')).text).toContain('Turn in progress.')
+    h.emitStatus(h.agent, 'idle')
+    h.releaseIdle()
+  })
+
+  it('does not flush a command reply while its handler starts an Agent turn', async () => {
+    const h = harness({ replyText: 'ready' })
+    h.router.handle(inbound())
+    await drain()
+    h.registeredCommands.set('launch', { name: 'launch', description: 'Start work', handler: () => {
+      h.agent.status = 'running'
+      return { kind: 'success', text: 'Started.' }
+    } })
+    const result = await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/launch')
+    expect(result.text).toBe('Started.')
+    expect(h.posted.map(post => post.content)).toEqual(['ready'])
+    h.agent.status = 'idle'
+  })
+
+  it('rejects a command without a slash and shows argument hints in help', async () => {
+    const h = harness({ commands: () => [{ name: 'inspect', description: 'Inspect a fact', input: { hint: '<topic>' } }] })
+    const actor = { userId: USER, directMessage: true }
+    expect((await h.router.execute(CHANNEL, actor, 'inspect')).text).toBe('Enter a slash command.')
+    expect((await h.router.execute(CHANNEL, actor, '/help')).text).toContain('Arguments: <topic>')
+  })
+
   it('skips the arrival stamp when /new deleted the record mid-turn', async () => {
     const h = harness({ replyText: 'x', hang: true, turnTimeoutMs: 5_000 })
     h.router.handle(inbound())
@@ -200,5 +242,24 @@ describe('command dispatch through the router', () => {
     h.router.handle(inbound({ id: 'm2', content: '/new' }))
     await drain()
     expect(h.warnings.some(message => message.includes('command for message m2 failed'))).toBe(true)
+  })
+
+  it('does not post a command failure after listener shutdown', async () => {
+    const h = harness({ replyText: 'x' })
+    h.router.handle(inbound())
+    await drain()
+    const deleting = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    h.table.delete = async () => {
+      deleting.resolve(undefined)
+      await release.promise
+      throw new Error('storage down')
+    }
+    h.router.handle(inbound({ id: 'm2', content: '/new' }))
+    await deleting.promise
+    h.controller.abort()
+    release.resolve(undefined)
+    await vi.waitFor(() => { expect(h.warnings.some(message => message.includes('command for message m2 failed'))).toBe(true) })
+    expect(h.posted.some(entry => entry.content === 'The command could not finish. Please try again.')).toBe(false)
   })
 })

@@ -1,0 +1,11 @@
+version: 1
+scenario: memory-topic-approved
+profile: headless
+composition: memory-topic-approved
+recording: authored
+permission: workspace-write
+header:
+  class: memory-topic-approved
+  pin: true
+workspace:
+  final: true

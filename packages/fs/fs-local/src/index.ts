@@ -203,21 +203,27 @@ export class LocalFileSystem extends FileSystem {
   override async makeDirectory(target: FsTarget, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw new FsError('mkdir aborted', 'FS_ABORTED')
     await mkdir(target.targetKey, { recursive: true })
-    if (signal?.aborted) throw new FsError('mkdir aborted', 'FS_ABORTED')
   }
 
-  override async removeFile(target: FsTarget, signal?: AbortSignal): Promise<void> {
+  override async removeFile(
+    target: FsTarget, signal?: AbortSignal, _sandboxPolicy?: object, _allowance?: object, expectedVersion?: FsVersion,
+  ): Promise<void> {
     return this.withLock(target.targetKey, async () => {
       if (signal?.aborted) throw new FsError('remove aborted', 'FS_ABORTED')
       const existing = await probe(target.targetKey)
-      if (!existing) throw new FsError(`cannot remove "${target.displayPath}": not found`, 'FS_NOT_FOUND')
+      if (!existing) throw new FsError(`cannot remove "${target.displayPath}": not found`,
+        expectedVersion === undefined ? 'FS_NOT_FOUND' : 'FS_STALE_VERSION')
       if (existing.type !== 'file') throw new FsError(`cannot remove "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
+      if (expectedVersion !== undefined && existing.version !== expectedVersion) {
+        throw new FsError(`cannot remove "${target.displayPath}": file changed since it was read`, 'FS_STALE_VERSION')
+      }
       try {
         await unlink(target.targetKey)
+      /* v8 ignore start -- Node unlink failure after a successful probe depends on host permissions or a concurrent filesystem mutation. */
       } catch (error: unknown) {
         throw new FsError(`cannot remove "${target.displayPath}": ${error instanceof Error ? error.message : String(error)}`, 'FS_IO_ERROR', { cause: error })
       }
-      if (signal?.aborted) throw new FsError('remove aborted', 'FS_ABORTED')
+      /* v8 ignore stop */
     })
   }
 

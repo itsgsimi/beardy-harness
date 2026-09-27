@@ -5,7 +5,8 @@ import { DiscordOutbox } from '../src/outbox.ts'
 import { outboxRecord } from '../src/domain.ts'
 import type { OutboxRecord } from '../src/domain.ts'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { CHANNEL, assistantTextEvent, harness, record, stepEndEvent, tableFromMap, turnEndEvent, turnStartEvent } from './support.ts'
+import { createAfterScheduleRecord, ScheduleId } from '@deepseek-ai/dsh-schedule'
+import { CHANNEL, USER, assistantTextEvent, harness, inbound, record, stepEndEvent, tableFromMap, turnEndEvent, turnStartEvent } from './support.ts'
 
 const settings = { outboxMaxPending: 2, outboxMaxChars: 5000, outboxRetryMs: 1000,
   outboxMaxRetryMs: 8000, outboxMaxReceipts: 2 }
@@ -28,6 +29,152 @@ function owner(storage: KvTable<string, OutboxRecord>, post: (channel: string, t
 }
 
 describe('durable Discord outbox', () => {
+  it('sends a plain reply as a message body when the simple post seam is absent', async () => {
+    const { storage } = table()
+    const h = harness({ outboxStorage: storage, replyText: 'Done.', useDefaultPost: true })
+    try {
+      await h.router.recover()
+      h.router.handle(inbound())
+      await vi.waitFor(() => { expect(h.cards).toContainEqual({ content: 'Done.' }) })
+    } finally {
+      h.controller.abort()
+      await h.router.dispose()
+    }
+  })
+
+  it('sends a rich reply through the outbox without flattening its card', async () => {
+    const { storage, records } = table()
+    records.set('rich', { channelId: CHANNEL,
+      chunks: [{ content: 'Done.', embeds: [{ title: 'Summary', description: 'Done.' }] }],
+      cursor: 0, attempts: 0, ordinal: 1, createdAt: Date.now() - 1, nextAttemptAt: Date.now() - 1 })
+    const h = harness({ outboxStorage: storage, useDefaultPost: true })
+    try {
+      await h.router.recover()
+      await vi.waitFor(() => { expect(h.cards.some(body => body.embeds?.length)).toBe(true) })
+    } finally {
+      h.controller.abort()
+      await h.router.dispose()
+    }
+  })
+
+  it('flushes durable replies after a command on a live conversation', async () => {
+    const { storage } = table()
+    const h = harness({ outboxStorage: storage, replyText: 'Initial answer.' })
+    try {
+      await h.router.recover()
+      h.router.handle(inbound())
+      await vi.waitFor(() => { expect(h.posted.map(post => post.content)).toContain('Initial answer.') })
+      h.router.handle(inbound({ id: 'command', content: '/compact' }))
+      await vi.waitFor(() => { expect(h.posted.map(post => post.content)).toContain('ran /compact') })
+    } finally {
+      h.controller.abort()
+      await h.router.dispose()
+    }
+  })
+
+  it('wakes a cold conversation for a due reminder and delivers its settled answer', async () => {
+    const { storage } = table()
+    const schedule = createAfterScheduleRecord(ScheduleId('router-wake'), 'Reminder', 1,
+      Date.now() - 60_000, 'Check the door')
+    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create', schedule } }] as SessionEvent[]
+    const h = harness({ outboxStorage: storage, storedEvents: events,
+      initialRecord: record({ deliveredThrough: 0 }), replyText: 'Door checked.' })
+    try {
+      await h.router.recover()
+      await vi.waitFor(() => { expect(h.posted.map(post => post.content)).toContain('Door checked.') })
+      expect(h.calls).toContain('agent-resume:discord-old-session')
+      expect(events.some(event => event.type === 'schedule/change' && event.data.operation === 'dispatch')).toBe(true)
+    } finally {
+      h.controller.abort()
+      await h.router.dispose()
+    }
+  })
+
+  it('keeps a cold reminder pending when its Session cannot resume', async () => {
+    const { storage } = table()
+    const schedule = createAfterScheduleRecord(ScheduleId('router-retry'), 'Reminder', 1,
+      Date.now() - 60_000, 'Check the door')
+    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create', schedule } }] as SessionEvent[]
+    const h = harness({ outboxStorage: storage, storedEvents: events,
+      initialRecord: record({ deliveredThrough: 0 }), resumeError: 'other' })
+    try {
+      await h.router.recover()
+      await vi.waitFor(() => { expect(h.warnings.some(message => message.includes('reminder recovery'))).toBe(true) })
+      expect(h.table.records.get(CHANNEL)?.sessionId).toBe('discord-old-session')
+    } finally {
+      h.controller.abort()
+      await h.router.dispose()
+    }
+  })
+
+  it('does not wake a reminder behind an input cancelled by /stop', async () => {
+    const { storage } = table()
+    const schedule = createAfterScheduleRecord(ScheduleId('router-stopped'), 'Reminder', 1,
+      Date.now() - 60_000, 'Check the door')
+    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create', schedule } }] as SessionEvent[]
+    const h = harness({ outboxStorage: storage, storedEvents: events,
+      initialRecord: record({ deliveredThrough: 0 }), replyText: 'Door checked.' })
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const resume = h.ctx.agents.resume.bind(h.ctx.agents)
+    vi.spyOn(h.ctx.agents, 'resume').mockImplementationOnce(async (options) => {
+      const handle = await resume(options)
+      entered.resolve(undefined)
+      await release.promise
+      return handle
+    })
+    try {
+      h.router.handle(inbound())
+      await entered.promise
+      await h.router.recover()
+      await new Promise(resolve => setImmediate(resolve))
+      const stopped = h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/stop')
+      release.resolve(undefined)
+      await stopped
+      expect(h.calls.filter(call => call.startsWith('agent-resume:'))).toHaveLength(1)
+      expect(events.some(event => event.type === 'schedule/change' && event.data.operation === 'dispatch')).toBe(false)
+    } finally {
+      release.resolve(undefined)
+      h.controller.abort()
+      await h.router.dispose()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('keeps a due reminder pending when a stale input is stopped', async () => {
+    const { storage } = table()
+    const schedule = createAfterScheduleRecord(ScheduleId('router-queued'), 'Reminder', 1,
+      Date.now() - 60_000, 'Check the door')
+    const events = [{ seq: 0, type: 'schedule/change', data: { version: 1, operation: 'create', schedule } }] as SessionEvent[]
+    const h = harness({ outboxStorage: storage, storedEvents: events,
+      initialRecord: record({ deliveredThrough: 0, lastInboundAt: Date.now() - 60_000 }),
+      conversationMaxAgeMs: 1, replyText: 'Door checked.' })
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    h.table.delete = async (channelId) => {
+      entered.resolve(undefined)
+      await release.promise
+      return h.table.records.delete(channelId)
+    }
+    try {
+      h.router.handle(inbound())
+      await entered.promise
+      vi.useFakeTimers()
+      await h.router.recover()
+      await vi.advanceTimersByTimeAsync(0)
+      const stopped = h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/stop')
+      release.resolve(undefined)
+      await stopped
+      expect(h.calls.some(call => call.startsWith('agent-resume:'))).toBe(false)
+      expect(events.some(event => event.type === 'schedule/change' && event.data.operation === 'dispatch')).toBe(false)
+    } finally {
+      release.resolve(undefined)
+      h.controller.abort()
+      await h.router.dispose()
+      vi.useRealTimers()
+    }
+  })
+
   it('preserves same-millisecond enqueue order when restart loads records in another order', async () => {
     vi.useFakeTimers()
     const { storage, records } = table()

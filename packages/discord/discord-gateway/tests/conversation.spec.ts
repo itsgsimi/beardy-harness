@@ -124,6 +124,16 @@ describe('conversation router', () => {
     expect(h.calls).not.toContain('post')
   })
 
+  it('notifies the channel when the turn ends with an error', async () => {
+    const h = harness()
+    h.agent.followup = () => {
+      h.events.push({ seq: h.events.length, type: 'turn/end',
+        data: { turn: 1, reason: { kind: 'error' } } } as never)
+    }
+    h.router.handle(inbound())
+    await vi.waitFor(() => { expect(h.posted.some(post => post.content.includes('could not finish'))).toBe(true) })
+  })
+
   it('reports a timed-out turn and releases its live handle', async () => {
     const h = harness({ hang: true, turnTimeoutMs: 5 })
     h.router.handle(inbound())
@@ -231,6 +241,21 @@ describe('conversation router', () => {
     expect(h.warnings.some(message => message.includes('message m1 failed'))).toBe(true)
   })
 
+  it.each([false, true])('removes a failed Session publication after record write = %s', async (wroteRecord) => {
+    const h = harness({ replyText: 'answer' })
+    const save = h.table.put
+    h.table.put = async (key, value) => {
+      if (wroteRecord) await save(key, value)
+      throw new Error('routing store failed')
+    }
+    h.router.handle(inbound())
+    await vi.waitFor(() => { expect(h.warnings.some(message => message.includes('message m1 failed'))).toBe(true) })
+    expect(h.calls).toContain('detach')
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    expect(h.table.records.has(CHANNEL)).toBe(false)
+    expect(h.calls.includes(`del:${CHANNEL}`)).toBe(wroteRecord)
+  })
+
   it('posts the answer through the Discord transport when no seam is given', async () => {
     const requests: { url: string; body: string; authorization: string }[] = []
     vi.stubGlobal('fetch', async (input: string | URL, init?: { body?: string; headers?: Record<string, string> }) => {
@@ -291,6 +316,42 @@ describe('conversation router', () => {
     h.releaseIdle()
   })
 
+  it.each([200, 403])('handles status reactions through Discord when HTTP returns %i', async (status) => {
+    const methods: string[] = []
+    vi.stubGlobal('fetch', async (_input: string | URL, init?: { method?: string }) => {
+      methods.push(init?.method ?? 'GET')
+      return new Response(status === 200 ? '{}' : 'forbidden', { status })
+    })
+    try {
+      const h = harness({ replyText: 'done', reactionStatus: true, useDefaultReact: true })
+      h.router.handle(inbound())
+      await vi.waitFor(() => { expect(methods).toEqual(['PUT', 'DELETE', 'PUT']) })
+      expect(h.warnings.some(message => message.includes('status reaction failed'))).toBe(status === 403)
+      await h.router.dispose()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('stops an in-flight status reaction quietly when the listener closes', async () => {
+    const started = Promise.withResolvers<undefined>()
+    vi.stubGlobal('fetch', async (_input: string | URL, init?: { signal?: AbortSignal }) =>
+      await new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => { reject(new Error('reaction aborted')) }, { once: true })
+        started.resolve(undefined)
+      }))
+    try {
+      const h = harness({ replyText: 'done', reactionStatus: true, useDefaultReact: true })
+      h.router.handle(inbound())
+      await started.promise
+      h.controller.abort()
+      await h.router.dispose()
+      expect(h.warnings.some(message => message.includes('status reaction failed'))).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('abandons the typing loop when the credential is gone', async () => {
     const h = harness({ replyText: 'x', hang: true, typingIndicator: true, failToken: true, turnTimeoutMs: 5_000 })
     h.router.handle(inbound())
@@ -334,5 +395,26 @@ describe('conversation router', () => {
     h.router.handle(inbound())
     await drain()
     expect(h.calls.filter(call => call === 'agent-create')).toHaveLength(1)
+  })
+
+  it('does not run an input stopped while resolving its live conversation', async () => {
+    const h = harness({ replyText: 'first' })
+    h.router.handle(inbound())
+    await drain()
+    const originalGet = h.table.get
+    let stop: Promise<unknown> | undefined
+    let armed = true
+    h.table.get = (channelId) => {
+      if (armed) {
+        armed = false
+        stop = h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/stop')
+      }
+      return originalGet(channelId)
+    }
+    h.router.handle(inbound({ id: 'm2', content: 'second' }))
+    await vi.waitFor(() => { expect(stop).toBeDefined() })
+    await stop
+    await drain()
+    expect(h.calls.filter(call => call.startsWith('followup:'))).toEqual(['followup:is the build green?'])
   })
 })

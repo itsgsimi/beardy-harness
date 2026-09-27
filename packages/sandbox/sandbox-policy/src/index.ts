@@ -20,17 +20,31 @@
  * @module @deepseek-ai/dsh-sandbox-policy
  */
 
-import { isAbsolute } from 'node:path'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { z as zod } from 'zod'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent'
-import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import type { FsMutationAllowance, SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
 export { SANDBOX_MODES, setSandboxMode } from './session-mode.ts'
+
+const pendingFsMutations = new WeakSet<FsMutationAllowance>()
+
+/**
+ * Consume an authentic exact-target allowance at the filesystem mutation boundary.
+ * @param allowance - ticket issued by the policy service.
+ * @param path - exact mutation target.
+ * @returns whether the ticket was valid and is now consumed.
+ */
+export function consumeApprovedFsMutation(allowance: FsMutationAllowance, path: string): boolean {
+  if (!pendingFsMutations.has(allowance) || resolve(path) !== allowance.targetPath) return false
+  pendingFsMutations.delete(allowance)
+  return true
+}
 
 /** Preserve execution-world spelling; enforcing providers resolve filesystem identity on their host. */
 function resolveWorkspaceRoot(path: string): string {
@@ -168,6 +182,28 @@ export class SandboxPolicyService extends Service {
       workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
       ...session === undefined ? {} : { sessionId: session.id },
     }
+  }
+
+  /**
+   * Issue one exact filesystem mutation after a tool receives `allowed-once`.
+   * The ticket is separate from the execution policy, so shell and subprocess
+   * policies cannot inherit it.
+   * @param policy - calling session's resolved policy.
+   * @param homePath - configured Harness home.
+   * @param targetPath - exact file or directory to mutate.
+   * @returns a one-use filesystem allowance.
+   */
+  approveFsMutation(policy: SandboxExecutionPolicy, homePath: string, targetPath: string): FsMutationAllowance {
+    if (policy.mode !== 'workspace-write') throw new Error('approved home writes require workspace-write mode')
+    const home = resolve(homePath)
+    const target = resolve(targetPath)
+    const suffix = relative(home, target)
+    if (suffix === '..' || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)) {
+      throw new Error('approved filesystem target must be inside the configured Harness home')
+    }
+    const allowance: FsMutationAllowance = Object.freeze({ homePath: home, targetPath: target })
+    pendingFsMutations.add(allowance)
+    return allowance
   }
 
   /**

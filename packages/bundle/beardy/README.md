@@ -160,7 +160,7 @@ No runtime invariant companion is published because the bundle only replaces and
 
 - [Bundle package map](../README.md) — the profile layers shipped with DSH.
 - [app-boot profile contract](../../boot/app-boot/README.md) — profile initialization and patch precedence.
-- [Memory tool package](../../memory/tool-memory/README.md) — the curated `USER.md` / `MEMORY.md` editor.
+- [Memory tool package](../../memory/tool-memory/README.md) — bounded core facts and on-demand topic files; Beardy presets require approval for home writes.
 - [Session query package](../../session-query/tool-session-query/README.md) — the history tools Beardy exposes to the model.
 - [SQLite search backend](../../session-query/session-query-sqlite/README.md) — the durable derived index.
 - [Generated composition graph](../../../apps/cli/composition.md) — the exact rows in each shipped profile.

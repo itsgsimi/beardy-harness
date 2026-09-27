@@ -47,6 +47,7 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 | `enableSkillManagement` | `false` | 暴露 `skill_manage` 变更工具；运行时需要 `ctx.fs` |
 | `enableUserSkillManagement` | `false` | 允许 `skill_manage` 写入每个会话都会加载的 Harness-home 用户根目录（`$DSH_HOME/skills`） |
 | `requireApproval` | `false` | 任何创建、更新或删除前先征询审批服务；未挂载应答者时写入被拒绝 |
+| `allowApprovedHomeWrites` | `false` | 同时启用审批与用户作用域管理后，在 `workspace-write` 中仅许可已获批的精确 home 文件或 skills 目录 |
 | `nudgeAfterToolCalls` | `0` | 一个已终结轮次中触发“保存为 skill”提示的工具调用次数；`0` 表示关闭提醒 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-skill)是每个受支持字段的穷尽式真源。
@@ -55,7 +56,7 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 
 - **会话目录。** 当存在模型可调用 skill 且 `skill` 工具可见时，agent 会在首次请求前收到一条持久的用户角色消息，列出每个 skill 的名称与有长度上限的描述；该消息告诉模型在着手任务前先用工具加载 skill，且绝不能仅凭摘要推断指令。
 - **加载工具。** 模型以精确的 skill 名称调用 `skill`，并收到完整指令正文以及规范的 `<skill_content>` 块中的资源指引；该结果作为普通工具历史保留。
-- **管理工具。** 挂载 `ctx.fs` 时，模型调用 `skill_manage` 在工作区创建、更新或删除扁平 skill 文件；开启用户作用域管理后，也可写入 Harness-home 用户根目录。该操作使用文件系统提供方的变更与沙箱策略，并且只接受所选根目录内的 kebab-case 名称。启用 `requireApproval` 时，被拒绝的操作不做任何改动。
+- **管理工具。** 挂载 `ctx.fs` 时，模型调用 `skill_manage` 在工作区创建、更新或删除扁平 skill 文件；开启用户作用域管理后，也可写入 Harness-home 用户根目录。该操作只接受所选根目录内的 kebab-case 名称。`allowApprovedHomeWrites` 在 `allowed-once` 后只许可一次精确的 home 变更；删除还会校验观察到的文件版本。被拒绝的操作不做任何改动。
 - **“保存为 skill”提醒。** 当 `nudgeAfterToolCalls` 为正数，且某个轮次完成足够多的工具调用却没有使用 `skill_manage` 时，下一条请求会收到一条随日志留存的提示。被委派的子 agent 会话不会被计数，因此不会收到该提示：skill 的编写权归属于派发工作的顶层会话。
 - **用户显式调用。** 直接用户输入中的 `/name` token 若指名某个用户可调用 skill，会把该 skill 的指令注入该步骤，而无需模型自行加载。
 - **实时目录更新。** 后续成员关系、描述或可见性变化会追加完整的替换目录；删除全部 skill 时会追加空目录，停用较早的名称。

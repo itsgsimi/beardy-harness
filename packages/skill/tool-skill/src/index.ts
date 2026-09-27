@@ -81,6 +81,8 @@ export interface Config {
   enableUserSkillManagement?: boolean
   /** Create, update, and delete ask the approval service before they touch a file. */
   requireApproval?: boolean
+  /** Permit approved user-scope mutations in the Harness home under workspace-write. */
+  allowApprovedHomeWrites?: boolean
   /** Tool calls in one settled turn that trigger the save-it-as-a-skill nudge; 0 disables. */
   nudgeAfterToolCalls?: number
 }
@@ -91,6 +93,7 @@ export const Config: z<Config> = z.object({
   enableSkillManagement: z.boolean().default(false),
   enableUserSkillManagement: z.boolean().default(false),
   requireApproval: z.boolean().default(false),
+  allowApprovedHomeWrites: z.boolean().default(false),
   nudgeAfterToolCalls: z.number().default(0),
 })
 
@@ -101,6 +104,10 @@ export const Config: z<Config> = z.object({
  * same-name shadow therefore removes both the schema and its call guidance.
  */
 export function apply(ctx: Context, config: Config = {}): void {
+  if (config.allowApprovedHomeWrites
+    && (!config.requireApproval || !config.enableSkillManagement || !config.enableUserSkillManagement)) {
+    throw new Error('tool-skill: allowApprovedHomeWrites requires requireApproval, enableSkillManagement, and enableUserSkillManagement')
+  }
   const catalogDescriptionMaxLength = config.catalogDescriptionMaxLength ?? DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
   const nudgeAfterToolCalls = config.nudgeAfterToolCalls ?? 0
@@ -196,6 +203,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       applySkillManageTool(fsCtx, fsCtx.fs, {
         enableUserScope: config.enableUserSkillManagement === true,
         requireApproval: config.requireApproval === true,
+        allowApprovedHomeWrites: config.allowApprovedHomeWrites === true,
       })
     })
   }

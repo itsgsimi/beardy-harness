@@ -437,9 +437,10 @@ abstract listDir(target: FsTarget, signal?: AbortSignal): Promise<FsDirEntry[]>
  * @param target - the directory target to create.
  * @param signal - aborts before the directory is created.
  * @param sandboxPolicy - the per-call policy for a sandboxing backend.
+ * @param allowance - one-use exact home target from an approved trusted tool.
  * @returns completion after the directory exists.
  */
-abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>
+abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, ): Promise<void>
 
 /**
  * Remove one regular file. Directory removal is intentionally not part of
@@ -448,9 +449,11 @@ abstract makeDirectory( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: 
  * @param target - the regular-file target to remove.
  * @param signal - aborts before removal takes effect.
  * @param sandboxPolicy - the per-call policy for a sandboxing backend.
+ * @param allowance - one-use exact home target from an approved trusted tool.
+ * @param expectedVersion - observed version required for removal, when supplied.
  * @returns completion after the file is absent.
  */
-abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<void>
+abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, expectedVersion?: FsVersion, ): Promise<void>
 
 /**
  * Atomically create or replace UTF-8 text. `expected` guards intent and
@@ -462,9 +465,10 @@ abstract removeFile( target: FsTarget, signal?: AbortSignal, sandboxPolicy?: San
  * @param sandboxPolicy - the per-call mode and workspace root this write
  *   runs under; a sandboxing backend fences the write by it, the bare backend
  *   ignores it. Omit to leave the backend its own default.
+ * @param allowance - one-use exact home target from an approved trusted tool.
  * @returns the outcome, including the version the write produced.
  */
-abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsWriteOutcome>
+abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, ): Promise<FsWriteOutcome>
 
 /**
  * Atomically edit literal text. When supplied, the version guard is checked
@@ -477,12 +481,13 @@ abstract writeText( target: FsTarget, content: string, expected?: FsWriteIntent,
  * @param sandboxPolicy - the per-call mode and workspace root this edit runs
  *   under; a sandboxing backend fences the edit by it, the bare backend
  *   ignores it. Omit to leave the backend its own default.
+ * @param allowance - one-use exact home target from an approved trusted tool.
  * @returns the outcome, including the version the edit produced.
  */
-abstract editText( target: FsTarget, edit: FsEditRequest, expected?: { version: FsVersion }, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, ): Promise<FsEditOutcome>
+abstract editText( target: FsTarget, edit: FsEditRequest, expected?: { version: FsVersion }, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy, allowance?: FsMutationAllowance, ): Promise<FsEditOutcome>
 ```
 
-Types: [SandboxExecutionPolicy](sandbox.md)
+Types: [FsMutationAllowance](sandbox.md) · [SandboxExecutionPolicy](sandbox.md)
 
 Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
 

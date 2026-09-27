@@ -9,6 +9,7 @@
 /* jscpd:ignore-start -- consumers list the same service modules for side-effect types; shared logic lives in dsh-unattended-session */
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
@@ -19,6 +20,28 @@ import { sleep, lastAssistantText, lastTurnEndReason, openUnattendedSession, typ
 import type {} from '@deepseek-ai/dsh-workspace'
 /* jscpd:ignore-end */
 import type { CronJobSpec, CronRunResult, ScheduledJobSpec } from './types.ts'
+
+const activeApprovalRoutes = new WeakMap<Agent, { channelId?: string }>()
+
+/**
+ * Register one live cron run's configured delivery channel until its turn settles.
+ * @param agent - the active run's Agent.
+ * @param channelId - configured delivery channel, if present.
+ * @returns disposer for the active route.
+ */
+export function registerCronApprovalRoute(agent: Agent, channelId?: string): () => void {
+  activeApprovalRoutes.set(agent, channelId === undefined ? {} : { channelId })
+  return () => { activeApprovalRoutes.delete(agent) }
+}
+
+/**
+ * Find only a live cron Agent's configured channel; absence of a channel still identifies the run.
+ * @param agent - Agent requesting approval.
+ * @returns live route or undefined outside a run.
+ */
+export function cronApprovalRoute(agent: Agent): { channelId?: string } | undefined {
+  return activeApprovalRoutes.get(agent)
+}
 
 /** Everything a run needs from the host and the plugin's configuration. */
 export interface JobRunnerDeps {
@@ -122,6 +145,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   return {
     async run(job: ScheduledJobSpec, firedAt: number, sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)): Promise<CronRunResult> {
       let session: UnattendedSession | undefined
+      let releaseApprovalRoute: (() => void) | undefined
       const bound = new AbortController()
       const runSignal = AbortSignal.any([signal, bound.signal])
       try {
@@ -130,6 +154,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         mounted.push(session)
         signal.throwIfAborted()
         const agent = session.handle.agent
+        releaseApprovalRoute = registerCronApprovalRoute(agent, job.deliverChannelId)
         const firstSeq = agent.session.seq
         agent.followup(createUserMessage({
           content: [{ type: 'text', text: runPrompt(job) }],
@@ -197,6 +222,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         ctx.logger.error(`dsh-cron: job "${job.name}" ${failure}: ${errorChain(error)}`)
         return { outcome: 'failed', sessionId, text: '', failure: { code: 'UNKNOWN', message: errorChain(error) } }
       } finally {
+        releaseApprovalRoute?.()
         bound.abort(new Error('cron turn settled'))
       }
     },
