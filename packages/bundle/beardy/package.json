@@ -43,8 +43,12 @@
     }
   },
   "dependencies": {
+    "@deepseek-ai/dsh-agent-preset": "workspace:*",
+    "@deepseek-ai/dsh-agent-preset-registry": "workspace:*",
     "@deepseek-ai/dsh-cron": "workspace:*",
     "@deepseek-ai/dsh-discord-gateway": "workspace:*",
+    "@deepseek-ai/dsh-fantasy": "workspace:*",
+    "@deepseek-ai/dsh-fantasy-yahoo": "workspace:*",
     "@deepseek-ai/dsh-health": "workspace:*",
     "@deepseek-ai/dsh-log-exporter": "workspace:*",
     "@deepseek-ai/dsh-tool-weather": "workspace:*",
@@ -54,13 +58,12 @@
     "@deepseek-ai/dsh-session-query-sqlite": "workspace:*",
     "@deepseek-ai/dsh-time-context": "workspace:*",
     "@deepseek-ai/dsh-tool-discord": "workspace:*",
+    "@deepseek-ai/dsh-tool-fantasy": "workspace:*",
     "@deepseek-ai/dsh-tool-memory": "workspace:*",
     "@deepseek-ai/dsh-tool-odysseus-research": "workspace:*",
     "@deepseek-ai/dsh-tool-research": "workspace:*",
     "@deepseek-ai/dsh-tool-session-query": "workspace:*",
-    "@deepseek-ai/dsh-web-search-searxng": "workspace:*",
-    "@deepseek-ai/dsh-agent-preset": "workspace:*",
-    "@deepseek-ai/dsh-agent-preset-registry": "workspace:*"
+    "@deepseek-ai/dsh-web-search-searxng": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

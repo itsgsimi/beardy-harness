@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/fantasy/fantasy-yahoo/README.md
+/:
+  en: a356c1fa5e4ab1dc
+  zh: 2ba19529c655e3ac
+/deepseek-ai-dsh-fantasy-yahoo:
+  en: 1e64da42388abd5d
+  zh: ca57955c43b9e166
+/deepseek-ai-dsh-fantasy-yahoo/summary:
+  en: 27e54616afcf5b0c
+  zh: b1d5bb6f4126f6f8
+/deepseek-ai-dsh-fantasy-yahoo/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-fantasy-yahoo/use-this-package:
+  en: e55a48f97e258f18
+  zh: cd695aef4fad5c79
+/deepseek-ai-dsh-fantasy-yahoo/understand-the-implementation:
+  en: 5bfa4f034d3d43ba
+  zh: bd71992756a3cc7b
+/deepseek-ai-dsh-fantasy-yahoo/further-exploration:
+  en: ed93af88b8b45c9b
+  zh: c4fc258d23242555
+/deepseek-ai-dsh-fantasy-yahoo/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-fantasy-yahoo/model-experience/yahoo-provider:
+  en: bcd15dd5987651b6
+  zh: e48621abff06033b
+/deepseek-ai-dsh-fantasy-yahoo/model-experience/yahoo-provider/what-the-model-sees:
+  en: b69e3e3268b555fa
+  zh: 4888663f05a3812f
+/deepseek-ai-dsh-fantasy-yahoo/model-experience/yahoo-provider/token-effect:
+  en: 9019d5b8c8b35f6f
+  zh: df9807517e6b6728
+/deepseek-ai-dsh-fantasy-yahoo/model-experience/yahoo-provider/kv-cache-effect:
+  en: dfa073cc99704d85
+  zh: d2c745f32ed96d7c
+/deepseek-ai-dsh-fantasy-yahoo/known-limitations-and-deferred-work:
+  en: e6dfed9a39f789d6
+  zh: a25d1a00c2767d9b
+/deepseek-ai-dsh-fantasy-yahoo/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

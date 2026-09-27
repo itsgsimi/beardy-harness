@@ -217,6 +217,13 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-cordis-host-runner` | yes | Dynamic package definition registry, host-half sandbox lifecycle, and invoke handler table for model-mounted dual-half packages |
 | `@deepseek-ai/dsh-tool-cordis` | no | Read-only runtime API inspection for Harness plugin development |
 
+## fantasy
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-fantasy-yahoo` | yes | Yahoo Fantasy v2 provider and private OAuth store |
+| `@deepseek-ai/dsh-tool-fantasy` | yes | Read-only model-facing Yahoo Fantasy tool |
+
 ## feedback
 
 | Package | Config | Description |

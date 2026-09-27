@@ -9,6 +9,10 @@
 
 ```mermaid
 flowchart LR
+  pkg_fantasy["fantasy"]
+  svc_fantasy["ctx.fantasy<br/>Read-only Yahoo Fantasy data"]
+  pkg_fantasy_yahoo["fantasy-yahoo"]
+  pkg_tool_fantasy["tool-fantasy"]
   pkg_research["research"]
   svc_research["ctx.research<br/>Durable owner-scoped research runs"]
   pkg_research_local["research-local"]
@@ -332,6 +336,8 @@ flowchart LR
   pkg_experimental_ptc_runtime_python --> svc_ptcRuntime
   pkg_experimental_speech_to_text --> svc_speechToText
   pkg_experimental_speech_to_text_sensevoice --> svc_speechToText
+  pkg_fantasy --> svc_fantasy
+  pkg_fantasy_yahoo --> svc_fantasy
   pkg_file_reference --> svc_fileReferences
   pkg_file_reference_local --> svc_fileReferences
   pkg_fs --> svc_fs
@@ -469,6 +475,7 @@ flowchart LR
   svc_deepseekLlmApiExtensions --> pkg_llm_deepseek
   svc_directoryPicker --> pkg_api_workspace_controller
   svc_dynamicCordisRunner --> pkg_tool_cordis
+  svc_fantasy --> pkg_tool_fantasy
   svc_fileReferences --> pkg_api_session_controller
   svc_fileUploads --> pkg_api_session_controller
   svc_fs --> pkg_tool_fs
@@ -585,6 +592,7 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy) | - | 提供方拥有 OAuth 与 Yahoo 解析；模型消费方返回调用方映射球队的有界只读结果。 |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | - | - | 本地提供方保存运行 Session 和报告附件；面向模型的消费方将在研究工具切片中加入。 |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |
 | `ctx.pluginRegistryProbe` | `core` | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | 在 Host 上并发比较公共安装源响应；初始安装源推荐由 Client 负责。 |

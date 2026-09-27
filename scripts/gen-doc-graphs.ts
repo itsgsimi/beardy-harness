@@ -110,6 +110,15 @@ const GROUP_ORDER = [
 
 const SERVICE_ROLES: ServiceRole[] = [
   {
+    key: 'fantasy',
+    pkg: 'fantasy',
+    title: 'Read-only Yahoo Fantasy data',
+    mode: 'seam',
+    implementations: ['fantasy-yahoo'],
+    consumers: ['tool-fantasy'],
+    note: 'The provider owns OAuth and Yahoo parsing; the model consumer returns bounded reads from the caller\'s mapped team.',
+  },
+  {
     key: 'research',
     pkg: 'research',
     title: 'Durable owner-scoped research runs',
