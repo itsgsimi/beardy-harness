@@ -12,6 +12,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import LocalResearchService, { projectResearchRun, type Config } from '../src/index.ts'
+import { DEFAULT_BUDGETS } from '../src/config.ts'
 
 const roots: string[] = []
 const contexts: Context[] = []
@@ -66,6 +67,7 @@ describe('research run storage', () => {
     const { ctx } = await setup()
     const source = await caller(ctx, 'caller-owner')
     const foreign = await caller(ctx, 'caller-foreign')
+    expect(ctx.research.ownerFor(source.session)).toEqual(source.owner)
     const run = await (ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'Private' })
     await expect(ctx.research.status(run.id, foreign.owner)).rejects.toThrow('research run unavailable')
     await expect(ctx.research.report(run.id, foreign.owner)).rejects.toThrow('research run unavailable')
@@ -133,9 +135,19 @@ describe('research run storage', () => {
     const local = ctx.research as LocalResearchService
     const checkpoint = await local.checkpoint(run.id, source.owner, { round: 1, elapsedMs: 25, stageSessionId: SessionId('stage-1') })
     expect(checkpoint).toMatchObject({ round: 1, stageSessionIds: ['stage-1'] })
-    expect(await Promise.all([ctx.research.cancel(run.id, source.owner), ctx.research.cancel(run.id, source.owner)]))
-      .toEqual([{ requested: true }, { requested: false }])
+    // Each cancel reads its ownership before joining the mutation queue, so two
+    // calls issued together queue in read-completion order. Issue the second
+    // while the first holds the queue at its terminal commit.
+    let second: Promise<{ requested: boolean }> | undefined
+    const off = ctx.on('research/changed', ({ run: view }) => {
+      if (view.id === run.id && view.phase === 'cancelled') second ??= ctx.research.cancel(run.id, source.owner)
+    })
+    const first = await ctx.research.cancel(run.id, source.owner)
+    off()
+    expect([first, await second]).toEqual([{ requested: true }, { requested: false }])
     expect((await ctx.research.status(run.id, source.owner)).phase).toBe('cancelled')
+    expect(ctx.agents.get(SessionId(run.id))!.session.snapshotEvents()
+      .filter(event => event.type === 'research/finished')).toHaveLength(1)
     expect(await local.checkpoint(run.id, source.owner, { round: 2, elapsedMs: 50 })).toMatchObject({ round: 1 })
     await source.handle.dispose()
   })
@@ -209,12 +221,14 @@ describe('research run storage', () => {
     const other: ResearchOwner = { kind: 'profile', namespace: 'other' }
     await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: other, query: 'Question' })).rejects.toThrow(/configured profile/)
     await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'Question' })).rejects.toThrow(/configured profile/)
+    expect(ctx.research.ownerFor(source.session)).toEqual(owner)
     const run = await (ctx.research as LocalResearchService).startStored({ caller: source.session, owner, query: 'Question' })
     expect(await ctx.research.status(run.id, owner)).toMatchObject({ id: run.id })
     await expect(ctx.research.status(run.id, other)).rejects.toThrow('research run unavailable')
     await expect(ctx.research.status(run.id, source.owner)).rejects.toThrow('research run unavailable')
     expect(await ctx.research.list({ owner: other, limit: 10 })).toEqual([])
     await source.handle.dispose()
+    expect(() => ctx.research.ownerFor(source.session)).toThrow(/not live/)
     await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner, query: 'Detached' })).rejects.toThrow(/not live/)
   })
 
@@ -361,6 +375,24 @@ describe('research run storage', () => {
     await expect(ctx.research.status(ResearchRunId('rp-native-forged'), source.owner))
       .rejects.toThrow('research run unavailable')
     await fake.dispose()
+    await source.handle.dispose()
+  })
+
+  it('pages a report from a run started before budgets were recorded with the default page size', async () => {
+    const { ctx } = await setup()
+    const source = await caller(ctx, 'caller-unbudgeted')
+    const reportRef = await ctx.attachments.saveFile({ data: new TextEncoder().encode('# Old'), name: 'report.md' })
+    const evidenceRef = await ctx.attachments.saveFile({ data: new TextEncoder().encode('{}'), name: 'evidence.json' })
+    const historical = await ctx.agents.create({ sessionId: SessionId('rp-native-unbudgeted') })
+    historical.agent.session.append('research/started', {
+      id: ResearchRunId('rp-native-unbudgeted'), owner: source.owner, callerSessionId: source.session.id,
+      query: 'Before budgets', provider: 'mock', model: 'test-model', createdAt: Date.now(),
+    })
+    historical.agent.session.append('research/finished', { phase: 'completed', finishedAt: Date.now(), reportRef, evidenceRef })
+    await ctx.sessions.flush(historical.agent.session)
+    expect(await ctx.research.report(ResearchRunId('rp-native-unbudgeted'), source.owner))
+      .toMatchObject({ complete: true, markdown: '# Old', pageChars: DEFAULT_BUDGETS.reportPageChars })
+    await historical.dispose()
     await source.handle.dispose()
   })
 

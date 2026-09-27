@@ -6,7 +6,7 @@
  * tools, so the choice is only ever offered before one starts.
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -59,7 +59,12 @@ function renderSeat(
 ) {
   const store = createSnapshotStore<AgentPresetSeatState>({ ...SEAT_READY, ...state })
   const developerTools = createSnapshotStore(enabled)
-  const actions = { load: vi.fn(() => Promise.resolve()), select: vi.fn(select), introduced: vi.fn() }
+  const actions = {
+    load: vi.fn(() => Promise.resolve()),
+    select: vi.fn(select),
+    introduced: vi.fn(),
+    setPickerPlacement: vi.fn(() => Promise.resolve()),
+  }
   const props = {
     ...actions,
     sessionId: session === undefined ? undefined : SessionId(session.id),
@@ -71,7 +76,7 @@ function renderSeat(
     t: translate,
   } as AgentPresetSeatProps
   render(<AgentPresetSeat {...props} />)
-  return { ...actions, developerTools }
+  return { ...actions, developerTools, store }
 }
 
 function renderLabel(
@@ -198,6 +203,103 @@ describe('the new-session chip', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
+describe('the mode picker groups and management', () => {
+  const trigger = (): HTMLElement => screen.getByRole('button', { name: new RegExp(en.presetStandardName) })
+
+  it('folds modes placed under More into one expandable row and never lists hidden ones', () => {
+    const actions = renderSeat({
+      options: [
+        { id: 'standard' },
+        { id: 'mine', picker: 'more' },
+        { id: 'spare', picker: 'more' },
+        { id: 'quiet', picker: 'hidden' },
+      ],
+    })
+    fireEvent.click(trigger())
+
+    const more = screen.getByRole('menuitem', { name: /More modes/ })
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(more.textContent).toBe(`${en.moreModes}2`)
+    expect(screen.getAllByRole('separator')).toHaveLength(1)
+    expect(screen.queryByRole('menuitem', { name: /mine/ })).toBeNull()
+
+    fireEvent.click(more)
+
+    expect(screen.getByRole('menuitem', { name: /More modes/ }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: /mine/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /spare/ })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /quiet/ })).toBeNull()
+    expect(trigger().getAttribute('aria-expanded')).toBe('true')
+    expect(actions.select).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /More modes/ }))
+
+    expect(screen.queryByRole('menuitem', { name: /mine/ })).toBeNull()
+  })
+
+  it('opens on the More row alone when no mode stays in the main list', () => {
+    renderSeat({ current: 'arriving', options: [{ id: 'mine', picker: 'more' }] })
+    fireEvent.click(screen.getByRole('button', { name: /arriving/ }))
+
+    expect(screen.getByRole('menuitem', { name: /More modes/ })).toBeTruthy()
+    expect(screen.queryByRole('separator')).toBeNull()
+  })
+
+  it('saves a placement from the management dialog and returns to the menu when done', () => {
+    const actions = renderSeat({ options: [{ id: 'standard' }, { id: 'mine', picker: 'more' }] })
+    fireEvent.click(trigger())
+
+    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
+
+    const dialog = screen.getByRole('dialog', { name: en.manageModes })
+    expect(trigger().getAttribute('aria-expanded')).toBe('false')
+    const standard = within(dialog).getByRole<HTMLSelectElement>('combobox', { name: `Placement for ${en.presetStandardName}` })
+    const mine = within(dialog).getByRole<HTMLSelectElement>('combobox', { name: 'Placement for mine' })
+    expect([standard.value, mine.value]).toEqual(['main', 'more'])
+
+    fireEvent.change(mine, { target: { value: 'hidden' } })
+
+    expect(actions.setPickerPlacement).toHaveBeenCalledWith('mine', 'hidden')
+    expect(actions.select).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: en.done }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(trigger().getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('returns focus to the edited placement after its save settles and shows a refused save', () => {
+    const { store } = renderSeat()
+    fireEvent.click(trigger())
+    fireEvent.click(screen.getByRole('menuitem', { name: en.manageModesAction }))
+    const dialog = screen.getByRole('dialog', { name: en.manageModes })
+    const mine = within(dialog).getByRole<HTMLSelectElement>('combobox', { name: 'Placement for mine' })
+
+    mine.focus()
+    fireEvent.change(mine, { target: { value: 'more' } })
+    // A browser drops a control's focus to the body when the save disables it;
+    // jsdom keeps focus on a disabled control, so the test drops it first.
+    mine.blur()
+    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: true }) })
+    expect(mine.disabled).toBe(true)
+    expect(document.activeElement).toBe(document.body)
+    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: false, pickerError: 'read-only settings' }) })
+
+    expect(document.activeElement).toBe(mine)
+    expect(within(dialog).getByRole('alert').textContent).toBe('read-only settings')
+
+    // Focus the person moved elsewhere during the save stays where they put it.
+    fireEvent.change(mine, { target: { value: 'hidden' } })
+    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: true, pickerError: null }) })
+    const done = within(dialog).getByRole('button', { name: en.done })
+    done.focus()
+    act(() => { store.set({ ...store.getSnapshot(), pickerSaving: false }) })
+
+    expect(document.activeElement).toBe(done)
+    expect(within(dialog).queryByRole('alert')).toBeNull()
   })
 })
 

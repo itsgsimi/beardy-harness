@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { paginateResearchResponse } from '../src/index.ts'
+import { paginateResearchResponse, researchPageOutput } from '../src/index.ts'
 
 it('reassembles JSON pages by Unicode code point without splitting an emoji', () => {
   const value = { report: '🧪 evidence' }
@@ -23,4 +23,15 @@ it('rejects an offset beyond the response and retains only supplied report metad
   expect(paginateResearchResponse({}, 0, 10, artifact).artifact).toEqual(artifact)
   expect(paginateResearchResponse({}, 0, 10)).not.toHaveProperty('artifact')
   expect(() => paginateResearchResponse({}, 3, 10)).toThrow('offset exceeds the response length')
+})
+
+it('projects page text and copies only the source titles a report supplies into viewer metadata', () => {
+  const artifact = {
+    id: 'run', markdown: 'Report',
+    sources: [{ url: 'https://example.org/titled', title: 'Titled' }, { url: 'https://example.org/untitled' }],
+  }
+  const page = paginateResearchResponse({ status: 'done' }, 0, 100, artifact)
+  expect(researchPageOutput.render(undefined, page)).toEqual([{ type: 'text', text: page.text }])
+  expect(researchPageOutput.presentationMeta(undefined, page)).toStrictEqual({ researchArtifact: artifact })
+  expect(researchPageOutput.presentationMeta(undefined, paginateResearchResponse({}, 0, 10))).toEqual({})
 })

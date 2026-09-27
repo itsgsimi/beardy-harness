@@ -361,6 +361,30 @@ describe('job runner', () => {
     }
   })
 
+  it('releases a Session whose creation completes after the scheduler is cancelled', async () => {
+    const scopeReleasing = Promise.withResolvers<undefined>()
+    const scopeReleased = Promise.withResolvers<undefined>()
+    const disposed = Promise.withResolvers<undefined>()
+    const h = harness({ turnTimeoutMs: 600_000 })
+    // The open transaction releases its preset scope after its last cancellation check, so holding the release
+    // lets the scheduler cancel while creation is certain to complete.
+    h.ctx.agentPresets.acquireScope = vi.fn().mockImplementation(async () => ({ key: {}, [Symbol.asyncDispose]: async () => {
+      scopeReleasing.resolve(undefined)
+      await scopeReleased.promise
+    } }))
+    h.handle.dispose.mockImplementation(async () => { disposed.resolve(undefined) })
+    const running = h.runner.run(JOB, FIRED_AT)
+    await scopeReleasing.promise
+    h.controller.abort(new Error('scheduler disposed'))
+    expect(await running).toMatchObject({ outcome: 'interrupted', text: '' })
+    expect(h.handle.dispose).not.toHaveBeenCalled()
+    scopeReleased.resolve(undefined)
+    await disposed.promise
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    expect(h.runner.live()).toBe(0)
+    expect(h.calls).not.toContain(`followup:${runPrompt(JOB)}`)
+  })
+
   it('reports a timed-out run while its Session disposal is stalled', async () => {
     const disposalEntered = Promise.withResolvers<undefined>()
     const releaseDisposal = Promise.withResolvers<undefined>()

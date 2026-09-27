@@ -138,6 +138,14 @@ describe('parseMessageCreate', () => {
     }])
   })
 
+  it('retains a voice attachment size supplied by Discord', () => {
+    const message = parseMessageCreate({
+      id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: '',
+      attachments: [{ filename: 'note.ogg', url: 'https://example.org/note.ogg', content_type: 'audio/ogg', size: 512 }],
+    })
+    expect(message?.audioAttachments?.[0]?.size).toBe(512)
+  })
+
   it('reads mention ids and the author of a replied-to message', () => {
     const message = parseMessageCreate({
       id: 'm1', channel_id: 'c1', author: { id: 'u1' }, content: 'you',

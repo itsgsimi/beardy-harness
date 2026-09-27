@@ -61,6 +61,16 @@ describe('prompt text', () => {
     expect(text).toContain('comma-separated (for example 1,3)')
   })
 
+  it('omits an empty question header', () => {
+    expect(buildQuestionPrompt(question({ header: '' }), 0, 1))
+      .toContain('A question needs your answer: Which color?')
+  })
+
+  it('includes descriptions beside numbered answers', () => {
+    expect(buildQuestionPrompt(question({ options: [{ label: 'Red', description: 'Warm color' }] }), 0, 1))
+      .toContain('1. Red — Warm color')
+  })
+
   it('describes the enabled menu without offering disabled numbered text answers', () => {
     expect(buildQuestionPrompt(question(), 0, 1, ['component'])).toContain('Choose an answer from the menu below.')
     expect(buildQuestionPrompt(question(), 0, 1, ['component'])).not.toContain('Reply with')

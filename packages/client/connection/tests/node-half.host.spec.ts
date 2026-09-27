@@ -345,6 +345,37 @@ describe('connection node half', () => {
     await dispose()
   })
 
+  it('keeps only the trust fence when browser authentication is disabled', async () => {
+    const { routes, connection, dispose } = await mounted({ insecureNoAuth: true, trustedHosts: ['harness.example'] })
+    try {
+      expect(connection.requestRejection({ headers: { host: 'harness.example' } })).toBeUndefined()
+      expect(connection.requestRejection({ headers: { host: 'attacker.example' } })).toBe(403)
+      const bridged = fakeResponse()
+      await routes[0]!.handler(fakeRequest({ host: '127.0.0.1:3080' }), bridged.response)
+      expect(bridged.state.status).toBe(404)
+
+      const served = fakeResponse()
+      expect(connection.authorizeIndex(
+        { method: 'GET', url: '/', headers: { host: 'harness.example' } }, served.response,
+      )).toBe(true)
+      expect(served.state).toEqual({})
+      const refusedHeaders = { 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8' }
+      const refused = fakeResponse()
+      expect(connection.authorizeIndex(
+        { method: 'GET', url: '/', headers: { host: 'attacker.example' } }, refused.response,
+      )).toBe(false)
+      expect(refused.state).toEqual({ status: 403, headers: refusedHeaders, body: 'forbidden' })
+      const refusedHead = fakeResponse()
+      expect(connection.authorizeIndex(
+        { method: 'HEAD', url: '/', headers: { host: 'attacker.example' } }, refusedHead.response,
+      )).toBe(false)
+      expect(refusedHead.state).toEqual({ status: 403, headers: refusedHeaders })
+
+      expect(connection.authenticatedUrl('http://harness.example:3080/app/?token=stale#view'))
+        .toBe('http://harness.example:3080/')
+    } finally { await dispose() }
+  })
+
   it('provides a disposable dedicated RPC channel', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []

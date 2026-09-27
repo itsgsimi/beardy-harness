@@ -311,7 +311,7 @@ export function createSchedulerHost(
         ctx.logger.error(`dsh-cron: job "${job.name}" run reported a failure: ${errorChain(error)}`)
       })
       .finally(() => {
-        if (inFlight.get(job.name) === run) inFlight.delete(job.name)
+        inFlight.delete(job.name)
         const trimming = runner.trim(options.maxLiveRuns)
           .catch((error: unknown) => {
             ctx.logger.error(`dsh-cron: releasing completed sessions failed: ${errorChain(error)}`)

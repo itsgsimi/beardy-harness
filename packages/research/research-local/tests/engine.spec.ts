@@ -10,7 +10,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import type { WebFetchResult, WebSearchResult } from '@deepseek-ai/dsh-web'
-import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { ReasoningEffortId, type RequestMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import LocalResearchService, { type Config } from '../src/index.ts'
@@ -524,5 +524,61 @@ it('surfaces a failed terminal flush to a waiter without an unhandled background
     session.snapshotEvents().at(-1)?.type === 'research/finished' ? Promise.resolve(false) : flush(session))
   const view = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Terminal flush' })
   await expect(h.local.whenDone(view.id)).rejects.toThrow('research run has no durability provider')
+  await h.caller.dispose()
+})
+
+it('refuses to run a retried start whose durable run lost its live Agent', async () => {
+  const h = await harness([], async () => result([]), async url => page(url))
+  const request = { caller: h.caller.agent.session, owner: h.owner, query: 'Orphan', requestKey: 'orphan-key' }
+  const off = h.ctx.on('session/flush', (session) => {
+    if (session.id === h.caller.agent.session.id) throw new Error('caller disk failed')
+  })
+  await expect(h.local.start(request)).rejects.toThrow('caller disk failed')
+  off()
+  await expect(h.local.start(request)).rejects.toThrow('research run has no live Agent')
+  expect(await h.local.list({ owner: h.owner, limit: 10 })).toMatchObject([{ query: 'Orphan', phase: 'running' }])
+  expect(h.adapter.requests).toHaveLength(0)
+  await h.caller.dispose()
+})
+
+it('fails a stage whose restriction does not mask a registered tool before calling the model', async () => {
+  const h = await harness(['plan'], async () => result([]), async url => page(url))
+  h.ctx.tools.register(defineContentToolFixture({
+    name: 'leaked_stage_tool', description: 'Must not reach a research stage', parameters: {},
+    execute: async () => [{ type: 'text', text: 'escaped' }],
+  }))
+  vi.spyOn(ToolRuntime.prototype, 'restrict').mockReturnValue(() => {})
+  const view = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Leaked tools' })
+  await h.local.whenDone(view.id)
+  const failed = await h.local.status(view.id, h.owner)
+  expect(failed).toMatchObject({ phase: 'failed', reason: 'Error: research stage had no settled assistant response' })
+  const stage = await h.ctx.sessionPersistence.open(failed.stageSessionIds[0]!, 'read')
+  const events = (await stage.read()).events
+  await stage.close()
+  expect(events.find(event => event.type === 'turn/end')?.data).toMatchObject({
+    reason: { kind: 'error', error: { message: 'research stage exposed model tools: leaked_stage_tool' } },
+  })
+  expect(h.adapter.requests).toHaveLength(0)
+  await h.caller.dispose()
+})
+
+it('counts only its own model request while another stage streams concurrently', async () => {
+  const h = await harness([{ hang: true }, { hang: true }], async () => result([]), async url => page(url),
+    { maxConcurrentModelCalls: 2 })
+  let active = 0
+  const both = Promise.withResolvers<boolean>()
+  h.ctx.on('llm/stream', async function* (_request, next) {
+    if (++active === 2) both.resolve(true)
+    try { yield* next() } finally { active-- }
+  })
+  const first = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'First' })
+  const second = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Second' })
+  await both.promise
+  expect(await Promise.all([h.local.cancel(first.id, h.owner), h.local.cancel(second.id, h.owner)]))
+    .toEqual([{ requested: true }, { requested: true }])
+  for (const id of [first.id, second.id]) {
+    expect(await h.local.status(id, h.owner)).toMatchObject({ phase: 'cancelled', reason: 'cancelled by owner' })
+  }
+  expect(h.adapter.requests).toHaveLength(2)
   await h.caller.dispose()
 })

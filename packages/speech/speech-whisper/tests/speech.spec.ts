@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import type { ConnectionFetchRoute, HostConnectionFetch } from '@deepseek-ai/dsh-client-connection'
 import LocalSubprocess from '@deepseek-ai/dsh-subprocess-local'
 import SpeechWhisper, { type Config } from '../src/index.ts'
 import { collectBytes, decodeAudio } from '../src/audio.ts'
@@ -22,9 +23,25 @@ function wav(seconds = 0.05): Uint8Array<ArrayBuffer> {
 }
 async function setup(overrides: Partial<Config> = {}) {
   const ctx = new Context(); contexts.push(ctx)
+  const routes = new Map<string, ConnectionFetchRoute>()
+  const registered = Promise.withResolvers<undefined>()
+  const fetch: HostConnectionFetch = {
+    register(route) {
+      routes.set(route.path, route)
+      if (routes.size === 2) registered.resolve(undefined)
+      return async () => { routes.delete(route.path) }
+    },
+  }
+  ctx.provide('connection', { fetch })
   await ctx.plugin(LocalSubprocess)
   const fiber = await ctx.plugin(SpeechWhisper, { ...config, ...overrides })
-  return { ctx, fiber, speech: ctx.speech }
+  await registered.promise
+  const request = (path: string, init?: RequestInit): Promise<Response> => {
+    const route = routes.get(path)
+    if (route === undefined) throw new Error(`No route registered at ${path}`)
+    return route.fetch(new Request(`http://127.0.0.1${path}`, init))
+  }
+  return { ctx, fiber, speech: ctx.speech, routes, request }
 }
 
 describe('speech transcription', () => {
@@ -72,5 +89,69 @@ describe('speech transcription', () => {
     await expect(speech.transcribe(new Response(wav()).body!, new AbortController().signal)).rejects.toThrow('invalid transcript')
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 500 })))
     await expect(speech.transcribe(new Response(wav()).body!, new AbortController().signal)).rejects.toThrow('HTTP 500')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
+    await expect(speech.transcribe(new Response(wav()).body!, new AbortController().signal)).rejects.toThrow('returned no result')
+  })
+  it('rejects with the upload error when the recording stream fails', async () => {
+    const { speech } = await setup()
+    const failure = new Error('upload interrupted')
+    const upload = new ReadableStream<Uint8Array>({ pull(controller) { controller.error(failure) } })
+    await expect(speech.transcribe(upload, new AbortController().signal)).rejects.toBe(failure)
+  })
+  it('rejects with the caller abort reason when a stalled upload also fails to cancel', async () => {
+    const { speech } = await setup()
+    const controller = new AbortController()
+    const cancel = vi.fn(() => { throw new Error('upload source already gone') })
+    const pending = speech.transcribe(new ReadableStream({ cancel }), controller.signal)
+    const reason = new Error('caller left')
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
+    expect(cancel).toHaveBeenCalledExactlyOnceWith(reason)
+  })
+  it('refuses a backend endpoint that is not HTTP or embeds credentials', () => {
+    for (const endpoint of ['ftp://127.0.0.1/inference', 'http://user@127.0.0.1/inference', 'http://:secret@127.0.0.1/inference']) {
+      const ctx = new Context(); contexts.push(ctx)
+      expect(() => new SpeechWhisper(ctx, { ...config, endpoint }))
+        .toThrow('speech: endpoint must be an HTTP URL without embedded credentials')
+    }
+  })
+})
+
+describe('speech routes', () => {
+  it('serves the recording limits and withdraws both routes on unload', async () => {
+    const { speech, fiber, routes, request } = await setup()
+    expect(Object.fromEntries([...routes].map(([path, { methods, requestBody }]) => [path, { methods, requestBody }]))).toEqual({
+      '/api/speech': { methods: ['POST'], requestBody: 'streaming' },
+      '/api/speech/config': { methods: ['GET'], requestBody: 'buffered' },
+    })
+    const response = await request('/api/speech/config')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ maxAudioBytes: config.maxAudioBytes, maxDurationSeconds: config.maxDurationSeconds })
+    expect(speech.timeoutMs).toBe(config.timeoutMs)
+    await fiber.dispose()
+    expect(routes.size).toBe(0)
+  })
+  it('refuses an upload without an audio body before transcribing', async () => {
+    const { speech, request } = await setup()
+    const transcribe = vi.spyOn(speech, 'transcribe')
+    expect((await request('/api/speech', { method: 'POST' })).status).toBe(400)
+    expect((await request('/api/speech', { method: 'POST', body: 'not audio' })).status).toBe(415)
+    expect((await request('/api/speech', { method: 'POST', body: wav() })).status).toBe(415)
+    expect(transcribe).not.toHaveBeenCalled()
+  })
+  it('returns the transcript of an uploaded recording and a generic error for a failed one', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ text: ' Uploaded dictation. ' })))
+    const { request } = await setup()
+    const transcribed = await request('/api/speech', {
+      method: 'POST', body: wav(), headers: { 'content-type': 'audio/wav; codecs=1' },
+    })
+    expect(transcribed.status).toBe(200)
+    expect(transcribed.headers.get('cache-control')).toBe('no-store')
+    expect(await transcribed.json()).toEqual({ text: 'Uploaded dictation.' })
+    const oversized = await request('/api/speech', {
+      method: 'POST', body: new Uint8Array(config.maxAudioBytes + 1), headers: { 'content-type': 'application/octet-stream' },
+    })
+    expect(oversized.status).toBe(422)
+    expect(await oversized.json()).toEqual({ error: 'Transcription failed. Check the recording length or try again.' })
   })
 })

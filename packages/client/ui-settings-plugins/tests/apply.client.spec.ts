@@ -9,18 +9,19 @@ import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type { PluginsSettingsSectionInjected } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import { apply as hostApply } from '../src/index.ts'
+import type { ResearchCardFace, ResearchSettings } from '../src/client/research-card-controller.ts'
 
 // These specs assert the shipped Chinese copy. The lane has no jsdom `window`,
 // so browser-language detection never runs and a fresh LocaleRuntime opens on
 // FALLBACK_LOCALE (en); bench stages zh explicitly on the locale instead.
 
-async function bench() {
+async function bench(getConfigForm: (namespace: string) => unknown = () => stubConfigForm().scope) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
-  ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
+  ctx.provide('configForms', { get: getConfigForm } as never)
   return { ctx, slots: ctx.get('slots') as SlotRegistry }
 }
 
@@ -53,6 +54,24 @@ describe('ui-settings-plugins apply', () => {
     expect(resolveSlotLabel(section.options.label)).toBe('内置插件')
     expect(slots.spec('settings.plugins.tab')).toMatchObject({ kind: 'list', scope: 'root' })
     expect(slots.entries('settings.plugins.tab').map(entry => entry.options.id)).toEqual(['research'])
+  })
+
+  it('binds the research tab to the profile research form', async () => {
+    const form = stubConfigForm<ResearchSettings>()
+    const getConfigForm = vi.fn((_namespace: string) => form.scope)
+    const { ctx, slots } = await bench(getConfigForm)
+    declareRoot(slots)
+    await ctx.plugin({ inject: [...inject], apply }).await()
+
+    const tab = slots.entries('settings.plugins.tab')[0]!
+    const face = (tab.inject as () => Pick<ResearchCardFace, 'hooks' | 'selectWorker'>)()
+    expect(getConfigForm).toHaveBeenCalledWith('odysseus-research')
+    form.publish({ status: 'ready', writable: true, value: { model: 'qwen4b', workerLabel: 'Local 4B' }, revision: 1 })
+    expect(face.hooks.researchCard.getSnapshot()).toMatchObject({
+      status: 'ready', selected: 'default', choices: [{ id: 'default', label: 'Local 4B' }],
+    })
+    await face.selectWorker('default')
+    expect(form.set).toHaveBeenCalledWith('selectedWorker', 'default')
   })
 
   it('injects a live tab projection ordered by the contributions', async () => {

@@ -43,6 +43,24 @@ describe.skipIf(process.platform === 'win32')('SSH helper runtime', () => {
     } finally { await test.close() }
   })
 
+  it('creates nested directories and removes regular files under the per-call policy', async () => {
+    const test = await helper()
+    try {
+      const directory = await test.client.request('fs.resolve', { path: 'outer/inner' }, targetSchema)
+      const readOnly = { mode: 'read-only', workspaceRoot: test.root }
+      await expect(test.client.request('fs.mkdir', { target: directory, policy: readOnly }, z.null())).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+      expect(await test.client.request('fs.stat', { target: directory }, z.null())).toBeNull()
+      expect(await test.client.request('fs.mkdir', { target: directory, policy: policy(test.root) }, z.null())).toBeNull()
+      expect(await test.client.request('fs.stat', { target: directory }, infoSchema)).toMatchObject({ type: 'directory' })
+      const file = await test.client.request('fs.resolve', { path: 'outer/inner/file.txt' }, targetSchema)
+      await test.client.request('fs.write', { target: file, content: 'removable', policy: policy(test.root) }, writeResultSchema)
+      await expect(test.client.request('fs.remove', { target: file, policy: readOnly }, z.null())).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+      await expect(test.client.request('fs.remove', { target: directory, policy: policy(test.root) }, z.null())).rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
+      expect(await test.client.request('fs.remove', { target: file, policy: policy(test.root) }, z.null())).toBeNull()
+      expect(await test.client.request('fs.stat', { target: file }, z.null())).toBeNull()
+    } finally { await test.close() }
+  })
+
   it('returns metadata, byte ranges and canonical symlink observations', async () => {
     const test = await helper()
     try {

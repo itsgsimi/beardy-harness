@@ -972,7 +972,10 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       return { kind: 'success', text: commands.map(command => `**/${command.name}** — ${command.description}`
         + (command.input === undefined ? '' : `\n  Arguments: ${command.input.hint}`)).join('\n') }
     }
-    if (live === undefined && !['new', 'status', 'stop'].includes(parsed.name)) {
+    if (live === undefined) {
+      if (parsed.name === 'new') return { kind: 'success', text: await ops.startFresh() }
+      if (parsed.name === 'status') return { kind: 'success', text: ops.status() }
+      if (parsed.name === 'stop') return { kind: 'success', text: await ops.stopTurn() }
       const previous = tails.get(channelId)
       const opening = (async () => {
         await previous
@@ -987,12 +990,6 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         ctx.logger.warn(`discord-gateway: opening conversation for /${parsed.name} in channel ${channelId} failed: ${errorChain(error)}`)
         return { kind: 'error', text: `Could not open the conversation for /${parsed.name}. Please try again.` }
       }
-    }
-    if (live === undefined) {
-      if (parsed.name === 'new') return { kind: 'success', text: await ops.startFresh() }
-      if (parsed.name === 'status') return { kind: 'success', text: ops.status() }
-      if (parsed.name === 'stop') return { kind: 'success', text: await ops.stopTurn() }
-      throw new Error(`discord-gateway: /${parsed.name} has no conversation after opening`)
     }
     const runsTurns = !['new', 'status', 'stop'].includes(parsed.name)
     if (runsTurns && (live.inboundActive || live.handle.agent.status === 'running')) {
