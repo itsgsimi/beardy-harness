@@ -12,7 +12,8 @@ import { createConversationRouter } from '../src/conversation.ts'
 import type { RoutingPolicy } from '../src/conversation.ts'
 import type { ConversationRecord, OutboxRecord } from '../src/domain.ts'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import type { DiscordInboundMessage, GatewaySettings } from '../src/types.ts'
+import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
+import type { ConversationLane, DiscordInboundMessage, GatewaySettings, LaneToolFilter } from '../src/types.ts'
 
 export const USER = '138391763999129600'
 export const CHANNEL = '1472404859679670455'
@@ -29,6 +30,7 @@ export const SETTINGS: GatewaySettings = {
   workspacePath: '/workspace',
   agentPreset: 'beardy',
   permissionPreset: 'danger-full-access',
+  userLanes: new Map(),
   titlePrefix: 'Discord',
   maxInputChars: 400,
   turnTimeoutMs: 1_000,
@@ -125,6 +127,14 @@ export interface HarnessOptions {
   readonly useDefaultPrompt?: boolean
   /** Reply forms the router accepts; defaults to both. */
   readonly answerers?: readonly ('component' | 'reaction' | 'text')[]
+  /** Allowlisted users; defaults to {@link USER} alone. */
+  readonly allowedUserIds?: readonly string[]
+  /** Own lanes keyed by user id; their keys also form the policy's lane users. */
+  readonly userLanes?: ReadonlyMap<string, ConversationLane>
+  /** Default-lane tool restriction. */
+  readonly toolFilter?: LaneToolFilter
+  /** Lane command catalog seam used while no conversation is live. */
+  readonly commands?: (lane: ConversationLane) => readonly CommandDescriptor[]
 }
 
 /** Context carrying the services the router touches, recording every call it makes. */
@@ -173,6 +183,9 @@ export function harness(options: HarnessOptions = {}) {
   }
   const agentCtx = {
     inject: (_services: string[], apply: (ctx: unknown) => void) => { apply(agentCtx) },
+    tools: {
+      restrict: (filter: LaneToolFilter) => { calls.push(`restrict:${JSON.stringify(filter)}`); return () => {} },
+    },
     commands: {
       list: () => [...registeredCommands.values()].map(({ name,description }) => ({ name,description })),
       register: (definition: { name: string; description: string; handler: (invocation: { agent: unknown }) => unknown }) => {
@@ -308,13 +321,17 @@ export function harness(options: HarnessOptions = {}) {
       ...(options.approvalTimeoutMs === undefined ? {} : { approvalTimeoutMs: options.approvalTimeoutMs }),
       ...(options.questionTimeoutMs === undefined ? {} : { questionTimeoutMs: options.questionTimeoutMs }),
       ...(options.answerers === undefined ? {} : { answerers: options.answerers }),
+      ...(options.userLanes === undefined ? {} : { userLanes: options.userLanes }),
+      ...(options.toolFilter === undefined ? {} : { toolFilter: options.toolFilter }),
     },
     policy: {
-      allowedUserIds: new Set([USER]),
+      allowedUserIds: new Set(options.allowedUserIds ?? [USER]),
       allowedChannelIds: new Set([GUILD_CHANNEL]),
       guildRequireMention: options.guildRequireMention ?? false,
       botUserId: () => BOT_USER,
+      laneUserIds: new Set(options.userLanes?.keys() ?? []),
     } satisfies RoutingPolicy,
+    ...(options.commands === undefined ? {} : { commands: options.commands }),
     table,
     postRich: async (body) => { cards.push(body) },
     clearPrompt: async (_channelId, messageId) => { cleared.push(messageId) },

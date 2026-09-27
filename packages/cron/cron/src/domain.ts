@@ -40,6 +40,8 @@ export const storedJobRecord = z.object({
   workspacePath: z.string().min(1),
   /** Session title override; absent means job name plus fire time. */
   title: z.string().optional(),
+  /** Per-run turn bound; absent uses the plugin default. */
+  turnTimeoutMs: z.number().int().min(1_000).optional(),
   /** Whether the schedule is armed; false keeps the definition and stops firing. */
   enabled: z.boolean(),
   /** Where a finished run's final text is delivered. */
@@ -64,6 +66,8 @@ export const runHistoryEntry = z.object({
   sessionId: z.string(),
   /** How the run ended. */
   outcome: z.enum(['answered', 'no-text-answer', 'timed-out', 'failed', 'interrupted']),
+  /** Failure details are optional so existing history remains readable. */
+  failure: z.object({ code: z.string(), message: z.string() }).optional(),
 })
 
 /** One retained entry of a job's run history. */
@@ -83,6 +87,7 @@ export type ActiveRunRecord = z.infer<typeof activeRunRecord>
 const pendingOutcomeRecord = activeRunRecord.extend({
   outcome: runHistoryEntry.shape.outcome,
   text: z.string(),
+  failure: runHistoryEntry.shape.failure,
 })
 
 /**

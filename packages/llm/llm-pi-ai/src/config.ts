@@ -164,6 +164,10 @@ export interface PiAiProviderProfile {
   websocketConnectTimeoutMs?: number
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs?: number
+  /** Maximum in-process active requests on this route; omission leaves admission unlimited. */
+  maxConcurrentRequests?: number
+  /** Maximum wait for a configured provider slot in milliseconds; omission waits until admission or abort. */
+  queueTimeoutMs?: number
   /**
    * Maximum base64-encoded image payload per request. When a request's
    * accumulated images exceed it, the oldest images are replaced by text
@@ -342,6 +346,8 @@ const profile = z.object({
   timeoutMs: z.natural(),
   websocketConnectTimeoutMs: z.natural(),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  maxConcurrentRequests: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+  queueTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS),
   maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
   requestImagePixelBudget: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET),
   requestImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_MAX_BYTES),
@@ -433,6 +439,22 @@ export function resolveProfiles(
       throw new Error(
         `llm-pi-ai: provider "${provider}" streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
       )
+    }
+    if (source.maxConcurrentRequests !== undefined
+      && (!Number.isSafeInteger(source.maxConcurrentRequests) || source.maxConcurrentRequests <= 0)) {
+      throw new Error(`llm-pi-ai: provider "${provider}" maxConcurrentRequests must be a positive safe integer`)
+    }
+    if (source.queueTimeoutMs !== undefined) {
+      if (!Number.isFinite(source.queueTimeoutMs)
+        || source.queueTimeoutMs <= 0
+        || source.queueTimeoutMs > MAX_TIMER_DELAY_MS) {
+        throw new Error(
+          `llm-pi-ai: provider "${provider}" queueTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
+        )
+      }
+      if (source.maxConcurrentRequests === undefined) {
+        throw new Error(`llm-pi-ai: provider "${provider}" queueTimeoutMs requires maxConcurrentRequests`)
+      }
     }
     const maxRequestImageBytes = source.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES
     if (!Number.isInteger(maxRequestImageBytes) || maxRequestImageBytes <= 0) {

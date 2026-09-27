@@ -37,6 +37,8 @@ Through `ctx.fs` you can resolve any path to a stable target identity, read a wh
 
 `watch(target, changed, signal)` reports invalidations for one file or a directory's direct entries. It resolves once observation is ready with an asynchronous close function that the caller must await. The signal cancels initialization; unsupported providers reject without polling.
 
+Plugins that already hold a `stat` result can call `writeObservedText` to write against that version and emit the before and after `fs/observed` events. The caller still validates the target, obtains approval, and supplies its session sandbox policy.
+
 -----
 
 <a id="understand-the-implementation"></a>

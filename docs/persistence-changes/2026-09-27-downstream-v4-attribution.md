@@ -51,7 +51,7 @@ changes:
 <a id="compatibility"></a>
 ## Compatibility
 
-Existing V4 messages remain valid. Discord, cron, and skill notice kinds only attribute preserved message content; readers without those producers retain their kind and JSON metadata without requiring the producer. The instruction baseline's frozen user files and presented visual details are optional, so their absence keeps the existing reading path. V3 migration retains direct producer sources and captured instruction data. Older V4 readers preserve unknown source kinds and ignore the optional fields.
+Existing V4 messages remain valid. Discord, cron, and skill notice kinds only attribute preserved message content; readers without those producers retain their kind and JSON metadata without requiring the producer. The instruction baseline's frozen user files and each presented file's saved `visual` are optional, so their absence keeps the existing reading path. Older readers can ignore visual bytes while retaining the file path and description. V3 migration retains direct producer sources and captured instruction data. Older V4 readers preserve unknown source kinds and ignore the optional fields.
 
 <a id="verification"></a>
 ## Verification

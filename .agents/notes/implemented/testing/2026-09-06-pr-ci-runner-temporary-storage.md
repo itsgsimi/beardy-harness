@@ -24,6 +24,8 @@ The [ACP diagnostic scenario](../../../../snapshots/session/subagent-acp-diagnos
 
 The headless `session-sandbox-root` fixture declares `workspace.parent: outside-temp`, not a home-filesystem dependency. Its allocator uses a sibling of the canonical platform temp root where the parent is writable and avoids system temporary grants, otherwise home, and rejects a cwd already covered by automatic temporary write grants. On the failover runner this keeps the test on the data volume without making its write succeed through a temporary-directory exemption. The filesystem-sandbox containment tests use the same allocator for their workspace and denied sibling; they register cleanup immediately after successful acquisition. Atomic workspace allocation, recorded Session bytes, and the independent expected file remain unchanged.
 
+Every `outside-temp` recorded workspace creates its own empty `.git` marker before the profile starts. Skill discovery then stops at that private project root even when HOME or an ancestor is a repository with host skills; workspace comparisons exclude only this fixture marker. A replay with a fake HOME containing `.git` and a host skill passes the four outside-temp scenarios without recording that skill.
+
 ## Live verification and browser fixture inputs
 
 The installed-wheel live SDK test externally replaces the created file with a fresh host-only challenge before asking the model to verify it; the verification prompt does not reveal that value. Both turns must contain model-requested tool calls, and the verifier compares the returned value and actual file bytes.

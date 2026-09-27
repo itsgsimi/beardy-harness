@@ -99,6 +99,8 @@ describe('llm-pi-ai real dormant composition', () => {
       '      deepseek:',
       '        apiKeyEnv: PI_COMPOSITION_KEY',
       `        baseURL: ${server.url}`,
+      '        maxConcurrentRequests: 1',
+      '        queueTimeoutMs: 500',
       '',
     ].join('\n'))
     await vi.waitFor(() => {

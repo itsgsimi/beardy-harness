@@ -777,7 +777,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-cron`
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
-- `source`: [`packages/cron/cron/src/index.ts:111`](../packages/cron/cron/src/index.ts)
+- `source`: [`packages/cron/cron/src/index.ts:112`](../packages/cron/cron/src/index.ts)
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
@@ -792,7 +792,7 @@ export interface ResolvedConfig {
   readonly allowedAgentPresets: string[]
   /** Permission presets a stored job may name; empty refuses every create. */
   readonly allowedPermissionPresets: string[]
-  /** Absolute roots a stored job's workspace path must sit inside. */
+  /** Absolute roots a stored job's canonical workspace path must sit inside. */
   readonly allowedWorkspaceRoots: string[]
   /** Most jobs the durable store may hold. */
   readonly maxStoredJobs: number
@@ -834,6 +834,8 @@ export interface CronJobSpec {
   readonly workspacePath: string
   /** Session title; defaults to the job name followed by the fire time. */
   readonly title?: string
+  /** Per-run turn bound in milliseconds; absent uses the plugin's turnTimeoutMs. */
+  readonly turnTimeoutMs?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-cron -->
@@ -885,7 +887,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-discord-gateway`
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
-- `source`: [`packages/discord/discord-gateway/src/index.ts:79`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:94`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -926,6 +928,14 @@ export interface Config {
   readonly agentPreset: string
   /** Permission preset applied to each conversation Session. */
   readonly permissionPreset: string
+  /** Tool restriction for default-lane conversation Agents; every name must be visible when a Session opens. Defaults to none. */
+  readonly toolFilter?: LaneToolFilter | undefined
+  /**
+   * Own lanes keyed by allowlisted user id. That user's direct messages run with the lane's
+   * workspace, presets, tool restriction, and command exclusions, and the user is not admitted in
+   * guild channels. Defaults to none.
+   */
+  readonly userLanes?: Record<string, UserLaneConfig>
   /** Prefix of the generated Session title. Defaults to `Discord`. */
   readonly titlePrefix?: string
   /** Longest inbound text handed to the agent. Defaults to 8000. */
@@ -966,6 +976,28 @@ export interface Config {
   readonly outboxMaxReceipts?: number
   /** Retry delay for a failed reminder read or resume. Defaults to 30000. */
   readonly wakeRetryMs?: number
+}
+
+/** Tool names one lane's conversation Agents keep or lose, applied through `tools.restrict()`. */
+export interface LaneToolFilter {
+  /** Tool names that stay visible; every other inherited tool is removed. */
+  readonly allow?: string[]
+  /** Tool names removed from visibility. */
+  readonly deny?: string[]
+}
+
+/** Session settings that replace the default lane for one allowlisted user's direct messages. */
+export interface UserLaneConfig {
+  /** Absolute workspace path the user's conversations run in. */
+  readonly workspacePath: string
+  /** Agent preset mounted into the user's conversation Sessions. */
+  readonly agentPreset: string
+  /** Permission preset applied to the user's conversation Sessions. */
+  readonly permissionPreset: string
+  /** Tool restriction for the user's conversation Agents; every name must be visible when a Session opens. Defaults to none. */
+  readonly toolFilter?: LaneToolFilter | undefined
+  /** Preset commands refused for this user in addition to `excludedPresetCommands`. Defaults to none. */
+  readonly excludedPresetCommands?: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-discord-gateway -->
@@ -1774,7 +1806,7 @@ export interface Config extends ProtocolConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:222`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:226`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
@@ -1863,6 +1895,10 @@ export interface PiAiProviderProfile {
   websocketConnectTimeoutMs?: number
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs?: number
+  /** Maximum in-process active requests on this route; omission leaves admission unlimited. */
+  maxConcurrentRequests?: number
+  /** Maximum wait for a configured provider slot in milliseconds; omission waits until admission or abort. */
+  queueTimeoutMs?: number
   /**
    * Maximum base64-encoded image payload per request. When a request's
    * accumulated images exceed it, the oldest images are replaced by text
@@ -4437,7 +4473,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-web-fetch-http`
 
 - `inject`: `web`
-- `source`: [`packages/web/web-fetch-http/src/index.ts:32`](../packages/web/web-fetch-http/src/index.ts)
+- `source`: [`packages/web/web-fetch-http/src/index.ts:33`](../packages/web/web-fetch-http/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the provider's transport and size limits plus its `User-Agent` (all defaulted). */
@@ -4452,6 +4488,8 @@ export interface Config {
   maxRedirects?: number
   /** `User-Agent` header sent on every request. */
   userAgent?: string
+  /** Bare DNS hostnames refused with their subdomains; case and one trailing dot are normalized. */
+  blockedHosts?: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-fetch-http -->

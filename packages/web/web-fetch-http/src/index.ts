@@ -10,6 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-web'
 import { HttpFetchProvider } from './provider.ts'
 import type { HttpFetchLimits } from './provider.ts'
+import { canonicalHostname } from './policy.ts'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 
@@ -40,6 +41,8 @@ export interface Config {
   maxRedirects?: number
   /** `User-Agent` header sent on every request. */
   userAgent?: string
+  /** Bare DNS hostnames refused with their subdomains; case and one trailing dot are normalized. */
+  blockedHosts?: string[]
 }
 
 export const Config: z<Config> = z.object({
@@ -48,6 +51,7 @@ export const Config: z<Config> = z.object({
   timeoutMs: z.number().default(30_000),
   maxRedirects: z.number().default(5),
   userAgent: z.string().default(DEFAULT_USER_AGENT),
+  blockedHosts: z.array(z.string()).default([]),
 })
 
 /** Complete config after schemastery applies every field default. */
@@ -75,6 +79,18 @@ function assertNonNegativeInteger(name: string, value: number): void {
   }
 }
 
+/** Validate a bare DNS hostname and store the form compared with request URLs. */
+function canonicalBlockedHost(value: string): string {
+  const hostname = canonicalHostname(value)
+  const labels = hostname.split('.')
+  const validLabels = labels.every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  if (hostname.length > 253 || !validLabels || !URL.canParse(`http://${value}`)
+    || canonicalHostname(new URL(`http://${value}`).hostname) !== hostname) {
+    throw new Error(`web-fetch-http: blockedHosts entry "${value}" must be a bare DNS hostname`)
+  }
+  return hostname
+}
+
 /** Register the local HTTP(S) fetch provider with `ctx.web`. */
 export function apply(ctx: Context, config: Config): void {
   // schemastery (Config) has already filled every defaulted field.
@@ -83,12 +99,14 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveFinite('maxBodyChars', resolved.maxBodyChars)
   assertTimeoutMs(resolved.timeoutMs)
   assertNonNegativeInteger('maxRedirects', resolved.maxRedirects)
+  const blockedHosts = resolved.blockedHosts.map(canonicalBlockedHost)
   const limits: HttpFetchLimits = {
     maxResponseBytes: resolved.maxResponseBytes,
     maxBodyChars: resolved.maxBodyChars,
     timeoutMs: resolved.timeoutMs,
     maxRedirects: resolved.maxRedirects,
     userAgent: resolved.userAgent,
+    blockedHosts,
   }
   ctx.web.registerFetchProvider(new HttpFetchProvider(limits))
 }

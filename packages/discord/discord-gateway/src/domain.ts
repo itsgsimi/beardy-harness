@@ -65,6 +65,8 @@ export const conversationRecord = z.object({
   agentPreset: z.string(),
   /** Workspace path the Session runs in; recorded for diagnostics. */
   workspacePath: z.string(),
+  /** User whose own lane the Session runs in; absent for the default lane. Resume uses that lane. */
+  lane: z.string().optional(),
   /** Epoch milliseconds when this record's Session was first opened. */
   openedAt: z.number(),
   /** Epoch milliseconds of the last inbound message routed to this Session. */

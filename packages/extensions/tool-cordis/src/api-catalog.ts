@@ -4970,7 +4970,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CronRunResult',
-    declaration: 'export interface CronRunResult {\n    readonly outcome: CronRunOutcome;\n    readonly sessionId: string;\n    readonly text: string;\n}',
+    declaration: 'export interface CronRunResult {\n    readonly outcome: CronRunOutcome;\n    readonly sessionId: string;\n    readonly text: string;\n    readonly failure?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}',
   },
   {
     name: 'CronScheduleRecord',

@@ -69,7 +69,7 @@ kind: "package-reference"
 | [`src/writer.ts`](src/writer.ts) | 每会话状态、仅追加队列，以及 `samples.jsonl`/`labels.jsonl`/`meta.json` 写入器 |
 | [`src/workspace.ts`](src/workspace.ts) | `git rev-parse`/`status`/`diff` 读取与临时索引树快照（`execFile`、5 秒超时、从不抛出） |
 | [`src/hash.ts`](src/hash.ts) | `hashes.system`/`hashes.tools` 的 SHA-256 和规范（键排序）JSON |
-| [`src/paths.ts`](src/paths.ts) | 会话 id 路径转义（与 `dsh-session-persistence-jsonl` 的 `encodeSegment` 一致）和边车布局 |
+| [`src/paths.ts`](src/paths.ts) | 使用 JSONL 持久化会话 id 路径编码器的边车布局 |
 
 ### 工作区捕获
 

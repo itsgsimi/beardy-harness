@@ -7,7 +7,7 @@ describe('Discord lifecycle controls', () => {
   it('admits an allowlisted DM whose Gateway payload omits the optional channel type', () => {
     const message = parseMessageCreate({ id: 'm', channel_id: 'c', author: { id: 'u' }, content: 'hello' })!
     const policy = { allowedUserIds: new Set(['u']), allowedChannelIds: new Set<string>(),
-      guildRequireMention: true, botUserId: () => 'bot' }
+      guildRequireMention: true, botUserId: () => 'bot', laneUserIds: new Set<string>() }
     expect(isAdmitted(message, policy)).toBe(true)
     expect(isAdmitted({ ...message, guildId: 'g', channelType: 0 }, policy)).toBe(false)
   })

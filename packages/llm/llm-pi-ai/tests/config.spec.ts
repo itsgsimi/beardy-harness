@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assertServiceable, Config, resolveProfiles, type Options } from '../src/config.ts'
+import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 
 /** Validate one hand-declared route, with the caller's fields layered onto it. */
 const routeWith = (profile: Record<string, unknown>): (() => unknown) =>
@@ -105,5 +106,36 @@ describe('request image policy bounds', () => {
     expect(() => {
       assertServiceable(programmatic)
     }).toThrow(message)
+  })
+})
+
+describe('provider admission settings', () => {
+  it('leaves requests unlimited and queue waits unbounded by default', () => {
+    const profile = resolveProfiles({ openai: {} }).get('openai')
+    expect(profile?.maxConcurrentRequests).toBeUndefined()
+    expect(profile?.queueTimeoutMs).toBeUndefined()
+  })
+
+  it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects maxConcurrentRequests=%s at resolution', (value) => {
+      expect(() => resolveProfiles({ openai: { maxConcurrentRequests: value } }))
+        .toThrow(/maxConcurrentRequests must be a positive safe integer/)
+    },
+  )
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, MAX_TIMER_DELAY_MS + 1])(
+    'rejects queueTimeoutMs=%s at resolution', (value) => {
+      expect(() => resolveProfiles({ openai: { maxConcurrentRequests: 1, queueTimeoutMs: value } }))
+        .toThrow(/queueTimeoutMs must be a positive finite number/)
+    },
+  )
+
+  it('requires a cap with a queue deadline', () => {
+    expect(() => resolveProfiles({ openai: { queueTimeoutMs: 1 } }))
+      .toThrow(/queueTimeoutMs requires maxConcurrentRequests/)
+    expect(() => { assertServiceable(routeWith({ maxConcurrentRequests: 2, queueTimeoutMs: 100 })() as Options) })
+      .not.toThrow()
+    expect(routeWith({ maxConcurrentRequests: 0 })).toThrow()
+    expect(routeWith({ maxConcurrentRequests: 1, queueTimeoutMs: 0 })).toThrow()
   })
 })

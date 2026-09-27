@@ -35,6 +35,7 @@ const LIMITS = {
   timeoutMs: 30_000,
   maxRedirects: 5,
   userAgent: 'deepseek-harness-snapshot/1.0',
+  blockedHosts: [],
 }
 
 /**
