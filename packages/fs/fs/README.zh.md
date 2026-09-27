@@ -35,6 +35,8 @@ kind: "package-reference"
 
 通过 `ctx.fs`，你可以把任意路径解析为稳定的目标身份、完整读取或分片流式读取文本文件、按显式上限读取原始字节、列出一层目录、原子地创建或替换文件，并原子地应用字面量文本编辑。两个变更操作上的版本防护都是可选的：省略它即无条件创建或覆盖，提供它则在文件自上次观察以来发生变化时失败。每个操作要么返回数据，要么抛出携带稳定错误码（如 `FS_NOT_FOUND`、`FS_STALE_VERSION`、`FS_AMBIGUOUS_EDIT`）的类型化 `FsError`，调用方依据错误码分支，绝不解析消息文本。
 
+已取得 `stat` 结果的插件可以调用 `writeObservedText`，依据该版本写入，并在写入前后发送 `fs/observed` 事件。调用方仍负责校验目标、取得批准，并传入所属会话的沙箱策略。
+
 -----
 
 <a id="understand-the-implementation"></a>

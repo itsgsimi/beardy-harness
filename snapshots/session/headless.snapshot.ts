@@ -1067,6 +1067,10 @@ describe('headless recorded-session snapshots', () => {
         join(baseComposition.dir, 'model.cordis.yml'),
       ]
       const patchRoot = '.snapshot-patches'
+      const outsideTemp = scenario.manifest.workspace?.parent === 'outside-temp'
+      const ignoredWorkspaceEntries = outsideTemp
+        ? [...RUNTIME_WORKSPACE_ENTRIES, '.git']
+        : RUNTIME_WORKSPACE_ENTRIES
       const patches = patchSources.map((source, index) => source.endsWith('.snapshot.yml')
         ? join(patchRoot, `${String(index)}-${basename(source)}`)
         : source)
@@ -1081,7 +1085,7 @@ describe('headless recorded-session snapshots', () => {
         result = await runLoaderSmoke({
           label: `${scenario.name} headless snapshot`,
           tempDirPrefix: 'dsh-log-snap-',
-          ...(scenario.manifest.workspace?.parent === 'outside-temp' ? { tempDirParent: outsideTempWorkspaceParent() } : {}),
+          ...(outsideTemp ? { tempDirParent: outsideTempWorkspaceParent() } : {}),
           binScript: dshBin,
           configPath: join(baseComposition.dir, 'cordis.yml'),
           binArgs: [
@@ -1118,7 +1122,10 @@ describe('headless recorded-session snapshots', () => {
             DSH_TELEMETRY_DISABLED: '1',
           },
           prepare: async (cwd) => {
-            if (scenario.manifest.workspace?.parent === 'outside-temp') assertWorkspaceOutsideTemp(cwd)
+            if (outsideTemp) {
+              assertWorkspaceOutsideTemp(cwd)
+              await mkdir(join(cwd, '.git'))
+            }
             await mkdir(join(cwd, patchRoot), { recursive: true })
             patchSources.forEach((source, index) => {
               if (source.endsWith('.snapshot.yml')) {
@@ -1127,7 +1134,7 @@ describe('headless recorded-session snapshots', () => {
             })
             await seedWorkspace(scenario, cwd)
             initialWorkspace = await captureWorkspaceSnapshot(cwd, {
-              ignoredRootEntries: RUNTIME_WORKSPACE_ENTRIES,
+              ignoredRootEntries: ignoredWorkspaceEntries,
             })
           },
           inspect: async (cwd) => {
@@ -1150,7 +1157,7 @@ describe('headless recorded-session snapshots', () => {
               await verifyBackgroundConfinementFailure(actualLogs[0]!.content, cwd)
             }
             finalWorkspace = await captureWorkspaceSnapshot(cwd, {
-              ignoredRootEntries: RUNTIME_WORKSPACE_ENTRIES,
+              ignoredRootEntries: ignoredWorkspaceEntries,
             })
           },
         })

@@ -59,11 +59,12 @@ async function runScenario(fixture: string): Promise<{
 }> {
   const cwd = await mkdtemp(join(tmpdir(), 'dsh-discord-snapshot-'))
   try {
+    await mkdir(join(cwd, '.git'))
     const fixturePath = join(cwd, '.replay.jsonl')
     await writeFile(fixturePath, fixture.replaceAll('{{cwd}}', cwd))
     const patchDir = join(cwd, '.patches')
     await mkdir(patchDir)
-    const patch = materializeProfilePatch(join(scenarioDir, 'cordis.yml'), cwd, patchDir, 0)
+    const patch = materializeProfilePatch(join(scenarioDir, 'cordis.yml'), cwd, 'web', patchDir, 0)
     const launch = resolveExampleLaunch({
       srcBin: join(repoRoot, 'apps/cli/src/bin.ts'),
       sourceImport: 'tsx/esm',

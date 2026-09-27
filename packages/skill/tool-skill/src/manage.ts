@@ -9,7 +9,7 @@
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { FileSystem } from '@deepseek-ai/dsh-fs'
+import { writeObservedText, type FileSystem } from '@deepseek-ai/dsh-fs'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
@@ -163,14 +163,7 @@ export function applySkillManageTool(
       if (existing !== undefined && existing.type !== 'file') {
         throw new Error(`skill "${args.name}" is not a regular file`)
       }
-      const expected = existing === undefined
-        ? { kind: 'createIfAbsent' as const }
-        : { kind: 'replaceIfVersion' as const, version: existing.version }
-      ctx.emit('fs/observed', target, existing === undefined
-        ? { kind: 'absent' }
-        : { kind: 'present', version: existing.version }, exec)
-      const outcome = await fs.writeText(target, content, expected, exec.signal, sandboxPolicy)
-      ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
+      const outcome = await writeObservedText(ctx, fs, target, content, existing, exec, exec.signal, sandboxPolicy)
       return {
         action: args.action,
         name: args.name,

@@ -69,7 +69,7 @@ The plugin wraps the `llm/stream` waterfall the same way `session-checkpoint-pol
 | [`src/writer.ts`](src/writer.ts) | Per-session state, the append queue, and the `samples.jsonl`/`labels.jsonl`/`meta.json` writers |
 | [`src/workspace.ts`](src/workspace.ts) | `git rev-parse`/`status`/`diff` reads and throwaway-index tree snapshots (`execFile`, 5s timeout, never throws) |
 | [`src/hash.ts`](src/hash.ts) | SHA-256 and canonical (sorted-key) JSON for `hashes.system`/`hashes.tools` |
-| [`src/paths.ts`](src/paths.ts) | Session-id path escaping (mirrors `dsh-session-persistence-jsonl`'s `encodeSegment`) and the sidecar layout |
+| [`src/paths.ts`](src/paths.ts) | Sidecar layout using the JSONL persistence Session-id path encoder |
 
 ### Workspace capture
 

@@ -25,6 +25,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^"
   },
   "peerDependencies": {

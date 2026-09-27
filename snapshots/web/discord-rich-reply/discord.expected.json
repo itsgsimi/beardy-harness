@@ -28,7 +28,7 @@
       {
         "type": 1,
         "name": "feedback",
-        "description": "record feedback about this session",
+        "description": "Record feedback about this session",
         "contexts": [
           0,
           1
@@ -51,7 +51,7 @@
       {
         "type": 1,
         "name": "goal",
-        "description": "set or view the goal for a long-running task",
+        "description": "Set or view the goal for a long-running task",
         "contexts": [
           0,
           1

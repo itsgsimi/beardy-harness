@@ -6623,6 +6623,9 @@ importers:
 
   packages/experimental/training-export:
     dependencies:
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: workspace:^
+        version: link:../../session/session-persistence-jsonl
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
