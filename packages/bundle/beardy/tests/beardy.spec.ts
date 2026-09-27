@@ -58,6 +58,9 @@ describe('dsh-beardy bundle', () => {
       searchTimeoutMs: 60000,
     })
     expect(rows.find(row => row.id === 'tool-web')?.disabled).toBe(false)
+    expect(rows.find(row => row.id === 'brief-collector')).toMatchObject({
+      name: '@deepseek-ai/dsh-brief-collector', disabled: true,
+    })
     expect(rows.find(row => row.id === 'web')?.config).toEqual({
       searchProvider: 'searxng',
       fetchProvider: 'http',

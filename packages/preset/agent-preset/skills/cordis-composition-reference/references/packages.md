@@ -165,6 +165,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 
 | Package | Config | Description |
 |---|---|---|
+| `@deepseek-ai/dsh-brief-collector` | yes | Bounded RSS, Atom, and weather evidence for one configured cron brief |
 | `@deepseek-ai/dsh-cron` | yes | Global scheduler that starts unattended Agent Sessions on cron expressions and hands each job its prompt, presets, and workspace |
 
 ## deliverables

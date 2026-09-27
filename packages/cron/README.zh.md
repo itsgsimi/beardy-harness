@@ -24,6 +24,7 @@ cron 分组在无人到场时让 agent 按时间表运行。任务来自配置�
 | 包 | 职责 | ctx key |
 |---|---|---|
 | [`cron/`](cron/README.zh.md) | 管理配置任务与存储任务，运行无人值守 Session，并保存结果直到投递方接受 | consumes `ctx.agents`、`ctx.agentPresets`、`ctx.permissionPresets`、`ctx.workspaceRegistry`、`ctx.sessionTitle` |
+| [`brief-collector/`](brief-collector/README.zh.md) | 为指定的 cron 预设收集有界的 RSS、Atom 和天气证据 | consumes `ctx.web`、`ctx.tools` |
 
 -----
 

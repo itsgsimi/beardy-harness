@@ -2207,6 +2207,9 @@ importers:
       '@deepseek-ai/dsh-agent-preset-registry':
         specifier: workspace:*
         version: link:../../preset/agent-preset-registry
+      '@deepseek-ai/dsh-brief-collector':
+        specifier: workspace:*
+        version: link:../../cron/brief-collector
       '@deepseek-ai/dsh-cron':
         specifier: workspace:*
         version: link:../../cron/cron
@@ -7131,6 +7134,43 @@ importers:
       '@deepseek-ai/dsh-host-webserver':
         specifier: workspace:*
         version: link:../../host/webserver
+
+  packages/cron/brief-collector:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      entities:
+        specifier: ^7.0.1
+        version: 7.0.1
+      fast-xml-parser:
+        specifier: 5.11.1
+        version: 5.11.1
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:*
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: workspace:*
+        version: link:../../test-support/agent-loop-testkit
+      '@deepseek-ai/dsh-cron':
+        specifier: workspace:*
+        version: link:../cron
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:*
+        version: link:../../web/web
 
   packages/cron/cron:
     dependencies:
