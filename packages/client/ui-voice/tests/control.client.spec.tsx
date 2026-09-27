@@ -35,6 +35,7 @@ function setup(append = vi.fn(() => true)) {
 describe('composer voice control', () => {
   it('records, transcribes and appends without submitting the message', async () => {
     const { append } = setup()
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('api/speech/config')
     vi.mocked(recordAudio).mockImplementation(async (_signal, _limits, ready) => {
       return new Promise((resolve) => { ready(() => { resolve(new Blob(['audio'])) }) })
     })

@@ -26,7 +26,7 @@ Optional per-message ratings come from `ctx.get('messageFeedback')` (the package
 
 ### Package placement
 
-The package lives at `packages/experimental/training-export` as `@deepseek-ai/dsh-experimental-training-export` (`private: true`, no `publishConfig`), following every other package under `packages/experimental/`: `check-workspace-constraints` requires the `dsh-experimental-` npm prefix for any package in that directory, and release packages must never depend on one. The nightly-distill plan's own working name for this capability is "`dsh-training-export`"; the shipped npm name and Cordis plugin `name` (`training-export`) differ from that shorthand only by the mandatory experimental prefix.
+The package lives at `packages/experimental/training-export` as the public `@deepseek-ai/dsh-experimental-training-export`. `check-workspace-constraints` requires the `dsh-experimental-` npm prefix for packages in that directory and public access for release members; release packages must never depend on one. The nightly-distill plan's own working name for this capability is "`dsh-training-export`"; the shipped npm name and Cordis plugin `name` (`training-export`) differ from that shorthand only by the mandatory experimental prefix.
 
 ## Alternatives considered
 

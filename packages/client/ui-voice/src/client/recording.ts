@@ -66,7 +66,7 @@ export async function recordAudio(
  * @returns the recognized text, empty when the backend detected no speech.
  */
 export async function transcribeAudio(audio: Blob, signal: AbortSignal): Promise<string> {
-  const response = await fetch('/api/speech', {
+  const response = await fetch('api/speech', {
     method: 'POST', body: audio, signal,
     headers: { 'content-type': audio.type || 'application/octet-stream' },
   })

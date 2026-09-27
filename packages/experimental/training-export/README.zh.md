@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-training-export` 在每个持久化会话旁写入边车训练数据：每次 `llm/stream` 调用写入一条 `train/sample`，每个完成的轮次写入一条 `train/label`，并保存会话元数据。样本保留适配器请求、折叠后的响应、哈希和尽力捕获的工作区快照；标签汇总工具、钩子、审批、时间、diff、assistant 文本和评分结果。监听器不添加提示词、工具 schema 或会话事件，因此缺少它时仍能读取会话。该私有实验包遵循 `halorun dataset` 消费的版本 1 格式；其约定可能随时变更。
+`dsh-training-export` 在每个持久化会话旁写入边车训练数据：每次 `llm/stream` 调用写入一条 `train/sample`，每个完成的轮次写入一条 `train/label`，并保存会话元数据。样本保留适配器请求、折叠后的响应、哈希和尽力捕获的工作区快照；标签汇总工具、钩子、审批、时间、diff、assistant 文本和评分结果。监听器不添加提示词、工具 schema 或会话事件，因此缺少它时仍能读取会话。该公开发布的实验包遵循 `halorun dataset` 消费的版本 1 格式；其约定可能随时变更。
 
 ## 目录
 

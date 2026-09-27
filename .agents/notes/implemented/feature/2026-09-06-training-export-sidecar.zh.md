@@ -26,7 +26,7 @@ Status: implemented
 
 ### 包位置
 
-该包位于 `packages/experimental/training-export`，名为 `@deepseek-ai/dsh-experimental-training-export`（`private: true`，无 `publishConfig`），与 `packages/experimental/` 下的其他包一致：`check-workspace-constraints` 要求该目录中所有包使用 `dsh-experimental-` NPM 前缀，且发布包不得依赖它们。nightly-distill 计划为该能力使用的工作名是“`dsh-training-export`”；已交付的 NPM 名称和 Cordis 插件 `name`（`training-export`）与该简称的差异仅为强制实验前缀。
+该包位于 `packages/experimental/training-export`，以 `@deepseek-ai/dsh-experimental-training-export` 名称公开发布。`check-workspace-constraints` 要求该目录中的包使用 `dsh-experimental-` NPM 前缀，发布成员必须允许公开访问；发布包不得依赖实验包。nightly-distill 计划为该能力使用的工作名是“`dsh-training-export`”；已交付的 NPM 名称和 Cordis 插件 `name`（`training-export`）与该简称的差异仅为强制实验前缀。
 
 ## 考虑过的替代方案
 

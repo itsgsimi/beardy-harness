@@ -29,7 +29,7 @@ export function VoiceControl({ append, useInput, t }: Props) {
   const stop = useRef<(() => void) | null>(null)
   useEffect(() => {
     const load = new AbortController()
-    void fetch('/api/speech/config', { signal: load.signal }).then(async (response) => {
+    void fetch('api/speech/config', { signal: load.signal }).then(async (response) => {
       if (!response.ok) return
       const value: unknown = await response.json()
       if (typeof value !== 'object' || value === null || !('maxAudioBytes' in value) || !('maxDurationSeconds' in value)
