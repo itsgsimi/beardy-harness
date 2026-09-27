@@ -6,7 +6,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -128,6 +128,13 @@ describe('dsh-beardy composition gating', () => {
       } },
       { id: 'tool-odysseus-research', disabled: true },
       { insert: [{ id: 'training-export', name: '@deepseek-ai/dsh-experimental-training-export', config: { root: '/tmp/beardy-training-test' } }] },
+      { insert: [{ id: 'subagent-benchmark-sdk', name: '@deepseek-ai/dsh-subagent-dsh-sdk', config: {
+        providerName: 'benchmark-subject', dshBin: '/tmp/subject-cli.mjs', profile: 'sdk',
+        dshHome: '/tmp/subject-home', cwd: '/tmp/subject-workspace', provider: 'subagent',
+        model: 'fixture-model', maxTokens: 8192,
+      } }] },
+      { insert: [{ id: 'beardy-gateway-logging', name: '@deepseek-ai/dsh-log-exporter',
+        config: { levels: ['error', 'warn', 'info'], messagePrefixes: ['dsh-cron:'] } }] },
       { insert: [
         { id: 'preset-beardy-brief', name: '@deepseek-ai/dsh-agent-preset', config: {
           id: 'beardy-brief', picker: 'hidden', plugins: [
@@ -164,6 +171,9 @@ describe('dsh-beardy composition gating', () => {
       ['tool-research', '@deepseek-ai/dsh-tool-research'],
       ['web-fetch-http', '@deepseek-ai/dsh-web-fetch-http'],
       ['training-export', '@deepseek-ai/dsh-experimental-training-export'],
+      ['tool-weather', '@deepseek-ai/dsh-tool-weather'],
+      ['subagent-benchmark-sdk', '@deepseek-ai/dsh-subagent-dsh-sdk'],
+      ['beardy-gateway-logging', '@deepseek-ai/dsh-log-exporter'],
       ['subagent-model-selection-settings', '@deepseek-ai/dsh-tool-subagent/model-selection-settings'],
     ] as const) expect(byId(id).name).toBe(name)
     expect(byId('speech-whisper').disabled).toBe(false)
@@ -216,6 +226,23 @@ describe('dsh-beardy composition gating', () => {
     const transportStub = { apply(context: Context) { mounted.push(context.fiber.entry?.options.id ?? '') } }
     const moduleLoader = ctx.loader.internal
     if (moduleLoader === undefined) throw new Error('Loader import seam unavailable')
+    const bundleParent = pathToFileURL(resolve(bundleRoot, 'beardy/package.json')).href
+    for (const id of ['tool-weather', 'subagent-benchmark-sdk', 'beardy-gateway-logging']) {
+      const loaded: unknown = await moduleLoader.import(byId(id).name, bundleParent, {})
+      expect(isRecord(loaded) && typeof loaded.apply === 'function', `${id} resolved package module`).toBe(true)
+    }
+    const profileDir = await mkdtemp(join(tmpdir(), 'dsh-beardy-profile-'))
+    root = profileDir
+    const profilePackage = join(profileDir, 'package.json')
+    await writeFile(profilePackage, JSON.stringify({
+      name: 'dsh-profile-beardy', private: true,
+      dependencies: { '@deepseek-ai/dsh-experimental-training-export': 'workspace:*' },
+    }))
+    const packageDir = join(profileDir, 'node_modules', '@deepseek-ai')
+    await mkdir(packageDir, { recursive: true })
+    await symlink(resolve(bundleRoot, '../experimental/training-export'), join(packageDir, 'dsh-experimental-training-export'))
+    const training: unknown = await moduleLoader.import(byId('training-export').name, pathToFileURL(profilePackage).href, {})
+    expect(isRecord(training) && typeof training.apply === 'function', 'profile-installed training exporter resolved by package name').toBe(true)
     ctx.loader.internal = new Proxy(moduleLoader, {
       get(target, key, receiver) {
         if (key === 'import') return async () => ({ default: transportStub })
@@ -226,7 +253,8 @@ describe('dsh-beardy composition gating', () => {
     ctx.provide('credentials' as never, { resolve: async () => ({ value: 'dummy-token', source: 'env' }) } as never)
     for (const id of [
       'speech-whisper', 'tool-discord', 'discord-gateway', 'cron', 'tool-odysseus-research', 'web-fetch-http',
-      'training-export', 'preset-beardy-brief', 'preset-beardy-mamabear',
+      'training-export', 'tool-weather', 'subagent-benchmark-sdk', 'beardy-gateway-logging',
+      'preset-beardy-brief', 'preset-beardy-mamabear',
     ]) {
       const row = byId(id)
       await ctx.loader.create({ ...row, disabled: false })
@@ -234,7 +262,8 @@ describe('dsh-beardy composition gating', () => {
     await ctx.loader.await()
     for (const entry of ctx.loader.entries()) await entry.fiber?.await()
     expect(mounted).toEqual(expect.arrayContaining([
-      'speech-whisper', 'tool-discord', 'discord-gateway', 'cron', 'tool-odysseus-research', 'web-fetch-http', 'training-export',
+      'speech-whisper', 'tool-discord', 'discord-gateway', 'cron', 'tool-odysseus-research', 'web-fetch-http',
+      'training-export', 'tool-weather', 'subagent-benchmark-sdk', 'beardy-gateway-logging',
       'preset-beardy-brief', 'preset-beardy-mamabear',
     ]))
   })

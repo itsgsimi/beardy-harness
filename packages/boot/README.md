@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The boot group launches profile applications and manages their installed composition. `app-boot` resolves configuration and starts the Loader, `cmdline` supplies application arguments, and `plugin-manager` exposes current-profile operations shared with the CLI. Each package README owns its details.
+The boot group launches profile applications and manages their installed composition. `app-boot` resolves configuration and starts the Loader, `cmdline` supplies application arguments, `plugin-manager` exposes current-profile operations shared with the CLI, and `log-exporter` sends selected Cordis messages to a process journal. Each package README owns its details.
 
 ## Table of Contents
 
@@ -27,6 +27,7 @@ The boot group launches profile applications and manages their installed composi
 | [`hmr`](hmr/README.md) | Coordinates module and configuration reloads with package mutations | `hmr` |
 | [`config-editor`](config-editor/README.md) | Persists active profile configuration through Loader reconciliation | `configEditor` |
 | [`plugin-manager`](plugin-manager/README.md) | Manages current-profile plugins and bundle packages through shared CLI operations | `pluginManager` |
+| [`log-exporter`](log-exporter/README.md) | Filters, normalizes, and redacts Cordis messages for a process journal | logger exporter |
 
 <a id="related-documentation"></a>
 ## Related documentation

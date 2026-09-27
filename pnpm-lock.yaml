@@ -1790,6 +1790,16 @@ importers:
         specifier: ^0.28.1
         version: 0.28.1
 
+  packages/boot/log-exporter:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+
   packages/boot/plugin-manager:
     dependencies:
       '@deepseek-ai/dsh-app-boot':
@@ -2197,6 +2207,9 @@ importers:
       '@deepseek-ai/dsh-health':
         specifier: workspace:*
         version: link:../../health/health
+      '@deepseek-ai/dsh-log-exporter':
+        specifier: workspace:*
+        version: link:../../boot/log-exporter
       '@deepseek-ai/dsh-research':
         specifier: workspace:*
         version: link:../../research/research
@@ -2206,6 +2219,9 @@ importers:
       '@deepseek-ai/dsh-session-query-sqlite':
         specifier: workspace:*
         version: link:../../session-query/session-query-sqlite
+      '@deepseek-ai/dsh-subagent-dsh-sdk':
+        specifier: workspace:*
+        version: link:../../subagent/subagent-dsh-sdk
       '@deepseek-ai/dsh-time-context':
         specifier: workspace:*
         version: link:../../context/time-context
@@ -2224,6 +2240,9 @@ importers:
       '@deepseek-ai/dsh-tool-session-query':
         specifier: workspace:*
         version: link:../../session-query/tool-session-query
+      '@deepseek-ai/dsh-tool-weather':
+        specifier: workspace:*
+        version: link:../../web/tool-weather
       '@deepseek-ai/dsh-web-search-searxng':
         specifier: workspace:*
         version: link:../../web/web-search-searxng
@@ -14039,6 +14058,22 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+
+  packages/web/tool-weather:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/web/tool-web:
     dependencies:

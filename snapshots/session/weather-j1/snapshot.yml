@@ -1,0 +1,9 @@
+version: 1
+scenario: weather-j1
+profile: headless
+composition: weather-j1
+recording: authored
+permission: workspace-write
+header:
+  class: weather-j1
+  pin: true

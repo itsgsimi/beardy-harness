@@ -30,6 +30,14 @@
       config:
         refreshIntervalMs: 3600000
 
+    # Three days is the complete wttr.in j1 forecast.
+    - id: tool-weather
+      name: '@deepseek-ai/dsh-tool-weather'
+      config:
+        defaultLocation: Phoenix, AZ
+        units: us
+        days: 3
+
 # Beardy uses the local SearXNG JSON API for search, so no DeepSeek search
 # credential is needed. Set SEARXNG_BASE_URL to use another instance; the
 # The SearXNG provider resolves its endpoint through the launch-environment snapshot.

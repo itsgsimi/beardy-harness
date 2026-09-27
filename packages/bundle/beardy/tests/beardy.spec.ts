@@ -46,6 +46,7 @@ describe('dsh-beardy bundle', () => {
       expect.objectContaining({ id: 'session-query-sqlite' }),
       expect.objectContaining({ id: 'tool-session-query', name: '@deepseek-ai/dsh-tool-session-query' }),
       expect.objectContaining({ id: 'tool-web' }),
+      expect.objectContaining({ id: 'tool-weather', name: '@deepseek-ai/dsh-tool-weather' }),
     ]))
     expect(rows.find(row => row.id === 'agent-preset-registry')?.config).toEqual({ default: 'beardy' })
     expect(rows.find(row => row.id === 'session-query-sqlite')?.config).toEqual({
@@ -72,6 +73,11 @@ describe('dsh-beardy bundle', () => {
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-session-query-sqlite')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-session-query')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-search-searxng')
+    for (const name of [
+      '@deepseek-ai/dsh-tool-weather', '@deepseek-ai/dsh-log-exporter',
+      '@deepseek-ai/dsh-subagent-dsh-sdk',
+    ]) expect(manifest.dependencies).toHaveProperty(name)
+    expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-experimental-training-export')
   })
 
   it('declares Beardy in the profile preset layer with its memory instruction sources', () => {

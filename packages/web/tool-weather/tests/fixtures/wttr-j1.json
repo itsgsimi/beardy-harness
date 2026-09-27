@@ -1,0 +1,44 @@
+{
+  "nearest_area": [{
+    "areaName": [{ "value": "Phoenix" }],
+    "region": [{ "value": "Arizona" }],
+    "country": [{ "value": "United States" }],
+    "latitude": "33.448",
+    "longitude": "-112.074"
+  }],
+  "current_condition": [{
+    "observation_time": "05:00 PM",
+    "weatherDesc": [{ "value": " Sunny " }],
+    "temp_F": "91",
+    "temp_C": "33",
+    "FeelsLikeF": "94",
+    "FeelsLikeC": "34",
+    "humidity": "22",
+    "windspeedMiles": "8",
+    "windspeedKmph": "13",
+    "winddir16Point": "SW",
+    "uvIndex": "5",
+    "cloudcover": "0",
+    "precipMM": "0.0",
+    "visibilityMiles": "10"
+  }],
+  "weather": [
+    {
+      "date": "2026-09-27", "maxtempF": "96", "maxtempC": "36", "mintempF": "74", "mintempC": "23",
+      "sunHour": "11.2", "uvIndex": "8", "astronomy": [{ "sunrise": "06:20 AM", "sunset": "06:18 PM" }],
+      "hourly": [
+        { "time": "900", "chanceofrain": "10", "weatherDesc": [{ "value": "Clear" }] },
+        { "time": "1500", "chanceofrain": "30", "weatherDesc": [{ "value": "Showers" }] }
+      ]
+    },
+    {
+      "date": "2026-09-28", "maxtempF": "95", "maxtempC": "35", "mintempF": "72", "mintempC": "22",
+      "sunHour": "10", "uvIndex": "7", "hourly": []
+    },
+    {
+      "date": "2026-09-29", "maxtempF": "93", "maxtempC": "34", "mintempF": "70", "mintempC": "21",
+      "sunHour": "10", "uvIndex": "7",
+      "hourly": [{ "time": "1200", "chanceofrain": "0", "weatherDesc": [{ "value": "Clear" }] }]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/web/tool-weather/README.md
+/:
+  en: dea7aa27ab4a29e1
+  zh: 648295c5fbf2b0f3
+/deepseek-ai-dsh-tool-weather:
+  en: d525a3b194dc2a6f
+  zh: e47b920fa917a3ff
+/deepseek-ai-dsh-tool-weather/summary:
+  en: e43f48fc6387d0cb
+  zh: 1ac8425af994d913
+/deepseek-ai-dsh-tool-weather/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-tool-weather/use-this-package:
+  en: 5676cfd55069c5ed
+  zh: 0ac05550fe09150c
+/deepseek-ai-dsh-tool-weather/understand-the-implementation:
+  en: c19d338abc3dafbd
+  zh: 2fc761d529cf1056
+/deepseek-ai-dsh-tool-weather/further-exploration:
+  en: c174b0ae23df5aef
+  zh: 8e6ca6c2aef540fa
+/deepseek-ai-dsh-tool-weather/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-weather/model-experience/weather-request:
+  en: 98e8d5ee4accf805
+  zh: e14f638291bf31f0
+/deepseek-ai-dsh-tool-weather/model-experience/weather-request/what-the-model-sees:
+  en: 76e22ebd383bdd80
+  zh: f9ce3a6af8621d16
+/deepseek-ai-dsh-tool-weather/model-experience/weather-request/token-effect:
+  en: bb177260b5c2841c
+  zh: 33dc94750ec0c370
+/deepseek-ai-dsh-tool-weather/model-experience/weather-request/kv-cache-effect:
+  en: f60c472cb8874383
+  zh: 0357a9c1cfe3c378
+/deepseek-ai-dsh-tool-weather/known-limitations-and-deferred-work:
+  en: ae2bda8632cf44e9
+  zh: 8633705372512a2c
+/deepseek-ai-dsh-tool-weather/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 4f9f026b33f03db6
