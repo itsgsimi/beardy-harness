@@ -467,6 +467,12 @@ importers:
       '@deepseek-ai/dsh-experimental-tool-agent-team':
         specifier: workspace:*
         version: link:../../packages/experimental/tool-agent-team
+      '@deepseek-ai/dsh-fantasy':
+        specifier: workspace:*
+        version: link:../../packages/fantasy/fantasy
+      '@deepseek-ai/dsh-fantasy-yahoo':
+        specifier: workspace:*
+        version: link:../../packages/fantasy/fantasy-yahoo
       '@deepseek-ai/dsh-fs-observation-policy':
         specifier: workspace:*
         version: link:../../packages/fs/fs-observation-policy
@@ -557,6 +563,9 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../packages/core/system-prompt
+      '@deepseek-ai/dsh-tool-fantasy':
+        specifier: workspace:*
+        version: link:../../packages/fantasy/tool-fantasy
       '@deepseek-ai/dsh-tool-research':
         specifier: workspace:*
         version: link:../../packages/research/tool-research
@@ -2194,6 +2203,12 @@ importers:
       '@deepseek-ai/dsh-discord-gateway':
         specifier: workspace:*
         version: link:../../discord/discord-gateway
+      '@deepseek-ai/dsh-fantasy':
+        specifier: workspace:*
+        version: link:../../fantasy/fantasy
+      '@deepseek-ai/dsh-fantasy-yahoo':
+        specifier: workspace:*
+        version: link:../../fantasy/fantasy-yahoo
       '@deepseek-ai/dsh-health':
         specifier: workspace:*
         version: link:../../health/health
@@ -2212,6 +2227,9 @@ importers:
       '@deepseek-ai/dsh-tool-discord':
         specifier: workspace:*
         version: link:../../discord/tool-discord
+      '@deepseek-ai/dsh-tool-fantasy':
+        specifier: workspace:*
+        version: link:../../fantasy/tool-fantasy
       '@deepseek-ai/dsh-tool-memory':
         specifier: workspace:*
         version: link:../../memory/tool-memory
@@ -8575,6 +8593,56 @@ importers:
       react:
         specifier: ^18.2.0
         version: 18.3.1
+
+  packages/fantasy/fantasy:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:*
+        version: link:../../util/brand
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+
+  packages/fantasy/fantasy-yahoo:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-commands':
+        specifier: workspace:*
+        version: link:../../interaction/commands
+      '@deepseek-ai/dsh-fantasy':
+        specifier: workspace:*
+        version: link:../fantasy
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+
+  packages/fantasy/tool-fantasy:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-fantasy':
+        specifier: workspace:*
+        version: link:../fantasy
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
 
   packages/feedback/command-feedback:
     dependencies:

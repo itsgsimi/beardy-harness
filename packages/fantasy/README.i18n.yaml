@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/fantasy/README.md
+/:
+  en: f7c4d8a4b30b8070
+  zh: 9f2d1721a826fcea
+/packages-fantasy:
+  en: d00a984b6deb4bf4
+  zh: 59671b3a273f08b1
+/packages-fantasy/summary:
+  en: 59a384352fe98c5e
+  zh: e3ca9184ce122df3
+/packages-fantasy/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: 1eb35b015a6c423f
+/packages-fantasy/packages:
+  en: d74bf417b49489b0
+  zh: 53aebfd59cfb4211
+/packages-fantasy/related-documentation:
+  en: fab8b0c10702afde
+  zh: 16698405c690e7e9
+/packages-fantasy/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

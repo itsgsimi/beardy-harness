@@ -985,6 +985,85 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'fantasy',
+    summary: 'Provider-neutral read operations; callers supply explicit league or team identities.',
+    description: 'Provider-neutral read operations; callers supply explicit league or team identities.',
+    methods: [
+      {
+        signature: 'abstract teamFor(caller: Session): TeamKeyType',
+        description: 'Resolve the caller\'s own team from its trusted Session preset.',
+        parameters: [{ name: 'caller', description: 'trusted live caller Session.' }],
+        returns: 'configured team for its preset, or an error when unmapped.',
+      },
+      {
+        signature: 'abstract leagues(signal?: AbortSignal): Promise<readonly FantasyLeague[]>',
+        description: 'List leagues visible to the authenticated account.',
+        parameters: [{ name: 'signal', description: 'caller cancellation.' }],
+        returns: 'authenticated account leagues.',
+      },
+      {
+        signature: 'abstract league(key: LeagueKeyType, signal?: AbortSignal): Promise<FantasyLeagueSettings>',
+        description: 'Read scoring settings and roster slots for a league.',
+        parameters: [{ name: 'key', description: 'league identity.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'league options and scoring.',
+      },
+      {
+        signature: 'abstract standings(key: LeagueKeyType, signal?: AbortSignal): Promise<readonly FantasyTeam[]>',
+        description: 'Read the current league standings.',
+        parameters: [{ name: 'key', description: 'league identity.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'season standings.',
+      },
+      {
+        signature: 'abstract scoreboard(key: LeagueKeyType, week?: number, signal?: AbortSignal): Promise<readonly FantasyMatchup[]>',
+        description: 'Read every matchup on a league scoreboard.',
+        parameters: [{ name: 'key', description: 'league identity.' }, { name: 'week', description: 'optional scoring week.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'weekly matchups.',
+      },
+      {
+        signature: 'abstract matchups(key: TeamKeyType, week?: number, signal?: AbortSignal): Promise<readonly FantasyMatchup[]>',
+        description: 'Read matchups involving one team.',
+        parameters: [{ name: 'key', description: 'team identity.' }, { name: 'week', description: 'optional scoring week.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'team matchups.',
+      },
+      {
+        signature: 'abstract team(key: TeamKeyType, week: number, signal?: AbortSignal): Promise<FantasyRoster>',
+        description: 'Read selected slots and player scores on a weekly roster.',
+        parameters: [{ name: 'key', description: 'team identity.' }, { name: 'week', description: 'scoring week.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'roster and player scores.',
+      },
+      {
+        signature: 'abstract players(league: LeagueKeyType, query: { search?: string status?: \'FA\' | \'W\' position?: string sort?: \'points\' | \'rank\' | \'percent_owned\' start: number count: number week?: number }, signal?: AbortSignal): Promise<readonly FantasyPlayer[]>',
+        description: 'Search or filter one page of league players.',
+        parameters: [{ name: 'league', description: 'league identity.' }, { name: 'query', description: 'search or availability filters.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'one provider page.',
+      },
+      {
+        signature: 'abstract player(league: LeagueKeyType, key: PlayerKeyType, week?: number, signal?: AbortSignal): Promise<FantasyPlayer>',
+        description: 'Read a player\'s statistics and ownership in a league.',
+        parameters: [{ name: 'league', description: 'league identity.' }, { name: 'key', description: 'player identity.' }, { name: 'week', description: 'optional scoring week.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'player details.',
+      },
+      {
+        signature: 'abstract transactions(key: LeagueKeyType, start: number, count: number, signal?: AbortSignal): Promise<readonly FantasyTransaction[]>',
+        description: 'Read one page of league transactions.',
+        parameters: [{ name: 'key', description: 'league identity.' }, { name: 'start', description: 'zero-based provider offset.' }, { name: 'count', description: 'provider page size.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'recent transactions.',
+      },
+      {
+        signature: 'abstract draft(key: LeagueKeyType, signal?: AbortSignal): Promise<readonly FantasyDraftPick[]>',
+        description: 'Read the league draft results.',
+        parameters: [{ name: 'key', description: 'league identity.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'completed draft picks.',
+      },
+      {
+        signature: 'abstract gameWeeks(signal?: AbortSignal): Promise<readonly FantasyGameWeek[]>',
+        description: 'Read NFL game week dates for the configured season.',
+        parameters: [{ name: 'signal', description: 'caller cancellation.' }],
+        returns: 'game calendar.',
+      },
+    ],
+  },
+  {
     key: 'fileReferences',
     summary: 'Host capability for cancellable file-reference discovery.',
     description: 'Host capability for cancellable file-reference discovery.',
@@ -5225,6 +5304,50 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EveryScheduleRecord {\n    readonly id: ScheduleId;\n    readonly kind: \'every\';\n    readonly title: string;\n    readonly prompt: string;\n    readonly everySeconds: number;\n    readonly scheduledAt: string;\n}',
   },
   {
+    name: 'FantasyDraftPick',
+    declaration: 'export interface FantasyDraftPick {\n    readonly pick: number;\n    readonly round: number;\n    readonly teamKey: TeamKey;\n    readonly playerKey: PlayerKey;\n}',
+  },
+  {
+    name: 'FantasyGameWeek',
+    declaration: 'export interface FantasyGameWeek {\n    readonly week: number;\n    readonly start: string;\n    readonly end: string;\n    readonly currentDate?: string | undefined;\n}',
+  },
+  {
+    name: 'FantasyLeague',
+    declaration: 'export interface FantasyLeague {\n    readonly key: LeagueKey;\n    readonly name: string;\n    readonly season?: string | undefined;\n    readonly currentWeek?: number | undefined;\n    readonly teamCount?: number | undefined;\n    readonly scoringType?: string | undefined;\n}',
+  },
+  {
+    name: 'FantasyLeagueSettings',
+    declaration: 'export interface FantasyLeagueSettings {\n    readonly league: FantasyLeague;\n    readonly draftType?: string | undefined;\n    readonly waiverType?: string | undefined;\n    readonly waiverRule?: string | undefined;\n    readonly tradeEndDate?: string | undefined;\n    readonly playoffStartWeek?: number | undefined;\n    readonly rosterSlots: readonly FantasyRosterSlot[];\n    readonly scoring: readonly FantasyScoringStat[];\n}',
+  },
+  {
+    name: 'FantasyMatchup',
+    declaration: 'export interface FantasyMatchup {\n    readonly week: number;\n    readonly status?: string | undefined;\n    readonly teams: readonly FantasyTeam[];\n}',
+  },
+  {
+    name: 'FantasyPlayer',
+    declaration: 'export interface FantasyPlayer {\n    readonly key: PlayerKey;\n    readonly name: string;\n    readonly nflTeam?: string | undefined;\n    readonly positions: readonly string[];\n    readonly selectedSlot?: string | undefined;\n    readonly status?: string | undefined;\n    readonly injuryNote?: string | undefined;\n    readonly byeWeek?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly percentOwned?: number | undefined;\n    readonly rank?: number | undefined;\n    readonly ownershipType?: string | undefined;\n    readonly stats?: Readonly<Record<string, number>> | undefined;\n}',
+  },
+  {
+    name: 'FantasyRoster',
+    declaration: 'export interface FantasyRoster {\n    readonly team: FantasyTeam;\n    readonly week: number;\n    readonly players: readonly FantasyPlayer[];\n}',
+  },
+  {
+    name: 'FantasyRosterSlot',
+    declaration: 'export interface FantasyRosterSlot {\n    readonly position: string;\n    readonly count: number;\n    readonly starting: boolean;\n}',
+  },
+  {
+    name: 'FantasyScoringStat',
+    declaration: 'export interface FantasyScoringStat {\n    readonly id: string;\n    readonly name: string;\n    readonly abbreviation?: string | undefined;\n    readonly value?: number | undefined;\n}',
+  },
+  {
+    name: 'FantasyTeam',
+    declaration: 'export interface FantasyTeam {\n    readonly key: TeamKey;\n    readonly name: string;\n    readonly rank?: number | undefined;\n    readonly wins?: number | undefined;\n    readonly losses?: number | undefined;\n    readonly ties?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly winProbability?: number | undefined;\n}',
+  },
+  {
+    name: 'FantasyTransaction',
+    declaration: 'export interface FantasyTransaction {\n    readonly key: string;\n    readonly type: string;\n    readonly status?: string | undefined;\n    readonly timestamp?: number | undefined;\n    readonly players: readonly {\n        player: FantasyPlayer;\n        movement?: string | undefined;\n        teamKey?: TeamKey | undefined;\n    }[];\n}',
+  },
+  {
     name: 'FeedbackCategory',
     declaration: 'export type FeedbackCategory = \'task-result\' | \'instruction-following\' | \'product-interaction\' | \'service-stability\' | \'resource-cost\' | \'security-privacy-permission\' | \'other\';',
   },
@@ -5633,6 +5756,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n    readonly layout?: \'single\' | \'per-record\';\n    readonly compatibleVersions?: readonly number[];\n}',
   },
   {
+    name: 'LeagueKey',
+    declaration: 'export type LeagueKey = Branded<\'LeagueKey\'>;',
+  },
+  {
     name: 'LlmAdapter',
     declaration: 'export abstract class LlmAdapter {\n    providerInfo(provider: string): LlmProviderInfo;\n    providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined;\n    imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined;\n    listModels(_provider: string): Promise<readonly LlmModelInfo[]>;\n    resolveModel(provider: string, model: string, _signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall>;\n    abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
   },
@@ -5967,6 +6094,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PlatformSession',
     declaration: 'export interface PlatformSession {\n    readonly origin: string;\n    readonly token: string;\n    readonly userId: AccountUserId | null;\n    readonly embeddedPageDist?: string;\n    readonly requestHeaders?: Readonly<Record<string, string>>;\n}',
+  },
+  {
+    name: 'PlayerKey',
+    declaration: 'export type PlayerKey = Branded<\'PlayerKey\'>;',
   },
   {
     name: 'PluginChange',

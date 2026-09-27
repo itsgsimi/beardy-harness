@@ -1,0 +1,9 @@
+version: 1
+scenario: fantasy-read
+profile: headless
+composition: fantasy-read
+recording: authored
+permission: workspace-write
+header:
+  class: fantasy-read
+  pin: true

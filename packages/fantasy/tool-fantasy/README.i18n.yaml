@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/fantasy/tool-fantasy/README.md
+/:
+  en: 227ac9cf4fd4d61f
+  zh: 997abd6da3c186a5
+/deepseek-ai-dsh-tool-fantasy:
+  en: d74398ecaf033ebb
+  zh: 542e62bd80a53122
+/deepseek-ai-dsh-tool-fantasy/summary:
+  en: 471b3508e525a25a
+  zh: c4674ac5762dbbe8
+/deepseek-ai-dsh-tool-fantasy/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-tool-fantasy/use-this-package:
+  en: 3702448aee78f80a
+  zh: 5af29225ffac66c4
+/deepseek-ai-dsh-tool-fantasy/understand-the-implementation:
+  en: b115749e1eb2856c
+  zh: 470d44b5df6a5768
+/deepseek-ai-dsh-tool-fantasy/further-exploration:
+  en: 3729bf40aceb9830
+  zh: d4ce16fc2aa1f259
+/deepseek-ai-dsh-tool-fantasy/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-fantasy/model-experience/fantasy-tool:
+  en: 5975be87a61e2f8b
+  zh: c8f1a3c38269130f
+/deepseek-ai-dsh-tool-fantasy/model-experience/fantasy-tool/what-the-model-sees:
+  en: ab1843c48c2e11fe
+  zh: 7a70fbcfe630f1a4
+/deepseek-ai-dsh-tool-fantasy/model-experience/fantasy-tool/token-effect:
+  en: 84961114503ecf77
+  zh: ea0647477215ce63
+/deepseek-ai-dsh-tool-fantasy/model-experience/fantasy-tool/kv-cache-effect:
+  en: 5970342e09a8c8d7
+  zh: e6b79f261153dce1
+/deepseek-ai-dsh-tool-fantasy/known-limitations-and-deferred-work:
+  en: e6a2ddf9e2eb8298
+  zh: fdf2f1860251cba1
+/deepseek-ai-dsh-tool-fantasy/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

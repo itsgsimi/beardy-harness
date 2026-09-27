@@ -32,6 +32,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`api/`](api/README.zh.md) | Remote BFF 装配与 Typert RPC 网关 |
 | [`typert/`](typert/README.zh.md) | 类型图生成、产物加载与运行时注册表 |
 | [`goal/`](goal/README.zh.md) | 同会话 goal 的持久化与生命周期 |
+| [`fantasy/`](fantasy/README.zh.md) | Yahoo Fantasy 只读服务、提供方和模型工具 |
 | [`research/`](research/README.zh.md) | 以 Session 保存的研究运行与存储 |
 | [`schedule/`](schedule/README.zh.md) | Host 拥有的定时后续操作 |
 | [`health/`](health/README.zh.md) | 显式端点探测与 Host 状态 |

@@ -76,6 +76,8 @@ import { registerListSubagentModels } from '../packages/subagent/tool-subagent/s
 import * as ToolOdysseusResearch from '@deepseek-ai/dsh-tool-odysseus-research'
 import type { ResearchService } from '@deepseek-ai/dsh-research'
 import * as ToolResearch from '@deepseek-ai/dsh-tool-research'
+import type { FantasyService } from '@deepseek-ai/dsh-fantasy'
+import * as ToolFantasy from '@deepseek-ai/dsh-tool-fantasy'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import WorkflowEngine from '@deepseek-ai/dsh-workflow'
 import type { WorkflowRun, WorkflowStartRequest } from '@deepseek-ai/dsh-workflow'
@@ -705,6 +707,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
     },
     note: 'Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-fantasy',
+    dir: 'tool-fantasy',
+    source: 'packages/fantasy/tool-fantasy/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fantasy'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      ctx.provide('fantasy', {} as FantasyService)
+      await ctx.plugin(ToolFantasy)
+    },
+    note: 'Read-only Yahoo views use the trusted caller preset for my-team resolution and bounded JSON result pages.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-research',

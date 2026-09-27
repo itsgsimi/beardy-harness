@@ -74,6 +74,17 @@
       name: '@deepseek-ai/dsh-tool-research'
       disabled: true
 
+# The personal profile supplies the private token path, caller teams, and season.
+# Enable both rows together once the private import source or store is available.
+- insert:
+    - id: fantasy-yahoo
+      name: '@deepseek-ai/dsh-fantasy-yahoo'
+      disabled: true
+
+    - id: tool-fantasy
+      name: '@deepseek-ai/dsh-tool-fantasy'
+      disabled: true
+
 # Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
 # only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
 # token itself lives in the environment or the root .env; the composition names the reference, never

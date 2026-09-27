@@ -1,0 +1,1124 @@
+{
+  "fantasy_content": {
+    "xml:lang": "en-US",
+    "yahoo:uri": "/fantasy/v2/league/470.l.809970/standings",
+    "league": [
+      {
+        "league_key": "470.l.809970",
+        "league_id": "809970",
+        "name": "League 1",
+        "url": "https://football.fantasysports.yahoo.com/f1/809970",
+        "recordbook_url": "https://football.fantasysports.yahoo.com/f1/809970/recordbook?layout=webview&device=smartphone",
+        "logo_url": "https://s.yimg.com/ep/cx/blendr/v2/image-avatar-football-trophy-car-png_1721783398928.png",
+        "draft_status": "postdraft",
+        "num_teams": 10,
+        "max_teams": "12",
+        "edit_key": "3",
+        "weekly_deadline": "",
+        "roster_type": "week",
+        "league_update_timestamp": "1790406928",
+        "scoring_type": "head",
+        "scoring_label": "H2H",
+        "league_type": "private",
+        "renew": "461_519361",
+        "renewed": "",
+        "felo_tier": "silver",
+        "is_highscore": false,
+        "is_guillotine": "0",
+        "matchup_week": 3,
+        "iris_group_chat_id": "",
+        "allow_add_to_dl_extra_pos": 1,
+        "is_pro_league": "0",
+        "is_cash_league": "0",
+        "current_week": 3,
+        "start_week": "1",
+        "start_date": "2026-09-09",
+        "end_week": "17",
+        "end_date": "2027-01-04",
+        "is_plus_league": "0",
+        "game_code": "nfl",
+        "season": "2026"
+      },
+      {
+        "standings": [
+          {
+            "teams": {
+              "0": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.8"
+                    },
+                    {
+                      "team_id": "8"
+                    },
+                    {
+                      "name": "Team 4"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/8"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://s.yimg.com/ep/cx/blendr/v2/image-letterman-jacket-png_1721175092760.png"
+                          }
+                        }
+                      ]
+                    },
+                    [],
+                    [],
+                    {
+                      "waiver_priority": 1
+                    },
+                    [],
+                    {
+                      "number_of_moves": 1
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "0"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 10
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "B+",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/8/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "8",
+                            "nickname": "Manager 4",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "751",
+                            "felo_tier": "gold"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "330.84"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "1",
+                      "playoff_seed": "1",
+                      "outcome_totals": {
+                        "wins": "2",
+                        "losses": 0,
+                        "ties": 0,
+                        "percentage": "1.000"
+                      },
+                      "streak": {
+                        "type": "win",
+                        "value": "2"
+                      },
+                      "points_for": "330.84",
+                      "points_against": 241.34000000000003
+                    }
+                  }
+                ]
+              },
+              "1": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.4"
+                    },
+                    {
+                      "team_id": "4"
+                    },
+                    {
+                      "name": "Team 7"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/4"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://example.invalid/team-logo.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 7
+                    },
+                    [],
+                    {
+                      "waiver_priority": 2
+                    },
+                    [],
+                    {
+                      "number_of_moves": 2
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "2"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 8
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "D-",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/4/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "4",
+                            "nickname": "Manager 7",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "593",
+                            "felo_tier": "bronze"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "270.98"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "2",
+                      "playoff_seed": "2",
+                      "outcome_totals": {
+                        "wins": "2",
+                        "losses": 0,
+                        "ties": 0,
+                        "percentage": "1.000"
+                      },
+                      "streak": {
+                        "type": "win",
+                        "value": "2"
+                      },
+                      "points_for": "270.98",
+                      "points_against": 166.57999999999998
+                    }
+                  }
+                ]
+              },
+              "2": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.9"
+                    },
+                    {
+                      "team_id": "9"
+                    },
+                    {
+                      "name": "Team 2"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/9"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://example.invalid/team-logo.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 4
+                    },
+                    [],
+                    {
+                      "waiver_priority": 8
+                    },
+                    [],
+                    {
+                      "number_of_moves": 5
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "4"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 3
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "A+",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/9/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "9",
+                            "nickname": "Manager 2",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "847",
+                            "felo_tier": "platinum"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "204.96"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "3",
+                      "playoff_seed": "3",
+                      "outcome_totals": {
+                        "wins": "2",
+                        "losses": 0,
+                        "ties": 0,
+                        "percentage": "1.000"
+                      },
+                      "streak": {
+                        "type": "win",
+                        "value": "2"
+                      },
+                      "points_for": "204.96",
+                      "points_against": 183.86
+                    }
+                  }
+                ]
+              },
+              "3": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.1"
+                    },
+                    {
+                      "team_id": "1"
+                    },
+                    {
+                      "name": "Team 1"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/1"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://example.invalid/team-logo.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 1
+                    },
+                    [],
+                    {
+                      "waiver_priority": 9
+                    },
+                    [],
+                    {
+                      "number_of_moves": 6
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "4"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 7
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "C",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/1/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "1",
+                            "nickname": "Manager 1",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "is_commissioner": "1",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "757",
+                            "felo_tier": "gold"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "218.44"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "4",
+                      "playoff_seed": "4",
+                      "outcome_totals": {
+                        "wins": "1",
+                        "losses": "1",
+                        "ties": 0,
+                        "percentage": ".500"
+                      },
+                      "streak": {
+                        "type": "loss",
+                        "value": "1"
+                      },
+                      "points_for": "218.44",
+                      "points_against": 279.14
+                    }
+                  }
+                ]
+              },
+              "4": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.2"
+                    },
+                    {
+                      "team_id": "2"
+                    },
+                    {
+                      "name": "Team 3"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/2"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://s.yimg.com/ep/cx/blendr/v2/image-foam-finger-png_1721175076068.png"
+                          }
+                        }
+                      ]
+                    },
+                    [],
+                    [],
+                    {
+                      "waiver_priority": 3
+                    },
+                    [],
+                    {
+                      "number_of_moves": 0
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "0"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 6
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "F",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/2/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "2",
+                            "nickname": "Manager 3",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "595",
+                            "felo_tier": "bronze"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "207.28"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "5",
+                      "playoff_seed": "5",
+                      "outcome_totals": {
+                        "wins": "1",
+                        "losses": "1",
+                        "ties": 0,
+                        "percentage": ".500"
+                      },
+                      "streak": {
+                        "type": "loss",
+                        "value": "1"
+                      },
+                      "points_for": "207.28",
+                      "points_against": 198.42000000000002
+                    }
+                  }
+                ]
+              },
+              "5": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.10"
+                    },
+                    {
+                      "team_id": "10"
+                    },
+                    {
+                      "name": "Team 10"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/10"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://s.yimg.com/ep/cx/blendr/v2/image-ghost-png_1721174040215.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 2
+                    },
+                    [],
+                    {
+                      "waiver_priority": 10
+                    },
+                    [],
+                    {
+                      "number_of_moves": 4
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "2"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 9
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "C+",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/10/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "10",
+                            "nickname": "Manager 10",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "809",
+                            "felo_tier": "platinum"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "206.16"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "6",
+                      "playoff_seed": "6",
+                      "outcome_totals": {
+                        "wins": "1",
+                        "losses": "1",
+                        "ties": 0,
+                        "percentage": ".500"
+                      },
+                      "streak": {
+                        "type": "win",
+                        "value": "1"
+                      },
+                      "points_for": "206.16",
+                      "points_against": 228.38
+                    }
+                  }
+                ]
+              },
+              "6": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.5"
+                    },
+                    {
+                      "team_id": "5"
+                    },
+                    {
+                      "name": "Team 8"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/5"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://example.invalid/team-logo.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 6
+                    },
+                    [],
+                    {
+                      "waiver_priority": 4
+                    },
+                    [],
+                    {
+                      "number_of_moves": 2
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "1"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 5
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "D-",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/5/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "5",
+                            "nickname": "Manager 8",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "570",
+                            "felo_tier": "bronze"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "193.88"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "7",
+                      "playoff_seed": "7",
+                      "outcome_totals": {
+                        "wins": "1",
+                        "losses": "1",
+                        "ties": 0,
+                        "percentage": ".500"
+                      },
+                      "streak": {
+                        "type": "win",
+                        "value": "1"
+                      },
+                      "points_for": "193.88",
+                      "points_against": 191.78
+                    }
+                  }
+                ]
+              },
+              "7": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.7"
+                    },
+                    {
+                      "team_id": "7"
+                    },
+                    {
+                      "name": "Team 6"
+                    },
+                    {
+                      "is_owned_by_current_login": 1
+                    },
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/7"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://example.invalid/team-logo.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 5
+                    },
+                    [],
+                    {
+                      "waiver_priority": 6
+                    },
+                    [],
+                    {
+                      "number_of_moves": 1
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "0"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 1
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "A+",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/7/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "7",
+                            "nickname": "Manager 6",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "is_current_login": "1",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "588",
+                            "felo_tier": "bronze"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "250.80"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "8",
+                      "playoff_seed": "8",
+                      "outcome_totals": {
+                        "wins": 0,
+                        "losses": "2",
+                        "ties": 0,
+                        "percentage": ".000"
+                      },
+                      "streak": {
+                        "type": "loss",
+                        "value": "2"
+                      },
+                      "points_for": "250.80",
+                      "points_against": 257.22
+                    }
+                  }
+                ]
+              },
+              "8": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.6"
+                    },
+                    {
+                      "team_id": "6"
+                    },
+                    {
+                      "name": "Team 9"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/6"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://example.invalid/team-logo.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 9
+                    },
+                    [],
+                    {
+                      "waiver_priority": 7
+                    },
+                    [],
+                    {
+                      "number_of_moves": 1
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "0"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 4
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "C+",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/6/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "6",
+                            "nickname": "Manager 9",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "577",
+                            "felo_tier": "bronze"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "183.54"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "9",
+                      "outcome_totals": {
+                        "wins": 0,
+                        "losses": "2",
+                        "ties": 0,
+                        "percentage": ".000"
+                      },
+                      "streak": {
+                        "type": "loss",
+                        "value": "2"
+                      },
+                      "points_for": "183.54",
+                      "points_against": 275.54
+                    }
+                  }
+                ]
+              },
+              "9": {
+                "team": [
+                  [
+                    {
+                      "team_key": "470.l.809970.t.3"
+                    },
+                    {
+                      "team_id": "3"
+                    },
+                    {
+                      "name": "Team 5"
+                    },
+                    [],
+                    {
+                      "url": "https://football.fantasysports.yahoo.com/f1/809970/3"
+                    },
+                    {
+                      "team_logos": [
+                        {
+                          "team_logo": {
+                            "size": "large",
+                            "url": "https://s.yimg.com/cv/apiv2/default/nfl/nfl_4_m.png"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "previous_season_team_rank": 3
+                    },
+                    [],
+                    {
+                      "waiver_priority": 5
+                    },
+                    [],
+                    {
+                      "number_of_moves": 0
+                    },
+                    {
+                      "number_of_trades": 0
+                    },
+                    {
+                      "roster_adds": {
+                        "coverage_type": "week",
+                        "coverage_value": 3,
+                        "value": "0"
+                      }
+                    },
+                    [],
+                    {
+                      "league_scoring_type": "head"
+                    },
+                    [],
+                    {
+                      "draft_position": 2
+                    },
+                    {
+                      "has_draft_grade": 1,
+                      "draft_grade": "C+",
+                      "draft_recap_url": "https://football.fantasysports.yahoo.com/f1/809970/3/draftrecap"
+                    },
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    {
+                      "managers": [
+                        {
+                          "manager": {
+                            "manager_id": "3",
+                            "nickname": "Manager 5",
+                            "guid": "00000000-0000-4000-8000-000000000001",
+                            "image_url": "https://example.invalid/profile.png",
+                            "felo_score": "595",
+                            "felo_tier": "bronze"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "team_points": {
+                      "coverage_type": "season",
+                      "season": "2026",
+                      "total": "167.64"
+                    }
+                  },
+                  {
+                    "team_standings": {
+                      "rank": "10",
+                      "outcome_totals": {
+                        "wins": 0,
+                        "losses": "2",
+                        "ties": 0,
+                        "percentage": ".000"
+                      },
+                      "streak": {
+                        "type": "loss",
+                        "value": "2"
+                      },
+                      "points_for": "167.64",
+                      "points_against": 212.26
+                    }
+                  }
+                ]
+              },
+              "count": 10
+            }
+          }
+        ]
+      }
+    ],
+    "time": "70.466995239258ms",
+    "copyright": "Certain Data by Sportradar, Stats Perform and Rotowire",
+    "refresh_rate": "30"
+  }
+}

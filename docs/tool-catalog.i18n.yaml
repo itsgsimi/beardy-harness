@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 3612141096c73fc6
-  zh: 7ee049285b04fd47
+  en: de8390322b8ca1bf
+  zh: 2713592c28a39f87
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -327,8 +327,14 @@
   en: baae482dea4c5a39
   zh: baae482dea4c5a39
 /tool-schema-catalog/deepseek-ai-dsh-tool-odysseus-research/odysseus-research:
-  en: 3717855e03d8df95
-  zh: e8f6d204a2b1c372
+  en: df6dfd357243a997
+  zh: 1b38f344844c7827
+/tool-schema-catalog/deepseek-ai-dsh-tool-fantasy:
+  en: b680d291c7b816e5
+  zh: b680d291c7b816e5
+/tool-schema-catalog/deepseek-ai-dsh-tool-fantasy/fantasy:
+  en: 135af3d0d506f127
+  zh: b7f44f880ea0ff1b
 /tool-schema-catalog/deepseek-ai-dsh-tool-research:
   en: 5eb8c03ac9ed384e
   zh: 5eb8c03ac9ed384e

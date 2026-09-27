@@ -51,6 +51,7 @@
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`、`ctx.credentials` | `tool/call`、`tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint、model、and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
+| `@deepseek-ai/dsh-tool-fantasy` | `fantasy` | `ctx.tools`, `ctx.fantasy` | `tool/call`, `tool/result` | - | Yahoo 只读视图依据可信调用方预设解析自己的球队，并返回有界 JSON 结果页。 |
 | `@deepseek-ai/dsh-tool-research` | `deep_research` | `ctx.tools`、`ctx.research` | `tool/call`、`tool/result`、`research/linked` | - | 原生运行和报告可在进程重启后保留。工具从调用方 Session 推导所有者权限，并对报告文本分页。 |
 | `@deepseek-ai/dsh-tool-discord` | `discord_send` | `ctx.tools`、`ctx.credentials` | `tool/call`、`tool/result` | - | discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time、so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids、and bodies over 2000 characters post as consecutive messages. |
 
@@ -2939,6 +2940,97 @@ web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可�
 来源：[`packages/web/tool-odysseus-research/src/index.ts`](../packages/web/tool-odysseus-research/src/index.ts)
 
 Odysseus 负责后台执行和保存报告。配置确定端点、模型及预算；凭据按次调用解析。读取操作返回带明确续读偏移量的分页。
+
+<a id="deepseek-aidsh-tool-fantasy"></a>
+
+## `@deepseek-ai/dsh-tool-fantasy`
+
+### `fantasy`
+
+读取 Yahoo Fantasy 联盟、计分规则、排名、周对阵与预测、阵容、球员、自由球员、弃权、交易、选秀结果和比赛周。省略 team 键即可使用调用方配置的球队。球员查询需要 search 或 availability。通过 start/count 请求 Yahoo 分页，通过 next_offset 读取长结果的所有部分。持有率排序只适用于每个返回页面。此工具不能改变阵容、弃权申请或交易。请另行查看最新伤病新闻。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "leagues",
+        "league",
+        "standings",
+        "scoreboard",
+        "matchup",
+        "team",
+        "players",
+        "player",
+        "transactions",
+        "draft",
+        "weeks"
+      ]
+    },
+    "league": {
+      "type": "string",
+      "description": "League key; defaults to the caller's configured team league."
+    },
+    "team": {
+      "type": "string",
+      "description": "Team key for matchup or roster; omit or use my for the caller's team."
+    },
+    "player": {
+      "type": "string",
+      "description": "Player key required for player details."
+    },
+    "week": {
+      "type": "integer",
+      "description": "Scoring week; required for team roster."
+    },
+    "search": {
+      "type": "string",
+      "description": "Player name query for players."
+    },
+    "availability": {
+      "type": "string",
+      "description": "Free agents or waiver players.",
+      "enum": [
+        "FA",
+        "W"
+      ]
+    },
+    "position": {
+      "type": "string",
+      "description": "Position filter for players, for example RB or WR."
+    },
+    "sort": {
+      "type": "string",
+      "enum": [
+        "points",
+        "rank",
+        "percent_owned"
+      ]
+    },
+    "start": {
+      "type": "integer",
+      "description": "Yahoo result offset, starting at zero."
+    },
+    "count": {
+      "type": "integer",
+      "description": "Yahoo result count, from 1 through 25; defaults to 10."
+    },
+    "offset": {
+      "type": "integer",
+      "description": "Character offset into this response; follow next_offset."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/fantasy/tool-fantasy/src/index.ts`](../packages/fantasy/tool-fantasy/src/index.ts)
+
+Yahoo 只读视图依据可信调用方预设解析自己的球队，并返回有界 JSON 结果页。
 
 <a id="deepseek-aidsh-tool-research"></a>
 

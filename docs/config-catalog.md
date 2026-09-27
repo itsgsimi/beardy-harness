@@ -1410,6 +1410,47 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-training-export -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-yahoo -->
+<a id="deepseek-aidsh-fantasy-yahoo"></a>
+
+## `@deepseek-ai/dsh-fantasy-yahoo`
+
+- `inject`: `commands`
+- `source`: [`packages/fantasy/fantasy-yahoo/src/index.ts:18`](../packages/fantasy/fantasy-yahoo/src/index.ts)
+
+```ts config-catalog
+/** Provider deployment values. Token and OAuth secrets remain inside the private store. */
+export interface Config {
+  /** Absolute private JSON store path below DSH_HOME. */
+  readonly tokenFile: string
+  /** Optional private yahoo_oauth cache copied once when the DSH store is absent. */
+  readonly importFrom?: string
+  /** Exact HTTPS OAuth callback URI configured in the Yahoo app. */
+  readonly redirectUri: string
+  /** NFL season used to list the account's leagues. */
+  readonly season: number
+  /** Trusted Agent preset IDs mapped to Yahoo team keys. */
+  readonly callerTeams: Readonly<Record<string, string>>
+  /** Agent presets allowed to use the human authorization command. */
+  readonly authPresets: string[]
+  /** Milliseconds to retain a parsed API response. */
+  readonly cacheTtlMs?: number
+  /** Maximum cached response entries. */
+  readonly cacheMaxEntries?: number
+  /** Additional attempts for rate-limit and temporary server errors. */
+  readonly retryCount?: number
+  /** Initial retry delay in milliseconds. */
+  readonly retryDelayMs?: number
+  /** Deadline in milliseconds for each Yahoo HTTP request. */
+  readonly requestTimeoutMs?: number
+  /** Maximum milliseconds to wait for the store lock. */
+  readonly lockWaitMs?: number
+  /** Milliseconds before stale lock recovery begins. */
+  readonly lockStaleMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-fantasy-yahoo -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-file-reference-local -->
 <a id="deepseek-aidsh-file-reference-local"></a>
 
@@ -3839,6 +3880,23 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-discord -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-fantasy -->
+<a id="deepseek-aidsh-tool-fantasy"></a>
+
+## `@deepseek-ai/dsh-tool-fantasy`
+
+- `inject`: `fantasy` · `tools`
+- `source`: [`packages/fantasy/tool-fantasy/src/index.ts:15`](../packages/fantasy/tool-fantasy/src/index.ts)
+
+```ts config-catalog
+/** Model-result page bound. */
+export interface Config {
+  /** Maximum Unicode data characters returned in one model result page. */
+  readonly pageChars?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-fantasy -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-fs -->
 <a id="deepseek-aidsh-tool-fs"></a>
 
@@ -4890,6 +4948,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 | `@deepseek-ai/dsh-compaction` | `CompactionEngine` | — | [`packages/compaction/compaction/src/index.ts`](../packages/compaction/compaction/src/index.ts) |
 | `@deepseek-ai/dsh-credentials` | `CredentialProvider` | — | [`packages/credentials/credentials/src/index.ts`](../packages/credentials/credentials/src/index.ts) |
 | `@deepseek-ai/dsh-deepseek-account` | `DeepSeekAccount` | — | [`packages/credentials/deepseek-account/src/index.ts`](../packages/credentials/deepseek-account/src/index.ts) |
+| `@deepseek-ai/dsh-fantasy` | `FantasyService` | — | [`packages/fantasy/fantasy/src/index.ts`](../packages/fantasy/fantasy/src/index.ts) |
 | `@deepseek-ai/dsh-file-reference` | `FileReferenceService` | — | [`packages/context/file-reference/src/index.ts`](../packages/context/file-reference/src/index.ts) |
 | `@deepseek-ai/dsh-fs` | `FileSystem` | — | [`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker` | `DirectoryPicker` | — | [`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts) |

@@ -47,6 +47,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
+| `@deepseek-ai/dsh-tool-fantasy` | `fantasy` | `ctx.tools`, `ctx.fantasy` | `tool/call`, `tool/result` | - | Read-only Yahoo views use the trusted caller preset for my-team resolution and bounded JSON result pages. |
 | `@deepseek-ai/dsh-tool-research` | `deep_research` | `ctx.tools`, `ctx.research` | `tool/call`, `tool/result`, `research/linked` | - | Native runs and reports survive process restart. The tool derives owner authority from the caller Session and pages report text. |
 | `@deepseek-ai/dsh-tool-discord` | `discord_send` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time, so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids, and bodies over 2000 characters post as consecutive messages. |
 
@@ -2925,6 +2926,97 @@ Run deep research with Odysseus. start launches a job and returns its id; status
 Source: [`packages/web/tool-odysseus-research/src/index.ts`](../packages/web/tool-odysseus-research/src/index.ts)
 
 Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets.
+
+<a id="deepseek-aidsh-tool-fantasy"></a>
+
+## `@deepseek-ai/dsh-tool-fantasy`
+
+### `fantasy`
+
+Read Yahoo Fantasy leagues, scoring rules, standings, weekly matchups and projections, rosters, players, free agents, waivers, transactions, draft picks, and game weeks. Use team without a key for the caller's configured team. For players, set search or availability. Use start/count for Yahoo result pages and next_offset to read every part of a long response. Percent-owned sorting applies within each returned page. This tool cannot change lineups, claims, or trades. Check current injury news separately.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "leagues",
+        "league",
+        "standings",
+        "scoreboard",
+        "matchup",
+        "team",
+        "players",
+        "player",
+        "transactions",
+        "draft",
+        "weeks"
+      ]
+    },
+    "league": {
+      "type": "string",
+      "description": "League key; defaults to the caller's configured team league."
+    },
+    "team": {
+      "type": "string",
+      "description": "Team key for matchup or roster; omit or use my for the caller's team."
+    },
+    "player": {
+      "type": "string",
+      "description": "Player key required for player details."
+    },
+    "week": {
+      "type": "integer",
+      "description": "Scoring week; required for team roster."
+    },
+    "search": {
+      "type": "string",
+      "description": "Player name query for players."
+    },
+    "availability": {
+      "type": "string",
+      "description": "Free agents or waiver players.",
+      "enum": [
+        "FA",
+        "W"
+      ]
+    },
+    "position": {
+      "type": "string",
+      "description": "Position filter for players, for example RB or WR."
+    },
+    "sort": {
+      "type": "string",
+      "enum": [
+        "points",
+        "rank",
+        "percent_owned"
+      ]
+    },
+    "start": {
+      "type": "integer",
+      "description": "Yahoo result offset, starting at zero."
+    },
+    "count": {
+      "type": "integer",
+      "description": "Yahoo result count, from 1 through 25; defaults to 10."
+    },
+    "offset": {
+      "type": "integer",
+      "description": "Character offset into this response; follow next_offset."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/fantasy/tool-fantasy/src/index.ts`](../packages/fantasy/tool-fantasy/src/index.ts)
+
+Read-only Yahoo views use the trusted caller preset for my-team resolution and bounded JSON result pages.
 
 <a id="deepseek-aidsh-tool-research"></a>
 

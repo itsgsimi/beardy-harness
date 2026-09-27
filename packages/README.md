@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The harness is assembled from npm packages under `packages/`, grouped by capability family: sessions and the agent loop, model-facing tools, shell and filesystem execution, web access, subagents, and the rest. Use this page as the top-level map: find the owning group, then open its README for the package list. Every package is scoped `@deepseek-ai/dsh-*` and lives in exactly one group; each group README is the authoritative package map for its family.
+The harness uses npm packages under `packages/`, grouped by capability. Find the owning group here, then open its README for the package list. Every package is scoped `@deepseek-ai/dsh-*` and lives in exactly one group; each group README owns its package map.
 
 ## Table of Contents
 
@@ -32,6 +32,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`api/`](api/README.md) | Remote BFF assembly and Typert RPC gateway |
 | [`typert/`](typert/README.md) | Type graph generation, artifact loading, and runtime registry |
 | [`goal/`](goal/README.md) | Same-session goal persistence and lifecycle |
+| [`fantasy/`](fantasy/README.md) | Yahoo Fantasy read-only service, provider, and model tool |
 | [`research/`](research/README.md) | Session-backed research runs and storage |
 | [`schedule/`](schedule/README.md) | Host-owned scheduled follow-ups |
 | [`health/`](health/README.md) | Explicit endpoint probes and Host status |
