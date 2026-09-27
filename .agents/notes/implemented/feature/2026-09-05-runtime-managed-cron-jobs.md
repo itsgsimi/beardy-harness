@@ -16,6 +16,8 @@ Stored jobs live in a `cron_jobs` storage domain with two tables: `jobs` holds s
 
 Every fire's first message carries the job prompt plus a fixed continuity instruction and the stored notes; a run with no notes is told to write what the next run should know before it finishes, through the tool's `note` action. Notes are capped at `notesMaxChars`. A finished run emits the typed event `cron/run-finished` with outcome, final text, session id, and — when configured — a delivery channel; the Discord gateway's `attachCronDelivery` posts that text to the channel, or a one-line outcome note when there is no text and `deliverOutcomes` asks for one. Cron itself names no channel platform.
 
+The runner reads the admitted turn's `turn/end` reason before selecting its result: errors retain code and message, aborts report interruption, and completed turns without text report `no-text-answer`. Text committed before an error is never delivered as an answer. A job's optional `turnTimeoutMs` overrides the plugin bound; stored definitions, pending outcomes, and history use optional fields so records written without the override or failure detail remain readable. The gateway publishes only a display-safe failure code, never the failure message.
+
 Timers are owned by a scheduler host (`sync`, `trigger`, per-job in-flight guard). Any write to the `jobs` table re-plans every timer from the registry's current view; in-flight guards survive the re-plan, so editing a stored job cannot leave a stale timer or double-run an active one.
 
 ## Alternatives considered
@@ -29,6 +31,8 @@ Approving at the registry (so every writer pays) was rejected in favor of gating
 Cron posting to Discord directly was rejected: delivery belongs to whoever owns the channel. The typed event keeps cron platform-neutral and leaves room for Web or other listeners without touching this package.
 
 Making notes free-form session memory (curated memory, `dsh-memory`) was rejected for this seam: continuity here is one bounded string per job that every fire reads verbatim, not recall across sessions; a search step would add cost and nondeterminism to an unattended run.
+
+Treating any idle turn with assistant text as answered was rejected because a turn can commit text and then log an error. The terminal event decides the result; text is selected only for completed endings.
 
 ## Consequences
 

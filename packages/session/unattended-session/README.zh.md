@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-unattended-session` 通过一个可安全回滚的事务，为 webhook、cron 和 Discord 入口开启根 Agent Session。它解析预设、创建工作区和 Agent、绑定取消、附加、应用权限，并为 Session 设置标题。各调用方保留提示词准入职责，并提供 Session id 前缀、标题、模型选项和额外 setup。共享辅助函数（`awaitTurn`、`sleep` 和 `lastAssistantText`）为轮次等待设界。这是一个库，而非 Cordis 插件。
+`dsh-unattended-session` 通过一个可安全回滚的事务，为 webhook、cron 和 Discord 入口开启根 Agent Session。它解析预设、创建工作区和 Agent、绑定取消、附加、应用权限，并为 Session 设置标题。各调用方保留提示词准入职责，并提供 Session id 前缀、标题、模型选项和额外 setup。共享辅助函数（`awaitTurn`、`sleep`、`lastAssistantText` 和 `lastTurnEndReason`）为等待设界并读取轮次结果。这是一个库，而非 Cordis 插件。
 
 ## 目录
 
@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### 等待一个回合
 
-`awaitTurn(agent, { timeoutMs, signal, wait? })` 让 Agent 的 idle promise 与时间界限竞速，报告 `'idle'` 或 `'timeout'`；被拒绝的等待接缝或被拒绝的 idle promise 同样报告 `'timeout'`。`sleep(ms, signal)` 是默认延迟接缝。`lastAssistantText(events, firstSeq)` 返回在 `firstSeq` 之后（含）提交的最后一条非空 assistant 文本，即无人值守调用方回发或记录的内容。
+`awaitTurn(agent, { timeoutMs, signal, wait? })` 让 Agent 的 idle promise 与时间界限竞速，报告 `'idle'` 或 `'timeout'`；被拒绝的等待接缝或被拒绝的 idle promise 同样报告 `'timeout'`。`sleep(ms, signal)` 是默认延迟接缝。`lastAssistantText(events, firstSeq)` 返回在 `firstSeq` 之后（含）提交的最后一条非空 assistant 文本；`lastTurnEndReason(events, firstSeq)` 读取已记录的终态原因，让无人值守调用方区分回答、失败与中断。
 
 -----
 
@@ -54,7 +54,7 @@ kind: "package-reference"
 | 文件 | 职责 |
 |---|---|
 | [`src/open.ts`](src/open.ts) | Spec 与结果类型、开启事务与带报告的回滚 |
-| [`src/turn.ts`](src/turn.ts) | `sleep`、有界的 `awaitTurn` 竞速与 `lastAssistantText` |
+| [`src/turn.ts`](src/turn.ts) | `sleep`、有界的 `awaitTurn` 竞速，以及已记录轮次的输出和终态辅助函数 |
 
 ### 回滚约定
 

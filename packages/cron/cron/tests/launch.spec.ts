@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { CONTINUITY_WITHOUT_NOTES, CONTINUITY_WITH_NOTES, createJobRunner, runPrompt, runTitle } from '../src/launch.ts'
 import type { ScheduledJobSpec } from '../src/types.ts'
 
@@ -28,6 +28,11 @@ interface HarnessOptions {
   readonly rejectWait?: boolean
   /** Reject whenIdle, as a turn that fails outright does. */
   readonly rejectIdle?: boolean
+  /** Terminal event the agent logs before becoming idle. */
+  readonly ending?: TurnEndReason
+  readonly omitEnding?: boolean
+  /** Observe the effective turn bound without waiting for a real timer. */
+  readonly wait?: (ms: number) => Promise<void>
 }
 
 /** Context carrying only what a scheduled run touches, recording each step. */
@@ -48,6 +53,13 @@ function harness(options: HarnessOptions = {}) {
           type: 'assistant/message',
           data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: options.replyText }] } },
         } as unknown as SessionEvent)
+      }
+      if (!options.omitEnding) {
+        events.push({
+          seq: events.length + 1,
+          type: 'turn/end',
+          data: { turn: 1, reason: options.ending ?? { kind: 'completed' } },
+        } as SessionEvent)
       }
     },
     whenIdle: () => {
@@ -110,7 +122,8 @@ function harness(options: HarnessOptions = {}) {
     ctx: ctx as unknown as Context,
     signal: controller.signal,
     turnTimeoutMs: options.turnTimeoutMs ?? 1_000,
-    ...(options.rejectWait === true ? { wait: () => Promise.reject(new Error('scheduler gone')) } : {}),
+    ...(options.rejectWait === true ? { wait: () => Promise.reject(new Error('scheduler gone')) }
+      : options.wait === undefined ? {} : { wait: options.wait }),
   })
   return {
     runner, calls, events, handle, controller, ctx: ctx as unknown as Context,
@@ -208,6 +221,63 @@ describe('job runner', () => {
   it('reports a turn that fails outright as failed', async () => {
     const h = harness({ replyText: 'late', rejectIdle: true })
     expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('failed')
+  })
+
+  it('reports the logged error and discards text written before it', async () => {
+    for (const replyText of ['', 'partial answer']) {
+      const h = harness({ replyText, ending: { kind: 'error', error: { code: 'SERVER', message: 'provider unavailable' } } })
+      expect(await h.runner.run(JOB, FIRED_AT)).toMatchObject({
+        outcome: 'failed', text: '', failure: { code: 'SERVER', message: 'provider unavailable' },
+      })
+      expect(h.ctx.logger.error).toHaveBeenCalledWith(expect.stringContaining('run failed (SERVER)'))
+    }
+  })
+
+  it('reports an aborted turn as interrupted', async () => {
+    const h = harness({ replyText: 'partial answer', ending: { kind: 'aborted', reason: { kind: 'user' } } })
+    expect(await h.runner.run(JOB, FIRED_AT)).toMatchObject({ outcome: 'interrupted', text: '' })
+  })
+
+  it('refuses to call an idle turn without a terminal event an answer', async () => {
+    const h = harness({ replyText: 'partial', omitEnding: true })
+    expect(await h.runner.run(JOB, FIRED_AT)).toMatchObject({
+      outcome: 'failed', text: '', failure: { code: 'MISSING_TURN_END' },
+    })
+  })
+
+  it('refuses a merge-extended terminal reason it does not recognize', async () => {
+    const ending = { kind: 'future-ending' } as unknown as TurnEndReason
+    const h = harness({ replyText: 'partial', ending })
+    expect(await h.runner.run(JOB, FIRED_AT)).toMatchObject({
+      outcome: 'failed', text: '', failure: { code: 'UNKNOWN_TURN_END' },
+    })
+  })
+
+  it.each([
+    [{ kind: 'blocked' } as const, 'BLOCKED'],
+    [{ kind: 'max-tokens' } as const, 'MAX_TOKENS'],
+  ])('reports %s as failed even after text', async (ending, code) => {
+    const h = harness({ replyText: 'partial', ending })
+    expect(await h.runner.run(JOB, FIRED_AT)).toMatchObject({ outcome: 'failed', text: '', failure: { code } })
+  })
+
+  it('uses the job timeout when set and the plugin timeout otherwise', async () => {
+    const seen: number[] = []
+    const h = harness({ replyText: 'done', turnTimeoutMs: 5_000,
+      wait: (ms) => { seen.push(ms); return new Promise<void>(() => {}) } })
+    expect((await h.runner.run({ ...JOB, turnTimeoutMs: 1_500 }, FIRED_AT)).outcome).toBe('answered')
+    expect((await h.runner.run(JOB, FIRED_AT)).outcome).toBe('answered')
+    expect(seen).toEqual([1_500, 5_000])
+  })
+
+  it('times out a pending run at its job-specific bound', async () => {
+    const seen: number[] = []
+    const h = harness({ hang: true, turnTimeoutMs: 5_000,
+      wait: async (ms) => { seen.push(ms) } })
+    expect((await h.runner.run({ ...JOB, turnTimeoutMs: 1_500 }, FIRED_AT)).outcome).toBe('timed-out')
+    expect(seen).toEqual([1_500])
+    expect(h.handle.dispose).toHaveBeenCalledTimes(1)
+    h.releaseIdle()
   })
 
   it('cancels a waiting run when the scheduler is cancelled without an error reason', async () => {

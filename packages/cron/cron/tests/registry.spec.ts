@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { jobStateRecord, storedJobRecord } from '../src/domain.ts'
 import { isInsideRoot, nextFireGap } from '../src/registry.ts'
 import { CONFIG_JOB, createInput, makeRegistry, reopenRegistry, storedRow } from './support.ts'
 
@@ -78,6 +79,24 @@ describe('job registry create', () => {
     const { registry, jobsTable } = makeRegistry()
     await registry.create(createInput({ deliverChannelId: 'chan-9' }))
     expect(jobsTable.rows.get('pr-check')?.deliver).toEqual({ kind: 'channel', channelId: 'chan-9' })
+  })
+
+  it('stores an optional per-job timeout and rejects an invalid bound', async () => {
+    const { registry, jobsTable } = makeRegistry()
+    await expect(registry.create(createInput({ turnTimeoutMs: 999 }))).rejects.toThrow('turnTimeoutMs must be a safe integer')
+    await registry.create(createInput({ turnTimeoutMs: 4_000 }))
+    expect(jobsTable.rows.get('pr-check')?.turnTimeoutMs).toBe(4_000)
+    expect(registry.find('pr-check')?.turnTimeoutMs).toBe(4_000)
+    await expect(registry.update('pr-check', { turnTimeoutMs: 2.5 })).rejects.toThrow('turnTimeoutMs must be a safe integer')
+    expect((await registry.update('pr-check', { turnTimeoutMs: 8_000 })).turnTimeoutMs).toBe(8_000)
+  })
+
+  it('accepts stored definitions and history written before optional fields existed', () => {
+    expect(storedJobRecord.safeParse(storedRow('old')).success).toBe(true)
+    expect(jobStateRecord.safeParse({ notes: '', lastRuns: [{ firedAt: 1, sessionId: 'old', outcome: 'failed' }] }).success).toBe(true)
+    expect(jobStateRecord.safeParse({ notes: '', lastRuns: [{ firedAt: 2, sessionId: 'new', outcome: 'failed',
+      failure: { code: 'SERVER', message: 'provider unavailable' } }] }).success).toBe(true)
+    expect(storedJobRecord.safeParse(storedRow('bad', { turnTimeoutMs: 999 })).success).toBe(false)
   })
 
   it('refuses a name taken by a configured or existing stored job', async () => {
@@ -171,6 +190,16 @@ describe('job registry update, pause, and delete', () => {
     expect((await registry.setEnabled('pr-check', false)).enabled).toBe(false)
     expect(jobsTable.rows.get('pr-check')?.prompt).toBe('Check open pull requests.')
     expect((await registry.setEnabled('pr-check', true)).enabled).toBe(true)
+  })
+
+  it('reports a stored job removed during an arm-state write', async () => {
+    const h = makeRegistry([], { stored: [storedRow('pr-check')] })
+    const put = h.stateTable.put
+    h.stateTable.put = async (name, value) => {
+      await put(name, value)
+      h.jobsTable.rows.delete(name)
+    }
+    await expect(h.registry.setEnabled('pr-check', false)).rejects.toThrow('disappeared while its arm state was being written')
   })
 
   it('deletes the definition together with its continuity state', async () => {
@@ -275,7 +304,8 @@ describe('job registry continuity state', () => {
     const { registry } = makeRegistry()
     await expect(registry.setNotes('ghost', 'x')).rejects.toThrow('no job named "ghost" to take notes')
     await expect(registry.create(createInput())).resolves.toBeDefined()
-    await expect(registry.setNotes('pr-check', 'x'.repeat(401))).rejects.toThrow('above the cap of 400')
+    await expect(registry.setNotes('pr-check', 'x'.repeat(401)))
+      .rejects.toThrow('above the cap of 400; condense the continuity notes and retry')
   })
 
   it('prepends run history newest-first, bounded by the keep count', async () => {
@@ -289,6 +319,16 @@ describe('job registry continuity state', () => {
       { firedAt: 3, sessionId: SessionId('c'), outcome: 'failed' },
       { firedAt: 2, sessionId: SessionId('b'), outcome: 'timed-out' },
     ])
+  })
+
+  it('retains failure code and message in history and pending delivery across reopen', async () => {
+    const h = makeRegistry([CONFIG_JOB])
+    await h.registry.beginRun(CONFIG_JOB.name, { firedAt: 1, sessionId: SessionId('s'), reportOutcome: true })
+    const failure = { code: 'SERVER', message: 'provider unavailable' }
+    await h.registry.settleRun(CONFIG_JOB.name, { sessionId: SessionId('s'), outcome: 'failed', text: '', failure }, 3)
+    const reopened = reopenRegistry({ jobsTable: h.jobsTable.rows, stateTable: h.stateTable.rows }, [CONFIG_JOB])
+    expect(reopened.find(CONFIG_JOB.name)?.lastRuns[0]?.failure).toEqual(failure)
+    expect(reopened.pendingOutcome(CONFIG_JOB.name)?.failure).toEqual(failure)
   })
 
   it('keeps notes while recording runs and survives a zero keep count', async () => {

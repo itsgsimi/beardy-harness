@@ -609,10 +609,12 @@ export interface CronJobSpec {
   readonly workspacePath: string
   /** Session title; defaults to the job name followed by the fire time. */
   readonly title?: string
+  /** Per-run turn bound in milliseconds; absent uses the plugin's turnTimeoutMs. */
+  readonly turnTimeoutMs?: number
 }
 ```
 
-Source: [`packages/cron/cron/src/index.ts:111`](../packages/cron/cron/src/index.ts)
+Source: [`packages/cron/cron/src/index.ts:112`](../packages/cron/cron/src/index.ts)
 
 <a id="deepseek-aidsh-discord-gateway"></a>
 

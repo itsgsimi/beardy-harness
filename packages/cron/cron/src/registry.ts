@@ -64,6 +64,8 @@ export interface UpdateJobPatch {
   readonly permissionPreset?: string
   readonly workspacePath?: string
   readonly title?: string
+  /** Per-run turn bound; omitted from a patch leaves the stored value unchanged. */
+  readonly turnTimeoutMs?: number
   /** Replace the delivery channel; an empty string removes channel delivery. */
   readonly deliverChannelId?: string
 }
@@ -100,6 +102,7 @@ export interface JobRegistry {
 
 /** The definition fields every guardrail check reads. */
 type GuardrailFields = Pick<CronJobSpec, 'name' | 'expression' | 'timezone' | 'prompt' | 'agentPreset' | 'permissionPreset' | 'workspacePath'>
+  & { readonly turnTimeoutMs?: number | undefined }
 
 /** Dependencies of one registry over the opened domain tables. */
 export interface JobRegistryDeps {
@@ -120,8 +123,10 @@ function registryError(message: string): never {
 }
 
 function finishedPayload(name: string, pending: NonNullable<JobStateRecord['pendingOutcome']>): CronRunFinished {
-  const { deliverChannelId, ...result } = pending
-  return { jobName: name, ...result, ...(deliverChannelId === undefined ? {} : { deliverChannelId }) }
+  const { deliverChannelId, failure, ...result } = pending
+  return { jobName: name, ...result,
+    ...(deliverChannelId === undefined ? {} : { deliverChannelId }),
+    ...(failure === undefined ? {} : { failure }) }
 }
 
 /**
@@ -188,6 +193,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
     permissionPreset: record.permissionPreset,
     workspacePath: record.workspacePath,
     ...(record.title === undefined ? {} : { title: record.title }),
+    ...(record.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: record.turnTimeoutMs }),
     origin: 'stored',
     enabled: stateOf(record.name).enabled ?? record.enabled,
     ...(record.deliver.kind === 'channel' ? { deliverChannelId: record.deliver.channelId } : {}),
@@ -226,6 +232,9 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
     if (nextFireGap(job.expression, job.timezone, new Date()) < deps.guardrails.minIntervalMs) {
       registryError(`schedule "${job.expression}" (${job.timezone}) fires more often than every `
         + `${String(deps.guardrails.minIntervalMs)}ms, below minIntervalMs`)
+    }
+    if (job.turnTimeoutMs !== undefined && (!Number.isSafeInteger(job.turnTimeoutMs) || job.turnTimeoutMs < 1_000)) {
+      registryError(`job "${job.name}" turnTimeoutMs must be a safe integer of at least 1000 milliseconds`)
     }
     if (isCreate && stored().length >= deps.guardrails.maxStoredJobs) {
       registryError(`the store already holds its ${String(deps.guardrails.maxStoredJobs)} jobs; delete one first`)
@@ -278,6 +287,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
         permissionPreset: input.permissionPreset,
         workspacePath: input.workspacePath,
         ...(input.title === undefined ? {} : { title: input.title }),
+        ...(input.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: input.turnTimeoutMs }),
         enabled: true,
         deliver: input.deliverChannelId === undefined
           ? { kind: 'none' }
@@ -304,6 +314,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
         ...(patch.permissionPreset === undefined ? {} : { permissionPreset: patch.permissionPreset }),
         ...(patch.workspacePath === undefined ? {} : { workspacePath: patch.workspacePath }),
         ...(patch.title === undefined ? {} : { title: patch.title }),
+        ...(patch.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: patch.turnTimeoutMs }),
         deliver,
       }
       assertAllowed(next, false)
@@ -340,7 +351,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
       if (registry.find(name) === undefined) registryError(`no job named "${name}" to take notes`)
       if (notes.length > deps.guardrails.notesMaxChars) {
         registryError(`notes are ${String(notes.length)} characters, above the cap of `
-          + `${String(deps.guardrails.notesMaxChars)}; shorten them`)
+          + `${String(deps.guardrails.notesMaxChars)}; condense the continuity notes and retry`)
       }
       await changeState(async () => {
         await deps.stateTable.put(name, { ...stateOf(name), notes })
@@ -361,7 +372,8 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
         const { activeRun, ...state } = stateOf(name)
         if (activeRun === undefined) registryError(`job "${name}" has no active run to settle`)
         const pendingOutcome = { ...activeRun, ...result, sessionId: activeRun.sessionId }
-        const entry = { firedAt: activeRun.firedAt, sessionId: activeRun.sessionId, outcome: result.outcome }
+        const entry = { firedAt: activeRun.firedAt, sessionId: activeRun.sessionId, outcome: result.outcome,
+          ...(result.failure === undefined ? {} : { failure: result.failure }) }
         await deps.stateTable.put(name, {
           ...state,
           lastRuns: [entry, ...state.lastRuns].slice(0, keepHistory),

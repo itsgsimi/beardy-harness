@@ -61,9 +61,15 @@ describe('assertConfig', () => {
       .toThrow('needs an absolute workspacePath, got "workspace"')
   })
 
+  it('rejects an invalid configured per-job timeout', () => {
+    expect(() => { assertConfig(config({ jobs: [{ ...JOB, turnTimeoutMs: 999 }] })) })
+      .toThrow('job "morning-brief" turnTimeoutMs must be a safe integer of at least 1000 milliseconds')
+  })
+
   it.each<[string, Partial<ResolvedConfig>]>([
     ['turnTimeoutMs', { turnTimeoutMs: 1.5 }],
     ['maxLiveRuns', { maxLiveRuns: 0 }],
+    ['notesMaxChars', { notesMaxChars: 0 }],
   ])('rejects a non-positive %s', (field, overrides) => {
     expect(() => { assertConfig(config(overrides)) })
       .toThrow(`${field} must be a positive safe integer`)
@@ -102,6 +108,7 @@ function contextStub(overrides: Record<string, unknown> = {}) {
     session: { get seq(): number { return events.length }, ownEvents: () => events },
     followup: () => {
       events.push({ seq: events.length + 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'done' }] } } })
+      events.push({ seq: events.length + 1, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
     },
     whenIdle: async () => {},
   }

@@ -24,6 +24,7 @@ interface CronManageArgs {
   permission_preset?: string
   workspace_path?: string
   title?: string
+  turn_timeout_ms?: number
   deliver_channel?: string
   notes?: string
 }
@@ -43,11 +44,24 @@ export interface CronManageToolDeps {
   runNow(name: string): boolean
 }
 
-function requireName(args: CronManageArgs): string {
-  if (args.name === undefined || args.name.trim() === '') {
-    throw new Error('cron_manage needs "name" for this action')
+const CREATE_FIELDS = ['name', 'expression', 'timezone', 'prompt', 'agent_preset', 'permission_preset', 'workspace_path'] as const
+const PATCH_FIELDS = ['expression', 'timezone', 'prompt', 'agent_preset', 'permission_preset', 'workspace_path', 'title', 'turn_timeout_ms', 'deliver_channel'] as const
+
+function requireFields(args: CronManageArgs, action: CronManageAction): void {
+  const required: readonly (keyof CronManageArgs)[] = action === 'create' ? CREATE_FIELDS : action === 'note' ? ['name', 'notes'] : ['name']
+  const missing = required.filter((field) => {
+    const value = args[field]
+    return value === undefined || (field !== 'notes' && typeof value === 'string' && value.trim() === '')
+  })
+  if (missing.length > 0) throw new Error(`cron_manage ${action} requires: ${missing.join(', ')}`)
+  if (action === 'update' && !PATCH_FIELDS.some(field => args[field] !== undefined)) {
+    throw new Error(`cron_manage update requires at least one of: ${PATCH_FIELDS.join(', ')}`)
   }
-  return args.name.trim()
+}
+
+function requireName(args: CronManageArgs, action: CronManageAction): string {
+  requireFields(args, action)
+  return (args.name as string).trim()
 }
 
 function requireAgent(exec: ToolExecution): Agent {
@@ -81,8 +95,8 @@ async function approvedForWrite(
 }
 
 function describeCreate(args: CronManageArgs, name: string): string {
-  return `"${name}" (${args.expression ?? '?'} ${args.timezone ?? '?'}) preset ${args.agent_preset ?? '?'}`
-    + `/${args.permission_preset ?? '?'} in ${args.workspace_path ?? '?'}`
+  return `"${name}" (${args.expression} ${args.timezone}) preset ${args.agent_preset}`
+    + `/${args.permission_preset} in ${args.workspace_path}`
 }
 
 function line(job: RegistryJob): string {
@@ -107,25 +121,26 @@ export function createCronManageTool(
     description:
       'Manage the global cron jobs that wake an agent on a schedule. Actions: "list" shows every job '
       + 'with its origin and arm state; "create" schedules a new stored job (name, expression, timezone, '
-      + 'prompt, agent_preset, permission_preset, workspace_path required; title and deliver_channel '
-      + 'optional); "update" patches a stored job; "delete" removes one; "pause" and "resume" stop or '
-      + 're-arm any job of either origin without losing it, and the pause survives a restart; "run_now" '
-      + 'starts a job immediately outside its schedule; "note" replaces the continuity notes carried into '
+      + 'prompt, agent_preset, permission_preset, workspace_path required; title, turn_timeout_ms and deliver_channel '
+      + 'optional); "update" requires name and at least one patch field; "delete" requires name; "pause" and "resume" '
+      + 'require name to stop or re-arm any job of either origin without losing it, and the pause survives a restart; "run_now" '
+      + 'requires name to start a job immediately outside its schedule; "note" requires name and notes, and replaces the continuity notes carried into '
       + 'every future run of the job — record what was reported so the next run continues instead of '
       + 'repeating. A job from plugin configuration keeps its definition read-only: change its schedule '
       + 'or prompt by editing that configuration, which takes effect when the host restarts.',
     parameters: {
       action: { type: 'string', required: true, enum: ['list', 'create', 'update', 'delete', 'pause', 'resume', 'run_now', 'note'], description: 'Operation to perform.' },
-      name: { type: 'string', description: 'Job name. Required for every action except list and create; the new job\'s name for create.' },
-      expression: { type: 'string', description: 'Cron expression, 5 or 6 fields, for create and update.' },
-      timezone: { type: 'string', description: 'IANA timezone the expression runs in, for create and update.' },
-      prompt: { type: 'string', description: 'Prompt handed to the agent on every fire, for create and update.' },
-      agent_preset: { type: 'string', description: 'Agent preset for the run, for create and update.' },
-      permission_preset: { type: 'string', description: 'Permission preset for the run, for create and update.' },
-      workspace_path: { type: 'string', description: 'Absolute workspace path for the run, for create and update.' },
-      title: { type: 'string', description: 'Optional Session title override.' },
-      deliver_channel: { type: 'string', description: 'Channel id to deliver the finished run\'s text to; an empty string removes delivery.' },
-      notes: { type: 'string', description: 'Full replacement notes text for the "note" action.' },
+      name: { type: 'string', description: 'Required for create, update, delete, pause, resume, run_now, and note; omit only for list.' },
+      expression: { type: 'string', description: 'Required for create; optional patch for update. Cron expression with 5 or 6 fields.' },
+      timezone: { type: 'string', description: 'Required for create; optional patch for update. IANA timezone.' },
+      prompt: { type: 'string', description: 'Required for create; optional patch for update. Prompt for every fire.' },
+      agent_preset: { type: 'string', description: 'Required for create; optional patch for update.' },
+      permission_preset: { type: 'string', description: 'Required for create; optional patch for update.' },
+      workspace_path: { type: 'string', description: 'Required for create; optional patch for update. Absolute path.' },
+      title: { type: 'string', description: 'Optional for create and update. Session title override.' },
+      turn_timeout_ms: { type: 'number', description: 'Optional for create and update. Per-run timeout in milliseconds, at least 1000; omit to use plugin turnTimeoutMs.' },
+      deliver_channel: { type: 'string', description: 'Optional for create and update. Channel id for final text; an empty string removes delivery.' },
+      notes: { type: 'string', description: 'Required for note. Full replacement continuity notes; use an empty string to clear.' },
     },
     output: {
       schema: {
@@ -154,24 +169,25 @@ export function createCronManageTool(
           }
         }
         case 'create': {
-          const name = requireName(args)
+          const name = requireName(args, 'create')
           if (deps.requireApproval) await approvedForWrite(ctx, exec, 'create', name, describeCreate(args, name))
           const created = await registry.create({
             name,
-            expression: args.expression ?? '',
-            timezone: args.timezone ?? '',
-            prompt: args.prompt ?? '',
-            agentPreset: args.agent_preset ?? '',
-            permissionPreset: args.permission_preset ?? '',
-            workspacePath: args.workspace_path ?? '',
+            expression: args.expression as string,
+            timezone: args.timezone as string,
+            prompt: args.prompt as string,
+            agentPreset: args.agent_preset as string,
+            permissionPreset: args.permission_preset as string,
+            workspacePath: args.workspace_path as string,
             ...(args.title === undefined ? {} : { title: args.title }),
+            ...(args.turn_timeout_ms === undefined ? {} : { turnTimeoutMs: args.turn_timeout_ms }),
             ...(args.deliver_channel === undefined ? {} : { deliverChannelId: args.deliver_channel }),
             ...(exec.agent === undefined ? {} : { createdBy: String(exec.agent.session.header.id) }),
           })
           return { action: 'create', name, message: `Created job ${line(created)}.` }
         }
         case 'update': {
-          const name = requireName(args)
+          const name = requireName(args, 'update')
           if (deps.requireApproval) await approvedForWrite(ctx, exec, 'update', name, `patch "${name}"`)
           const updated = await registry.update(name, {
             ...(args.expression === undefined ? {} : { expression: args.expression }),
@@ -181,35 +197,36 @@ export function createCronManageTool(
             ...(args.permission_preset === undefined ? {} : { permissionPreset: args.permission_preset }),
             ...(args.workspace_path === undefined ? {} : { workspacePath: args.workspace_path }),
             ...(args.title === undefined ? {} : { title: args.title }),
+            ...(args.turn_timeout_ms === undefined ? {} : { turnTimeoutMs: args.turn_timeout_ms }),
             ...(args.deliver_channel === undefined ? {} : { deliverChannelId: args.deliver_channel }),
           })
           return { action: 'update', name, message: `Updated job ${line(updated)}.` }
         }
         case 'delete': {
-          const name = requireName(args)
+          const name = requireName(args, 'delete')
           if (deps.requireApproval) await approvedForWrite(ctx, exec, 'delete', name, `remove "${name}"`)
           await registry.remove(name)
           return { action: 'delete', name, message: `Deleted job "${name}".` }
         }
         case 'pause': {
-          const name = requireName(args)
+          const name = requireName(args, 'pause')
           const paused = await registry.setEnabled(name, false)
           return { action: 'pause', name, message: `Paused job ${line(paused)}.` }
         }
         case 'resume': {
-          const name = requireName(args)
+          const name = requireName(args, 'resume')
           const resumed = await registry.setEnabled(name, true)
           return { action: 'resume', name, message: `Resumed job ${line(resumed)}.` }
         }
         case 'run_now': {
-          const name = requireName(args)
+          const name = requireName(args, 'run_now')
           if (registry.find(name) === undefined) throw new Error(`no job named "${name}"`)
           if (!deps.runNow(name)) throw new Error(`job "${name}" is paused; resume it first`)
           return { action: 'run_now', name, message: `Started job "${name}" outside its schedule.` }
         }
         case 'note': {
-          const name = requireName(args)
-          await registry.setNotes(name, args.notes ?? '')
+          const name = requireName(args, 'note')
+          await registry.setNotes(name, args.notes as string)
           return { action: 'note', name, message: `Notes for job "${name}" replaced.` }
         }
       }

@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto'
 import type {} from '@deepseek-ai/dsh-speech-whisper'
 import { transcribeDiscordAudio } from './audio.ts'
 import type { Context } from '@deepseek-ai/cordis'
-import type { CronRunOutcome } from '@deepseek-ai/dsh-cron'
+import type { CronRunOutcome, CronRunResult } from '@deepseek-ai/dsh-cron'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
@@ -45,9 +45,7 @@ import { approvalControls, questionControls, renderCards, CONVERSATION_CONTROLS,
 import type { DiscordInboundMessage, DiscordInboundReaction, GatewaySettings } from './types.ts'
 
 /** What one settled scheduled run announces on the `cron/run-finished` event. */
-interface FinishedCronRun {
-  readonly outcome: CronRunOutcome
-  readonly text: string
+interface FinishedCronRun extends Pick<CronRunResult, 'outcome' | 'text' | 'failure'> {
   readonly reportOutcome: boolean
 }
 
@@ -1167,7 +1165,7 @@ const CRON_OUTCOME_LINES: Record<CronRunOutcome, string | undefined> = {
   'no-text-answer': 'The scheduled run finished without a text answer.',
   'timed-out': 'The scheduled run timed out.',
   interrupted: 'The scheduled run was interrupted.',
-  failed: 'The scheduled run could not start.',
+  failed: 'The scheduled run failed.',
 }
 
 /**
@@ -1176,8 +1174,14 @@ const CRON_OUTCOME_LINES: Record<CronRunOutcome, string | undefined> = {
  * @returns delivery text, or undefined when the run has nothing to announce.
  */
 export function cronDeliveryContent(run: FinishedCronRun): string | undefined {
-  if (run.text !== '') return run.text
+  if (run.outcome === 'answered' && run.text !== '') return run.text
   if (!run.reportOutcome) return undefined
+  if (run.outcome === 'failed') {
+    const code = run.failure?.code
+    return code !== undefined && /^[A-Z][A-Z0-9_-]{0,63}$/u.test(code)
+      ? `The scheduled run failed (${code}).`
+      : CRON_OUTCOME_LINES.failed
+  }
   return CRON_OUTCOME_LINES[run.outcome]
 }
 

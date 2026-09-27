@@ -6,5 +6,5 @@
 
 export { openUnattendedSession, resumeUnattendedSession } from './open.ts'
 export type { ResumeUnattendedSessionSpec, UnattendedSession, UnattendedSessionSpec } from './open.ts'
-export { awaitTurn, lastAssistantText, sleep } from './turn.ts'
+export { awaitTurn, lastAssistantText, lastTurnEndReason, sleep } from './turn.ts'
 export type { AwaitTurnOptions } from './turn.ts'

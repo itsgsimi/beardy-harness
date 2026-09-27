@@ -8,6 +8,8 @@ Cron 为每次接受的任务触发创建独立的无人值守 Session。本参�
 
 调度器提交终态历史与保留的输出后，交付消费者会收到 `CronRunFinished`。`sessionId` 与 `firedAt` 这一对值标识多次交接中的同一次运行。Session 创建失败时，预留的 Session id 可能没有对应日志。
 
+已记录轮次的终态决定运行结果。失败结果在运行历史和待投递记录中保留错误代码与消息；Discord 只展示安全的代码。失败轮次的部分文本不算回答。
+
 ```ts type-equiv
 /** How one accepted fire ended, retained in job history and delivery notices. */
 type CronRunOutcome = 'answered' | 'no-text-answer' | 'timed-out' | 'failed' | 'interrupted'
@@ -22,6 +24,8 @@ interface CronRunResult {
   readonly sessionId: string
   /** Final assistant text of the run; empty when there was none. */
   readonly text: string
+  /** Failure facts from the turn ending or runner; absent for other outcomes. */
+  readonly failure?: { readonly code: string; readonly message: string }
 }
 ```
 

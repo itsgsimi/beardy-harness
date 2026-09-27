@@ -91,6 +91,7 @@ export const Config: z<{
     permissionPreset: z.string().required(),
     workspacePath: z.string().required(),
     title: z.string(),
+    turnTimeoutMs: z.number().min(1_000),
     deliverChannel: z.string(),
   })).default([]),
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_CRON_TURN_TIMEOUT_MS),
@@ -157,6 +158,9 @@ export function assertConfig(config: ResolvedConfig): void {
     }
     if (!isAbsolute(job.workspacePath)) {
       throw new Error(`dsh-cron: job "${job.name}" needs an absolute workspacePath, got "${job.workspacePath}"`)
+    }
+    if (job.turnTimeoutMs !== undefined && (!Number.isSafeInteger(job.turnTimeoutMs) || job.turnTimeoutMs < 1_000)) {
+      throw new Error(`dsh-cron: job "${job.name}" turnTimeoutMs must be a safe integer of at least 1000 milliseconds`)
     }
   }
   for (const root of config.allowedWorkspaceRoots) {
