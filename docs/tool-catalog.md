@@ -1810,7 +1810,7 @@ Source: [`packages/skill/tool-skill/src/index.ts`](../packages/skill/tool-skill/
 
 ### `skill_manage`
 
-Create, update, or delete a skill. Workspace skills are stored as flat Markdown files under .agents/skills and load in that workspace; user-scope skills live under the Harness home and load in every session. Skills become available to the skill loader after the catalog refreshes. When you work out a non-trivial workflow, record it with `skill_manage` so it loads only when relevant.
+Check, create, update, or delete a skill. Check returns lint findings without writing. Workspace skills are flat Markdown files under .agents/skills; user skills live under the Harness home and load in every session. Check a draft before saving a reusable workflow.
 
 ```json
 {
@@ -1818,8 +1818,9 @@ Create, update, or delete a skill. Workspace skills are stored as flat Markdown 
   "properties": {
     "action": {
       "type": "string",
-      "description": "Operation to perform.",
+      "description": "Operation to perform. Check validates without writing or approval.",
       "enum": [
+        "check",
         "create",
         "update",
         "delete"
@@ -1831,15 +1832,15 @@ Create, update, or delete a skill. Workspace skills are stored as flat Markdown 
     },
     "description": {
       "type": "string",
-      "description": "Short description for create or update."
+      "description": "Short description for check, create, or update."
     },
     "content": {
       "type": "string",
-      "description": "Markdown instructions for create or update."
+      "description": "Markdown instructions for check, create, or update."
     },
     "when_to_use": {
       "type": "string",
-      "description": "Optional routing guidance for create or update."
+      "description": "Routing guidance for check, create, or update; short or missing guidance yields a warning."
     },
     "model_invocable": {
       "type": "boolean",

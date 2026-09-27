@@ -853,7 +853,7 @@ describe('dsh-tool-skill', () => {
     await scope.dispose()
   })
 
-  it('validates the catalog description cap', async () => {
+  it('validates the catalog description and skill body caps', async () => {
     const home = await tempDir('tool-invalid-catalog-cap')
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -863,6 +863,8 @@ describe('dsh-tool-skill', () => {
     await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
 
     await expect(ctx.plugin(toolSkill, { catalogDescriptionMaxLength: 2 })).rejects.toThrow('greater than or equal to 3')
+    await expect(ctx.plugin(toolSkill, { skillBodyMaxBytes: 0 })).rejects.toThrow('skillBodyMaxBytes')
+    await expect(ctx.plugin(toolSkill, { skillBodyMaxBytes: 1.5 })).rejects.toThrow('skillBodyMaxBytes')
   })
 
   it('loads a skill for the calling agent cwd', async () => {

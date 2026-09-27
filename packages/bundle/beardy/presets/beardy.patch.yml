@@ -161,7 +161,7 @@
             config:
               enableSkillManagement: true
               enableUserSkillManagement: true
-              nudgeAfterToolCalls: 8
+              nudgeAfterToolCalls: 20
               requireApproval: true
               allowApprovedHomeWrites: true
           - id: tool-memory

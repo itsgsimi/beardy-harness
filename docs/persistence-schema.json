@@ -61672,7 +61672,7 @@
       },
       "names": [],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:53"
+        "packages/skill/tool-skill/src/index.ts:54"
       ]
     },
     {
@@ -74913,7 +74913,7 @@
       },
       "names": [],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:43"
+        "packages/skill/tool-skill/src/index.ts:44"
       ]
     },
     {
@@ -103874,7 +103874,7 @@
         "packages/skill/tool-skill/src/index.ts#SkillCatalogSource"
       ],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:37"
+        "packages/skill/tool-skill/src/index.ts:38"
       ]
     },
     {

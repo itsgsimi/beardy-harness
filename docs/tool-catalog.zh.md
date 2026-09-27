@@ -1821,7 +1821,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `skill_manage`
 
-创建、更新或删除技能。工作区技能存储在 .agents/skills 中，仅在该工作区加载；用户范围技能存储在 Harness 主目录，并在所有会话加载。目录刷新后，新技能可供加载。
+检查、创建、更新或删除技能。检查返回 lint 结果，不写入文件。工作区技能是 .agents/skills 下的 Markdown 文件；用户技能存储在 Harness 主目录，并在所有会话加载。保存可复用的工作流程前，先检查草稿。
 
 ```json
 {
@@ -1829,8 +1829,9 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "action": {
       "type": "string",
-      "description": "Operation to perform.",
+      "description": "Operation to perform. Check validates without writing or approval.",
       "enum": [
+        "check",
         "create",
         "update",
         "delete"
@@ -1842,15 +1843,15 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     },
     "description": {
       "type": "string",
-      "description": "Short description for create or update."
+      "description": "Short description for check, create, or update."
     },
     "content": {
       "type": "string",
-      "description": "Markdown instructions for create or update."
+      "description": "Markdown instructions for check, create, or update."
     },
     "when_to_use": {
       "type": "string",
-      "description": "Optional routing guidance for create or update."
+      "description": "Routing guidance for check, create, or update; short or missing guidance yields a warning."
     },
     "model_invocable": {
       "type": "boolean",

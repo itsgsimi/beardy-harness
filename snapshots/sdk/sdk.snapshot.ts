@@ -880,6 +880,22 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
           toolCallId: 'call_dynamic_ping', isError: false, content: [{ type: 'text', text: 'pong' }],
         } } })
       }
+      if (scenario.name === 'skill-nudge-check') {
+        const events = records(ordered[0]!.content)
+        const nudges = events.flatMap((event, index) => event.type === 'user/message'
+          && (event.data as JsonObject | undefined)?.source !== undefined
+          && ((event.data as JsonObject).source as JsonObject).kind === 'skill-nudge' ? [index] : [])
+        expect(nudges).toHaveLength(1)
+        const completed = events.findIndex(event => event.type === 'turn/end'
+          && (event.data as JsonObject | undefined)?.turn === 1
+          && ((event.data as JsonObject).reason as JsonObject).kind === 'completed')
+        expect(nudges[0]).toBeGreaterThan(completed)
+        const check = events.find(event => event.type === 'tool/result'
+          && ((event.data as JsonObject).message as JsonObject).toolCallId === 'call_check')
+        expect(check).toMatchObject({ data: { message: { isError: false, content: [{
+          text: expect.stringContaining('"errors":[],"warnings":["whenToUse is missing; add a concrete trigger"],"bytes":81'),
+        }] } } })
+      }
       if (scenario.name === 'subagent-activation-limit') {
         expect(ordered).toHaveLength(2)
         const denied = records(ordered[0]!.content).find(record => record.type === 'tool/result'

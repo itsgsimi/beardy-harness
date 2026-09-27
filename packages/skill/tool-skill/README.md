@@ -48,7 +48,8 @@ Load the plugin together with the skill registry and at least one provider. Mana
 | `enableUserSkillManagement` | `false` | Let `skill_manage` write the Harness-home user root (`$DSH_HOME/skills`) that every session loads |
 | `requireApproval` | `false` | Ask the approval service before any create, update, or delete; without a mounted answerer the write is refused |
 | `allowApprovedHomeWrites` | `false` | With approval and user-scope management enabled, grant the exact approved home file or skills directory under `workspace-write` |
-| `nudgeAfterToolCalls` | `0` | Tool calls in one settled turn that trigger the save-it-as-a-skill notice; `0` disables the nudge |
+| `nudgeAfterToolCalls` | `0` | Completed tool results in one completed turn that trigger the Session's one save-it-as-a-skill notice; `0` disables it |
+| `skillBodyMaxBytes` | `32768` | Maximum UTF-8 bytes in a skill body written by `skill_manage`; the final newline counts |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-skill) is the exhaustive source for every accepted field.
 
@@ -56,14 +57,14 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 - **A session catalog.** When model-invocable skills exist and the `skill` tool is visible, the agent receives a durable user-role message before its first request, listing each skill's name and a capped description; the message tells the model to load a skill with the tool before acting on it, and never to infer instructions from the summary alone.
 - **A loader tool.** The model calls `skill` with the exact skill name and receives the full instruction body plus resource guidance in a canonical `<skill_content>` block; the result is retained as ordinary tool history.
-- **A management tool.** When `ctx.fs` is mounted, the model calls `skill_manage` to create, update, or delete a flat skill file in the workspace, or in the Harness-home user root when user-scope management is enabled. The operation accepts only kebab-case names inside the selected root. `allowApprovedHomeWrites` permits one exact home mutation after `allowed-once`; deletion checks the observed file version. A refusal changes nothing.
-- **A save-it-as-a-skill nudge.** When `nudgeAfterToolCalls` is positive and a turn ends after enough completed tool calls without using `skill_manage`, one logged notice enters the next request. Delegated subagent child sessions are never tallied, so they receive no notice: skill authorship stays with the top-level session that dispatched the work.
+- **A management tool.** When `ctx.fs` is mounted, the model calls `skill_manage check` to inspect a draft without writing or requesting approval. It returns `errors`, `warnings`, and the UTF-8 `bytes` of the normalized body. Create and update reject the same hard errors before approval and show lint findings plus a bounded diff in the approval reason. Missing or short `whenToUse`, thin descriptions or bodies, and catalog overlap are warnings for the author to review. Create, update, and delete manage flat files in the workspace or enabled Harness-home user root; `allowApprovedHomeWrites` permits one exact home mutation after `allowed-once`, and deletion checks the observed file version.
+- **A save-it-as-a-skill nudge.** When `nudgeAfterToolCalls` is positive, a completed turn with enough tool results and no model skill load or explicit user skill invocation can add one logged notice to the next request. A Session receives at most one nudge across resume; delegated subagent children receive none.
 - **Explicit user invocation.** A `/name` token in direct user input that names a user-invocable skill injects that skill's instructions into the step, without the model having to load it.
 - **Live catalog updates.** Later membership, description, or visibility changes append a complete replacement catalog; removing every skill appends an empty catalog that retires older names.
 
 ### Observable success and failures
 
-Loading a listed skill returns its full instructions in the same canonical form used for a user's explicit invocation; management returns the affected path and operation status. An invalid name reports `Error: invalid skill name "<name>"`, an unknown name reports the skill is unknown or no longer available, and a skill disabled for model invocation reports it is not available for model invocation. Management refusals report their cause, including disabled user scope, refused or unavailable approval, lifecycle mismatch, an unsafe target, missing workspace cwd, or path escape. The catalog is omitted entirely when no catalog was ever published and either no model-invocable skills exist or the `skill` tool is hidden or shadowed; after publication, either visibility loss or removal of every skill appends an empty catalog that retires older names.
+Loading a listed skill returns its full instructions in the same canonical form used for a user's explicit invocation; `skill_manage check` returns lint fields and mutations return the affected path and status. An invalid name reports `Error: invalid skill name "<name>"`, an unknown name reports the skill is unknown or no longer available, and a skill disabled for model invocation reports it is not available for model invocation. Management refusals report their cause, including a body over `skillBodyMaxBytes`, disabled user scope, refused or unavailable approval, lifecycle mismatch, an unsafe target, missing workspace cwd, or path escape. The catalog is omitted entirely when no catalog was ever published and either no model-invocable skills exist or the `skill` tool is hidden or shadowed; after publication, either visibility loss or removal of every skill appends an empty catalog that retires older names.
 
 -----
 
@@ -84,6 +85,8 @@ The package is built on two ideas. First, the catalog is a durable projection, d
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: tool registration, catalog and gesture pre-step listeners, rendering and digest |
+| [`src/nudge.ts`](src/nudge.ts) | Session projection of completed turns and prior notices, plus next-step nudge admission |
+| [`src/manage.ts`](src/manage.ts) | Draft lint, approval preview, and scoped file mutations |
 | — | No runtime invariant companion is published; this model-facing adapter has no independent lifecycle stream; execution relations are owned by the capability seam it calls. |
 
 ### Catalog lifecycle

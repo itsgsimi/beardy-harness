@@ -118,6 +118,84 @@ async function call(
 }
 
 describe('skill_manage scopes and approval', () => {
+  it('checks frontmatter, routing, length, and catalog overlap without writing or asking approval', async () => {
+    const { ctx, workspace } = await setup({ enableSkillManagement: true, requireApproval: true, skillBodyMaxBytes: 16 })
+    ctx.skills.register({ name: 'existing-skill', description: 'Use when the weekly review is due.', source: 'runtime', content: 'Steps.' })
+    const result = await call(ctx, { action: 'check', name: 'new-skill', description: 'Use when the weekly review is due.',
+      content: '---\nname: fake\n---\n\nLong content.' }, agentForCwd(workspace))
+    expect(result.isError).toBe(false)
+    const lint = JSON.parse(result.text) as { errors: string[]; warnings: string[]; bytes: number }
+    expect(lint.errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('frontmatter comes from'), expect.stringContaining('limit is 16 bytes'),
+    ]))
+    expect(lint.warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('whenToUse is missing'), expect.stringContaining('overlaps catalog skill'),
+    ]))
+    expect(lint.bytes).toBeGreaterThan(16)
+    await expect(readFile(join(workspace, '.agents', 'skills', 'new-skill.md'), 'utf8')).rejects.toThrow()
+  })
+
+  it('enforces the exact UTF-8 body cap before approval and accepts its boundary', async () => {
+    const { ctx, workspace } = await setup({ enableSkillManagement: true, requireApproval: true, skillBodyMaxBytes: 5 })
+    let asks = 0
+    ctx.provide('approval' as never, { request: async () => { asks += 1; return 'allowed-once' } } as never)
+    const agent = agentForCwd(workspace)
+    const oversized = await call(ctx, { action: 'create', name: 'byte-cap', description: 'A test skill', content: 'ééé' }, agent)
+    expect(oversized.isError).toBe(true)
+    expect(oversized.text).toContain('7 bytes; limit is 5 bytes')
+    expect(asks).toBe(0)
+    expect((await call(ctx, { action: 'check', name: 'byte-cap', description: 'A test skill', content: 'éé' }, agent)).text)
+      .toContain('"bytes":5')
+    const boundary = await call(ctx, { action: 'create', name: 'byte-cap', description: 'A test skill', content: 'éé' }, agent)
+    expect(boundary.isError).toBe(false)
+    expect(asks).toBe(1)
+    expect(await readFile(join(workspace, '.agents', 'skills', 'byte-cap.md'), 'utf8')).toContain('éé\n')
+    const update = await call(ctx, { action: 'update', name: 'byte-cap', description: 'A test skill', content: 'ééé' }, agent)
+    expect(update.isError).toBe(true)
+    expect(update.text).toContain('7 bytes; limit is 5 bytes')
+    expect(asks).toBe(1)
+  })
+
+  it('reports missing required fields before requesting approval', async () => {
+    const { ctx, workspace } = await setup({ enableSkillManagement: true, requireApproval: true })
+    let asks = 0
+    ctx.provide('approval' as never, { request: async () => { asks += 1; return 'allowed-once' } } as never)
+    const result = await call(ctx, { action: 'update', name: 'invalid-draft', content: 'Body.' }, agentForCwd(workspace))
+    expect(result.isError).toBe(true)
+    expect(result.text).toContain('description is required')
+    expect(asks).toBe(0)
+  })
+
+  it('returns hard errors for invalid names and missing or duplicate frontmatter fields', async () => {
+    const { ctx, workspace } = await setup({ enableSkillManagement: true })
+    const agent = agentForCwd(workspace)
+    const invalid = await call(ctx, { action: 'check', name: 'Bad_Name', content: '---\r\nname: bad\r\n---' }, agent)
+    expect(invalid.isError).toBe(false)
+    expect((JSON.parse(invalid.text) as { errors: string[] }).errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('invalid skill name'), expect.stringContaining('description is required'),
+      expect.stringContaining('frontmatter comes from'),
+    ]))
+    const empty = await call(ctx, { action: 'check', name: 'valid-name', description: 'A useful description', content: '   ' }, agent)
+    expect((JSON.parse(empty.text) as { errors: string[] }).errors).toContain('content is required for create and update')
+    const missing = await call(ctx, { action: 'check', name: 'valid-name', description: 'A useful description' }, agent)
+    expect((JSON.parse(missing.text) as { errors: string[] }).errors).toContain('content is required for create and update')
+  })
+
+  it('reports routing warnings for a short trigger and an existing catalog name', async () => {
+    const { ctx, workspace } = await setup({ enableSkillManagement: true })
+    ctx.skills.register({ name: 'weekly-plan', description: 'A catalog skill', source: 'runtime', content: 'Steps.' })
+    ctx.skills.register({ name: 'garden-care', description: 'Use when watering garden plants.', source: 'runtime', content: 'Water.' })
+    const agent = agentForCwd(workspace)
+    const check = await call(ctx, { action: 'check', name: 'weekly-plan', description: 'Plan the week',
+      content: 'Collect the tasks and assign owners.', when_to_use: 'weekly' }, agent)
+    expect((JSON.parse(check.text) as { warnings: string[] }).warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('whenToUse is short'), expect.stringContaining('catalog already contains'),
+    ]))
+    const update = await call(ctx, { action: 'check', name: 'weekly-plan', description: 'Plan the week',
+      content: 'Collect the tasks and assign owners.', when_to_use: 'Use when planning the coming household week.' }, agent)
+    expect((JSON.parse(update.text) as { warnings: string[] }).warnings).not.toEqual(expect.arrayContaining([expect.stringContaining('whenToUse is short')]))
+  })
+
   it('requires approval and both skill-management scopes for approved home writes', async () => {
     await expect(setup({ allowApprovedHomeWrites: true, enableSkillManagement: true, enableUserSkillManagement: true }))
       .rejects.toThrow('requires requireApproval')
@@ -209,7 +287,15 @@ describe('skill_manage scopes and approval', () => {
     const { ctx } = await setup({ enableSkillManagement: true, requireApproval: true })
     const result = await call(ctx, { action: 'delete', name: 'anything' })
     expect(result.isError).toBe(true)
+    expect(result.text).toContain('requires an Agent-backed session')
+  })
+
+  it('refuses agentless user-scope approval without creating a directory', async () => {
+    const { ctx, home } = await setup({ enableSkillManagement: true, enableUserSkillManagement: true, requireApproval: true })
+    const result = await call(ctx, { action: 'create', name: 'orphan-skill', description: 'An orphan draft', content: 'Body.', scope: 'user' })
+    expect(result.isError).toBe(true)
     expect(result.text).toContain('no Agent-backed session')
+    await expect(readFile(join(home, '.dsh', 'skills', 'orphan-skill.md'), 'utf8')).rejects.toThrow()
   })
 
   it('writes only when the approval answerer grants allowed-once', async () => {
@@ -246,9 +332,30 @@ describe('skill_manage scopes and approval', () => {
         const reason = reasons[0] ?? ''
         expect(reason).toContain('(Gated yyy')
         expect(reason).toContain('…)')
-        expect(reason.length).toBeLessThan(260)
+        expect(reason.length).toBeLessThan(900)
+        expect(reason).toContain('Lint: 0 errors')
+        expect(reason).toContain('Diff at character')
       }
     }
+  })
+
+  it('shows a bounded changed span and lint summary for an approved update', async () => {
+    const { ctx, workspace } = await setup({ enableSkillManagement: true, requireApproval: true })
+    const reasons: string[] = []
+    ctx.provide('approval' as never, { request: async (req: { reason: string }) => {
+      reasons.push(req.reason)
+      return 'allowed-once'
+    } } as never)
+    const agent = agentForCwd(workspace)
+    const fields = { name: 'long-draft', description: 'Use when reviewing a large weekly draft.',
+      when_to_use: 'Use when the weekly planning draft must be reviewed.' }
+    expect((await call(ctx, { action: 'create', ...fields, content: 'A'.repeat(500) }, agent)).isError).toBe(false)
+    expect((await call(ctx, { action: 'update', ...fields, content: 'B'.repeat(500) }, agent)).isError).toBe(false)
+    expect(reasons).toHaveLength(2)
+    expect(reasons[1]).toContain('Lint: 0 errors, 0 warnings; body 501 bytes.')
+    expect(reasons[1]).toContain('Diff at character')
+    expect(reasons[1]).toContain('chars omitted')
+    expect(reasons[1]?.length).toBeLessThan(900)
   })
 
   it('presents management calls on a generic card', async () => {
@@ -258,6 +365,9 @@ describe('skill_manage scopes and approval', () => {
     })
     expect(ctx.tools.get('skill_manage')?.presentCall?.({ action: 'delete', name: 'demo' })).toEqual({
       card: 'generic', title: 'delete skill demo', kind: 'delete', rawInput: 'demo',
+    })
+    expect(ctx.tools.get('skill_manage')?.presentCall?.({ action: 'check', name: 'demo' })).toEqual({
+      card: 'generic', title: 'check skill demo', kind: 'read', rawInput: 'demo',
     })
   })
 

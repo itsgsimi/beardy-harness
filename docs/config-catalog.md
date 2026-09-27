@@ -4174,7 +4174,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-skill`
 
 - `inject`: `agents` · `tools` · `skills`
-- `source`: [`packages/skill/tool-skill/src/index.ts:75`](../packages/skill/tool-skill/src/index.ts)
+- `source`: [`packages/skill/tool-skill/src/index.ts:76`](../packages/skill/tool-skill/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing skill catalog configuration. */
@@ -4189,8 +4189,10 @@ export interface Config {
   requireApproval?: boolean
   /** Permit approved user-scope mutations in the Harness home under workspace-write. */
   allowApprovedHomeWrites?: boolean
-  /** Tool calls in one settled turn that trigger the save-it-as-a-skill nudge; 0 disables. */
+  /** Tool results in one completed turn that trigger the Session's one skill nudge; 0 disables. */
   nudgeAfterToolCalls?: number
+  /** Maximum UTF-8 bytes in a skill body written by skill_manage. */
+  skillBodyMaxBytes?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-skill -->
