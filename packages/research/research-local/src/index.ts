@@ -262,10 +262,12 @@ export class LocalResearchService extends ResearchService {
     }
     const view = await this.startStored(request)
     if (view.phase !== 'running' || this.workers.has(view.id)) return view
+    const parentAgent = this.live.get(view.id)?.agent
+    if (parentAgent === undefined) throw new Error('research run has no live Agent')
     const controller = new AbortController()
     const startedAt = Date.now()
     const timer = setTimeout(() => { controller.abort({ kind: 'timeout' }) }, this.config.budgets.hardRunTimeoutMs)
-    const task = this.engine.run(view.id, request.owner, view.query, request.category ?? 'general', controller.signal,
+    const task = this.engine.run(view.id, parentAgent, request.owner, view.query, request.category ?? 'general', controller.signal,
       startedAt, info.context?.contextWindow, request.caller.header.cwd).catch(async (error: unknown) => {
       const abortReason = controller.signal.reason as { kind?: 'cancel' | 'timeout' | 'shutdown' } | undefined
       if (abortReason?.kind === 'cancel') return

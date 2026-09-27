@@ -2,6 +2,7 @@
 
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {
   ResearchCategory, ResearchFinding, ResearchOwner, ResearchRunId, ResearchSearch, ResearchSource, ResearchSourceAttempt,
 } from '@deepseek-ai/dsh-research/types'
@@ -175,6 +176,7 @@ export class ResearchEngine {
   /**
    * Execute a committed run until a terminal event or cancellation.
    * @param id - durable run identity.
+   * @param parentAgent - live run Agent that owns stage Agent scopes.
    * @param owner - authority recorded in the run.
    * @param question - trimmed question recorded in the run.
    * @param category - provider-side report format.
@@ -183,7 +185,7 @@ export class ResearchEngine {
    * @param contextWindow - known model context ceiling, if its adapter exposes one.
    * @param cwd - caller workspace retained in the run and stage Session headers.
    */
-  async run(id: ResearchRunId, owner: ResearchOwner, question: string, category: ResearchCategory,
+  async run(id: ResearchRunId, parentAgent: Agent, owner: ResearchOwner, question: string, category: ResearchCategory,
     signal: AbortSignal, startedAt: number, contextWindow?: number, cwd?: string): Promise<void> {
     const budgets = this.config.budgets
     const date = datePreamble(new Date(startedAt))
@@ -196,7 +198,7 @@ export class ResearchEngine {
       if (contextWindow !== undefined && Math.ceil(prompt.length / 3) + maxTokens > contextWindow) {
         throw new Error('research stage input exceeds the model context window')
       }
-      const result = await runStage(this.ctx, this.admission, this.config, id, prompt, maxTokens, signal, cwd,
+      const result = await runStage(this.ctx, this.admission, this.config, id, parentAgent, prompt, maxTokens, signal, cwd,
         async (stageSessionId) => {
           await this.storage.checkpoint(id, owner, { round, elapsedMs: Date.now() - startedAt, stageSessionId })
         })

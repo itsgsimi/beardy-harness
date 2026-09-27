@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ResearchRunId } from '@deepseek-ai/dsh-research/types'
@@ -73,6 +74,7 @@ export interface StageResult {
  * @param admission - shared bounded model gate.
  * @param config - exact route, effort and stage timeout.
  * @param runId - parent research Session identity.
+ * @param parentAgent - live run Agent whose scoped tools remain inherited and restrictable.
  * @param prompt - exact versioned user input.
  * @param maxTokens - stage output ceiling.
  * @param signal - run cancellation and hard timeout.
@@ -85,6 +87,7 @@ export async function runStage(
   admission: StageAdmission,
   config: ResolvedConfig,
   runId: ResearchRunId,
+  parentAgent: Agent,
   prompt: string,
   maxTokens: number,
   signal: AbortSignal,
@@ -103,6 +106,7 @@ export async function runStage(
     let response: SessionEvent<'assistant/message'> | undefined
     const handle = await ctx.agents.create({
       sessionId: id,
+      parentAgent,
       meta: { parentSession: SessionId(runId), ...(cwd === undefined ? {} : { cwd }) },
       signal: stageSignal,
       agentOptions: {
