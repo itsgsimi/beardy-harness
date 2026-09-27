@@ -54,6 +54,31 @@ export function validateFetchUrl(input: string): URL {
 }
 
 /**
+ * Remove one trailing DNS dot and fold hostname case for comparison.
+ *
+ * @param hostname - a configured or parsed hostname.
+ * @returns the hostname used for blocklist matching.
+ */
+export function canonicalHostname(hostname: string): string {
+  const lower = hostname.toLowerCase()
+  return lower.endsWith('.') ? lower.slice(0, -1) : lower
+}
+
+/**
+ * Refuse a URL whose canonical hostname is a configured blocked host or one of
+ * its subdomains. Config validation supplies canonical blocked hostnames.
+ *
+ * @param url - the parsed request or redirect URL.
+ * @param blockedHosts - canonical hostnames the deployment refuses to fetch.
+ */
+export function assertHostNotBlocked(url: URL, blockedHosts: readonly string[]): void {
+  const hostname = canonicalHostname(url.hostname)
+  if (blockedHosts.some(blocked => hostname === blocked || hostname.endsWith(`.${blocked}`))) {
+    throw new WebError(`fetching from host "${hostname}" is blocked`, 'WEB_BLOCKED_URL')
+  }
+}
+
+/**
  * Two URLs are same-origin when scheme, hostname, and port match. A redirect
  * that crosses origins is refused so each new origin requires a fresh tool call
  * and public-address validation.

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-web-fetch-blocked-hosts.md
+2026-09-27-web-fetch-blocked-hosts.md: 933e50d241a9a08986213146de2a8b462d16e24a
+2026-09-27-web-fetch-blocked-hosts.zh.md: 79114be8df9fe493e486ed98b14b7627e884734e
