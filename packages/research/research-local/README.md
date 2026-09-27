@@ -58,7 +58,7 @@ Run and stage Session headers retain the caller's workspace path when available,
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The run Agent remains idle while its Session log records state and ownership. The engine creates one short-lived child Agent/Session per model call, restricts global tools, denies scoped tool execution, and checks the model request for tool declarations. `ctx.web` owns safe search and retrieval; the web tool's shared converter renders bounded HTML to Markdown. The source ledger attaches exact fetched text before its event, then records normalized findings and draft references. `ctx.sessions.flush` is the progress commit barrier. A failed caller flush can leave a discoverable run Session.
+The run Agent remains idle while its Session log records state and ownership. The engine creates one short-lived child Agent/Session per model call under the live run Agent, so the stage restriction also masks tools registered in the run scope. It denies any remaining scoped tool execution and checks the model request for tool declarations. `ctx.web` owns safe search and retrieval; the web tool's shared converter renders bounded HTML to Markdown. The source ledger attaches exact fetched text before its event, then records normalized findings and draft references. `ctx.sessions.flush` is the progress commit barrier. A failed caller flush can leave a discoverable run Session.
 
 No runtime invariant companion is published because the run Session is the sole state authority, while attachment availability is checked when a report is read.
 
