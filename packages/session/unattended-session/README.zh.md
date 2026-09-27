@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 开启一个 Session
 
-`openUnattendedSession(ctx, spec, signal)` 接受一个 `UnattendedSessionSpec`：由调用方选定的带品牌 `sessionId`、`agentPreset`、`permissionPreset`、绝对 `workspacePath`、`title`、`agentOptions`（provider、model、可选 `maxTokens`），以及在预设挂载后于 Agent 作用域内组合的可选 `setup`——webhook 用它固定创建时的模型选择。它返回 `sessionId`、`AgentHandle` 与已附加的 `Workspace`，调用方保留后者以便后续分离或处置。Agent 创建之前的失败或取消不留任何残留；之后的失败会处置该 Agent，若附加已成功则先分离。
+`openUnattendedSession(ctx, spec, signal)` 接受一个 `UnattendedSessionSpec`：由调用方选定的带品牌 `sessionId`、`agentPreset`、`permissionPreset`、绝对 `workspacePath`、`title`、`agentOptions`（provider、model、可选推理力度与 `maxTokens`），以及在预设挂载后于 Agent 作用域内组合的可选 `setup`——webhook 用它固定创建时的模型选择。它返回 `sessionId`、`AgentHandle` 与已附加的 `Workspace`，调用方保留后者以便后续分离或处置。Agent 创建之前的失败或取消不留任何残留；之后的失败会处置该 Agent，若附加已成功则先分离。`validateModelSelection()` 在打开 Session 前按确切适配器元数据检查显式入口选择；恢复 Session 的调用方在存在日志选择时传入该选择。
 
 ### 等待一个回合
 

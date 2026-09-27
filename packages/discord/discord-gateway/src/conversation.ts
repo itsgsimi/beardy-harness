@@ -612,14 +612,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   async function createConversation(channelId: string, lane: ConversationLane): Promise<LiveConversation> {
     return await openConversation(channelId, lane, async (openingSignal) => {
       wakes?.cancel(channelId)
-      const selection = ctx.agentDefaultModel.currentSelection()
+      const selection = settings.modelSelection ?? ctx.agentDefaultModel.currentSelection()
       const opened = await openUnattendedSession(ctx, {
         sessionId: SessionId(`discord-${channelId}-${randomUUID()}`),
         agentPreset: lane.agentPreset,
         permissionPreset: lane.permissionPreset,
         workspacePath: lane.workspacePath,
         title: `${settings.titlePrefix} ${channelId}`,
-        agentOptions: { provider: selection.provider, model: selection.model },
+        agentOptions: selection,
         setup: conversationSetup(channelId, lane),
       }, openingSignal)
       return await publishConversation(channelId, lane, opened, openingSignal)
@@ -630,13 +630,22 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   async function resumeConversation(record: ConversationRecord, lane: ConversationLane): Promise<LiveConversation> {
     return await openConversation(record.channelId, lane, async (openingSignal) => {
       wakes?.cancel(record.channelId)
-      const selection = ctx.agentDefaultModel.currentSelection()
+      const persisted = await ctx.sessionPersistence.open(SessionId(record.sessionId), 'read', { signal: openingSignal })
+      let loggedSelection: SessionEvent<'request/header'>['data']['header']['config'] | undefined
+      try {
+        const { events } = await persisted.read(undefined, undefined, { signal: openingSignal })
+        const lastHeader = events.findLast(event => event.type === 'request/header')
+        if (lastHeader?.type === 'request/header') loggedSelection = lastHeader.data.header.config
+      } finally {
+        await persisted.close()
+      }
+      const selection = loggedSelection ?? settings.modelSelection ?? ctx.agentDefaultModel.currentSelection()
       const opened = await resumeUnattendedSession(ctx, {
         sessionId: SessionId(record.sessionId),
         agentPreset: lane.agentPreset,
         permissionPreset: lane.permissionPreset,
         workspacePath: lane.workspacePath,
-        agentOptions: { provider: selection.provider, model: selection.model },
+        agentOptions: selection,
         setup: conversationSetup(record.channelId, lane),
       }, openingSignal)
       return await publishConversation(record.channelId, lane, opened, openingSignal, record)

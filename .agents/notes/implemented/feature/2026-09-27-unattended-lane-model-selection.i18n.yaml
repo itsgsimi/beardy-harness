@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-27-unattended-lane-model-selection.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-unattended-lane-model-selection.md
+/agent-note-unattended-lane-model-selection:
+  en: a5e6995a3e796fec
+  zh: 8aa2fe6e3be587a2
+/agent-note-unattended-lane-model-selection/problem:
+  en: 56d29537772d8a47
+  zh: bd7c19e398e336c0
+/agent-note-unattended-lane-model-selection/decision:
+  en: 07055cb1c1f93532
+  zh: 83f8417e3d89df1f
+/agent-note-unattended-lane-model-selection/alternatives-considered:
+  en: d9613a836a66abcc
+  zh: 33be684d83a4538c
+/agent-note-unattended-lane-model-selection/verification:
+  en: 713bf6b51f821291
+  zh: 4b996cf8cd35ded8
+/agent-note-unattended-lane-model-selection/consequences:
+  en: a1b4b1d8af066333
+  zh: d493e8870f52a007

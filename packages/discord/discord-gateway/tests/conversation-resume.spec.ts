@@ -1,7 +1,52 @@
 import { describe, expect, it } from 'vitest'
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { CHANNEL, drain, harness, inbound, record } from './support.ts'
 
 describe('durable conversation records', () => {
+  it('inherits the default route and effort for a new conversation', async () => {
+    const h = harness({ defaultSelection: {
+      provider: 'default', model: 'model', reasoningEffort: ReasoningEffortId('high'),
+    } })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections[0]).toEqual({ provider: 'default', model: 'model', reasoningEffort: 'high' })
+  })
+
+  it('uses the configured Discord choice for a new conversation', async () => {
+    const h = harness({ modelSelection: {
+      provider: 'lane', model: 'model', reasoningEffort: ReasoningEffortId('medium'),
+    } })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections[0]).toEqual({ provider: 'lane', model: 'model', reasoningEffort: 'medium' })
+  })
+
+  it('leaves the shared Web default selection untouched by a Discord override', async () => {
+    const webChoice = { provider: 'web', model: 'chosen', reasoningEffort: ReasoningEffortId('high') }
+    const h = harness({ defaultSelection: webChoice, modelSelection: {
+      provider: 'discord', model: 'fast', reasoningEffort: ReasoningEffortId('medium'),
+    } })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections[0]).toMatchObject({ provider: 'discord', model: 'fast', reasoningEffort: 'medium' })
+    expect(h.ctx.agentDefaultModel.currentSelection()).toEqual(webChoice)
+  })
+
+  it('resumes with the last logged selection after the lane choice changes', async () => {
+    const h = harness({ initialRecord: record(), modelSelection: {
+      provider: 'new', model: 'new-model', reasoningEffort: ReasoningEffortId('low'),
+    }, storedEvents: [{
+      type: 'request/header', seq: SessionSeq(1), time: 1,
+      data: { reason: 'initial', header: { config: {
+        provider: 'old', model: 'old-model', reasoningEffort: ReasoningEffortId('medium'),
+      } } },
+    }] })
+    h.router.handle(inbound())
+    await drain()
+    expect(h.selections[0]).toEqual({ provider: 'old', model: 'old-model', reasoningEffort: 'medium' })
+  })
+
   it('resumes the recorded session instead of creating a new one', async () => {
     const h = harness({ replyText: 'continuing', initialRecord: record() })
     h.router.handle(inbound())

@@ -11,7 +11,7 @@ import { realpath } from 'node:fs/promises'
 import { Cron } from 'croner'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { assertSchedule } from './schedule.ts'
-import type { CronJobSpec, CronRunFinished, CronRunResult } from './types.ts'
+import type { ConfiguredCronJob, CronJobSpec, CronRunFinished, CronRunResult } from './types.ts'
 import type { ActiveRunRecord, JobStateRecord, RunHistoryEntry, StoredJobRecord } from './domain.ts'
 
 /** Bounds a runtime-created job must satisfy; every field is validated plugin configuration. */
@@ -32,6 +32,8 @@ export interface JobGuardrails {
 
 /** One job as the scheduler sees it: definition, origin, arm state, and delivery target. */
 export interface RegistryJob extends CronJobSpec {
+  /** Configured model override; absent on stored jobs. */
+  readonly modelSelection?: ConfiguredCronJob['modelSelection'] | undefined
   /** Where this definition came from. */
   readonly origin: 'config' | 'stored'
   /** Whether the schedule is armed; paused jobs keep their definition and never fire. */
@@ -110,7 +112,7 @@ type GuardrailFields = Pick<CronJobSpec, 'name' | 'expression' | 'timezone' | 'p
 /** Dependencies of one registry over the opened domain tables. */
 export interface JobRegistryDeps {
   /** Jobs from plugin configuration; read-only members of the view. */
-  readonly configJobs: readonly CronJobSpec[]
+  readonly configJobs: readonly ConfiguredCronJob[]
   /** Where each configured job delivers its finished text, if anywhere. */
   readonly configDelivery: ReadonlyMap<string, string>
   /** Durable stored-job definitions. */
@@ -181,7 +183,7 @@ export function createJobRegistry(deps: JobRegistryDeps): JobRegistry {
     return result
   }
 
-  const fromConfig = (job: CronJobSpec): RegistryJob => {
+  const fromConfig = (job: ConfiguredCronJob): RegistryJob => {
     const channel = deps.configDelivery.get(job.name)
     return {
       ...job,

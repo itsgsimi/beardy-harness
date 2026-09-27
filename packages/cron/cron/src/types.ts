@@ -22,6 +22,8 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
+import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
+
 /** One configured job, as validated plugin configuration delivers it. */
 export interface CronJobSpec {
   /** Unique name, used in logs, Session titles, and the run's recorded source. */
@@ -46,12 +48,16 @@ export interface CronJobSpec {
 
 /** One configured job plus its channel-delivery target from plugin configuration. */
 export interface ConfiguredCronJob extends CronJobSpec {
+  /** Exact model choice for this configured job; overrides the cron-wide choice. */
+  readonly modelSelection?: ConfiguredModelSelection | undefined
   /** Channel id where a finished run's final text is delivered; absent means none. */
   readonly deliverChannel?: string
 }
 
 /** One scheduled job as the runner receives it: the definition plus its continuity notes. */
 export interface ScheduledJobSpec extends CronJobSpec {
+  /** Configured job override; stored jobs inherit the cron-wide choice. */
+  readonly modelSelection?: ConfiguredModelSelection | undefined
   /** Notes from earlier runs, injected under the prompt; empty when the job has none. */
   readonly notes: string
   /** Channel receiving the final answer through the scheduler's durable delivery handoff. */

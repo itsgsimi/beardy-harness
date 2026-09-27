@@ -76,6 +76,8 @@ DISCORD_BOT_TOKEN=...
 DISCORD_CHANNEL_ID=<channel snowflake that discord_send targets>
 DISCORD_DM_USER_IDS=<user ids allowed as direct-message targets>
 DISCORD_ALLOWED_USER_IDS=<user ids whose inbound messages the gateway answers>
+BEARDY_LANE_PROVIDER=<registered provider route whose model supports medium>
+BEARDY_LANE_MODEL=<exact model id with medium effort>
 SEARXNG_BASE_URL=http://127.0.0.1:8080
 ```
 
@@ -95,9 +97,17 @@ Then add the deployment rows to `$DSH_HOME/profiles/beardy/cordis.patch.yml`. A 
     workspacePath: /srv/beardy-workspace
     agentPreset: beardy-discord
     permissionPreset: danger-full-access
+    modelSelection:
+      provider: !!js process.env.BEARDY_LANE_PROVIDER
+      model: !!js process.env.BEARDY_LANE_MODEL
+      reasoningEffort: medium
 
 - id: cron
   config:
+    modelSelection:
+      provider: !!js process.env.BEARDY_LANE_PROVIDER
+      model: !!js process.env.BEARDY_LANE_MODEL
+      reasoningEffort: medium
     jobs:
       - name: morning-brief
         expression: '0 7 * * *'
@@ -108,6 +118,8 @@ Then add the deployment rows to `$DSH_HOME/profiles/beardy/cordis.patch.yml`. A 
         deliverChannel: !!js process.env.DISCORD_CHANNEL_ID
         prompt: Prepare the morning brief.
 ```
+
+Choose the exact provider and model from the registered model catalog before setting these environment values. The gateway and cron reject a route or effort that its adapter does not support when they mount; the official DeepSeek route does not accept `medium`. A configured cron job may set its own `modelSelection`; stored jobs inherit the top-level cron choice. Omit either row's `modelSelection` to inherit the complete current default, including effort. Existing Discord Sessions resume with their logged choice, and the Web keeps its own model selector.
 
 Run it under systemd so it survives logout and reboots:
 

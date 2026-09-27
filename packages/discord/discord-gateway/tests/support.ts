@@ -8,7 +8,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
 import { Session, SessionId, SessionLogOffset, SessionSeq, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, ModelSelection } from '@deepseek-ai/dsh-agent'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import { createConversationRouter } from '../src/conversation.ts'
@@ -117,6 +117,8 @@ export function record(overrides: Partial<ConversationRecord> = {}): Conversatio
 }
 
 export interface HarnessOptions {
+  readonly modelSelection?: ModelSelection
+  readonly defaultSelection?: ModelSelection
   /** Real Agent used for an approval routed through a live conversation. */
   readonly approvalAgent?: Agent
   /** Real dispatcher for tests that exercise listener ordering and disposal. */
@@ -191,6 +193,7 @@ export interface HarnessOptions {
 /** Context carrying the services the router touches, recording every call it makes. */
 export function harness(options: HarnessOptions = {}) {
   const calls: string[] = []
+  const selections: ModelSelection[] = []
   const warnings: string[] = []
   const events: SessionEvent[] = options.storedEvents ?? []
   const eventHandlers = new Map<string, ((payload: Record<string, unknown>, next: () => Promise<never>) => unknown)[]>()
@@ -275,7 +278,7 @@ export function harness(options: HarnessOptions = {}) {
       resolve: (name: string) => { calls.push(`permission-resolve:${name}`); return {} },
       set: (_session: unknown, name: string) => { calls.push(`permission-set:${name}`) },
     },
-    agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
+    agentDefaultModel: { currentSelection: () => options.defaultSelection ?? { provider: 'p', model: 'm' } },
     agentPresets: {
       resolve: async (name: string) => { calls.push(`preset-resolve:${name}`); return { id: name } },
       acquireScope: async (name: string) => { calls.push(`scope:${name}`); return { key: {}, [Symbol.asyncDispose]: async () => {} } },
@@ -295,13 +298,22 @@ export function harness(options: HarnessOptions = {}) {
       },
     },
     agents: {
-      create: async (createOptions: { setup?: (ctx: unknown) => Promise<void> }) => {
+      create: async (createOptions: {
+        setup?: (ctx: unknown) => Promise<void>
+        agentOptions: ModelSelection
+      }) => {
         calls.push('agent-create')
+        selections.push(createOptions.agentOptions)
         await createOptions.setup?.(agentCtx)
         return handle
       },
-      resume: async (resumeOptions: { resumeSessionId: string; setup?: (ctx: unknown) => Promise<void> }) => {
+      resume: async (resumeOptions: {
+        resumeSessionId: string
+        setup?: (ctx: unknown) => Promise<void>
+        agentOptions: ModelSelection
+      }) => {
         calls.push(`agent-resume:${resumeOptions.resumeSessionId}`)
+        selections.push(resumeOptions.agentOptions)
         if (options.resumeError === 'not-found') {
           throw new SessionPersistenceNotFoundError(resumeOptions.resumeSessionId as never)
         }
@@ -378,6 +390,7 @@ export function harness(options: HarnessOptions = {}) {
       ...(options.answerers === undefined ? {} : { answerers: options.answerers }),
       ...(options.userLanes === undefined ? {} : { userLanes: options.userLanes }),
       ...(options.toolFilter === undefined ? {} : { toolFilter: options.toolFilter }),
+      ...(options.modelSelection === undefined ? {} : { modelSelection: options.modelSelection }),
     },
     policy: {
       allowedUserIds: new Set(options.allowedUserIds ?? [USER]),
@@ -442,7 +455,7 @@ export function harness(options: HarnessOptions = {}) {
     }),
   })
   return {
-    router, calls, posted, cards, cleared, reactions, prompts, typed, events, agent, handle, controller,
+    router, calls, selections, posted, cards, cleared, reactions, prompts, typed, events, agent, handle, controller,
     table, registeredCommands, warnings,
     waitResolvers,
     emitEvent: (event: string, payload: Record<string, unknown>) => {

@@ -24,6 +24,7 @@ kind: "package-reference"
 ## 对话行为
 
 - **持久化对话。** 频道的会话 id、预设、工作区与所属通道保存在 storage domain 中。重启或空闲释放（`idleReleaseMs`）后，下一条消息恢复该会话；静默超过 `conversationMaxAgeMs` 后，下一条消息开启新会话。空闲释放只在 agent 已空闲且没有等待回答的请求时发生。
+- **模型选择。** 可选的 `modelSelection: { provider, model, reasoningEffort? }` 为新网关 Session 选择确切路由和推理力度；省略时读取完整的当前 `agentDefaultModel` 选择。网关挂载时依据适配器检查显式选择，并拒绝未知路由或不支持的推理力度。恢复的对话沿用最后记录的 `request/header` 选择；Web Session 保留自己的选择。
 - **消息合并。** 在 `inboundDebounceMs` 窗口内到达的消息合并成一轮，因此连发多条短消息的人只会得到一次回答；设为 `0` 则每条消息单独回答。
 - **进度与结果。** `typingIndicator` 在入站轮次运行时重复发送正在输入提示。`reactionStatus` 在处理期间添加 👀，并在轮次完成时替换为 ✅，否则替换为 ❌；表情发送失败不会阻断对话。超时与错误会发送带当前对话控件的通知。
 - **服务器频道门槛。** 服务器频道必须出现在 `allowedChannelIds` 中；在 `guildRequireMention: true`（默认）下，只有提及 bot 或回复其消息的消息会被回应。允许用户的私信总是会被回应。

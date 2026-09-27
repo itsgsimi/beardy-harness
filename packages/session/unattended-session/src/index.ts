@@ -6,5 +6,7 @@
 
 export { openUnattendedSession, resumeUnattendedSession } from './open.ts'
 export type { ResumeUnattendedSessionSpec, UnattendedSession, UnattendedSessionSpec } from './open.ts'
+export { validateModelSelection } from './model-selection.ts'
+export type { ConfiguredModelSelection } from './model-selection.ts'
 export { awaitTurn, lastAssistantText, lastTurnEndReason, sleep } from './turn.ts'
 export type { AwaitTurnOptions } from './turn.ts'

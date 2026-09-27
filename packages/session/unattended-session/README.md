@@ -29,7 +29,7 @@ As an ingress author, build a spec, open through the helper, then admit your own
 
 ### Opening a Session
 
-`openUnattendedSession(ctx, spec, signal)` takes an `UnattendedSessionSpec`: the caller-chosen branded `sessionId`, `agentPreset`, `permissionPreset`, absolute `workspacePath`, `title`, `agentOptions` (provider, model, optional `maxTokens`), and an optional `setup` composed inside the Agent scope after the preset mounts — webhook uses it to pin a creation-time model selection. It returns the `sessionId`, the `AgentHandle`, and the attached `Workspace`, which the caller keeps for later detach or disposal. A failure or cancellation before Agent creation leaves nothing behind; afterwards the Agent is disposed, and detached first when the attach had succeeded.
+`openUnattendedSession(ctx, spec, signal)` takes an `UnattendedSessionSpec`: the caller-chosen branded `sessionId`, `agentPreset`, `permissionPreset`, absolute `workspacePath`, `title`, `agentOptions` (provider, model, optional reasoning effort and `maxTokens`), and an optional `setup` composed inside the Agent scope after the preset mounts — webhook uses it to pin a creation-time model selection. It returns the `sessionId`, the `AgentHandle`, and the attached `Workspace`, which the caller keeps for later detach or disposal. A failure or cancellation before Agent creation leaves nothing behind; afterwards the Agent is disposed, and detached first when the attach had succeeded. `validateModelSelection()` checks an explicit ingress choice against exact adapter metadata before opening a Session; a caller resuming a Session supplies its logged choice when available.
 
 ### Waiting for one turn
 

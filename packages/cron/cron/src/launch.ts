@@ -16,7 +16,8 @@ import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import { SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-title'
-import { sleep, lastAssistantText, lastTurnEndReason, openUnattendedSession, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
+import { sleep, lastAssistantText, lastTurnEndReason, openUnattendedSession, validateModelSelection,
+  type ConfiguredModelSelection, type UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 /* jscpd:ignore-end */
 import type { CronJobSpec, CronRunResult, ScheduledJobSpec } from './types.ts'
@@ -45,6 +46,8 @@ export function cronApprovalRoute(agent: Agent): { channelId?: string } | undefi
 
 /** Everything a run needs from the host and the plugin's configuration. */
 export interface JobRunnerDeps {
+  /** Model choice inherited by configured jobs without an override and all stored jobs. */
+  readonly modelSelection?: ConfiguredModelSelection
   /** Context that owns the created Agents, so disposal follows the fiber. */
   readonly ctx: Context
   /** Cancellation of the scheduler these runs belong to. */
@@ -130,15 +133,18 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   const completed = new Set<UnattendedSession>()
 
   /** Mount a Session for one fire, with the job's presets and workspace. */
-  async function openSession(job: CronJobSpec, firedAt: number, sessionId: SessionId): Promise<UnattendedSession> {
-    const selection = ctx.agentDefaultModel.currentSelection()
+  async function openSession(job: ScheduledJobSpec, firedAt: number, sessionId: SessionId): Promise<UnattendedSession> {
+    const choice = job.modelSelection ?? deps.modelSelection
+    const selection = choice === undefined
+      ? ctx.agentDefaultModel.currentSelection()
+      : await validateModelSelection(ctx, choice, `dsh-cron: job "${job.name}" modelSelection`)
     return await openUnattendedSession(ctx, {
       sessionId,
       agentPreset: job.agentPreset,
       permissionPreset: job.permissionPreset,
       workspacePath: job.workspacePath,
       title: runTitle(job, firedAt),
-      agentOptions: { provider: selection.provider, model: selection.model },
+      agentOptions: selection,
     }, signal)
   }
 

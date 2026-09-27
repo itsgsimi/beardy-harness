@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { HealthStatus } from '@deepseek-ai/dsh-health'
 import type { OutboxRecord } from '../src/domain.ts'
-import { apply, assertConfig, Config, healthStatusLines, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
+import { apply, assertConfig, Config, currentHealthStatusLines, healthStatusLines, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
 import type { ConversationRouter } from '../src/conversation.ts'
 import type { DiscordGatewayOptions } from '../src/gateway.ts'
@@ -28,6 +28,15 @@ describe('health status lines', () => {
     const noNext: HealthStatus = { ...status, snapshot: () => ({ probes: [],
       lastCronFailure: { jobName: 'brief', sessionId: 's2', code: 'TIMED-OUT' } }) }
     expect(healthStatusLines(noNext)[1]).toBe('Last cron failure: brief, Session s2, TIMED-OUT, next none.')
+  })
+
+  it('reads the current health snapshot for each status command', () => {
+    const ctx = new Context()
+    let state: 'healthy' | 'down' = 'healthy'
+    ctx.provide('healthStatus', { snapshot: () => ({ probes: [{ name: 'main', state }] }) } as never)
+    expect(currentHealthStatusLines(ctx)).toContain('Probes: main healthy')
+    state = 'down'
+    expect(currentHealthStatusLines(ctx)).toContain('Probes: main down')
   })
 })
 
@@ -64,6 +73,27 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
 }
 
 describe('assertConfig', () => {
+  it('parses an optional gateway choice with its effort', () => {
+    const parsed = Config(config({ modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }))
+    expect(parsed.modelSelection).toEqual({ provider: 'local', model: 'coder', reasoningEffort: 'medium' })
+  })
+
+  it('rejects an unsupported configured effort when the gateway mounts', async () => {
+    const ctx = new Context()
+    ctx.provide('llm', { resolveModelInfo: async () => ({
+      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [] },
+    }) } as never)
+    await expect(apply(ctx, config({ enabled: false, modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }))).rejects.toThrow('discord-gateway: modelSelection: provider "local" model "coder" does not support reasoning effort "medium"')
+  })
+
+  it('mounts disabled without requiring an LLM registry when no choice is configured', async () => {
+    await expect(apply(new Context(), config({ enabled: false }))).resolves.toBeUndefined()
+  })
+
   it('accepts a complete configuration', () => {
     expect(() => { assertConfig(config()) }).not.toThrow()
   })
@@ -146,6 +176,15 @@ describe('assertConfig', () => {
     expect(Config(base).toolFilter).toBeUndefined()
     expect(Config({ ...base, toolFilter: { deny: ['shell'] } }).toolFilter)
       .toEqual({ deny: ['shell'] })
+    expect(Config({ ...base, toolFilter: { allow: ['read_file'] } }).toolFilter)
+      .toEqual({ allow: ['read_file'] })
+  })
+
+  it('rejects values that bypass the schema bounds in a direct config call', () => {
+    expect(() => { assertConfig(config({ inboundDebounceMs: -1 })) })
+      .toThrow('inboundDebounceMs must be a non-negative safe integer')
+    expect(() => { assertConfig(config({ accentColor: 0x1000000 })) })
+      .toThrow('accentColor must be a 24-bit RGB color')
   })
 })
 
@@ -175,6 +214,19 @@ describe('lane settings and command catalogs', () => {
     expect(() => { laneCommandCatalog(ctx, new Map())({ userId: USER, ...lane }) })
       .toThrow('has no resolved standing scope')
     await scopes[Symbol.asyncDispose]()
+  })
+
+  it('releases earlier preset scopes when a later preset cannot be acquired', async () => {
+    const release = vi.fn(async () => {})
+    const acquireScope = vi.fn(async (name: string) => {
+      if (name === 'restricted') throw new Error('preset unavailable')
+      return { key: name, [Symbol.asyncDispose]: release }
+    })
+    const ctx = new Context().extend({ agentPresets: { acquireScope } })
+    const lane = { workspacePath: '/restricted', agentPreset: 'restricted', permissionPreset: 'read-only', excludedPresetCommands: [] }
+    await expect(resolvePresetScopes(ctx, config({ userLanes: { [USER]: lane } })))
+      .rejects.toThrow('preset unavailable')
+    expect(release).toHaveBeenCalledOnce()
   })
 })
 
@@ -253,7 +305,14 @@ describe('startListener', () => {
         close: readClosed,
       }) },
     })
-    await apply(owner, config())
+    const resolveModelInfo = vi.fn(async () => ({
+      provider: 'local', id: 'coder', name: 'Coder', reasoning: { efforts: [{ id: 'medium', name: 'Medium' }] },
+    }))
+    owner.provide('llm', { resolveModelInfo } as never)
+    await apply(owner, config({ modelSelection: {
+      provider: 'local', model: 'coder', reasoningEffort: 'medium',
+    } }))
+    expect(resolveModelInfo).toHaveBeenCalledWith('local', 'coder')
     await entered.promise
     expect(healthTransition).toBeDefined()
     await healthTransition?.({ id: 'health:transition-1', channelId: CHANNEL, text: 'Probe main: down.' })
