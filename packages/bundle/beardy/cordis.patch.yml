@@ -133,3 +133,11 @@
 # Keep the Host Schedule available to Discord sessions while cron retains its own unattended runs.
 - id: schedule
   disabled: false
+
+# Brief collection runs only inside the Agent preset a cron job names, where a
+# personal preset row supplies its job, sources, and limits. Keep this Host row
+# disabled: the plugin restricts tools, which requires an Agent scope.
+- insert:
+    - id: brief-collector
+      name: '@deepseek-ai/dsh-brief-collector'
+      disabled: true

@@ -438,6 +438,65 @@ export type Config = LocalConfig
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-bash-sandbox -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-brief-collector -->
+<a id="deepseek-aidsh-brief-collector"></a>
+
+## `@deepseek-ai/dsh-brief-collector`
+
+- `inject`: `tools` · `web`
+- `source`: [`packages/cron/brief-collector/src/index.ts:20`](../packages/cron/brief-collector/src/index.ts)
+
+```ts config-catalog
+/** Collection for one cron job; every field is required and none has a default. */
+export interface Config extends CollectorConfig {
+  /** Cron job whose fired prompt is replaced; a step without that job's message fails the turn. */
+  readonly jobName: string
+  /** Output-token cap for every model request in the mounting preset. */
+  readonly maxTokens: number
+  /** Character cap for the complete replacement message, instruction line included. */
+  readonly packetMaxChars: number
+}
+
+/** Sources and per-packet limits; every field is required. */
+export interface CollectorConfig {
+  /** IANA timezone that decides the brief's calendar date. */
+  readonly timezone: string
+  /** Feeds fetched concurrently; stories are taken from them in turn. */
+  readonly feeds: FeedConfig[]
+  /** Daily forecast source, reported as the `Weather` source. */
+  readonly weather: WeatherConfig
+  /** Newest qualifying entries kept from each feed. */
+  readonly itemsPerFeed: number
+  /** Stories in the packet across all feeds. */
+  readonly maxItems: number
+  /** Oldest accepted entry, in hours before the scheduled fire. */
+  readonly lookbackHours: number
+  /** Deadline for each source fetch, in milliseconds. */
+  readonly timeoutMs: number
+  /** Character cap for each story title. */
+  readonly titleChars: number
+  /** Character cap for each story summary and each source failure cause. */
+  readonly summaryChars: number
+}
+
+/** One named feed; the name labels its stories and its entry in the packet's source list. */
+export interface FeedConfig {
+  /** Source name shown to the model. */
+  readonly name: string
+  /** Absolute HTTP(S) RSS 2.0 or Atom URL. */
+  readonly url: string
+}
+
+/** The forecast source for the brief's calendar date. */
+export interface WeatherConfig {
+  /** Location label copied into the packet. */
+  readonly city: string
+  /** Absolute HTTP(S) URL returning wttr.in `format=j1` JSON. */
+  readonly url: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-brief-collector -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-connection -->
 <a id="deepseek-aidsh-client-connection"></a>
 

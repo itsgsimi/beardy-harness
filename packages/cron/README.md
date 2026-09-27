@@ -24,6 +24,7 @@ The cron group runs agents on a timetable with nobody present. Jobs come from co
 | Package | Role | ctx key |
 |---|---|---|
 | [`cron/`](cron/README.md) | Manages configured and stored jobs, runs unattended Sessions, and retains outcomes until delivery acceptance | consumes `ctx.agents`, `ctx.agentPresets`, `ctx.permissionPresets`, `ctx.workspaceRegistry`, `ctx.sessionTitle` |
+| [`brief-collector/`](brief-collector/README.md) | Collects bounded RSS, Atom, and weather evidence for one named cron preset | consumes `ctx.web`, `ctx.tools` |
 
 -----
 

@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/cron/brief-collector/README.md
+/:
+  en: ed375c9b3b9460f6
+  zh: 4aa7ef041d8bcd1a
+/deepseek-ai-dsh-brief-collector:
+  en: 675523a1ab658a06
+  zh: 8f52c45d50b70289
+/deepseek-ai-dsh-brief-collector/summary:
+  en: c3e4651ef65ca79d
+  zh: df4e00b1842db443
+/deepseek-ai-dsh-brief-collector/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 5acc0d3807846b6e
+/deepseek-ai-dsh-brief-collector/use-this-package:
+  en: a7732d7435ae2135
+  zh: b9b6510151369e78
+/deepseek-ai-dsh-brief-collector/understand-the-implementation:
+  en: 90e599a29d879e73
+  zh: 2ff56d1715c034a2
+/deepseek-ai-dsh-brief-collector/further-exploration:
+  en: 734a53582bcd3c01
+  zh: 2341431cb731c5f7
+/deepseek-ai-dsh-brief-collector/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-brief-collector/model-experience/cron-packet:
+  en: 6137282654a1da95
+  zh: af18ec8092568a96
+/deepseek-ai-dsh-brief-collector/model-experience/cron-packet/what-the-model-sees:
+  en: ffbad97199b5a36f
+  zh: 163e63def7d26c91
+/deepseek-ai-dsh-brief-collector/model-experience/cron-packet/token-effect:
+  en: ccac9609fbb013b3
+  zh: cff3256f1c780e4a
+/deepseek-ai-dsh-brief-collector/model-experience/cron-packet/kv-cache-effect:
+  en: 19147263a7d08aeb
+  zh: b5d4394930f3a9fd
+/deepseek-ai-dsh-brief-collector/known-limitations-and-deferred-work:
+  en: 9790f48c72325895
+  zh: 08f0552d62e0bab6
+/deepseek-ai-dsh-brief-collector/known-limitations-and-deferred-work/dev-note:
+  en: a31263f87d8f3483
+  zh: 3cbeeaf3ce243126

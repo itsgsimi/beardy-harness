@@ -414,6 +414,7 @@
     { "path": "./packages/bundle/sdk-minimal" },
     { "path": "./packages/bundle/web-app" },
     { "path": "./packages/bundle/beardy" },
+    { "path": "./packages/cron/brief-collector" },
     { "path": "./packages/cron/cron" },
     { "path": "./packages/health/health" },
     { "path": "./packages/discord/discord-gateway" },

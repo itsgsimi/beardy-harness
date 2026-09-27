@@ -1,0 +1,7 @@
+version: 1
+scenario: brief-evidence-packet
+profile: headless
+composition: cron-delivery-guidance
+recording: authored
+header:
+  class: cron-delivery-guidance

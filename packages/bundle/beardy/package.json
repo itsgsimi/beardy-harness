@@ -43,6 +43,7 @@
     }
   },
   "dependencies": {
+    "@deepseek-ai/dsh-brief-collector": "workspace:*",
     "@deepseek-ai/dsh-agent-preset": "workspace:*",
     "@deepseek-ai/dsh-agent-preset-registry": "workspace:*",
     "@deepseek-ai/dsh-cron": "workspace:*",

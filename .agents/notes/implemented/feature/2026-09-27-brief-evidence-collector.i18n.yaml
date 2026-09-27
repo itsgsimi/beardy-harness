@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-brief-evidence-collector.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-brief-evidence-collector.md
+/agent-note-bounded-evidence-collection-for-a-cron-brief:
+  en: 449cd168f05cd8e2
+  zh: 9837ef18897addab
+/agent-note-bounded-evidence-collection-for-a-cron-brief/problem:
+  en: b2462f511d9c28b2
+  zh: f01094bb038e4fe1
+/agent-note-bounded-evidence-collection-for-a-cron-brief/decision:
+  en: 4f4fcc18a53698ee
+  zh: 3a297e93b7acecb6
+/agent-note-bounded-evidence-collection-for-a-cron-brief/alternatives-considered:
+  en: 4ef081c9997d0f79
+  zh: 1781d454046fa20e
+/agent-note-bounded-evidence-collection-for-a-cron-brief/consequences:
+  en: d653ec0b975d4c54
+  zh: d3a750e1164f0de6
