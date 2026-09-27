@@ -1,0 +1,10 @@
+{"type":"session","version":4,"id":"{{session:2}}","createdAt":1785097381464,"cwd":"{{cwd}}","isSeeded":false,"delegationDepth":0}
+{"type":"permission/preset","data":{"preset":"workspace-write"}}
+{"type":"sandbox/mode","data":{"mode":"workspace-write"}}
+{"type":"approval/policy","data":{"policy":"ask"}}
+{"type":"research/started","data":{"id":"{{session:2}}","owner":{"kind":"session","sessionId":"{{session:1}}"},"callerSessionId":"{{session:1}}","query":"SDK event projection","provider":"fixture","model":"fixture","createdAt":0}}
+{"type":"research/checkpoint","data":{"round":1,"elapsedMs":1,"queries":["SDK event projection"]}}
+{"type":"research/search","data":{"round":1,"query":"SDK event projection","status":"error","urls":[],"reason":"fixture outage"}}
+{"type":"research/source","data":{"round":1,"requestedUrl":"https://example.com/research","status":"error","retrievedAt":0,"reason":"fixture outage"}}
+{"type":"research/finding","data":{"round":1,"url":"https://example.com/research","accepted":false,"reason":"no fetched text"}}
+{"type":"research/finished","data":{"phase":"failed","reason":"fixture outage","finishedAt":1}}

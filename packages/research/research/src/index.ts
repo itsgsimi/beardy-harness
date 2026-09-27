@@ -3,7 +3,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Session } from '@deepseek-ai/dsh-session'
-import type { ResearchOwner, ResearchReport, ResearchRunId, ResearchRunView } from './types.ts'
+import type { ResearchCategory, ResearchOwner, ResearchReport, ResearchRunId, ResearchRunView } from './types.ts'
 
 export type * from './types.ts'
 
@@ -39,6 +39,7 @@ export interface ResearchStart {
   readonly owner: ResearchOwner
   readonly query: string
   readonly requestKey?: string
+  readonly category?: ResearchCategory | 'fantasy_football'
 }
 
 /** Owner-scoped listing input. */

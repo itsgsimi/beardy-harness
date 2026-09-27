@@ -3447,6 +3447,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the disposer that unregisters the provider.',
       },
       {
+        signature: 'assertAvailable(): void',
+        description: 'Resolve both selected capabilities before a long-running consumer admits work.',
+        parameters: [],
+        throws: ['when either configured provider is absent, unusable, or ambiguous.'],
+      },
+      {
         signature: 'async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult>',
         description: 'Run one search through the selected provider. Resolves the provider at call time with the selection rules above; throws WebError when the capability cannot run. The seam enforces `request.maxResults` on the result: if the provider over-returns, `sources[]` is truncated and `truncated` set.',
         parameters: [{ name: 'request', description: 'the query and optional result limit.' }, { name: 'signal', description: 'optional cancellation signal forwarded to the provider.' }],
@@ -6230,6 +6236,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RequestUserInput {\n    readonly role: \'user\';\n    readonly content: UserMessage[\'content\'];\n    readonly id?: never;\n    readonly source?: never;\n}',
   },
   {
+    name: 'ResearchCategory',
+    declaration: 'export type ResearchCategory = \'general\' | \'product\' | \'comparison\' | \'howto\' | \'factcheck\';',
+  },
+  {
     name: 'ResearchList',
     declaration: 'export interface ResearchList {\n    readonly owner: ResearchOwner;\n    readonly query?: string;\n    readonly limit: number;\n    readonly cursor?: ResearchRunId;\n}',
   },
@@ -6255,11 +6265,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ResearchSource',
-    declaration: 'export interface ResearchSource {\n    readonly url: string;\n    readonly title: string;\n    readonly retrievedAt: number;\n    readonly contentSha256: string;\n    readonly content: FileAttachmentRef;\n    readonly truncated: boolean;\n}',
+    declaration: 'export interface ResearchSource {\n    readonly url: string;\n    readonly title: string;\n    readonly retrievedAt: number;\n    readonly contentSha256: string;\n    readonly content: FileAttachmentRef;\n    readonly truncated: boolean;\n    readonly requestedUrl?: string;\n    readonly statusCode?: number;\n}',
   },
   {
     name: 'ResearchStart',
-    declaration: 'export interface ResearchStart {\n    readonly caller: Session;\n    readonly owner: ResearchOwner;\n    readonly query: string;\n    readonly requestKey?: string;\n}',
+    declaration: 'export interface ResearchStart {\n    readonly caller: Session;\n    readonly owner: ResearchOwner;\n    readonly query: string;\n    readonly requestKey?: string;\n    readonly category?: ResearchCategory | \'fantasy_football\';\n}',
   },
   {
     name: 'ResolvedAlwaysRetryPolicy',

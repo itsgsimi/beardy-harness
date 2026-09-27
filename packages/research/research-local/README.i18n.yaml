@@ -3,44 +3,44 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/research/research-local/README.md
 /:
-  en: 65133ffb1aaa4d13
-  zh: b4f0b2c2a4293c0b
+  en: a778c3b4a5679e69
+  zh: a3a1bf74631de0f6
 /deepseek-ai-dsh-research-local:
   en: 9d65ea5d89763ece
   zh: 6fb2db5231e344d2
 /deepseek-ai-dsh-research-local/summary:
-  en: 0d282f3a6e6f5ed4
-  zh: 0de393cf910ee0a7
+  en: 3407d34fa10d7ac7
+  zh: b22420e05f2b52b9
 /deepseek-ai-dsh-research-local/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
 /deepseek-ai-dsh-research-local/use-this-package:
-  en: dbb8079a92741d08
-  zh: 13f8a1ec5e4e110a
+  en: 49fee9e5dcd963db
+  zh: 06faa90cbc9b6fea
 /deepseek-ai-dsh-research-local/use-this-package/when-to-choose-it:
-  en: 96e6af5a06b8b35c
-  zh: 704873541f70c973
+  en: deef6e2379891d84
+  zh: 8706627f527fec2b
 /deepseek-ai-dsh-research-local/use-this-package/minimal-configuration:
-  en: c6fef55afe8c2bab
-  zh: bbb19f00855cae0f
+  en: feeae4de5a6c59e7
+  zh: 056cbecee7252818
 /deepseek-ai-dsh-research-local/use-this-package/read-and-recover:
-  en: 9e3e8e77c6aa50f0
-  zh: b00ad537a2742c56
+  en: ff774026582c5f3b
+  zh: ce0c865d622caa13
 /deepseek-ai-dsh-research-local/understand-the-implementation:
-  en: 446e9700dbc4ec33
-  zh: 2db53dd0654bc2af
+  en: 13147938d5ac91b4
+  zh: ee4c2cf2d3f24301
 /deepseek-ai-dsh-research-local/further-exploration:
   en: 7a0db47323243c2a
   zh: 8ad0b532bee64396
 /deepseek-ai-dsh-research-local/model-experience:
-  en: d689c72918aa34ed
-  zh: d0b48e7f244b8bc6
+  en: 9dc85a7037344fff
+  zh: d05c765d35350a82
 /deepseek-ai-dsh-research-local/model-experience/kv-cache-effect:
-  en: c4a2ecc84c5acaba
-  zh: 8a221d8fb4f328ca
+  en: 103b1752cfe59be6
+  zh: f20bf40d83a6db31
 /deepseek-ai-dsh-research-local/known-limitations-and-deferred-work:
-  en: efd8d067d8f9e3ba
-  zh: d6d2cf21d4d33196
+  en: d94f5a0451d30eed
+  zh: 84855b8985aae3a6
 /deepseek-ai-dsh-research-local/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: e88aeb617ffb74ea

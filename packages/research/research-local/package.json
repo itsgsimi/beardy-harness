@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-research-local",
-  "description": "Session-backed local research run storage",
+  "description": "Session-backed local research engine and durable run storage",
   "version": "0.1.7-rc.2",
   "publishConfig": { "access": "public" },
   "repository": { "type": "git", "url": "git+https://github.com/deepseek-ai/deepseek-harness.git", "directory": "packages/research/research-local" },
@@ -20,6 +20,10 @@
     "@deepseek-ai/dsh-research": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-session-persistence": "workspace:*",
+    "@deepseek-ai/dsh-web": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/dsh-tool-web": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~"
   },
   "dependencies": { "@deepseek-ai/schemastery": "workspace:~" },
@@ -33,6 +37,10 @@
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-session-persistence": "workspace:*",
     "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:*",
+    "@deepseek-ai/dsh-web": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/dsh-tool-web": "workspace:*",
     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",
     "@deepseek-ai/cordis": "workspace:~"

@@ -60,7 +60,7 @@ const result = await ctx.web.search({ query: 'deepseek harness', maxResults: 8 }
 const page = await ctx.web.fetch({ url: 'https://example.com' })
 ```
 
-两个调用都接受可选的 `AbortSignal`，用于把取消转发给提供方。规范化的请求与结果形状是调用方赖以构建的约定；[web 子系统](../../../docs/subsystems/web.zh.md) 参考中的词汇章节对其有穷尽式描述。
+长期运行的消费方可在接受工作前调用 `ctx.web.assertAvailable()`，确认已选定的搜索与抓取提供方。两个调用都接受可选的 `AbortSignal`，用于把取消转发给提供方。规范化的请求与结果形状是调用方赖以构建的约定；[web 子系统](../../../docs/subsystems/web.zh.md) 参考中的词汇章节对其有穷尽式描述。
 
 ### 提供方选择
 

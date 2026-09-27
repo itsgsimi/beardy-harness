@@ -679,18 +679,19 @@ async function runScenario(scenario: CorpusScenario): Promise<{
   }
 }
 
-/** Order logs parent-first, children by creation time (fixture layout order). */
+/** Order the turn Session, its children, and independent research runs by fixture role. */
 function orderLogs(logs: PersistedLog[], expectedCount: number, separateDshSdkChild: boolean): PersistedLog[] {
   if (separateDshSdkChild) {
     expect(logs).toHaveLength(expectedCount)
     return logs
   }
-  const parents = logs.filter(log => typeof log.header.parentSession !== 'string')
+  const runs = logs.filter(log => typeof log.header.id === 'string' && log.header.id.startsWith('rp-native-'))
+  const parents = logs.filter(log => typeof log.header.parentSession !== 'string' && !runs.includes(log))
   const children = logs.filter(log => typeof log.header.parentSession === 'string')
     .sort((left, right) => Number(left.header.createdAt) - Number(right.header.createdAt))
   expect(parents).toHaveLength(1)
-  expect(children).toHaveLength(expectedCount - 1)
-  return [...parents, ...children]
+  expect(parents.length + children.length + runs.length).toBe(expectedCount)
+  return [...parents, ...children, ...runs]
 }
 
 async function writeHeaderSidecars(
@@ -1049,7 +1050,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
           for (const clause of assertions.runtimeContext.includes) expect(system).not.toContain(clause)
         }
       }
-      if (ordered.length > 1 && assertions.dshSdkChild === undefined) {
+      if (ordered.some(log => log.header.origin === 'subagent') && assertions.dshSdkChild === undefined) {
         expect(observedMethods.has('subagent.started')).toBe(true)
         expect(observedMethods.has('subagent.finished')).toBe(true)
       }

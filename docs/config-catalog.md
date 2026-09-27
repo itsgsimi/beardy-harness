@@ -2637,24 +2637,23 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-research-local`
 
-- `inject`: `agents` · `sessions` · `sessionPersistence` · `attachments`
-- `source`: [`packages/research/research-local/src/index.ts:22`](../packages/research/research-local/src/index.ts)
+- `inject`: `agents` · `sessions` · `sessionPersistence` · `attachments` · `llm` · `web` · `tools`
+- `refs`: `ResearchBudgets` (`@deepseek-ai/dsh-research/types`)
+- `source`: [`packages/research/research-local/src/config.ts:17`](../packages/research/research-local/src/config.ts)
 
 ```ts config-catalog
-/** Storage configuration. The engine's model and budget settings arrive in slice 2. */
-export interface Config {
+/** Provider route, ownership policy, and optional budget overrides. */
+export interface Config extends Partial<ResearchBudgets> {
   /** Exact model provider route recorded with each run. */
   provider: string
   /** Exact model name recorded with each run. */
   model: string
+  /** Optional effort supported by the exact model route. */
+  reasoningEffort?: string
   /** Session isolation by default; profile scope requires a single-user deployment. */
   ownerScope?: 'session' | 'profile'
   /** Stable single-user profile authority, required with profile scope. */
   ownerNamespace?: string
-  /** Maximum report bytes committed as one immutable attachment. Default: 1048576. */
-  maxReportBytes?: number
-  /** Maximum evidence-manifest bytes committed as one immutable attachment. Default: 8388608. */
-  maxEvidenceBytes?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-research-local -->

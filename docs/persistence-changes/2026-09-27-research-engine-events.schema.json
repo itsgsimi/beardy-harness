@@ -1,0 +1,918 @@
+{
+  "formatVersion": 2,
+  "roots": [
+    {
+      "key": "event:research/checkpoint",
+      "kind": "event",
+      "event": "research/checkpoint",
+      "surface": false,
+      "digest": "2dcdb67f2a13f8dcc596b04867df89eafed49c5202efaa69b58942be90c74ab7",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "draftRef",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "elapsedMs",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "queries",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 6,
+                "optional": true
+              },
+              {
+                "name": "stageSessionId",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "stopReason",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "urls",
+                "type": 5,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/checkpoint"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/finding",
+      "kind": "event",
+      "event": "research/finding",
+      "surface": false,
+      "digest": "2328d6dc1706dfd6cc74a1e299de3b1714cb9fd49217c0a37187be1befa0c77a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accepted",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "evidence",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "rational",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "summary",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "url",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/finding"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/search",
+      "kind": "event",
+      "event": "research/search",
+      "surface": false,
+      "digest": "52261b4041cd97429dbfd487040d4829dfe0ab225e067cbaf1aa1e8b951d98a9",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "query",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "reason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "urls",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "ok"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/search"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/source",
+      "kind": "event",
+      "event": "research/source",
+      "surface": false,
+      "digest": "2a51521026afc8af908bb4dd436f5194339657b9cf0d0bc6297909fa0f29fd81",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 11,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "status",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "fetched"
+          },
+          {
+            "kind": "literal",
+            "value": "http_error"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/source"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/started",
+      "kind": "event",
+      "event": "research/started",
+      "surface": false,
+      "digest": "529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 16,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              14
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "namespace",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "profile"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "session"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/started"
+          }
+        ]
+      }
+    }
+  ],
+  "types": []
+}

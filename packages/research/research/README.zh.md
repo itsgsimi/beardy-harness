@@ -45,7 +45,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-抽象服务声明按所有者隔离的操作。`ResearchRunId` 是品牌化字符串；序列化后的值也是运行 Session ID。`research/started`、`research/checkpoint` 和 `research/finished` 属于运行 Session，`research/linked` 属于调用方 Session。Session 事件映射要求能够理解这些事件的 Harness 在读取时识别全部四种类型。
+抽象服务声明按所有者隔离的操作。`ResearchRunId` 是品牌化字符串；序列化后的值也是运行 Session ID。运行 Session 记录开始、搜索与来源结果、规范化发现、检查点和终态；调用方 Session 记录 `research/linked`。Session 事件映射要求能够理解这些事件的 Harness 在读取时识别其类型。可信调用方可以选择通用报告类别；本地提供方在专用工作流存在之前拒绝 `fantasy_football`。
 
 本包仅声明类型和抽象服务，不拥有可变运行时状态，因此不发布运行时不变式配套插件。
 

@@ -345,7 +345,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 
 | Package | Config | Description |
 |---|---|---|
-| `@deepseek-ai/dsh-research-local` | yes | Session-backed local research run storage |
+| `@deepseek-ai/dsh-research-local` | yes | Session-backed local research engine and durable run storage |
 
 ## runtime-diagnostics
 

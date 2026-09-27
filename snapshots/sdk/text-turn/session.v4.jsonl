@@ -22,5 +22,5 @@
 {"type":"feedback/message-put","data":{"sessionId":"{{session:1}}","item":{"messageId":"{{message:4}}","rating":"negative","note":"Explain the result.","category":"task-result","version":"{{id:2}}","createdAt":0,"updatedAt":0}}}
 {"type":"feedback/message-put","data":{"sessionId":"{{session:1}}","item":{"messageId":"{{message:4}}","rating":"positive","note":"The explanation is clear now.","version":"{{id:3}}","createdAt":0,"updatedAt":0}}}
 {"type":"feedback/message-delete","data":{"sessionId":"{{session:1}}","messageId":"{{message:4}}"}}
-{"type":"research/linked","data":{"id":"rp-native-sdk-probe"}}
+{"type":"research/linked","data":{"id":"{{session:2}}"}}
 {"type":"turn/end","data":{"turn":1,"reason":{"kind":"completed"}}}

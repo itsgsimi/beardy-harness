@@ -45,7 +45,7 @@ The [research subsystem reference](../../../docs/subsystems/research.md) records
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The abstract service declares the owner-scoped operations. `ResearchRunId` is a branded string; its serialized value is also the run Session ID. `research/started`, `research/checkpoint`, and `research/finished` belong to the run Session, while `research/linked` belongs to the caller Session. The Session event map makes all four types required on read by a harness that understands them.
+The abstract service declares the owner-scoped operations. `ResearchRunId` is a branded string; its serialized value is also the run Session ID. The run Session records its start, search and source outcomes, normalized findings, checkpoints, and terminal result; the caller Session records `research/linked`. The Session event map makes these types required on read by a harness that understands them. A trusted caller can select a general report category; the local provider refuses `fantasy_football` until its specialized workflow exists.
 
 No runtime invariant companion is published because this package declares types and an abstract service without owning mutable runtime state.
 

@@ -1,5 +1,5 @@
 ---
-description: "Local Session-backed research storage for durable run state, owner checks, restart reconciliation, and immutable report attachments."
+description: "Local Session-backed research engine with bounded web evidence, logged model stages, owner checks, and durable reports."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Mount this provider to keep research run IDs, progress, and reports across process restarts. It commits a run before acknowledging its caller and lists runs by projecting their persisted Session logs. A restart marks unfinished runs interrupted; no external work starts on recovery. This storage package does not yet run a model or expose a research tool.
+Mount this provider to research a question through configured model and web providers while keeping progress and reports across process restarts. It commits a run before acknowledging its caller, records every model stage in a child Session, and lists runs by projecting persisted logs. A restart marks unfinished runs interrupted without replaying external work.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ Mount this provider to keep research run IDs, progress, and reports across proce
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the provider with the Agent factory, Session store and persistence, and an attachment store that supports verbatim files.
+Mount the provider with the Agent factory, Session store and persistence, an attachment store, an exact LLM route, and usable `ctx.web` search and fetch providers.
 
 ### When to choose it
 
-Choose it for local research runs whose progress must survive a caller ending and whose reports need immutable storage. It does not replace the existing Odysseus HTTP tool while the native engine and consumer are absent.
+Choose it for local research runs whose progress must survive a caller ending and whose evidence and reports need immutable storage. The separate model-facing consumer is not mounted in this package.
 
 ### Minimal configuration
 
@@ -42,11 +42,13 @@ The Loader composition test mounts this provider with these fields:
     model: test-model
 ```
 
-`provider` and `model` are required exact route labels. `ownerScope` defaults to `session`; `profile` requires a nonblank `ownerNamespace` for an explicitly single-user deployment. `maxReportBytes` defaults to 1048576 and `maxEvidenceBytes` to 8388608; both limit complete attachment bytes. The [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-research-local) records the full schema.
+`provider` and `model` are required exact route labels. `ownerScope` defaults to `session`; `profile` requires a nonblank `ownerNamespace` for an explicitly single-user deployment. The default run has up to four rounds, two concurrent searches, three concurrent fetches, one model call, and a 30-minute hard limit. Every numeric budget is validated at load and frozen into the run event. The [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-research-local) records every field and bound.
 
 ### Read and recover
 
-The service flushes `research/started` on a new run Session, then flushes `research/linked` on the caller before acknowledging `start`. The exact caller `requestKey` returns the same run after an ambiguous retry. Owner-scoped `list` reads persisted run Sessions. The first service access after restart changes an unfinished run to `interrupted` without replaying its work. Completion requires both report and evidence attachments; a report read verifies both files and fails if either is missing or changed.
+The service flushes `research/started` on a new run Session, then flushes `research/linked` on the caller before acknowledging `start` and launching the engine. The exact caller `requestKey` returns the same run after an ambiguous retry. Owner-scoped `list` reads persisted run Sessions. The first service access after restart changes an unfinished run to `interrupted` without replaying work. Each search, fetch, extraction, stage ID, and draft is committed before progress is published. Cancellation aborts active and queued operations; a committed draft remains available as a partial report. Completion saves report and evidence attachments before the terminal event, and report reads verify both files.
+
+Run and stage Session headers retain the caller's workspace path when available, allowing explicit workspace-authorized stage reads after disposal.
 
 -----
 
@@ -56,13 +58,17 @@ The service flushes `research/started` on a new run Session, then flushes `resea
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The run Agent is created under the provider's service context and remains idle while the storage layer accepts checkpoints. Its Session log is the authority for phase and owner; the process-local map only holds handles for disposal and live writes. Terminal report files are saved before their referencing event, and `ctx.sessions.flush` is the commit barrier. A failed caller flush may leave a discoverable run Session. A rejected run flush can also have committed through another listener, so retries inspect the durable log.
+The run Agent remains idle while its Session log records state and ownership. The engine creates one short-lived child Agent/Session per model call, restricts global tools, denies scoped tool execution, and checks the model request for tool declarations. `ctx.web` owns safe search and retrieval; the web tool's shared converter renders bounded HTML to Markdown. The source ledger attaches exact fetched text before its event, then records normalized findings and draft references. `ctx.sessions.flush` is the progress commit barrier. A failed caller flush can leave a discoverable run Session.
 
 No runtime invariant companion is published because the run Session is the sole state authority, while attachment availability is checked when a report is read.
 
 | Source | Responsibility |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Run projection, commit order, owner checks, and recovery |
+| [`src/engine.ts`](src/engine.ts) | Search, fetch, extraction, synthesis, stop, and report pipeline |
+| [`src/stage.ts`](src/stage.ts) | Persisted single-call model stages and admission |
+| [`src/prompts.ts`](src/prompts.ts) | Versioned prompt templates |
+| [`src/config.ts`](src/config.ts) | Resolved budgets and validation |
 
 </details>
 
@@ -80,18 +86,18 @@ No runtime invariant companion is published because the run Session is the sole 
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through a future research consumer and logged stage Agents.
+Indirectly, through a future consumer that controls which bounded progress and report pages reach its caller model.
 
 #### KV Cache effect
 
-This storage provider adds no prompt or tool schema and starts no model call. It does not change a model request; each future stage Agent will have its own independent request history.
+Each stage sends one bounded prompt in a fresh Session, so prior page text is included only when the next prompt explicitly selects it. The parent run adds no model-facing tool schema; a consumer can page the report without placing the whole research transcript in its caller context.
 
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- No engine or model-facing tool starts research work. A started run remains open until a storage caller finishes, cancels, or recovery interrupts it.
-- Stage Sessions are not yet created. Before the engine creates them, Session lists and `session_search` need a default exclusion for research-stage children, with explicit inspection still available by ID.
+- The model-facing `odysseus_research` consumer and Beardy opt-in are separate work. This provider starts runs only through trusted `ctx.research` callers.
+- URL citation checks match accepted fetched source URLs; they do not verify each factual claim.
 - Profile ownership is only valid for an explicitly single-user composition; this provider does not authenticate separate human principals.
 
 <a id="dev-note"></a>

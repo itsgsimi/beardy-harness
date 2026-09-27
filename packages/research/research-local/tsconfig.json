@@ -11,5 +11,9 @@
     { "path": "../research" },
     { "path": "../../core/session" },
     { "path": "../../session/session-persistence" }
+    ,{ "path": "../../web/web" }
+    ,{ "path": "../../web/tool-web" }
+    ,{ "path": "../../llm/llm" }
+    ,{ "path": "../../core/tools" }
   ]
 }

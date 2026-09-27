@@ -11,6 +11,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import WebRuntime from '@deepseek-ai/dsh-web'
 import LocalResearchService from '../src/index.ts'
 
 let root: string | undefined
@@ -32,6 +33,7 @@ it('mounts research-local through Loader and disposes its run agents', async () 
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(JsonlSessionPersistence, { root: join(root, 'sessions'), compression: 'none' })
   await ctx.plugin(LocalAttachmentStore, { dshHome: root })
+  await ctx.plugin(WebRuntime)
   await ctx.plugin(AgentLoop, { agents: [] })
   const caller = await ctx.agents.create({ sessionId: SessionId('loader-research-caller') })
   const configPath = join(root, 'cordis.yml')
@@ -56,8 +58,9 @@ it('mounts research-local through Loader and disposes its run agents', async () 
   await ctx.loader.await()
   const provider = ctx.research
   expect(provider).toBeInstanceOf(LocalResearchService)
+  if (!(provider instanceof LocalResearchService)) throw new Error('research provider was not mounted')
   const owner = { kind: 'session' as const, sessionId: caller.agent.session.id }
-  const run = await provider.start({ caller: caller.agent.session, owner, query: 'Loader run' })
+  const run = await provider.startStored({ caller: caller.agent.session, owner, query: 'Loader run' })
   expect(ctx.agents.get(SessionId(run.id))).toBeDefined()
   const entry = [...ctx.loader.entries()].find(row => row.options.name === '@deepseek-ai/dsh-research-local')
   expect(entry?.fiber).toBeDefined()

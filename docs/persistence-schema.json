@@ -11431,7 +11431,7 @@
       "kind": "event",
       "event": "research/checkpoint",
       "surface": false,
-      "digest": "e4f6dc1f097c473d7b9a0e99f31ea2b3f80fa334e8ba5728f7ed15e382413044",
+      "digest": "2dcdb67f2a13f8dcc596b04867df89eafed49c5202efaa69b58942be90c74ab7",
       "schema": {
         "root": 0,
         "nodes": [
@@ -11445,7 +11445,7 @@
               },
               {
                 "name": "ignorable",
-                "type": 7,
+                "type": 8,
                 "optional": true
               },
               {
@@ -11460,7 +11460,7 @@
               },
               {
                 "name": "type",
-                "type": 8,
+                "type": 9,
                 "optional": false
               }
             ],
@@ -11480,18 +11480,33 @@
                 "optional": false
               },
               {
+                "name": "queries",
+                "type": 5,
+                "optional": true
+              },
+              {
                 "name": "round",
                 "type": 4,
                 "optional": false
               },
               {
                 "name": "source",
-                "type": 5,
+                "type": 6,
                 "optional": true
               },
               {
                 "name": "stageSessionId",
                 "type": 3,
+                "optional": true
+              },
+              {
+                "name": "stopReason",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "urls",
+                "type": 5,
                 "optional": true
               }
             ],
@@ -11527,6 +11542,10 @@
             "type": "number"
           },
           {
+            "kind": "array",
+            "element": 3
+          },
+          {
             "kind": "object",
             "properties": [
               {
@@ -11540,9 +11559,19 @@
                 "optional": false
               },
               {
+                "name": "requestedUrl",
+                "type": 3,
+                "optional": true
+              },
+              {
                 "name": "retrievedAt",
                 "type": 4,
                 "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 4,
+                "optional": true
               },
               {
                 "name": "title",
@@ -11551,7 +11580,7 @@
               },
               {
                 "name": "truncated",
-                "type": 6,
+                "type": 7,
                 "optional": false
               },
               {
@@ -11573,6 +11602,110 @@
           {
             "kind": "literal",
             "value": "research/checkpoint"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/finding",
+      "kind": "event",
+      "event": "research/finding",
+      "surface": false,
+      "digest": "2328d6dc1706dfd6cc74a1e299de3b1714cb9fd49217c0a37187be1befa0c77a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accepted",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "evidence",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "rational",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "summary",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "url",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/finding"
           }
         ]
       }
@@ -11814,11 +11947,11 @@
       }
     },
     {
-      "key": "event:research/started",
+      "key": "event:research/search",
       "kind": "event",
-      "event": "research/started",
+      "event": "research/search",
       "surface": false,
-      "digest": "98162ec1623806fed5f2ee52ef1e2499636f2dde53906b9f6d8d7b63c1d145f1",
+      "digest": "52261b4041cd97429dbfd487040d4829dfe0ab225e067cbaf1aa1e8b951d98a9",
       "schema": {
         "root": 0,
         "nodes": [
@@ -11832,7 +11965,7 @@
               },
               {
                 "name": "ignorable",
-                "type": 9,
+                "type": 8,
                 "optional": true
               },
               {
@@ -11847,7 +11980,7 @@
               },
               {
                 "name": "type",
-                "type": 10,
+                "type": 9,
                 "optional": false
               }
             ],
@@ -11857,44 +11990,29 @@
             "kind": "object",
             "properties": [
               {
-                "name": "callerSessionId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "createdAt",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 2,
-                "optional": false
-              },
-              {
                 "name": "query",
                 "type": 2,
                 "optional": false
               },
               {
-                "name": "requestKey",
+                "name": "reason",
                 "type": 2,
                 "optional": true
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "urls",
+                "type": 7,
+                "optional": false
               }
             ],
             "indices": []
@@ -11911,7 +12029,498 @@
             "kind": "union",
             "types": [
               5,
-              7
+              6
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "ok"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/search"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/source",
+      "kind": "event",
+      "event": "research/source",
+      "surface": false,
+      "digest": "2a51521026afc8af908bb4dd436f5194339657b9cf0d0bc6297909fa0f29fd81",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 11,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "status",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "fetched"
+          },
+          {
+            "kind": "literal",
+            "value": "http_error"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/source"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:research/started",
+      "kind": "event",
+      "event": "research/started",
+      "surface": false,
+      "digest": "529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 16,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              14
             ]
           },
           {
@@ -11919,12 +12528,12 @@
             "properties": [
               {
                 "name": "kind",
-                "type": 6,
+                "type": 13,
                 "optional": false
               },
               {
                 "name": "namespace",
-                "type": 2,
+                "type": 4,
                 "optional": false
               }
             ],
@@ -11939,12 +12548,12 @@
             "properties": [
               {
                 "name": "kind",
-                "type": 8,
+                "type": 15,
                 "optional": false
               },
               {
                 "name": "sessionId",
-                "type": 2,
+                "type": 4,
                 "optional": false
               }
             ],
@@ -23009,6 +23618,20 @@
       ]
     },
     {
+      "digest": "0652ec1eb6d381974214f7960eda1fb1229b11549ce3faf6f9588dbc04ae2fe7",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "ok"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "0657d3ca5ac4e7bf79b00bcf860b1c7159d01a9da137497221ec2f1776e365f7",
       "schema": {
         "root": 0,
@@ -23569,6 +24192,46 @@
       "sources": [
         "packages/core/session/src/types.ts:204"
       ]
+    },
+    {
+      "digest": "0a757ed64724073821666855320b1e8d514db8a07839cd042218f4ddefdd7c3d",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "0a8a062bc9c3c0d97fd97742262f2ea53dd32297f834e81114870d38ac3dc6da",
@@ -30630,6 +31293,108 @@
       "sources": []
     },
     {
+      "digest": "2328d6dc1706dfd6cc74a1e299de3b1714cb9fd49217c0a37187be1befa0c77a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accepted",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "evidence",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "rational",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "summary",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "url",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/finding"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "234142ee4f996f38cc9fa3b8b3e3de29b03c9aefe5ebf6c224eddd564505aa85",
       "schema": {
         "root": 0,
@@ -31206,6 +31971,200 @@
       "sources": []
     },
     {
+      "digest": "2a51521026afc8af908bb4dd436f5194339657b9cf0d0bc6297909fa0f29fd81",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 11,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "status",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "fetched"
+          },
+          {
+            "kind": "literal",
+            "value": "http_error"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/source"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "2aad1179f957631477b582e57cd8f538cb82618fc3fb816bde1171154235b065",
       "schema": {
         "root": 0,
@@ -31472,6 +32431,184 @@
           {
             "kind": "literal",
             "value": "fork"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "2dcdb67f2a13f8dcc596b04867df89eafed49c5202efaa69b58942be90c74ab7",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "draftRef",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "elapsedMs",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "queries",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 6,
+                "optional": true
+              },
+              {
+                "name": "stageSessionId",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "stopReason",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "urls",
+                "type": 5,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/checkpoint"
           }
         ]
       },
@@ -35024,6 +36161,20 @@
       "sources": [
         "packages/llm/llm/src/message.ts:162"
       ]
+    },
+    {
+      "digest": "2ff862dde8776473d33ebd7863292fbdbd1ccf8bf7cf286d3de7f80c28a5dc8c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "fetched"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "30d5a537b296685770b1241c4b4bbde19d5a31ff81aa23df73fab5e90b8fc65f",
@@ -42405,6 +43556,73 @@
       "sources": []
     },
     {
+      "digest": "383255f0978db3aadc79d8d3fee6cd785503801706294166c5200b775762ff09",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accepted",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "evidence",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "rational",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "summary",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "url",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchFinding"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:82"
+      ]
+    },
+    {
       "digest": "383cf73ae4748e5beb281ae74857ba1ffb92ae01075b9fbf51af78b666007a8f",
       "schema": {
         "root": 0,
@@ -47037,6 +48255,20 @@
       "sources": [
         "packages/interaction/user-approval/src/types.ts:44"
       ]
+    },
+    {
+      "digest": "461bacfbd4de9234f00c6ae79ccab5656583659908b25e6016fc1b54d72f8b51",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "product"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "477614bca595a9e7adb5a1870be446b9a8684f3ba8950259d6289f2d3b74f028",
@@ -53279,6 +54511,113 @@
       ]
     },
     {
+      "digest": "52261b4041cd97429dbfd487040d4829dfe0ab225e067cbaf1aa1e8b951d98a9",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "query",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "reason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "urls",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "ok"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/search"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "525254db03b1d1e6b74cf55aced52817568331ac1f96c0818728910b6692e336",
       "schema": {
         "root": 0,
@@ -53487,6 +54826,327 @@
           {
             "kind": "literal",
             "value": "llm/retry"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "529706ff9af0dab0db17b170e4dca4a814abad1ca1157125ce7e33e5311071f3",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 16,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              14
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "namespace",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "profile"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "session"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "research/started"
           }
         ]
       },
@@ -55936,6 +57596,20 @@
           {
             "kind": "literal",
             "value": "developer"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "58b12210722411cc1f7ec9336359d424138f33a2a11cfb0184d9b02bd387b141",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "howto"
           }
         ]
       },
@@ -59790,6 +61464,99 @@
       ],
       "sources": [
         "packages/subagent/subagent/src/descriptor.ts:61"
+      ]
+    },
+    {
+      "digest": "603f4efae32ea14cc8b9bb5c678d9a50ebf03104a1e33686802f716c571d9b9a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchSource"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:49"
       ]
     },
     {
@@ -64848,121 +66615,6 @@
       "sources": []
     },
     {
-      "digest": "6cfdc7b5658b629ff8094aaa5693bce96258afff8e907f87d1e3d734d7a0806a",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "callerSessionId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "createdAt",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "query",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "requestKey",
-                "type": 1,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "union",
-            "types": [
-              4,
-              6
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 5,
-                "optional": false
-              },
-              {
-                "name": "namespace",
-                "type": 1,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "profile"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 1,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "session"
-          }
-        ]
-      },
-      "names": [
-        "packages/research/research/src/types.ts#ResearchStarted"
-      ],
-      "sources": [
-        "packages/research/research/src/types.ts:57"
-      ]
-    },
-    {
       "digest": "6e52dd55a1d48954ed5464ec46fe34d9eb65f709baabc9561e7a279910b0c406",
       "schema": {
         "root": 0,
@@ -65169,6 +66821,20 @@
           {
             "kind": "literal",
             "value": "request/context"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "70c89f5db1edea145a6e747a5e55fa5a0bb47ab8b92e27d00486e9482773cf1f",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "general"
           }
         ]
       },
@@ -69426,6 +71092,165 @@
       "sources": []
     },
     {
+      "digest": "7d1628271ddc784e7f4a5fcedcbce24b2b684359d3e5513796aac02c7381400a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalUrl",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "reason",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "requestedUrl",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "retrievedAt",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "round",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "status",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 2,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "fetched"
+          },
+          {
+            "kind": "literal",
+            "value": "http_error"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchSourceAttempt"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:70"
+      ]
+    },
+    {
       "digest": "7d226b9fd95b4ba213d4237c22e930a91c3c769c95ca7f92977b9d625ba13438",
       "schema": {
         "root": 0,
@@ -72358,6 +74183,20 @@
           {
             "kind": "literal",
             "value": "dsh-session-title-llm"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "7ef4f534cb7e4309a80e24ebb24e12a671bc982b69b1308eb39103d176b6b8b8",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "research/finding"
           }
         ]
       },
@@ -78422,6 +80261,159 @@
       "sources": []
     },
     {
+      "digest": "908b95b0b3ad7d7b5886b1e6fe4626188fc50512d6a35ed47f961890f51ba287",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "research/search"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "90dd6be0f93b819d4420520c5d1a402db2b5054a84d7bba0e87374290afe211b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchBudgets"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:19"
+      ]
+    },
+    {
       "digest": "930a6567a10bb62ddd157bd8abdf4b182810c8c3b49d91309b3b009a5fed9731",
       "schema": {
         "root": 0,
@@ -78857,156 +80849,6 @@
       "sources": [
         "packages/core/agent/src/types.ts:39"
       ]
-    },
-    {
-      "digest": "98162ec1623806fed5f2ee52ef1e2499636f2dde53906b9f6d8d7b63c1d145f1",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 9,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 10,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "callerSessionId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "createdAt",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "query",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "requestKey",
-                "type": 2,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "union",
-            "types": [
-              5,
-              7
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "namespace",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "profile"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "kind",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "session"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "research/started"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
     },
     {
       "digest": "9890113e97dd3541787bfe6704f2b223d3a890b5325ca0acae2b0398909b413e",
@@ -80053,120 +81895,6 @@
       "sources": []
     },
     {
-      "digest": "9c0baf67f12b767592fa0fd0cc424287fb4692bf8a06c3672924b74a4130cbed",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "draftRef",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "elapsedMs",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "round",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "source",
-                "type": 4,
-                "optional": true
-              },
-              {
-                "name": "stageSessionId",
-                "type": 2,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "attachmentId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "bytes",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "name",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "content",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "contentSha256",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "retrievedAt",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "truncated",
-                "type": 5,
-                "optional": false
-              },
-              {
-                "name": "url",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          }
-        ]
-      },
-      "names": [
-        "packages/research/research/src/types.ts#ResearchCheckpoint"
-      ],
-      "sources": [
-        "packages/research/research/src/types.ts:74"
-      ]
-    },
-    {
       "digest": "9d80129e13edfb6feb03ed327e6085c6ef60b97ad074244b2f5fd4667424a6a4",
       "schema": {
         "root": 0,
@@ -80306,7 +82034,7 @@
         "packages/research/research/src/types.ts#ResearchFinished"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:83"
+        "packages/research/research/src/types.ts:154"
       ]
     },
     {
@@ -81069,6 +82797,292 @@
       },
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "a1dfc2c8281da72d56da9684411576395379057a067495792f2603cee1d2f22b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "budgets",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "callerSessionId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "createdAt",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "promptVersion",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "provider",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "query",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "requestKey",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "extractMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "firstRoundQueries",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "hardRunTimeoutMs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "laterRoundQueries",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentFetches",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentModelCalls",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxConcurrentSearches",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxEmptyRounds",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxEvidenceBytes",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxFindingsInSynthesis",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxPageChars",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxPagesPerRound",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxReportBytes",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxRounds",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxTotalPages",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "minRounds",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "queryMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "reportMaxTokens",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "reportPageChars",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "searchResultsPerQuery",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "softRunTimeoutMs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "stageTimeoutMs",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "comparison"
+          },
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          },
+          {
+            "kind": "literal",
+            "value": "general"
+          },
+          {
+            "kind": "literal",
+            "value": "howto"
+          },
+          {
+            "kind": "literal",
+            "value": "product"
+          },
+          {
+            "kind": "union",
+            "types": [
+              11,
+              13
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "namespace",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "profile"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "kind",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "session"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchStarted"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:121"
+      ]
     },
     {
       "digest": "a2066bd52f61218ba15b758def2641cc6a8bd3d4a594a488ee4c65be356d7e39",
@@ -83521,6 +85535,20 @@
       "sources": []
     },
     {
+      "digest": "b1954b913edd45e2cb5c71e20a6b8e73e73d7e4c4306011ed82fd94b097fc65a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "http_error"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "b1ebd5cda47d90d980bb05bffc3f970c51537b9aff15b3bc3d639811727741b1",
       "schema": {
         "root": 0,
@@ -83877,6 +85905,20 @@
           {
             "kind": "literal",
             "value": "disposed"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "b416ae4874f36355eabb3f46498d3f0048c16f5c7bb3c4c27838365f537c3954",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "research/source"
           }
         ]
       },
@@ -85877,6 +87919,20 @@
       "sources": [
         "packages/workflow/tool-workflow/src/types.ts:29"
       ]
+    },
+    {
+      "digest": "c10b78083456fa29afaad32de4c9ccc0b8a0823492849148f3a347201170860b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "factcheck"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "c170da8ab7c37635b10867b2571811d9e317ac3ec394e8ff8efe53f902fc41c1",
@@ -87932,6 +89988,20 @@
       "sources": []
     },
     {
+      "digest": "d890578fc1020a35ddaeb784cd1892e6df858d218a84271653f60feee40decb8",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "comparison"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "d9196086e41e4dd5c2ce87f5c25529c8112a1731d258cf0728747d41a9ee3241",
       "schema": {
         "root": 0,
@@ -87991,6 +90061,31 @@
           {
             "kind": "literal",
             "value": "schedule"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "da0493b18020e9ea1d42bf719386e92c033747434e3974839c65804423239d71",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "ok"
           }
         ]
       },
@@ -91570,6 +93665,36 @@
       ]
     },
     {
+      "digest": "e1bce3cedb167ea84d4b5c045a2e48c4c44ac50ff8e0f1dc68b741e3d1431660",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "fetched"
+          },
+          {
+            "kind": "literal",
+            "value": "http_error"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "e2ad8f5bcd813f268ffef1b10a12d7ddd2b8ced8b9b6d0275b3f6b7ed094a187",
       "schema": {
         "root": 0,
@@ -92738,155 +94863,6 @@
       "sources": []
     },
     {
-      "digest": "e4f6dc1f097c473d7b9a0e99f31ea2b3f80fa334e8ba5728f7ed15e382413044",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 7,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 8,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "draftRef",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "elapsedMs",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "round",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "source",
-                "type": 5,
-                "optional": true
-              },
-              {
-                "name": "stageSessionId",
-                "type": 3,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "attachmentId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "bytes",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "name",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "content",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "contentSha256",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "retrievedAt",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "truncated",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "url",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "research/checkpoint"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "e5d3828df1ec3e2a66879de0659e0f4866d9cfffc00825ee731a66f8a0c03d98",
       "schema": {
         "root": 0,
@@ -93613,7 +95589,7 @@
         "packages/research/research/src/types.ts#ResearchLinked"
       ],
       "sources": [
-        "packages/research/research/src/types.ts:69"
+        "packages/research/research/src/types.ts:137"
       ]
     },
     {
@@ -93757,89 +95733,6 @@
       },
       "names": [],
       "sources": []
-    },
-    {
-      "digest": "ec49e1bfa9b10c671b70f6279ccee1b5f23ec78698997b33b2970f5bae9d3169",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "content",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "contentSha256",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "retrievedAt",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "truncated",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "url",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "attachmentId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "bytes",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "name",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          }
-        ]
-      },
-      "names": [
-        "packages/research/research/src/types.ts#ResearchSource"
-      ],
-      "sources": [
-        "packages/research/research/src/types.ts:19"
-      ]
     },
     {
       "digest": "ec8b5ff7c77ca6893ac7ba5a0c5b2aefeb52f12c64450b7359660c2a7e8a53d7",
@@ -97217,6 +99110,149 @@
       ],
       "sources": [
         "packages/api/session-controller/src/types.ts:100"
+      ]
+    },
+    {
+      "digest": "f137c43bc99035c8a2bc5cbccd854293df1717a17b78a965218c3adb59616e17",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "draftRef",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "elapsedMs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "queries",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "stageSessionId",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "stopReason",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "urls",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attachmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "bytes",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "content",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "contentSha256",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requestedUrl",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "retrievedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "statusCode",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "truncated",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "url",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchCheckpoint"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:142"
       ]
     },
     {
@@ -101961,6 +103997,78 @@
       },
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "fe346792df707de4c22ea4f8fef4479f04ea00da35a8dbc916a1e830bd9dcf35",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "query",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "reason",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "round",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "urls",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              4,
+              5
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "error"
+          },
+          {
+            "kind": "literal",
+            "value": "ok"
+          },
+          {
+            "kind": "array",
+            "element": 1
+          }
+        ]
+      },
+      "names": [
+        "packages/research/research/src/types.ts#ResearchSearch"
+      ],
+      "sources": [
+        "packages/research/research/src/types.ts:61"
+      ]
     },
     {
       "digest": "fe792a6cd430494503837e21e79f91677704ccdd9e870c679aabd7d43ed47ddd",

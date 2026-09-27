@@ -18,11 +18,16 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./conversion": {
+      "types": "./lib/types/conversion.d.ts",
+      "default": "./lib/conversion.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
+    "lib/conversion.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

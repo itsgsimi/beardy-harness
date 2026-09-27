@@ -76,6 +76,24 @@ describe('WebRuntime registration', () => {
 })
 
 describe('WebRuntime execution resolution', () => {
+  it('checks both provider selections before a long-running consumer starts', async () => {
+    const { web } = await mountWeb({ searchProvider: 'search', fetchProvider: 'fetch' })
+    expect(() => { web.assertAvailable() }).toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_MISSING' }))
+    web.registerSearchProvider(makeSearchProvider('search', available, () => Promise.resolve(searchResult('ok'))))
+    expect(() => { web.assertAvailable() }).toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_MISSING' }))
+    web.registerFetchProvider(makeFetchProvider('fetch', available, fetchResult('ok')))
+    expect(() => { web.assertAvailable() }).not.toThrow()
+    await expect(web.fetch({ url: 'https://example.com' })).resolves.toMatchObject({ statusCode: 200 })
+  })
+
+  it('admits the unique usable search and fetch providers without configured ids', async () => {
+    const { web } = await mountWeb()
+    web.registerSearchProvider(makeSearchProvider('search', available, () => Promise.resolve(searchResult('ok'))))
+    web.registerFetchProvider(makeFetchProvider('fetch', available, fetchResult('ok')))
+    expect(() => { web.assertAvailable() }).not.toThrow()
+    await expect(web.fetch({ url: 'https://example.com' })).resolves.toMatchObject({ statusCode: 200 })
+  })
+
   it('throws WEB_PROVIDER_UNAVAILABLE when nothing is registered', async () => {
     const { web } = await mountWeb()
     await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))

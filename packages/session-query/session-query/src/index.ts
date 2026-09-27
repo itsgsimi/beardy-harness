@@ -82,6 +82,16 @@ export {
 export { assertSessionHeadersCompatible } from './sources.ts'
 export type { SessionObservation, SessionObservationOptions } from './observation.ts'
 
+/**
+ * Identify an internal research stage by its durable parent Session header.
+ * Presentation lists hide these children; exact reads and lineage retain them.
+ * @param header - Session header selected from live or persisted storage.
+ * @returns whether the parent names a native research run.
+ */
+export function isResearchStageSession(header: Pick<SessionRecord['header'], 'parentSession'>): boolean {
+  return header.parentSession?.startsWith('rp-native-') ?? false
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     sessionQuery: SessionQueryEngine

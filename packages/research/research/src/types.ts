@@ -15,6 +15,36 @@ export type ResearchOwner =
 /** Durable lifecycle phase of a run. */
 export type ResearchPhase = 'running' | 'completed' | 'cancelled' | 'interrupted' | 'budget_exhausted' | 'failed'
 
+/** Bounded engine settings frozen into each run's first durable event. */
+export interface ResearchBudgets {
+  readonly maxRounds: number
+  readonly minRounds: number
+  readonly firstRoundQueries: number
+  readonly laterRoundQueries: number
+  readonly searchResultsPerQuery: number
+  readonly maxPagesPerRound: number
+  readonly maxTotalPages: number
+  readonly maxPageChars: number
+  readonly maxFindingsInSynthesis: number
+  readonly maxConcurrentSearches: number
+  readonly maxConcurrentFetches: number
+  readonly maxConcurrentModelCalls: number
+  readonly softRunTimeoutMs: number
+  readonly hardRunTimeoutMs: number
+  readonly stageTimeoutMs: number
+  readonly planMaxTokens: number
+  readonly queryMaxTokens: number
+  readonly extractMaxTokens: number
+  readonly reportMaxTokens: number
+  readonly maxEmptyRounds: number
+  readonly reportPageChars: number
+  readonly maxReportBytes: number
+  readonly maxEvidenceBytes: number
+}
+
+/** General report format; specialized fantasy publication is not available here. */
+export type ResearchCategory = 'general' | 'product' | 'comparison' | 'howto' | 'factcheck'
+
 /** One fetched source with its immutable source-text attachment. */
 export interface ResearchSource {
   readonly url: string
@@ -23,6 +53,40 @@ export interface ResearchSource {
   readonly contentSha256: string
   readonly content: FileAttachmentRef
   readonly truncated: boolean
+  readonly requestedUrl?: string
+  readonly statusCode?: number
+}
+
+/** Search outcome committed before its URLs enter the visited ledger. */
+export interface ResearchSearch {
+  readonly round: number
+  readonly query: string
+  readonly status: 'ok' | 'error'
+  readonly urls: readonly string[]
+  readonly reason?: string
+}
+
+/** Fetch outcome committed before extraction or another fetch attempt. */
+export interface ResearchSourceAttempt {
+  readonly round: number
+  readonly requestedUrl: string
+  readonly status: 'fetched' | 'http_error' | 'error'
+  readonly finalUrl?: string
+  readonly statusCode?: number
+  readonly retrievedAt: number
+  readonly source?: ResearchSource
+  readonly reason?: string
+}
+
+/** Normalized model extraction; the child Session retains the raw answer. */
+export interface ResearchFinding {
+  readonly round: number
+  readonly url: string
+  readonly accepted: boolean
+  readonly rational?: string
+  readonly evidence?: string
+  readonly summary?: string
+  readonly reason?: string
 }
 
 /** A completed or explicitly partial report backed by immutable files. */
@@ -62,6 +126,10 @@ export interface ResearchStarted {
   readonly requestKey?: string
   readonly provider: string
   readonly model: string
+  readonly reasoningEffort?: string
+  readonly category?: ResearchCategory
+  readonly promptVersion?: string
+  readonly budgets?: ResearchBudgets
   readonly createdAt: number
 }
 
@@ -77,6 +145,9 @@ export interface ResearchCheckpoint {
   readonly source?: ResearchSource
   readonly draftRef?: FileAttachmentRef
   readonly elapsedMs: number
+  readonly queries?: readonly string[]
+  readonly urls?: readonly string[]
+  readonly stopReason?: string
 }
 
 /** Terminal state: completion requires both precommitted files; other phases may retain both or neither. */
@@ -97,6 +168,12 @@ declare module '@deepseek-ai/dsh-session/types' {
     'research/linked': ResearchLinked
     /** Progress and immutable evidence references in the run Session. */
     'research/checkpoint': ResearchCheckpoint
+    /** Search result ledger in the run Session. */
+    'research/search': ResearchSearch
+    /** Fetch outcome ledger in the run Session. */
+    'research/source': ResearchSourceAttempt
+    /** Accepted or rejected normalized extraction in the run Session. */
+    'research/finding': ResearchFinding
     /** First terminal event wins; readers reject later terminal changes. */
     'research/finished': ResearchFinished
   }

@@ -2,7 +2,7 @@
 
 English | [中文](research.zh.md)
 
-`ctx.research` exposes owner-scoped, Session-backed research runs. The [definition package](../../packages/research/research/README.md) owns the service and event types; the [local provider](../../packages/research/research-local/README.md) owns persistence and recovery. The [decision record](../../.agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.md) explains why run Sessions are the durable authority.
+`ctx.research` exposes owner-scoped, Session-backed research runs. The [definition package](../../packages/research/research/README.md) owns the service and event types; the [local provider](../../packages/research/research-local/README.md) owns the web and model engine, persistence, and recovery. The [decision record](../../.agents/notes/implemented/feature/2026-09-27-session-backed-research-runs.md) explains why run Sessions are the durable authority.
 
 ## Durable identity and ownership
 
@@ -10,11 +10,17 @@ English | [中文](research.zh.md)
 
 ## Session events and recovery
 
-`research/started`, `research/checkpoint`, and `research/finished` belong to the run Session; `research/linked` belongs to the caller Session. The start record is flushed before caller linkage, so a failed caller flush leaves a discoverable run. Checkpoints record stage Session IDs, source attachment references, and round progress. The first terminal event wins. A first access after process restart writes `interrupted` for each unfinished persisted run without replaying external effects. Completion requires both report and evidence file attachments; they are committed before the terminal event that references them and verified on read. The [persistence catalog](../persistence-catalog.md) contains the exact event payload declarations.
+`research/started`, `research/search`, `research/source`, `research/finding`, `research/checkpoint`, and `research/finished` belong to the run Session; `research/linked` belongs to the caller Session. The start record is flushed before caller linkage and engine launch, so a failed caller flush leaves a discoverable unlaunched run. Search and fetch outcomes, normalized extraction, stage Session IDs, draft references, and round progress pass the run's flush barrier before publication. Exact bounded fetched text is attached before its source event. The first terminal event wins. A first access after process restart writes `interrupted` for each unfinished persisted run without replaying external effects. Report and evidence files are attached before a terminal reference and verified on read; an available draft becomes a partial report on cancellation or interruption. The [persistence catalog](../persistence-catalog.md) contains the exact event payload declarations.
 
 ## Stage Session recall
 
-The engine will create each model stage as a child Session of the run. The existing `parentSession` header can identify a research child by its `rp-native-` parent ID without changing the V4 header. Generic Session lists and `session_search` do not exclude those children today, so the Session presentation spine needs a default filter for that parent ID class while retaining explicit ID inspection. The storage provider does not create stage Sessions yet.
+The engine creates one short-lived Agent/Session for each model call, with the run ID in its `parentSession` header. Each child records the exact prompt, request header, assistant response or attempt, and turn end; `deriveMessages()` reconstructs every model request. A default API Session list or `session_search` omits children whose parent ID starts with `rp-native-`. An explicit Session ID read and an explicitly requested parent search still reach them. Stage Agents expose no model tools and deny tool execution. Each stage sends bounded context, so earlier page text enters later calls only through logged prompts.
+
+The run and its stage children retain the caller Session's workspace path when one exists, so explicit workspace-authorized reads can reach the stage logs. Session mention candidates apply the same default stage exclusion.
+
+## Evidence and stopping
+
+The general engine uses versioned Odysseus-derived plan, query, extraction, synthesis, stop, and final-report prompts. `ctx.web` supplies search and fetch with the run's abort signal; the web tool's shared HTML converter supplies bounded Markdown. The engine deduplicates queries and URLs, records unsuccessful searches and fetches, and stops after the configured empty-round limit, a model coverage decision after minimum rounds, a soft deadline, or the hard round cap. The hard deadline includes model admission wait and final attachment writes. Report links are checked against accepted fetched URLs; a URL match establishes that the URL was fetched, not that it supports the claim. The native fantasy-football category is refused until its specialized workflow is available.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
