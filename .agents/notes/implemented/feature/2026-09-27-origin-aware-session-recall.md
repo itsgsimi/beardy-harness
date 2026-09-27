@@ -28,6 +28,6 @@ The SQLite provider ranks inside its query, before the page limit: non-cron Sess
 
 ## Consequences
 
-Custom launcher ids, forks, and deeper delegation chains classify as `interactive`; the classifier is deliberately not a provenance guarantee. The recent view lists the logical corpus before taking its bounded page, so its work scales with stored Session count even though model output is bounded. Search no longer matches a superseded title. Search and recent results remain reconstructable from logged headers and title events.
+Custom launcher ids, forks, and deeper delegation chains classify as `interactive`; the classifier reads only the Session id prefix and `delegationDepth`, so it ranks results and does not establish who started a Session. The recent view lists the logical corpus before taking its bounded page, so its work scales with stored Session count even though model output is bounded. Search no longer matches a superseded title. Search and recent results remain reconstructable from logged headers and title events.
 
 Focused tool, service, and SQLite tests cover origin classification and filters in both views, delegated children, authorization, page bounds, title and origin ranking before the limit, and superseded titles. The keyless `session-query-recent` recorded Session exercises a recent-view call and pins the changed schema and guidance through the shipped headless profile; its workspace has no prior Session, so listed-entry text is pinned by unit tests rather than the recording.

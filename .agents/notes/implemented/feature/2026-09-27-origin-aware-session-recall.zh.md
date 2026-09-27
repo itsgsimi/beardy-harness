@@ -28,6 +28,6 @@ SQLite 提供方在查询内、分页上限之前排序：非 cron Session 在�
 
 ## Consequences
 
-自定义启动器 id、fork 与更深的委派链会归为 `interactive`；分类器有意不保证来源凭证。近期视图先列出逻辑语料再截取有界页面，因此即使模型输出有界，其工作量仍随存储的 Session 数量增长。搜索不再匹配已被取代的标题。搜索与近期结果仍可由已记录的 header 和标题事件重建。
+自定义启动器 id、fork 与更深的委派链会归为 `interactive`；分类器只读取 Session id 前缀与 `delegationDepth`，因此它只用于排序，不能确定是谁启动了 Session。近期视图先列出逻辑语料再截取有界页面，因此即使模型输出有界，其工作量仍随存储的 Session 数量增长。搜索不再匹配已被取代的标题。搜索与近期结果仍可由已记录的 header 和标题事件重建。
 
 聚焦的工具、服务与 SQLite 测试覆盖两种视图中的来源分类与过滤、委派子会话、授权、分页上限、分页上限之前的标题与来源排序，以及已被取代的标题。无密钥的 `session-query-recent` 已记录 Session 执行一次近期视图调用，并通过正式 headless profile 固定变更后的 schema 与指引；其工作区没有既往 Session，因此列表条目文本由单元测试而非录制固定。
