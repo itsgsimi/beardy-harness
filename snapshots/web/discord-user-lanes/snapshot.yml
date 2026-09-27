@@ -1,0 +1,8 @@
+version: 1
+scenario: discord-user-lanes
+profile: web
+composition: discord-user-lanes
+recording: authored
+header:
+  class: discord-user-lanes
+  pin: true

@@ -8,6 +8,7 @@ describe('isAdmitted', () => {
     allowedChannelIds: new Set([GUILD_CHANNEL]),
     guildRequireMention: false,
     botUserId: () => BOT_USER,
+    laneUserIds: new Set<string>(),
     ...overrides,
   })
 

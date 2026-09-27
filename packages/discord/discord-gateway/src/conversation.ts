@@ -33,6 +33,7 @@ import { awaitTurn, lastAssistantText, openUnattendedSession, resumeUnattendedSe
 import type { UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
 import { chunkContent, defangBroadcastMentions, discordRequest, postChannelMessage, postDiscordMessageBody, postTyping, sendDiscordMessage } from '@deepseek-ai/dsh-tool-discord'
+import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-workspace'
 import { approvalOutcomeForLine, approvalOutcomeForReaction, buildApprovalPrompt, buildQuestionPrompt, parseQuestionAnswer } from './answerers.ts'
 import type { ConversationRecord, OutboxRecord } from './domain.ts'
@@ -42,7 +43,7 @@ import { DISCORD_CHANNEL_TYPE_DM } from './gateway.ts'
 import { discordCommands, registerGatewayCommands } from './commands.ts'
 import type { DiscordInteraction } from './interactions.ts'
 import { approvalControls, questionControls, renderCards, CONVERSATION_CONTROLS, DiscordPromptId } from './presentation.ts'
-import type { DiscordInboundMessage, DiscordInboundReaction, GatewaySettings } from './types.ts'
+import type { ConversationLane, DiscordCommandActor, DiscordInboundMessage, DiscordInboundReaction, GatewaySettings } from './types.ts'
 
 /** What one settled scheduled run announces on the `cron/run-finished` event. */
 interface FinishedCronRun extends Pick<CronRunResult, 'outcome' | 'text' | 'failure'> {
@@ -62,6 +63,8 @@ export interface RoutingPolicy {
   readonly guildRequireMention: boolean
   /** The bot's own user id from the latest `READY`; empty until the first one arrives. */
   readonly botUserId: () => string
+  /** Allowlisted users with their own lane; they are admitted only in their direct messages. */
+  readonly laneUserIds: ReadonlySet<string>
 }
 
 /** Delivery seam for an answer, so routing is testable without a network. */
@@ -99,8 +102,8 @@ export interface ConversationRouterDeps {
   readonly clearPrompt?: (channelId: string, messageId: string, signal: AbortSignal) => Promise<void>
   /** Set or remove the bot's processing/completion reaction. */
   readonly react?: (message: DiscordInboundMessage, emoji: string, remove: boolean, signal: AbortSignal) => Promise<void>
-  /** Current configured-preset command descriptors, including gateway controls. */
-  readonly commands?: () => readonly CommandDescriptor[]
+  /** Command descriptors of one lane's configured preset, including gateway controls. */
+  readonly commands?: (lane: ConversationLane) => readonly CommandDescriptor[]
   /** Typing-indicator seam. Defaults to the Discord REST poster. */
   readonly type?: TypingPoster
   /** Prompt-delivery seam. Defaults to a single Discord REST post whose reply carries the id. */
@@ -111,6 +114,7 @@ export interface ConversationRouterDeps {
 interface LiveConversation {
   readonly channelId: string
   readonly sessionId: SessionId
+  readonly lane: string | undefined
   readonly handle: AgentHandle
   /** Proactive scan floor: assistant text before this seq was delivered or predates this handle. */
   seqFloor: number
@@ -162,8 +166,15 @@ export interface ConversationRouter {
   handle(message: DiscordInboundMessage): void
   /** Match one reaction against the channel's pending approval prompt. */
   handleReaction(reaction: DiscordInboundReaction): void
-  /** Execute a native or text command without posting a second response. */
-  execute(channelId: string, line: string, signal?: AbortSignal): Promise<CommandResult>
+  /**
+   * Execute a native or text command in the admitted actor's current lane without posting a second response.
+   * @param channelId - Discord channel the command addresses.
+   * @param actor - Admitted user and channel kind used to resolve the lane.
+   * @param line - Slash-prefixed command input.
+   * @param signal - Optional cancellation of the native invocation.
+   * @returns the command result for the caller to present.
+   */
+  execute(channelId: string, actor: DiscordCommandActor, line: string, signal?: AbortSignal): Promise<CommandResult>
   /** Resolve a native control against the currently pending prompt. */
   component(interaction: Extract<DiscordInteraction, { kind: 'component' }>, signal?: AbortSignal): Promise<string>
   /** Post finished-run text to a channel; delivery failures are logged, never thrown. */
@@ -182,6 +193,7 @@ export function isAdmitted(message: DiscordInboundMessage, policy: RoutingPolicy
   if (message.bot) return false
   if (!policy.allowedUserIds.has(message.authorId)) return false
   if (message.channelType === DISCORD_CHANNEL_TYPE_DM) return true
+  if (policy.laneUserIds.has(message.authorId)) return false
   if (!policy.allowedChannelIds.has(message.channelId)) return false
   if (!policy.guildRequireMention) return true
   const bot = policy.botUserId()
@@ -228,6 +240,29 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const stopping = new AbortController()
   const signal = AbortSignal.any([deps.signal, stopping.signal])
   const wait = deps.wait ?? sleep
+  const defaultLane: ConversationLane = {
+    workspacePath: settings.workspacePath,
+    agentPreset: settings.agentPreset,
+    permissionPreset: settings.permissionPreset,
+    excludedPresetCommands: settings.excludedPresetCommands,
+    ...settings.toolFilter === undefined ? {} : { toolFilter: settings.toolFilter },
+  }
+  /** The lane a record names; undefined when that user's lane is no longer configured. */
+  const laneOf = (key: string | undefined): ConversationLane | undefined =>
+    key === undefined ? defaultLane : settings.userLanes.get(key)
+  /** An admitted actor's own lane applies in direct messages; guild channels share the default lane. */
+  const laneFor = (actor: DiscordCommandActor): ConversationLane =>
+    (actor.directMessage ? settings.userLanes.get(actor.userId) : undefined) ?? defaultLane
+  const messageActor = (message: DiscordInboundMessage): DiscordCommandActor =>
+    ({ userId: message.authorId, directMessage: message.channelType === DISCORD_CHANNEL_TYPE_DM })
+  const interactionActor = (interaction: DiscordInteraction): DiscordCommandActor =>
+    ({ userId: interaction.userId, directMessage: interaction.guildId === '' })
+  /** Both the durable record and any live Agent must belong to the actor's current lane. */
+  const matchesLane = (channelId: string, lane: ConversationLane): boolean => {
+    const record = deps.table.get(channelId)
+    const live = conversations.get(channelId)
+    return record?.lane === lane.userId && (live === undefined || live.lane === lane.userId)
+  }
   const post: ReplyPoster = deps.post ?? (async (content, channelId, token, replySignal) => {
     await sendDiscordMessage({
       channel: channelId,
@@ -311,7 +346,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const tails = new Map<string, Promise<void>>()
   const batches = new Map<string, PendingBatch>()
   const inputs = new Map<string, { controller: AbortController; pending: number }>()
-  const openings = new Map<string, { controller: AbortController; done: Promise<LiveConversation> }>()
+  const openings = new Map<string, { controller: AbortController; done: Promise<LiveConversation>; lane: string | undefined }>()
   const deliveries = new Map<string, Promise<void>>()
   const outbox = deps.outboxTable === undefined ? undefined : new DiscordOutbox(
     deps.outboxTable, settings,
@@ -333,7 +368,13 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         if (inputAborted()) return
         if (deps.table.get(record.channelId)?.sessionId !== record.sessionId
           || conversations.has(record.channelId)) return
-        const live = await resumeConversation(record)
+        const lane = laneOf(record.lane)
+        if (lane === undefined) {
+          ctx.logger.warn(`discord-gateway: channel ${record.channelId} names removed lane ${String(record.lane)}; `
+            + 'its reminder waits until the next message starts a fresh conversation')
+          return
+        }
+        const live = await resumeConversation(record, lane)
         if (inputAborted()) return
         if (live.handle.agent.status === 'idle') await flushDelivery(live, outbox)
       }).catch((error: unknown) => {
@@ -456,7 +497,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   /** The commands this listener owns, closed over one channel. */
-  function commandOps(channelId: string) {
+  function commandOps(channelId: string, lane: ConversationLane) {
     return {
       startFresh: async (): Promise<string> => {
         const cancelled = cancelPendingInput(channelId)
@@ -475,7 +516,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         return [
           `Session: ${record.sessionId}`,
           `Agent preset: ${record.agentPreset}`,
-          `Permission preset: ${settings.permissionPreset}`,
+          `Permission preset: ${lane.permissionPreset}`,
           live === undefined ? 'State: released (resumes on your next message)' : 'State: live',
           pendingNote(channelId),
           `Queued deliveries: ${String(outbox?.pending(channelId) ?? 0)}`,
@@ -498,17 +539,19 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }
   }
 
-  /** Setup composed inside each conversation Agent's scope: the channel's gateway commands. */
-  function conversationSetup(channelId: string): AgentSetup {
+  /** Setup composed inside each conversation Agent's scope: the channel's gateway commands and lane tool filter. */
+  function conversationSetup(channelId: string, lane: ConversationLane): AgentSetup {
     return (agentCtx) => {
-      registerGatewayCommands(agentCtx, commandOps(channelId))
+      registerGatewayCommands(agentCtx, commandOps(channelId, lane))
+      if (lane.toolFilter !== undefined) agentCtx.tools.restrict(lane.toolFilter)
     }
   }
 
-  function toLive(channelId: string, sessionId: SessionId, handle: AgentHandle): LiveConversation {
+  function toLive(channelId: string, lane: ConversationLane, sessionId: SessionId, handle: AgentHandle): LiveConversation {
     return {
       channelId,
       sessionId,
+      lane: lane.userId,
       handle,
       seqFloor: handle.agent.session.seq,
       inboundActive: false,
@@ -517,10 +560,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   /** Startup cancellation remains separate from the lifetime of an already-published Agent. */
-  function openConversation(channelId: string, open: (openingSignal: AbortSignal) => Promise<LiveConversation>): Promise<LiveConversation> {
+  function openConversation(channelId: string, lane: ConversationLane,
+    open: (openingSignal: AbortSignal) => Promise<LiveConversation>): Promise<LiveConversation> {
     const controller = new AbortController()
     const done = open(AbortSignal.any([signal, controller.signal]))
-    const opening = { controller, done }
+    const opening = { controller, done, lane: lane.userId }
     openings.set(channelId, opening)
     const retire = (): void => { if (openings.get(channelId) === opening) openings.delete(channelId) }
     void done.then(retire, retire)
@@ -528,18 +572,19 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   /** Publish only after startup and its durable routing record survive cancellation. */
-  async function publishConversation(channelId: string, opened: UnattendedSession, openingSignal: AbortSignal,
-    previous?: ConversationRecord): Promise<LiveConversation> {
+  async function publishConversation(channelId: string, lane: ConversationLane, opened: UnattendedSession,
+    openingSignal: AbortSignal, previous?: ConversationRecord): Promise<LiveConversation> {
     try {
       openingSignal.throwIfAborted()
       if (previous === undefined) {
         const now = Date.now()
         await deps.table.put(channelId, { channelId, sessionId: opened.sessionId,
-          agentPreset: settings.agentPreset, workspacePath: settings.workspacePath, openedAt: now, lastInboundAt: now,
-          deliveredThrough: opened.handle.agent.session.seq })
+          agentPreset: lane.agentPreset, workspacePath: lane.workspacePath,
+          ...lane.userId === undefined ? {} : { lane: lane.userId },
+          openedAt: now, lastInboundAt: now, deliveredThrough: opened.handle.agent.session.seq })
       }
       openingSignal.throwIfAborted()
-      const conversation = toLive(channelId, opened.sessionId, opened.handle)
+      const conversation = toLive(channelId, lane, opened.sessionId, opened.handle)
       conversation.seqFloor = previous?.deliveredThrough ?? conversation.seqFloor
       conversations.set(channelId, conversation)
       armRelease(conversation)
@@ -551,53 +596,57 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }
   }
 
-  /** Open a fresh Session for one channel and record it durably. */
-  async function createConversation(channelId: string): Promise<LiveConversation> {
-    return await openConversation(channelId, async (openingSignal) => {
+  /** Open a fresh Session for one channel in one lane and record it durably. */
+  async function createConversation(channelId: string, lane: ConversationLane): Promise<LiveConversation> {
+    return await openConversation(channelId, lane, async (openingSignal) => {
       wakes?.cancel(channelId)
       const selection = ctx.agentDefaultModel.currentSelection()
       const opened = await openUnattendedSession(ctx, {
         sessionId: SessionId(`discord-${channelId}-${randomUUID()}`),
-        agentPreset: settings.agentPreset,
-        permissionPreset: settings.permissionPreset,
-        workspacePath: settings.workspacePath,
+        agentPreset: lane.agentPreset,
+        permissionPreset: lane.permissionPreset,
+        workspacePath: lane.workspacePath,
         title: `${settings.titlePrefix} ${channelId}`,
         agentOptions: { provider: selection.provider, model: selection.model },
-        setup: conversationSetup(channelId),
+        setup: conversationSetup(channelId, lane),
       }, openingSignal)
-      return await publishConversation(channelId, opened, openingSignal)
+      return await publishConversation(channelId, lane, opened, openingSignal)
     })
   }
 
-  /** Resume the Session one record points at, mounted with the configured presets and commands. */
-  async function resumeConversation(record: ConversationRecord): Promise<LiveConversation> {
-    return await openConversation(record.channelId, async (openingSignal) => {
+  /** Resume the Session one record points at, mounted with its lane's presets, tool filter, and commands. */
+  async function resumeConversation(record: ConversationRecord, lane: ConversationLane): Promise<LiveConversation> {
+    return await openConversation(record.channelId, lane, async (openingSignal) => {
       wakes?.cancel(record.channelId)
       const selection = ctx.agentDefaultModel.currentSelection()
       const opened = await resumeUnattendedSession(ctx, {
         sessionId: SessionId(record.sessionId),
-        agentPreset: settings.agentPreset,
-        permissionPreset: settings.permissionPreset,
-        workspacePath: settings.workspacePath,
+        agentPreset: lane.agentPreset,
+        permissionPreset: lane.permissionPreset,
+        workspacePath: lane.workspacePath,
         agentOptions: { provider: selection.provider, model: selection.model },
-        setup: conversationSetup(record.channelId),
+        setup: conversationSetup(record.channelId, lane),
       }, openingSignal)
-      return await publishConversation(record.channelId, opened, openingSignal, record)
+      return await publishConversation(record.channelId, lane, opened, openingSignal, record)
     })
   }
 
-  /** The live conversation for one inbound message, resuming or replacing the durable record. */
-  async function ensureConversation(channelId: string, inputSignal: AbortSignal): Promise<LiveConversation> {
+  /**
+   * The live conversation for one inbound message, resuming or replacing the durable record. A
+   * record from another lane is replaced, so a Session never continues under a different lane.
+   */
+  async function ensureConversation(channelId: string, lane: ConversationLane, inputSignal: AbortSignal): Promise<LiveConversation> {
     inputSignal.throwIfAborted()
     const record = deps.table.get(channelId)
-    if (record !== undefined && Date.now() - record.lastInboundAt > settings.conversationMaxAgeMs) {
+    if ((record !== undefined && (Date.now() - record.lastInboundAt > settings.conversationMaxAgeMs || !matchesLane(channelId, lane)))
+      || (record === undefined && conversations.has(channelId))) {
       await releaseConversation(channelId, true)
     } else {
       const live = conversations.get(channelId)
       if (live !== undefined) return live
       if (record !== undefined) {
         try {
-          return await resumeConversation(record)
+          return await resumeConversation(record, lane)
         } catch (error: unknown) {
           inputSignal.throwIfAborted()
           if (!(error instanceof SessionPersistenceNotFoundError)) throw error
@@ -608,7 +657,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       }
     }
     inputSignal.throwIfAborted()
-    return await createConversation(channelId)
+    return await createConversation(channelId, lane)
   }
 
   /**
@@ -836,7 +885,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         }
         message = await transcribeDiscordAudio(message, speech, inputSignal)
       }
-      const conversation = await ensureConversation(message.channelId, inputSignal)
+      const conversation = await ensureConversation(message.channelId, laneFor(messageActor(message)), inputSignal)
       if (inputAborted()) return
       conversation.cancelRelease()
       const firstSeq = conversation.handle.agent.session.seq
@@ -849,7 +898,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         await notice(message.channelId, 'I could not finish that request. Please try again.', 'Request failed', true)
       }
       const record = deps.table.get(message.channelId)
-      if (record !== undefined) await deps.table.put(message.channelId, { ...record, lastInboundAt: Date.now() })
+      if (record?.sessionId === conversation.sessionId) {
+        await deps.table.put(message.channelId, { ...record, lastInboundAt: Date.now() })
+      }
       if (conversations.get(message.channelId) === conversation) armRelease(conversation)
     } finally {
       track(processing.then(async () => {
@@ -860,18 +911,33 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   /** Native and text commands use the same scoped registry and conversation operations. */
-  async function execute(channelId: string, line: string, requestSignal?: AbortSignal): Promise<CommandResult> {
+  async function execute(channelId: string, actor: DiscordCommandActor, line: string, requestSignal?: AbortSignal): Promise<CommandResult> {
     const commandSignal = requestSignal === undefined ? signal : AbortSignal.any([signal, requestSignal])
     commandSignal.throwIfAborted()
+    if (!deps.policy.allowedUserIds.has(actor.userId) || (!actor.directMessage
+      && (!deps.policy.allowedChannelIds.has(channelId) || deps.policy.laneUserIds.has(actor.userId)))) {
+      return { kind: 'error', text: 'This command is not available to you in this channel.' }
+    }
     const parsed = parseCommand(line)
     if (parsed === undefined) return { kind: 'error', text: 'Enter a slash command.' }
-    if (settings.excludedPresetCommands.includes(parsed.name)) return { kind: 'error', text: `/${parsed.name} is not available through Discord.` }
-    const ops = commandOps(channelId)
+    const lane = laneFor(actor)
+    const record = deps.table.get(channelId)
+    const opening = openings.get(channelId)
+    if ((record !== undefined && !matchesLane(channelId, lane))
+      || (record === undefined && conversations.has(channelId))
+      || (opening !== undefined && opening.lane !== lane.userId)) {
+      const cancelled = cancelPendingInput(channelId)
+      await Promise.allSettled([cancelled.opening])
+      commandSignal.throwIfAborted()
+      await releaseConversation(channelId, true)
+    }
+    if (lane.excludedPresetCommands.includes(parsed.name)) return { kind: 'error', text: `/${parsed.name} is not available through Discord.` }
+    const ops = commandOps(channelId, lane)
     const live = conversations.get(channelId)
     if (parsed.name === 'help') {
       const commands = live === undefined
-        ? (deps.commands?.() ?? discordCommands([]))
-        : discordCommands(ctx.commands.list(live.handle.agent), settings.excludedPresetCommands)
+        ? (deps.commands?.(lane) ?? discordCommands([]))
+        : discordCommands(ctx.commands.list(live.handle.agent), lane.excludedPresetCommands)
       return { kind: 'success', text: commands.map(command => `**/${command.name}** — ${command.description}`
         + (command.input === undefined ? '' : `\n  Arguments: ${command.input.hint}`)).join('\n') }
     }
@@ -907,9 +973,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }
   }
 
-  async function dispatchCommand(channelId: string, line: string): Promise<void> {
-    const result = await execute(channelId, line)
-    await notice(channelId, result.text ?? 'Done.', `/${parseCommand(line)?.name ?? 'command'}`, result.kind === 'error')
+  async function dispatchCommand(message: DiscordInboundMessage, line: string, commandName: string): Promise<void> {
+    const result = await execute(message.channelId, messageActor(message), line)
+    await notice(message.channelId, result.text ?? 'Done.', `/${commandName}`, result.kind === 'error')
   }
 
   /** Drain a channel's pending debounce batch into one turn, if one is waiting. */
@@ -1041,10 +1107,12 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       }
       if (message.content.trim() === '') return
       const line = message.content.trim()
-      if (parseCommand(line) === undefined) {
+      const parsed = parseCommand(line)
+      if (parsed === undefined) {
         // While a request waits, the next text in this channel is its answer, not a new turn.
         const pending = pendings.get(message.channelId)
-        if (pending !== undefined) {
+        if (pending !== undefined && deps.table.get(message.channelId) !== undefined
+          && matchesLane(message.channelId, laneFor(messageActor(message)))) {
           if (settings.answerers.includes('text') || (pending.kind === 'question' && settings.answerers.includes('component')
             && questionControls(pending.questions[pending.nextIndex] as AskUserQuestionItem, pending.requestId).length === 0)) {
             pending.answerLine(line)
@@ -1052,11 +1120,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           return
         }
       }
-      if (parseCommand(line) !== undefined) {
+      if (parsed !== undefined) {
         flushBatch(message.channelId)
         // Commands run immediately rather than on the channel's serial tail: `/stop` must be able
         // to cancel a turn that is running right now, not queue behind it.
-        track(dispatchCommand(message.channelId, line).catch(async (error: unknown) => {
+        track(dispatchCommand(message, line, parsed.name).catch(async (error: unknown) => {
           ctx.logger.warn(`discord-gateway: command for message ${message.id} failed: `
             + errorChain(error))
           if (!signal.aborted) await notice(message.channelId, 'The command could not finish. Please try again.', 'Command failed', true)
@@ -1090,16 +1158,21 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     async component(interaction, requestSignal): Promise<string> {
       signal.throwIfAborted()
       requestSignal?.throwIfAborted()
-      if (!deps.policy.allowedUserIds.has(interaction.userId)
-        || (interaction.guildId !== '' && !deps.policy.allowedChannelIds.has(interaction.channelId))) {
+      if (!deps.policy.allowedUserIds.has(interaction.userId) || (interaction.guildId !== ''
+        && (!deps.policy.allowedChannelIds.has(interaction.channelId) || deps.policy.laneUserIds.has(interaction.userId)))) {
         return 'This control is not available to you in this channel.'
       }
       const parts = interaction.customId.split(':')
       if (parts[0] !== 'dsh') return 'This control is no longer available.'
-      if (parts[1] === 'command' && parts.length === 3 && ['status', 'stop', 'new'].includes(parts[2] ?? '')) {
-        return (await execute(interaction.channelId, `/${parts[2] ?? ''}`, requestSignal)).text ?? 'Done.'
+      if (parts[1] === 'command' && parts.length === 3 && ['status', 'stop', 'new'].includes(parts[2] as string)) {
+        // Gateway controls always return text; this branch runs only after the name check above.
+        return (await execute(interaction.channelId, interactionActor(interaction), `/${parts[2] as string}`, requestSignal)).text as string
       }
       if (!settings.answerers.includes('component')) return 'Native answers are disabled.'
+      if (deps.table.get(interaction.channelId) === undefined
+        || !matchesLane(interaction.channelId, laneFor(interactionActor(interaction)))) {
+        return 'This request has expired or was already answered.'
+      }
       const pending = pendings.get(interaction.channelId)
       if (pending === undefined || pending.promptMessageId !== interaction.messageId || pending.requestId !== parts[2]) {
         return 'This request has expired or was already answered.'
@@ -1125,6 +1198,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     handleReaction(reaction: DiscordInboundReaction): void {
       if (!settings.answerers.includes('reaction')) return
       if (!deps.policy.allowedUserIds.has(reaction.userId)) return
+      if (deps.table.get(reaction.channelId) === undefined
+        || !matchesLane(reaction.channelId, laneFor({ userId: reaction.userId,
+          directMessage: settings.userLanes.has(reaction.userId) }))) return
       const pending = pendings.get(reaction.channelId)
       if (pending === undefined || pending.kind !== 'approval') return
       if (reaction.messageId !== pending.promptMessageId) return

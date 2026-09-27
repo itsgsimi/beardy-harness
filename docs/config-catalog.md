@@ -661,6 +661,14 @@ export interface Config {
   readonly agentPreset: string
   /** Permission preset applied to each conversation Session. */
   readonly permissionPreset: string
+  /** Tool restriction for default-lane conversation Agents; every name must be visible when a Session opens. Defaults to none. */
+  readonly toolFilter?: LaneToolFilter
+  /**
+   * Own lanes keyed by allowlisted user id. That user's direct messages run with the lane's
+   * workspace, presets, tool restriction, and command exclusions, and the user is not admitted in
+   * guild channels. Defaults to none.
+   */
+  readonly userLanes?: Record<string, UserLaneConfig>
   /** Prefix of the generated Session title. Defaults to `Discord`. */
   readonly titlePrefix?: string
   /** Longest inbound text handed to the agent. Defaults to 8000. */
@@ -702,9 +710,31 @@ export interface Config {
   /** Retry delay for a failed reminder read or resume. Defaults to 30000. */
   readonly wakeRetryMs?: number
 }
+
+/** Tool names one lane's conversation Agents keep or lose, applied through `tools.restrict()`. */
+export interface LaneToolFilter {
+  /** Tool names that stay visible; every other inherited tool is removed. */
+  readonly allow?: string[]
+  /** Tool names removed from visibility. */
+  readonly deny?: string[]
+}
+
+/** Session settings that replace the default lane for one allowlisted user's direct messages. */
+export interface UserLaneConfig {
+  /** Absolute workspace path the user's conversations run in. */
+  readonly workspacePath: string
+  /** Agent preset mounted into the user's conversation Sessions. */
+  readonly agentPreset: string
+  /** Permission preset applied to the user's conversation Sessions. */
+  readonly permissionPreset: string
+  /** Tool restriction for the user's conversation Agents; every name must be visible when a Session opens. Defaults to none. */
+  readonly toolFilter?: LaneToolFilter
+  /** Preset commands refused for this user in addition to `excludedPresetCommands`. Defaults to none. */
+  readonly excludedPresetCommands?: string[]
+}
 ```
 
-Source: [`packages/discord/discord-gateway/src/index.ts:79`](../packages/discord/discord-gateway/src/index.ts)
+Source: [`packages/discord/discord-gateway/src/index.ts:94`](../packages/discord/discord-gateway/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-agent-team"></a>
 

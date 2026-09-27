@@ -39,10 +39,10 @@ describe('rich Discord conversations', () => {
     expect(h.cards[0]?.embeds?.[0]?.description).toContain('**/status**')
     expect(h.cards[0]?.components?.[0]?.components).toHaveLength(3)
     expect(h.calls).not.toContain('agent-create')
-    expect(await h.router.execute(CHANNEL, '/status')).toEqual({ kind: 'success', text: 'No conversation yet: your next message starts one.' })
+    expect(await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/status')).toEqual({ kind: 'success', text: 'No conversation yet: your next message starts one.' })
     expect(h.cards).toHaveLength(1)
     expect(h.posted).toHaveLength(0)
-    expect((await h.router.execute(CHANNEL, '/export')).kind).toBe('error')
+    expect((await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/export')).kind).toBe('error')
   })
 
   it('binds an approval to its channel, user, prompt, and one-time request identity', async () => {
@@ -84,7 +84,7 @@ describe('rich Discord conversations', () => {
       await expect(first).resolves.toBe('cancelled')
       await vi.waitFor(() => { expect(h.prompts).toHaveLength(2) })
       barrier.resolve(undefined)
-      await h.router.execute(CHANNEL, '/stop')
+      await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/stop')
       await expect(second).resolves.toBe('cancelled')
     } finally { barrier.resolve(undefined) }
   })
@@ -135,7 +135,7 @@ describe('rich Discord conversations', () => {
       h.emitStatus(h.agent, 'idle')
       return { kind: 'success', text: 'Command finished.' }
     } })
-    expect(await h.router.execute(CHANNEL, '/finish')).toEqual({ kind: 'success', text: 'Command finished.' })
+    expect(await h.router.execute(CHANNEL, { userId: USER, directMessage: true }, '/finish')).toEqual({ kind: 'success', text: 'Command finished.' })
     expect(h.posted.map(post => post.content)).toEqual(['x', 'Finished inside the command.'])
     h.emitStatus(h.agent, 'idle')
     expect(h.posted).toHaveLength(2)
