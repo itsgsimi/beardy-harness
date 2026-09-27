@@ -28,7 +28,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     expect(names).toEqual([
       'ask_user_question', 'bash', 'bash', 'cordis_inspect_list',
       'cordis_inspect_query',
-      'create_goal', 'deep_research', 'discord_send', 'edit', 'exit_plan_mode', 'get_goal', 'glob', 'grep',
+      'create_goal', 'deep_research', 'discord_send', 'edit', 'exit_plan_mode', 'fantasy', 'get_goal', 'get_weather', 'glob', 'grep',
       'interrupt_agent', 'interrupt_agent', 'job_kill', 'job_list', 'job_output',
       'list_agents', 'list_agents', 'list_mcp_resource_templates', 'list_mcp_resources',
       'list_subagent_models', 'load_workspace_dependencies', 'lsp', 'memory', 'odysseus_research',
