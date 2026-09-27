@@ -1,4 +1,4 @@
-/** Exercise real feedback services before the SDK closes the recorded root turn. */
+/** Exercise feedback services and the research link event before the SDK closes the recorded root turn. */
 export const name = 'snapshot-feedback-producer'
 export const inject = ['commands', 'messageFeedback', 'sessionFeedback']
 
@@ -25,5 +25,7 @@ export function apply(ctx) {
     if (JSON.stringify(agent.session.deriveMessages()) !== JSON.stringify(messages)) {
       throw new Error('feedback changed model-visible messages')
     }
+    // This fixed link exercises the SDK event projection; research-local tests own run authority.
+    agent.session.append('research/linked', { id: 'rp-native-sdk-probe' })
   })
 }

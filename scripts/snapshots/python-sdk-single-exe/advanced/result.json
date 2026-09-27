@@ -1624,8 +1624,16 @@
       }
     },
     {
-      "type": "turn/end",
+      "type": "research/linked",
       "seq": 70,
+      "time": 0,
+      "data": {
+        "id": "rp-native-sdk-probe"
+      }
+    },
+    {
+      "type": "turn/end",
+      "seq": 71,
       "time": 0,
       "data": {
         "turn": 1,
@@ -4726,8 +4734,22 @@
       "payload": {
         "sessionId": "{{parent}}",
         "event": {
-          "type": "turn/end",
+          "type": "research/linked",
           "seq": 70,
+          "time": 0,
+          "data": {
+            "id": "rp-native-sdk-probe"
+          }
+        }
+      }
+    },
+    {
+      "method": "session.event",
+      "payload": {
+        "sessionId": "{{parent}}",
+        "event": {
+          "type": "turn/end",
+          "seq": 71,
           "time": 0,
           "data": {
             "turn": 1,

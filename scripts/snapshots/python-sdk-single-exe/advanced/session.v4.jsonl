@@ -69,4 +69,5 @@
 {"type":"feedback/message-put","data":{"sessionId":"{{parent}}","item":{"messageId":"{{message:1}}","rating":"negative","note":"Explain the result.","category":"task-result","version":"{{feedback-version:1}}","createdAt":0,"updatedAt":0}}}
 {"type":"feedback/message-put","data":{"sessionId":"{{parent}}","item":{"messageId":"{{message:1}}","rating":"positive","note":"The explanation is clear now.","version":"{{feedback-version:2}}","createdAt":0,"updatedAt":0}}}
 {"type":"feedback/message-delete","data":{"sessionId":"{{parent}}","messageId":"{{message:1}}"}}
+{"type":"research/linked","data":{"id":"rp-native-sdk-probe"}}
 {"type":"turn/end","data":{"turn":1,"reason":{"kind":"completed"}}}

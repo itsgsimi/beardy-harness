@@ -2598,6 +2598,33 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-repeat-tool-reminder -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-research-local -->
+<a id="deepseek-aidsh-research-local"></a>
+
+## `@deepseek-ai/dsh-research-local`
+
+- `inject`: `agents` · `sessions` · `sessionPersistence` · `attachments`
+- `source`: [`packages/research/research-local/src/index.ts:22`](../packages/research/research-local/src/index.ts)
+
+```ts config-catalog
+/** Storage configuration. The engine's model and budget settings arrive in slice 2. */
+export interface Config {
+  /** Exact model provider route recorded with each run. */
+  provider: string
+  /** Exact model name recorded with each run. */
+  model: string
+  /** Session isolation by default; profile scope requires a single-user deployment. */
+  ownerScope?: 'session' | 'profile'
+  /** Stable single-user profile authority, required with profile scope. */
+  ownerNamespace?: string
+  /** Maximum report bytes committed as one immutable attachment. Default: 1048576. */
+  maxReportBytes?: number
+  /** Maximum evidence-manifest bytes committed as one immutable attachment. Default: 8388608. */
+  maxEvidenceBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-research-local -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-sandbox-local -->
 <a id="deepseek-aidsh-sandbox-local"></a>
 
@@ -4753,6 +4780,7 @@ export interface Config {
 | `@deepseek-ai/dsh-host-directory-picker` | `DirectoryPicker` | — | [`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts) |
 | `@deepseek-ai/dsh-jobs` | `JobRegistry` | — | [`packages/jobs/jobs/src/index.ts`](../packages/jobs/jobs/src/index.ts) |
 | `@deepseek-ai/dsh-ptc-runtime` | `PtcRuntime` | — | [`packages/ptc-runtime/ptc-runtime/src/index.ts`](../packages/ptc-runtime/ptc-runtime/src/index.ts) |
+| `@deepseek-ai/dsh-research` | `ResearchService` | — | [`packages/research/research/src/index.ts`](../packages/research/research/src/index.ts) |
 | `@deepseek-ai/dsh-sandbox` | `SandboxProvider` | — | [`packages/sandbox/sandbox/src/index.ts`](../packages/sandbox/sandbox/src/index.ts) |
 | `@deepseek-ai/dsh-session-persistence` | `SessionPersistence` | — | [`packages/session/session-persistence/src/index.ts`](../packages/session/session-persistence/src/index.ts) |
 | `@deepseek-ai/dsh-session-query` | `SessionQueryEngine` | — | [`packages/session-query/session-query/src/index.ts`](../packages/session-query/session-query/src/index.ts) |

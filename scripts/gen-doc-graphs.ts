@@ -76,6 +76,7 @@ const GROUP_ORDER = [
   'core',
   'typert',
   'goal',
+  'research',
   'experimental',
   'process',
   'bash',
@@ -107,6 +108,14 @@ const GROUP_ORDER = [
 ]
 
 const SERVICE_ROLES: ServiceRole[] = [
+  {
+    key: 'research',
+    pkg: 'research',
+    title: 'Durable owner-scoped research runs',
+    mode: 'seam',
+    implementations: ['research-local'],
+    note: 'The local provider persists run Sessions and report attachments; the model-facing consumer follows in the research tool slice.',
+  },
   {
     key: 'hmr',
     pkg: 'hmr',

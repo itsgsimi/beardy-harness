@@ -1785,6 +1785,43 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'research',
+    summary: 'Durable research lifecycle and report access.',
+    description: 'Durable research lifecycle and report access.',
+    methods: [
+      {
+        signature: 'abstract start(request: ResearchStart): Promise<ResearchRunView>',
+        description: 'Commit a run Session, then link and flush the caller Session before returning.',
+        parameters: [{ name: 'request', description: 'live caller, trusted owner, question, and optional exact-call idempotency key.' }],
+        returns: 'the durable run view; duplicate keys return the same run.',
+      },
+      {
+        signature: 'abstract status(id: ResearchRunId, owner: ResearchOwner): Promise<ResearchRunView>',
+        description: 'Read a run without revealing foreign or missing identities.',
+        parameters: [{ name: 'id', description: 'run identity.' }, { name: 'owner', description: 'trusted reading authority.' }],
+        returns: 'current durable view.',
+      },
+      {
+        signature: 'abstract list(request: ResearchList): Promise<readonly ResearchRunView[]>',
+        description: 'Project stored run Sessions and return an owner-filtered page.',
+        parameters: [{ name: 'request', description: 'trusted owner and page selection.' }],
+        returns: 'durable views, newest first.',
+      },
+      {
+        signature: 'abstract report(id: ResearchRunId, owner: ResearchOwner): Promise<ResearchReport>',
+        description: 'Verify immutable report files before exposing their contents.',
+        parameters: [{ name: 'id', description: 'run identity.' }, { name: 'owner', description: 'trusted reading authority.' }],
+        returns: 'completed or explicitly partial report.',
+      },
+      {
+        signature: 'abstract cancel(id: ResearchRunId, owner: ResearchOwner): Promise<{ requested: boolean }>',
+        description: 'Commit a cancellation request; the first terminal result remains authoritative.',
+        parameters: [{ name: 'id', description: 'run identity.' }, { name: 'owner', description: 'trusted cancelling authority.' }],
+        returns: 'whether this call requested cancellation.',
+      },
+    ],
+  },
+  {
     key: 'sandbox',
     summary: 'Abstract process-sandbox service.',
     description: 'Abstract process-sandbox service. confine must return enforcing argv or fail closed at wrap or runner-execution time; silent unconfined passthrough is forbidden. Functional probes arbitrate multi-runner chains and may be skipped for a sole candidate, whose own refusal remains the fail-closed end.',
@@ -4129,6 +4166,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'progress', description: 'the installation\'s request id and phase, with the attempt while installing.' }],
   },
   {
+    name: 'research/changed',
+    mode: 'emit',
+    signature: '\'research/changed\'(payload: { run: ResearchRunView }): void',
+    summary: 'A run view changed after its run Session passed the durability barrier.',
+    description: 'A run view changed after its run Session passed the durability barrier.',
+    parameters: [{ name: 'payload', description: 'committed run view for a local observer.' }],
+  },
+  {
     name: 'schedule/changed',
     mode: 'emit',
     signature: '\'schedule/changed\'(): void',
@@ -6183,6 +6228,38 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RequestUserInput',
     declaration: 'export interface RequestUserInput {\n    readonly role: \'user\';\n    readonly content: UserMessage[\'content\'];\n    readonly id?: never;\n    readonly source?: never;\n}',
+  },
+  {
+    name: 'ResearchList',
+    declaration: 'export interface ResearchList {\n    readonly owner: ResearchOwner;\n    readonly query?: string;\n    readonly limit: number;\n    readonly cursor?: ResearchRunId;\n}',
+  },
+  {
+    name: 'ResearchOwner',
+    declaration: 'export type ResearchOwner = {\n    readonly kind: \'session\';\n    readonly sessionId: SessionId;\n} | {\n    readonly kind: \'profile\';\n    readonly namespace: string;\n};',
+  },
+  {
+    name: 'ResearchPhase',
+    declaration: 'export type ResearchPhase = \'running\' | \'completed\' | \'cancelled\' | \'interrupted\' | \'budget_exhausted\' | \'failed\';',
+  },
+  {
+    name: 'ResearchReport',
+    declaration: 'export interface ResearchReport {\n    readonly runId: ResearchRunId;\n    readonly complete: boolean;\n    readonly markdown: string;\n    readonly sources: readonly ResearchSource[];\n    readonly reportRef: FileAttachmentRef;\n    readonly evidenceRef: FileAttachmentRef;\n}',
+  },
+  {
+    name: 'ResearchRunId',
+    declaration: 'export type ResearchRunId = Branded<\'ResearchRunId\'>;',
+  },
+  {
+    name: 'ResearchRunView',
+    declaration: 'export interface ResearchRunView {\n    readonly id: ResearchRunId;\n    readonly owner: ResearchOwner;\n    readonly callerSessionId: SessionId;\n    readonly query: string;\n    readonly phase: ResearchPhase;\n    readonly round: number;\n    readonly stageSessionIds: readonly SessionId[];\n    readonly sourceCount: number;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n    readonly provider: string;\n    readonly model: string;\n    readonly reportAvailable: boolean;\n    readonly reason?: string;\n}',
+  },
+  {
+    name: 'ResearchSource',
+    declaration: 'export interface ResearchSource {\n    readonly url: string;\n    readonly title: string;\n    readonly retrievedAt: number;\n    readonly contentSha256: string;\n    readonly content: FileAttachmentRef;\n    readonly truncated: boolean;\n}',
+  },
+  {
+    name: 'ResearchStart',
+    declaration: 'export interface ResearchStart {\n    readonly caller: Session;\n    readonly owner: ResearchOwner;\n    readonly query: string;\n    readonly requestKey?: string;\n}',
   },
   {
     name: 'ResolvedAlwaysRetryPolicy',
