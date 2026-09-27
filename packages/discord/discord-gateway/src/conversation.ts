@@ -657,7 +657,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   /**
-   * The live conversation for one inbound message, resuming or replacing the durable record. A
+   * The live conversation for one admitted input, resuming or replacing the durable record. A
    * record from another lane is replaced, so a Session never continues under a different lane.
    */
   async function ensureConversation(channelId: string, lane: ConversationLane, inputSignal: AbortSignal): Promise<LiveConversation> {
@@ -964,7 +964,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }
     if (lane.excludedPresetCommands.includes(parsed.name)) return { kind: 'error', text: `/${parsed.name} is not available through Discord.` }
     const ops = commandOps(channelId, lane)
-    const live = conversations.get(channelId)
+    let live = conversations.get(channelId)
     if (parsed.name === 'help') {
       const commands = live === undefined
         ? (deps.commands?.(lane) ?? discordCommands([]))
@@ -972,11 +972,27 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       return { kind: 'success', text: commands.map(command => `**/${command.name}** — ${command.description}`
         + (command.input === undefined ? '' : `\n  Arguments: ${command.input.hint}`)).join('\n') }
     }
+    if (live === undefined && !['new', 'status', 'stop'].includes(parsed.name)) {
+      const previous = tails.get(channelId)
+      const opening = (async () => {
+        await previous
+        commandSignal.throwIfAborted()
+        return await ensureConversation(channelId, lane, commandSignal)
+      })()
+      retainControl(channelId, previous, opening)
+      try {
+        live = await opening
+      } catch (error: unknown) {
+        commandSignal.throwIfAborted()
+        ctx.logger.warn(`discord-gateway: opening conversation for /${parsed.name} in channel ${channelId} failed: ${errorChain(error)}`)
+        return { kind: 'error', text: `Could not open the conversation for /${parsed.name}. Please try again.` }
+      }
+    }
     if (live === undefined) {
       if (parsed.name === 'new') return { kind: 'success', text: await ops.startFresh() }
       if (parsed.name === 'status') return { kind: 'success', text: ops.status() }
       if (parsed.name === 'stop') return { kind: 'success', text: await ops.stopTurn() }
-      return { kind: 'error', text: `No conversation is live: send a message first, then /${parsed.name} works.` }
+      throw new Error(`discord-gateway: /${parsed.name} has no conversation after opening`)
     }
     const runsTurns = !['new', 'status', 'stop'].includes(parsed.name)
     if (runsTurns && (live.inboundActive || live.handle.agent.status === 'running')) {
@@ -985,6 +1001,10 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     if (runsTurns) { live.inboundActive = true; live.cancelRelease() }
     try {
       const execution = await ctx.commands.execute(live.handle.agent, line, [], commandSignal)
+      const record = deps.table.get(channelId)
+      if (runsTurns && record?.sessionId === live.sessionId) {
+        await deps.table.put(channelId, { ...record, lastInboundAt: Date.now() })
+      }
       return execution?.result ?? { kind: 'error', text: `/${parsed.name} is not a known command.` }
     } finally {
       if (runsTurns && conversations.get(channelId) === live) {
