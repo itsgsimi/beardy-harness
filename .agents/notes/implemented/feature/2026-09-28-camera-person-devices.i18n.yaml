@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-camera-person-devices.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-camera-person-devices.md
+/agent-note-camera-watch-notifies-any-person-on-chosen-cameras:
+  en: d9f035b517f01519
+  zh: ca7124213eb92bd6
+/agent-note-camera-watch-notifies-any-person-on-chosen-cameras/problem:
+  en: 3d23962f2e7ac5ed
+  zh: f90d48b5716a30de
+/agent-note-camera-watch-notifies-any-person-on-chosen-cameras/decision:
+  en: 0022855397fc065e
+  zh: ecb65c4b9794dd5f
+/agent-note-camera-watch-notifies-any-person-on-chosen-cameras/alternatives-considered:
+  en: 6e7597143614c532
+  zh: 0092f97035adad02
+/agent-note-camera-watch-notifies-any-person-on-chosen-cameras/consequences:
+  en: 2e9892e9f257328b
+  zh: e59c45ba5b2d62e8

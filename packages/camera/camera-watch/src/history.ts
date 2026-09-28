@@ -10,6 +10,7 @@ import { AttachmentId, imageAttachmentRefSchema } from '@deepseek-ai/dsh-attachm
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { CAMERA_ACTIVITIES, CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES } from '@deepseek-ai/dsh-camera'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
+import { NOTICE_REASONS } from './types.ts'
 
 const labels = z.enum(CAMERA_LABELS)
 
@@ -47,7 +48,7 @@ export const historyRecord = z.object({
   verdict: historyVerdict.optional(),
   /** One-line model text for an `unparsed` status. */
   text: z.string().max(200).optional(),
-  reasons: z.array(z.enum(['ding', 'package', 'night-person', 'vehicle', 'lingering'])),
+  reasons: z.array(z.enum(NOTICE_REASONS)),
   /** Classified notice outcome. */
   delivery: z.enum(['none', 'delivered', 'undelivered', 'no-channel']),
   /** Immediate doorbell notice outcome, present when one was attempted before classification. */

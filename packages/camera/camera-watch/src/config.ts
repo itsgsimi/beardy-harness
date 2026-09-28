@@ -20,6 +20,8 @@ export interface PolicyConfig {
   readonly nightStart?: string
   /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
   readonly nightEnd?: string
+  /** Device ids where any person seen notifies, day or night, subject to `minConfidence`; defaults to none. */
+  readonly personDevices?: string[]
   /** Device ids whose vehicle activity notifies; defaults to none. */
   readonly vehicleDevices?: string[]
   /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
@@ -116,6 +118,7 @@ export const Config: z<Config> = z.object({
     nightPerson: z.boolean().default(WATCH_DEFAULTS.nightPerson),
     nightStart: z.string().default(WATCH_DEFAULTS.nightStart),
     nightEnd: z.string().default(WATCH_DEFAULTS.nightEnd),
+    personDevices: z.array(z.string()).default([]),
     vehicleDevices: z.array(z.string()).default([]),
     vehicleActivities: z.array(z.union(['arriving', 'leaving', 'passing', 'parked'])).default([...WATCH_DEFAULTS.vehicleActivities]),
     lingerSeconds: z.number().min(1).default(WATCH_DEFAULTS.lingerSeconds),
@@ -144,6 +147,7 @@ export interface ResolvedPolicy {
   readonly nightPerson: boolean
   readonly nightStartMinute: number
   readonly nightEndMinute: number
+  readonly personDevices: readonly string[]
   readonly vehicleDevices: readonly string[]
   readonly vehicleActivities: readonly NotifyingVehicleActivity[]
   readonly lingerMs: number
@@ -216,6 +220,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
       nightPerson: policy.nightPerson ?? WATCH_DEFAULTS.nightPerson,
       nightStartMinute,
       nightEndMinute,
+      personDevices: [...new Set(policy.personDevices ?? [])],
       vehicleDevices: [...new Set(policy.vehicleDevices ?? [])],
       vehicleActivities,
       lingerMs: (policy.lingerSeconds ?? WATCH_DEFAULTS.lingerSeconds) * 1_000,

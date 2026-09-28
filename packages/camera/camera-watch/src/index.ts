@@ -161,8 +161,10 @@ export class CameraWatch {
     deps: CameraWatchDeps = {},
   ) {
     this.devices = new Map(ctx.camera.devices().map(device => [String(device.id), device]))
-    for (const id of config.policy.vehicleDevices) {
-      if (!this.devices.has(id)) throw new Error(`camera-watch: policy.vehicleDevices names unknown camera device "${id}"`)
+    for (const field of ['personDevices', 'vehicleDevices'] as const) {
+      for (const id of config.policy[field]) {
+        if (!this.devices.has(id)) throw new Error(`camera-watch: policy.${field} names unknown camera device "${id}"`)
+      }
     }
     this.now = deps.now ?? Date.now
     this.sleep = deps.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }) })

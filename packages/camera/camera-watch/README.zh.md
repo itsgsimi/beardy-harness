@@ -35,6 +35,7 @@ kind: "package-reference"
 | `workspacePath` | 记录在分类 Session 上的绝对工作目录 |
 | `policy.ding`、`policy.packageDelivered`、`policy.nightPerson` | 通知门铃按下、包裹送达和夜间出现的人（默认全部开启） |
 | `policy.nightStart`、`policy.nightEnd` | 以本地 `HH:MM` 表示的夜间时段，默认 `21:00` 到 `06:00` |
+| `policy.personDevices` | 任何时段出现人物都会触发通知的设备 ID，例如前门；默认为空 |
 | `policy.vehicleDevices` | 车辆活动会触发通知的设备 ID |
 | `policy.vehicleActivities` | 在这些设备上触发通知的车辆活动：默认 `arriving` 和 `leaving`，可加入 `passing` 和 `parked` |
 | `policy.lingerSeconds` | 出现人物的首尾画面之间达到多少秒算作逗留，默认 20 |
@@ -47,7 +48,7 @@ kind: "package-reference"
 | `failureNoticeThreshold`、`failureNoticeIntervalMs` | 连续多少次分类轮次失败后发送失败通知，默认 3（1 到 100），以及两条失败通知之间的最短间隔，默认六小时（一分钟到七天） |
 | `tool`、`toolMaxEvents` | 是否注册 `camera` 工具，以及单次结果的上限 |
 
-`policy.vehicleDevices` 中不对应任何提供方设备的条目以及空的 `policy.vehicleActivities` 列表都会导致加载失败。模型路由不在加载时检查，因为提供方在监视插件之后注册。路由的提供方注册后，监视插件会解析一次该路由（包括图像输入检查），并记录 `camera-watch: classifying with <provider>/<model>`，或以 `camera-watch: model route check failed:` 开头、附带原因链的错误；检查失败不会中止主机。每个事件仍会解析路由：无法解析的路由使事件以 `MODEL_UNAVAILABLE` 记录，声明不接受图像输入的路由使事件以 `MODEL_NOT_VISION` 记录；门铃按下仍会发送通知。
+`policy.personDevices` 或 `policy.vehicleDevices` 中不对应任何提供方设备的条目以及空的 `policy.vehicleActivities` 列表都会导致加载失败。模型路由不在加载时检查，因为提供方在监视插件之后注册。路由的提供方注册后，监视插件会解析一次该路由（包括图像输入检查），并记录 `camera-watch: classifying with <provider>/<model>`，或以 `camera-watch: model route check failed:` 开头、附带原因链的错误；检查失败不会中止主机。每个事件仍会解析路由：无法解析的路由使事件以 `MODEL_UNAVAILABLE` 记录，声明不接受图像输入的路由使事件以 `MODEL_NOT_VISION` 记录；门铃按下仍会发送通知。
 
 路由检查失败、事件以 `MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION` 记录，或者连续 `failureNoticeThreshold` 次分类轮次以 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER` 或 `SESSION_FAILED` 结束时，会向 `deliverChannelId` 发送一条失败通知，每个 `failureNoticeIntervalMs` 内最多一条：`⚠️ Camera classification is failing (<code>: <cause>). Motion alerts are paused; doorbell presses still post.` 路由失败时原因是最内层错误的第一行，轮次失败时原因是连续失败的次数；`policy.ding` 关闭时通知在 `Motion alerts are paused.` 处结束。失败通知之后第一次得到回答的分类会发送 `Camera classification recovered.`。未设置 `deliverChannelId` 时两者只写入日志，分别为 `camera-watch: classification is failing (<code>: <cause>)` 和 `camera-watch: classification recovered`。
 
@@ -63,7 +64,7 @@ kind: "package-reference"
 
 每次分类都会打开一个不带 agent 预设的根 Session，只允许一次模型请求。其 Agent 作用域把分类提示词注册为人设前缀段中的完整系统提示词，因此主机人设和其他所有段都被排除；抑制运行时上下文；通过 `system-prompt/assemble` 监听器去掉所有工具模式，这也覆盖其他插件在创建后注册到该 Agent 自身作用域的工具，例如 schedule 工具；并通过作用域内的工具守卫拒绝所有工具执行。提示词作为该 Session 的系统消息进入日志，请求头不记录任何工具。它唯一的其他输入是一条来源类型为 `camera` 的 `user/message`：提示文本加上作为图像块的画面。已完成的助手文本按宽松规则读取：取文本中的第一个 JSON 对象，即使它位于代码围栏或说明文字中；标签接受常见同义词和复数；数量、活动、车辆活动和置信度分别校验；置信度接受百分比；`none` 之外的车辆活动会补上 `vehicle` 标签。所有字段有效时读取结果为 `parsed`，部分字段有效时为 `partial`，没有 JSON 对象时为 `unparsed` 并保留第一行文本。轮次失败记录为 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`NOT_PERSISTED`、`SESSION_FAILED`、`MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION`。
 
-策略在代码中执行。门铃按下总会产生 `ding`。其他原因都需要置信度不低于 `minConfidence` 的 `parsed` 或 `partial` 判定：`package` 需要包裹且活动为 `delivering`，`night-person` 需要夜间时段内出现人物，`vehicle` 需要列出的设备以及列在 `vehicleActivities` 中的车辆活动，`lingering` 需要出现人物的画面按记录的偏移跨越至少 `lingerSeconds`。模型自己给出的 `lingering` 活动从不触发通知。停放的车辆默认从不触发通知，因此总拍到家中车辆的车道摄像头不会因车灯、飞虫或风而通知；`passing` 默认关闭，因为车道外驶过的车流不是到达；`unknown` 车辆活动（包括该字段出现之前存储的判定）从不触发通知。
+策略在代码中执行。门铃按下总会产生 `ding`。其他原因都需要置信度不低于 `minConfidence` 的 `parsed` 或 `partial` 判定：`package` 需要包裹且活动为 `delivering`，`night-person` 需要夜间时段内出现人物，`person` 需要 `personDevices` 所列设备上在任何时段出现人物，`vehicle` 需要列出的设备以及列在 `vehicleActivities` 中的车辆活动，`lingering` 需要出现人物的画面按记录的偏移跨越至少 `lingerSeconds`。模型自己给出的 `lingering` 活动从不触发通知。停放的车辆默认从不触发通知，因此总拍到家中车辆的车道摄像头不会因车灯、飞虫或风而通知；`passing` 默认关闭，因为车道外驶过的车流不是到达；`unknown` 车辆活动（包括该字段出现之前存储的判定）从不触发通知。`person` 通知的标题为 `Person at <设备标签>`；同时适用 `night-person` 时，历史记录和 `camera` 工具保留两个原因，通知只显示 `Person at night`。
 
 当 `immediateDingNotice` 和 `policy.ding` 开启且配置了频道时，新门铃按下的 `camera/preview` 会立即把 ID 为 `camera:<事件 ID>:ding`、文本为 `Someone rang the doorbell`、带第一帧的通知交给 `camera/notice`。同一事件分类后的通知会等这次交接结束后再发送，因此排在第二条。历史记录在分类通知投递之前写入。分类后的通知包含设备标签、本地时间、原因、描述或缺少描述的原因，以及数量和置信度；展示的画面是第一张出现人物的画面，否则是第一张画面，若已送达的即时通知已展示过该画面则不再附带。`camera/notice` 是串行事件；Discord 网关把它接入发件箱，发件箱上传经校验的已存储画面及文本。无监听器接收时监视插件会重试交接，把分类通知的投递结果记录为 `delivered`、`undelivered`、`no-channel` 或 `none`，并在尝试过即时通知时把其结果记录为 `earlyDelivery`（`delivered` 或 `undelivered`）。首次发布之后新增的历史字段都是可选的或带默认值，因此早期记录仍能解析：没有车辆活动的已存储判定读取为 `unknown`。保留清理在启动时运行，此后每次在上一次清理结束 `sweepIntervalMs` 后再次运行。它删除每条超过 `retentionDays` 或超出 `maxHistory` 的记录，并通过 `ctx.attachments.deleteImage` 删除既不被保留记录引用、也不被未完成事件引用的画面。记录的某张画面删除失败时，该记录会保留，由下一次清理重试；已经不存在的画面视为已删除。删除了内容的清理会以 info 级别记录事件数和画面数。画面被删除时仍在 Discord 发件箱中等待的通知只发送文本。
 

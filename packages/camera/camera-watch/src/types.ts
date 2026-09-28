@@ -2,8 +2,11 @@
 
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 
-/** Why an event produced a notification; several can apply to one event. */
-export type NoticeReason = 'ding' | 'package' | 'night-person' | 'vehicle' | 'lingering'
+/** Notification reasons in canonical order; several can apply to one event. */
+export const NOTICE_REASONS = ['ding', 'package', 'night-person', 'person', 'vehicle', 'lingering'] as const
+
+/** Why an event produced a notification. */
+export type NoticeReason = typeof NOTICE_REASONS[number]
 
 /**
  * How far the classifier's answer could be used: `parsed` has every verdict field, `partial` came

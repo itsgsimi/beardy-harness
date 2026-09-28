@@ -35,6 +35,7 @@ const HEADLINES: Readonly<Record<NoticeReason, (facts: NoticeFacts) => string>> 
   ding: () => 'Doorbell rang',
   package: () => 'Package delivered',
   'night-person': () => 'Person at night',
+  person: facts => `Person at ${facts.deviceLabel}`,
   // The vehicle reason exists only for a verdict whose vehicle activity matched the policy.
   vehicle: facts => `Vehicle ${facts.verdict?.vehicleActivity ?? 'seen'}`,
   lingering: facts => `Someone lingering (${String(facts.lingerSeconds)} s)`,
@@ -68,13 +69,24 @@ function missingDescription(facts: NoticeFacts): string {
 }
 
 /**
+ * Reasons that get their own headline: `night-person` already states that a person was seen, so it
+ * absorbs `person` when both apply. History and the `camera` tool keep both reasons.
+ * @param reasons - reasons in canonical order.
+ * @returns reasons to render, in the same order.
+ */
+export function headlineReasons(reasons: readonly NoticeReason[]): NoticeReason[] {
+  return reasons.filter(reason => reason !== 'person' || !reasons.includes('night-person'))
+}
+
+/**
  * Compose the notice text: device, local time, and reasons; the description or why it is missing;
  * and the counted objects with confidence. The result stays under 2000 characters.
  * @param facts - event, reasons, and classification.
  * @returns notice text.
  */
 export function renderNotice(facts: NoticeFacts): string {
-  const lines = [`${heading(facts.deviceLabel, facts.occurredAt, facts.timezone)}: ${facts.reasons.map(reason => HEADLINES[reason](facts)).join('; ')}`]
+  const headlines = headlineReasons(facts.reasons).map(reason => HEADLINES[reason](facts))
+  const lines = [`${heading(facts.deviceLabel, facts.occurredAt, facts.timezone)}: ${headlines.join('; ')}`]
   if (facts.verdict !== undefined) {
     lines.push(facts.verdict.description)
     const counts = Object.entries(facts.verdict.counts).filter(([, count]) => count > 0).map(([label, count]) => `${label} ${String(count)}`)
