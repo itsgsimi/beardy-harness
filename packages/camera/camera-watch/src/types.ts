@@ -17,7 +17,7 @@ export type NoticeDelivery = 'none' | 'delivered' | 'undelivered' | 'no-channel'
 
 /** One notification handed to the delivery owner, such as the Discord gateway outbox. */
 export interface CameraNotice {
-  /** Stable delivery identity derived from the event id; a retry reuses it. */
+  /** Stable delivery identity derived from the event id, or from the window of a classification failure notice; a retry reuses it. */
   readonly id: string
   /** Destination Discord channel from validated configuration. */
   readonly channelId: string

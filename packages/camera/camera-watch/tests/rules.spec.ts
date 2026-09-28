@@ -21,7 +21,8 @@ describe('resolveConfig', () => {
         vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5 },
       immediateDingNotice: true, maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
       retentionMs: 30 * 86_400_000,
-      maxHistory: 5_000, sweepIntervalMs: 3_600_000, deliveryAttempts: 3, deliveryRetryMs: 30_000, tool: true, toolMaxEvents: 50,
+      maxHistory: 5_000, sweepIntervalMs: 3_600_000, deliveryAttempts: 3, deliveryRetryMs: 30_000,
+      failureNoticeThreshold: 3, failureNoticeIntervalMs: 21_600_000, tool: true, toolMaxEvents: 50,
     })
     expect(WATCH_DEFAULTS.lingerSeconds).toBe(20)
   })
@@ -34,7 +35,8 @@ describe('resolveConfig', () => {
         vehicleActivities: ['passing', 'parked', 'passing'], lingerSeconds: 30, minConfidence: 0.7 },
       immediateDingNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionDays: 2, maxHistory: 9,
-      sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, tool: false, toolMaxEvents: 7,
+      sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
+      tool: false, toolMaxEvents: 7,
     }
     expect(resolveConfig(config)).toEqual({
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
@@ -43,7 +45,8 @@ describe('resolveConfig', () => {
         vehicleDevices: ['garage'], vehicleActivities: ['passing', 'parked'], lingerMs: 30_000, minConfidence: 0.7 },
       immediateDingNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionMs: 2 * 86_400_000, maxHistory: 9,
-      sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, tool: false, toolMaxEvents: 7,
+      sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
+      tool: false, toolMaxEvents: 7,
     })
   })
 
@@ -63,6 +66,17 @@ describe('resolveConfig', () => {
     expect(ConfigSchema({ timezone: TZ, sweepIntervalMs: 86_400_000 }).sweepIntervalMs).toBe(86_400_000)
     expect(() => ConfigSchema({ timezone: TZ, sweepIntervalMs: 86_400_001 })).toThrow()
     expect(() => ConfigSchema({ timezone: TZ, sweepIntervalMs: 59_999 })).toThrow()
+  })
+
+  it('bounds the failure notice threshold and interval', () => {
+    const defaults = ConfigSchema({ timezone: TZ })
+    expect([defaults.failureNoticeThreshold, defaults.failureNoticeIntervalMs]).toEqual([3, 21_600_000])
+    expect(ConfigSchema({ timezone: TZ, failureNoticeThreshold: 100, failureNoticeIntervalMs: 604_800_000 }))
+      .toMatchObject({ failureNoticeThreshold: 100, failureNoticeIntervalMs: 604_800_000 })
+    for (const failureNoticeThreshold of [0, 101, 1.5]) expect(() => ConfigSchema({ timezone: TZ, failureNoticeThreshold })).toThrow()
+    for (const failureNoticeIntervalMs of [59_999, 604_800_001, 60_000.5]) {
+      expect(() => ConfigSchema({ timezone: TZ, failureNoticeIntervalMs })).toThrow()
+    }
   })
 
   it('accepts only vehicle activities that describe a vehicle', () => {

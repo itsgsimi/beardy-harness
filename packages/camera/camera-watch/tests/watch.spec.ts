@@ -138,7 +138,7 @@ describe('camera watch classification', () => {
     await harness.camera.send(harness.event('ding', await harness.frames(1), { id: 'blind' }))
     await until(() => recordOf(harness, 'blind')?.delivery === 'delivered', 'blind ding')
     expect(recordOf(harness, 'blind')).toMatchObject({ status: 'failed', failure: 'MODEL_NOT_VISION', reasons: ['ding'] })
-    expect(harness.notices[0]?.text).toContain('The vision check did not answer (MODEL_NOT_VISION).')
+    expect(harness.notices.find(notice => notice.id === 'camera:blind')?.text).toContain('The vision check did not answer (MODEL_NOT_VISION).')
     expect(harness.logs.some(log => log.type === 'error' && log.text.includes('declares no image input'))).toBe(true)
     harness.adapter.inputModalities = ['text', 'image']
   })

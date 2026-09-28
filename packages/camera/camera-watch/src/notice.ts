@@ -87,3 +87,27 @@ export function renderNotice(facts: NoticeFacts): string {
   if (facts.captureFailure !== undefined) lines.push(`Fewer pictures than planned (${facts.captureFailure}).`)
   return lines.filter(line => line !== '').join('\n')
 }
+
+/** Everything a classification failure notice states. */
+export interface FailureNoticeFacts {
+  /** Stable failure code, such as `MODEL_UNAVAILABLE`. */
+  readonly code: string
+  /** Bounded one-line cause. */
+  readonly cause: string
+  /** Whether doorbell presses still notify without a verdict, which `policy.ding` decides. */
+  readonly dingNotifies: boolean
+}
+
+/**
+ * Compose the notice that classification is failing: the code and cause, that motion alerts no
+ * longer notify, and, while `policy.ding` is on, that doorbell presses still do.
+ * @param facts - failure code, cause, and doorbell rule.
+ * @returns notice text.
+ */
+export function renderFailureNotice(facts: FailureNoticeFacts): string {
+  const effect = facts.dingNotifies ? 'Motion alerts are paused; doorbell presses still post.' : 'Motion alerts are paused.'
+  return `⚠️ Camera classification is failing (${facts.code}: ${facts.cause}). ${effect}`
+}
+
+/** The line posted after the first answered classification that follows a failure notice. */
+export const RECOVERY_NOTICE_TEXT = 'Camera classification recovered.'

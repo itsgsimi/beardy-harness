@@ -602,6 +602,13 @@ export interface Config {
   readonly deliveryAttempts?: number
   /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
   readonly deliveryRetryMs?: number
+  /**
+   * Classification turns in a row that time out, fail, give no answer, or cannot start before a
+   * failure notice, from 1 to 100; defaults to 3.
+   */
+  readonly failureNoticeThreshold?: number
+  /** Least milliseconds between two classification failure notices, from 60000 to 604800000; defaults to 21600000. */
+  readonly failureNoticeIntervalMs?: number
   /** Register the read-only `camera` model tool; defaults to true. */
   readonly tool?: boolean
   /** Most events one tool result lists; defaults to 50. */

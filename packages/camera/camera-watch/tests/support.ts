@@ -57,11 +57,14 @@ export class FixtureCamera extends CameraService {
   }
 }
 
-/** Mock route whose declared input modalities are configurable. */
+/** Mock route whose declared input modalities and route resolution failure are configurable. */
 export class VisionAdapter extends MockAdapter {
   inputModalities: readonly ModelModality[] | undefined
+  /** Thrown by every route resolution while set. */
+  resolveError: Error | undefined
 
   override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    if (this.resolveError !== undefined) throw this.resolveError
     const info = await super.resolveModel(provider, model)
     return this.inputModalities === undefined ? info : { ...info, inputModalities: this.inputModalities }
   }
