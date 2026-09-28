@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
+import { assertCronDeliveryTarget } from './delivery.ts'
 import type { CreateJobInput, JobListing, JobRegistry, RegistryJob, UpdateJobPatch } from './registry.ts'
 
 /** Actions the tool exposes. */
@@ -62,6 +63,16 @@ function requireFields(args: CronManageArgs, action: CronManageAction): void {
 function requireName(args: CronManageArgs, action: CronManageAction): string {
   requireFields(args, action)
   return (args.name as string).trim()
+}
+
+/**
+ * Validate the model-supplied delivery target before approval or storage; on update an empty
+ * string stays the documented way to remove delivery.
+ */
+function checkedDeliverChannel(args: CronManageArgs, action: 'create' | 'update'): void {
+  const value = args.deliver_channel
+  if (value === undefined || (value === '' && action === 'update')) return
+  assertCronDeliveryTarget(value, 'deliver_channel')
 }
 
 function requireAgent(exec: ToolExecution): Agent {
@@ -198,6 +209,7 @@ export function createCronManageTool(
         }
         case 'create': {
           const name = requireName(args, 'create')
+          checkedDeliverChannel(args, 'create')
           const proposal: CreateJobInput = Object.freeze({
             name,
             expression: args.expression as string,
@@ -220,6 +232,7 @@ export function createCronManageTool(
         }
         case 'update': {
           const name = requireName(args, 'update')
+          checkedDeliverChannel(args, 'update')
           const patch: UpdateJobPatch = Object.freeze({
             ...(args.expression === undefined ? {} : { expression: args.expression }),
             ...(args.timezone === undefined ? {} : { timezone: args.timezone }),

@@ -5,6 +5,7 @@
   "references": [
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/cordis" },
+    { "path": "../../util/delivery-target" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../credentials/credentials" },
     { "path": "../../cron/cron" },

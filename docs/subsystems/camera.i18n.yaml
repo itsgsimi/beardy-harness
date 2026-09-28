@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/camera.md
 /camera-events:
-  en: 4f818b425fbedde5
-  zh: 2096843389a6d17b
+  en: 16b16fe65f2ca46c
+  zh: 3b03a272050b3a26
 /camera-events/events-and-frames:
   en: d914907a47ede561
   zh: 106958699642f91e

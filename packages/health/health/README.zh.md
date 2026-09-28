@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-在 `probes` 中配置具名 HTTP 端点，以观察其可达性。空列表不对模型可用性作出断言。插件在内存中保存状态；配置 `noticeChannelId` 时，通过 Discord 网关的持久 outbox 发布宕机和恢复通知；同时向 `/status` 提供当前探测状态和最近观察到的 cron 失败。插件不会调用模型、重启 provider 或保存事故数据库。
+在 `probes` 中配置具名 HTTP 端点，以观察其可达性。空列表不对模型可用性作出断言。插件在内存中保存状态；配置 `noticeChannelId` 时，通过目标投递方（Discord 网关或 signal-notices）的持久 outbox 发布宕机和恢复通知；同时向 `/status` 提供当前探测状态和最近观察到的 cron 失败。插件不会调用模型、重启 provider 或保存事故数据库。
 
 ## 目录
 
@@ -40,7 +40,7 @@ kind: "package-reference"
 | `timeoutMs` | `3000` | 每次 HTTP 请求的时限 |
 | `failureThreshold` | `3` | 判定宕机前连续失败的次数 |
 | `recoveryThreshold` | `1` | 判定健康前连续成功的次数 |
-| `noticeChannelId` | 缺省 | 状态转换通知的 Discord 频道；缺省时只保留状态 |
+| `noticeChannelId` | 缺省 | 状态转换通知目标：Discord 频道 id、`discord:<id>`、`signal:group:<base64 id>` 或 `signal:number:<E.164>`；缺省时只保留状态 |
 | `noticeCooldownMs` | `900000` | 状态反复波动时抑制同类重复通知 |
 
 探针 URL 必须显式配置为 HTTP(S) 地址，不能含有嵌入的用户信息或片段。`credentialRef` 经凭据 provider 解析并作为 bearer token 发送；凭据缺失或 HTTP 状态不符计为失败。字段 schema 见生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-health)。

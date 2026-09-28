@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/signal/signal-notices/README.md
+/:
+  en: 16bee77167b4af5c
+  zh: 6b416434c25669dd
+/deepseek-ai-dsh-signal-notices:
+  en: e0428c179eabf65c
+  zh: 5b614dfe47157cbb
+/deepseek-ai-dsh-signal-notices/summary:
+  en: ec3a56ab8a96a7a3
+  zh: a8752d860a1cb9b4
+/deepseek-ai-dsh-signal-notices/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-signal-notices/use-this-package:
+  en: 591de535a24aeef0
+  zh: 11f7dd704fa3e680
+/deepseek-ai-dsh-signal-notices/understand-the-implementation:
+  en: 6e3073ef1351ca55
+  zh: 9779c5cddb865371
+/deepseek-ai-dsh-signal-notices/further-exploration:
+  en: a4895579a8741694
+  zh: 237d42b493d11dfd
+/deepseek-ai-dsh-signal-notices/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-signal-notices/model-experience/signal-notices:
+  en: d3efa0c3f69b7c7a
+  zh: 187965c3fe68e78b
+/deepseek-ai-dsh-signal-notices/model-experience/signal-notices/what-the-model-sees:
+  en: 4926e84d08727ca7
+  zh: b37f37f2c3c1e616
+/deepseek-ai-dsh-signal-notices/model-experience/signal-notices/token-effect:
+  en: a99e323165aeb9d1
+  zh: 82c5f97bcd258193
+/deepseek-ai-dsh-signal-notices/model-experience/signal-notices/kv-cache-effect:
+  en: b29a46665d4c98ee
+  zh: 3d8c892609681f07
+/deepseek-ai-dsh-signal-notices/known-limitations-and-deferred-work:
+  en: 4faadf0cfe8d9550
+  zh: 27728035381a002c
+/deepseek-ai-dsh-signal-notices/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

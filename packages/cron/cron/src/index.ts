@@ -16,6 +16,7 @@ import { ConfiguredModelSelectionSchema, sleep, type ConfiguredModelSelection } 
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
 export { cronApprovalRoute, registerCronApprovalRoute } from './launch.ts'
+import { assertCronDeliveryTarget } from './delivery.ts'
 import { cronDomainSpec } from './domain.ts'
 import { createJobRegistry } from './registry.ts'
 import { createJobRunner } from './launch.ts'
@@ -25,6 +26,7 @@ import type { Scheduler } from './schedule.ts'
 import { createCronManageTool } from './tool.ts'
 import { nextFireAt, registerCronCommand } from './command.ts'
 import type { ConfiguredCronJob, CronRunFinished, CronRunResult, ScheduledJobSpec } from './types.ts'
+export * from './delivery.ts'
 export * from './domain.ts'
 export * from './launch.ts'
 export * from './registry.ts'
@@ -148,7 +150,7 @@ export interface ResolvedConfig {
 
 /**
  * Reject a configuration that could not run: duplicate names, an unparseable expression or
- * timezone, a relative workspace or allowed root, or a non-positive bound.
+ * timezone, a relative workspace or allowed root, an unparseable delivery target, or a non-positive bound.
  * @param config - complete plugin configuration.
  * @throws when any job would fail at its first fire or a guardrail cannot be honored.
  */
@@ -170,6 +172,7 @@ export function assertConfig(config: ResolvedConfig): void {
     if (job.turnTimeoutMs !== undefined && (!Number.isSafeInteger(job.turnTimeoutMs) || job.turnTimeoutMs < 1_000)) {
       throw new Error(`dsh-cron: job "${job.name}" turnTimeoutMs must be a safe integer of at least 1000 milliseconds`)
     }
+    if (job.deliverChannel !== undefined) assertCronDeliveryTarget(job.deliverChannel, `dsh-cron: job "${job.name}" deliverChannel`)
   }
   for (const root of config.allowedWorkspaceRoots) {
     if (!isAbsolute(root)) {

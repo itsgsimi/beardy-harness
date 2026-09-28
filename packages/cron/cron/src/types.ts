@@ -50,7 +50,10 @@ export interface CronJobSpec {
 export interface ConfiguredCronJob extends CronJobSpec {
   /** Exact model choice for this configured job; overrides the cron-wide choice. */
   readonly modelSelection?: ConfiguredModelSelection | undefined
-  /** Channel id where a finished run's final text is delivered; absent means none. */
+  /**
+   * Delivery target for a finished run's final text: a Discord channel id, `discord:<id>`,
+   * `signal:group:<base64 id>`, or `signal:number:<E.164>`; absent means none.
+   */
   readonly deliverChannel?: string
 }
 
@@ -60,7 +63,7 @@ export interface ScheduledJobSpec extends CronJobSpec {
   readonly modelSelection?: ConfiguredModelSelection | undefined
   /** Notes from earlier runs, injected under the prompt; empty when the job has none. */
   readonly notes: string
-  /** Channel receiving the final answer through the scheduler's durable delivery handoff. */
+  /** Delivery target receiving the final answer through the scheduler's durable delivery handoff. */
   readonly deliverChannelId?: string
 }
 
@@ -85,7 +88,7 @@ export interface CronRunFinished extends CronRunResult {
   readonly jobName: string
   /** Epoch milliseconds of the scheduled or triggered fire. */
   readonly firedAt: number
-  /** Channel destination; absent means no channel delivery. */
+  /** Delivery target; the owner of its transport claims it, and absent means no delivery. */
   readonly deliverChannelId?: string
   /** Whether an outcome without answer text should produce a notice. */
   readonly reportOutcome: boolean

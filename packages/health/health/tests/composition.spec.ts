@@ -40,4 +40,27 @@ describe('health Loader composition', () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+  it('reads an unquoted Signal group target with "+" and "=" from YAML unchanged', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-health-loader-'))
+    const ctx = new Context()
+    try {
+      const target = 'signal:group:1QtO3Hub7LE5w2ErIhBrS+WLYdHawvpk03PJMnYREh8='
+      const path = join(root, 'cordis.yml')
+      await writeFile(path, `- name: '@deepseek-ai/dsh-health'\n  config:\n    noticeChannelId: ${target}\n`)
+      ctx.baseUrl = pathToFileURL(root).href + '/'
+      await ctx.plugin(Loader)
+      ctx.loader.builtins.include = Include
+      ctx.loader.internal = { version: 'v2', import: async () => Health } as never
+      ctx.provide('credentials', { resolve: async () => undefined } as never)
+      await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(path).href } })
+      await ctx.loader.await()
+      for (const entry of ctx.loader.entries()) await entry.fiber?.await()
+      expect(ctx.get('healthStatus')?.snapshot()).toEqual({ probes: [] })
+      const [entry] = [...ctx.loader.entries()].filter(item => item.options.name === '@deepseek-ai/dsh-health')
+      expect(entry?.options.config).toEqual({ noticeChannelId: target })
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })

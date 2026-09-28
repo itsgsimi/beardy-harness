@@ -2,7 +2,7 @@
 
 English | [中文](camera.zh.md)
 
-The [camera definition](../../packages/camera/camera/README.md) declares devices, events with stored frames, and verdicts. The [Ring provider](../../packages/camera/camera-ring/README.md) turns doorbell presses and motion alerts into events. The [camera watch](../../packages/camera/camera-watch/README.md) classifies each event's frames, decides whether to notify, hands notices to the Discord gateway outbox, and answers the `camera` model tool from its history.
+The [camera definition](../../packages/camera/camera/README.md) declares devices, events with stored frames, and verdicts. The [Ring provider](../../packages/camera/camera-ring/README.md) turns doorbell presses and motion alerts into events. The [camera watch](../../packages/camera/camera-watch/README.md) classifies each event's frames, decides whether to notify, hands notices to the delivery owner of their target, and answers the `camera` model tool from its history.
 
 ## Events and frames
 

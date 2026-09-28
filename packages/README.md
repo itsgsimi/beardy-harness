@@ -34,6 +34,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`goal/`](goal/README.md) | Same-session goal persistence and lifecycle |
 | [`fantasy/`](fantasy/README.md) | Yahoo Fantasy read-only service, provider, and model tool |
 | [`camera/`](camera/README.md) | Ring camera events and vision notices |
+| [`signal/`](signal/README.md) | Signal messages and notices |
 | [`research/`](research/README.md) | Session-backed research runs and storage |
 | [`schedule/`](schedule/README.md) | Host-owned scheduled follow-ups |
 | [`health/`](health/README.md) | Explicit endpoint probes and Host status |

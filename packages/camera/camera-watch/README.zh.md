@@ -25,13 +25,13 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-需要装载 [camera-ring](../camera-ring/README.zh.md) 等摄像头提供方、支持图像输入的模型路由、附件存储、存储域后端；如需通知，还需带持久发件箱的 [Discord 网关](../../discord/discord-gateway/README.zh.md)。`timezone` 为必填；设置 `deliverChannelId` 才会发送通知。
+需要装载 [camera-ring](../camera-ring/README.zh.md) 等摄像头提供方、支持图像输入的模型路由、附件存储、存储域后端；如需通知，还需目标的投递方：Discord 频道由 [Discord 网关](../../discord/discord-gateway/README.zh.md)投递，Signal 目标由 [signal-notices](../../signal/signal-notices/README.zh.md)投递。`timezone` 为必填；设置 `deliverChannelId` 才会发送通知。
 
 | 配置 | 含义 |
 |---|---|
 | `timezone` | 夜间时段、通知时间和工具结果所用的 IANA 时区 |
 | `modelSelection` | 精确的 `{ provider, model, reasoningEffort? }`；未设置时每个事件使用主机默认模型 |
-| `deliverChannelId` | 接收通知的 Discord 频道；未设置时只保留历史 |
+| `deliverChannelId` | 通知目标：Discord 频道 id、`discord:<id>`、`signal:group:<base64 id>` 或 `signal:number:<E.164>`；未设置时只保留历史 |
 | `workspacePath` | 记录在分类 Session 上的绝对工作目录 |
 | `policy.ding`、`policy.packageDelivered`、`policy.nightPerson` | 通知门铃按下、包裹送达和夜间出现的人（默认全部开启） |
 | `policy.nightStart`、`policy.nightEnd` | 以本地 `HH:MM` 表示的夜间时段，默认 `21:00` 到 `06:00` |
@@ -66,7 +66,7 @@ kind: "package-reference"
 
 策略在代码中执行。门铃按下总会产生 `ding`。其他原因都需要置信度不低于 `minConfidence` 的 `parsed` 或 `partial` 判定：`package` 需要包裹且活动为 `delivering`，`night-person` 需要夜间时段内出现人物，`person` 需要 `personDevices` 所列设备上在任何时段出现人物，`vehicle` 需要列出的设备以及列在 `vehicleActivities` 中的车辆活动，`lingering` 需要出现人物的画面按记录的偏移跨越至少 `lingerSeconds`。模型自己给出的 `lingering` 活动从不触发通知。停放的车辆默认从不触发通知，因此总拍到家中车辆的车道摄像头不会因车灯、飞虫或风而通知；`passing` 默认关闭，因为车道外驶过的车流不是到达；`unknown` 车辆活动（包括该字段出现之前存储的判定）从不触发通知。`person` 通知的标题为 `Person at <设备标签>`；同时适用 `night-person` 时，历史记录和 `camera` 工具保留两个原因，通知只显示 `Person at night`。
 
-当 `immediateDingNotice` 和 `policy.ding` 开启且配置了频道时，新门铃按下的 `camera/preview` 会立即把 ID 为 `camera:<事件 ID>:ding`、文本为 `Someone rang the doorbell`、带第一帧的通知交给 `camera/notice`。同一事件分类后的通知会等这次交接结束后再发送，因此排在第二条。历史记录在分类通知投递之前写入。分类后的通知包含设备标签、本地时间、原因、描述或缺少描述的原因，以及数量和置信度；展示的画面是第一张出现人物的画面，否则是第一张画面，若已送达的即时通知已展示过该画面则不再附带。`camera/notice` 是串行事件；Discord 网关把它接入发件箱，发件箱上传经校验的已存储画面及文本。无监听器接收时监视插件会重试交接，把分类通知的投递结果记录为 `delivered`、`undelivered`、`no-channel` 或 `none`，并在尝试过即时通知时把其结果记录为 `earlyDelivery`（`delivered` 或 `undelivered`）。首次发布之后新增的历史字段都是可选的或带默认值，因此早期记录仍能解析：没有车辆活动的已存储判定读取为 `unknown`。保留清理在启动时运行，此后每次在上一次清理结束 `sweepIntervalMs` 后再次运行。它删除每条超过 `retentionDays` 或超出 `maxHistory` 的记录，并通过 `ctx.attachments.deleteImage` 删除既不被保留记录引用、也不被未完成事件引用的画面。记录的某张画面删除失败时，该记录会保留，由下一次清理重试；已经不存在的画面视为已删除。删除了内容的清理会以 info 级别记录事件数和画面数。画面被删除时仍在 Discord 发件箱中等待的通知只发送文本。
+当 `immediateDingNotice` 和 `policy.ding` 开启且配置了频道时，新门铃按下的 `camera/preview` 会立即把 ID 为 `camera:<事件 ID>:ding`、文本为 `Someone rang the doorbell`、带第一帧的通知交给 `camera/notice`。同一事件分类后的通知会等这次交接结束后再发送，因此排在第二条。历史记录在分类通知投递之前写入。分类后的通知包含设备标签、本地时间、原因、描述或缺少描述的原因，以及数量和置信度；展示的画面是第一张出现人物的画面，否则是第一张画面，若已送达的即时通知已展示过该画面则不再附带。`camera/notice` 是串行事件，由目标传输方式的所属方认领：Discord 网关把 Discord 目标接入发件箱，发件箱上传经校验的已存储画面及文本；signal-notices 把 Signal 目标排入 Signal 发件箱。无监听器接收时监视插件会重试交接，把分类通知的投递结果记录为 `delivered`、`undelivered`、`no-channel` 或 `none`，并在尝试过即时通知时把其结果记录为 `earlyDelivery`（`delivered` 或 `undelivered`）。首次发布之后新增的历史字段都是可选的或带默认值，因此早期记录仍能解析：没有车辆活动的已存储判定读取为 `unknown`。保留清理在启动时运行，此后每次在上一次清理结束 `sweepIntervalMs` 后再次运行。它删除每条超过 `retentionDays` 或超出 `maxHistory` 的记录，并通过 `ctx.attachments.deleteImage` 删除既不被保留记录引用、也不被未完成事件引用的画面。记录的某张画面删除失败时，该记录会保留，由下一次清理重试；已经不存在的画面视为已删除。删除了内容的清理会以 info 级别记录事件数和画面数。画面被删除时仍在 Discord 发件箱中等待的通知只发送文本。
 
 路由的提供方在启动时已注册则立即检查路由，此后在每次该提供方刚出现的 `llm/adapters-updated` 时检查：提供方是 `modelSelection` 的提供方，未设置时是当时主机默认模型的提供方。只有提供方离开注册表后再次出现，才会再次检查。失败状态只保存在进程内。任何得到回答的分类都会结束连续的轮次失败；`NOT_PERSISTED`、`NO_FRAMES`、`QUEUE_FULL` 和路由失败既不延续也不结束它。失败通知的 ID 为 `camera-watch:classification-failing:<窗口起点>`，窗口是包含该通知、按 Unix 纪元对齐的 `failureNoticeIntervalMs` 时段，恢复消息在其后追加 `:recovered`；Discord 发件箱会忽略已持有的 ID，因此在同一窗口内重启不会重复发送该通知。失败和恢复通知不带画面，沿用事件通知的交接重试，也不写入历史。历史是唯一的持久状态，所有写入都经过存储域，进程内的失败状态也没有可与之分歧的独立观测，因此不发布不变量组件。
 

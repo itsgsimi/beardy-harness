@@ -6,6 +6,7 @@
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../../vendor/cordis" },
+    { "path": "../../util/delivery-target" },
     { "path": "../../core/agent" },
     { "path": "../../core/session" },
     { "path": "../../cron/cron" },

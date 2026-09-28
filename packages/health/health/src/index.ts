@@ -1,6 +1,7 @@
 /**
- * Explicit HTTP endpoint probes and process-local health state. Transitions enter the Discord
- * gateway's durable outbox; this plugin never stores incidents or restarts a provider.
+ * Explicit HTTP endpoint probes and process-local health state. Transitions enter the durable
+ * outbox of the gateway that owns the notice target's transport; this plugin never stores incidents
+ * or restarts a provider.
  * @module @deepseek-ai/dsh-health
  */
 
@@ -8,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials'
 import type { CronRunFinished } from '@deepseek-ai/dsh-cron'
+import { assertDeliveryTarget } from '@deepseek-ai/dsh-delivery-target'
 import type {} from '@deepseek-ai/dsh-local-model-control'
 import z from '@deepseek-ai/schemastery'
 
@@ -40,7 +42,10 @@ export interface Config {
   readonly failureThreshold?: number
   /** Consecutive successes required to mark a down probe healthy. */
   readonly recoveryThreshold?: number
-  /** Discord channel that receives transition notices; absent means status only. */
+  /**
+   * Delivery target for transition notices: a Discord channel id, `discord:<id>`,
+   * `signal:group:<base64 id>`, or `signal:number:<E.164>`; absent means status only.
+   */
   readonly noticeChannelId?: string
   /** Minimum time between accepted notices of the same kind for one probe, in milliseconds. */
   readonly noticeCooldownMs?: number
@@ -117,9 +122,10 @@ declare module '@deepseek-ai/cordis' {
   }
   interface Events {
     /**
-     * One probe state transition awaiting durable Discord outbox acceptance.
-     * @param transition - Stable identity, destination, and non-secret text.
-     * @returns true after durable acceptance, or undefined when no gateway owns delivery.
+     * One probe state transition awaiting durable outbox acceptance by the gateway that owns the
+     * target's transport.
+     * @param transition - Stable identity, delivery target, and non-secret text.
+     * @returns true after durable acceptance, or undefined when no gateway owns the target.
      * @mode serial
      */
     'health/transition'(transition: { id: string; channelId: string; text: string }): true | undefined | Promise<true | undefined>
@@ -127,7 +133,8 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Reject duplicate names, non-HTTP URLs, credential-bearing URLs, and non-integral bounds.
+ * Reject duplicate names, non-HTTP URLs, credential-bearing URLs, non-integral bounds, and an
+ * unparseable notice target.
  * @param config - defaulted deployment configuration to validate before polling.
  */
 export function assertConfig(config: ResolvedConfig): void {
@@ -140,9 +147,7 @@ export function assertConfig(config: ResolvedConfig): void {
   if (!Number.isSafeInteger(config.noticeCooldownMs) || config.noticeCooldownMs < 0) {
     throw new Error('health: noticeCooldownMs must be a non-negative safe integer')
   }
-  if (config.noticeChannelId !== undefined && !/^\d{17,20}$/.test(config.noticeChannelId)) {
-    throw new Error('health: noticeChannelId must be a Discord snowflake of 17 to 20 digits')
-  }
+  if (config.noticeChannelId !== undefined) assertDeliveryTarget(config.noticeChannelId, 'health: noticeChannelId')
   const names = new Set<string>()
   for (const probe of config.probes) {
     if (probe.name.trim() === '' || names.has(probe.name)) throw new Error(`health: duplicate or empty probe name "${probe.name}"`)

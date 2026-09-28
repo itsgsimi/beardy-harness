@@ -56,6 +56,7 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [workflow.md](workflow.md) | the workflow seam: `WorkflowStartRequest`, `WorkflowMeta`, `WorkflowRun`/`Result`, the `workflow/*` event payloads, `WorkflowError` fatality |
 | [jobs.md](jobs.md) | the background-job runtime: branded `JobId`s, the producer contract, consumer views, and `ctx.jobs` service behavior |
 | [camera.md](camera.md) | Camera events, stored frames, verdicts, and the notice handoff |
+| [signal.md](signal.md) | Signal delivery targets, the durable outbox, and inbound messages |
 | [fantasy.md](fantasy.md) | Yahoo Fantasy reads, token ownership, and caller team mapping |
 | [research.md](research.md) | durable research runs, owner checks, report references, and `ctx.research` service behavior |
 | [permission-presets.md](permission-presets.md) | the permission-preset layer: `PresetSpec`/`PresetOption`, the derived `custom` state, the log-only `permission/preset` event |

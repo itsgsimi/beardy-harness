@@ -1,0 +1,13 @@
+# Bilingual-pair consistency record for signal.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/subsystems/signal.md
+/signal-messages:
+  en: d41ba5369925986d
+  zh: 8c13bb83dce1db6f
+/signal-messages/delivery-targets:
+  en: e2c308c4bd644503
+  zh: e9a1ae67adff952a
+/signal-messages/outbox-and-inbound-messages:
+  en: 34266bfe7ed767cd
+  zh: d3b943608ad94c74

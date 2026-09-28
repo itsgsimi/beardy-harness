@@ -52,7 +52,7 @@ describe('resolveConfig', () => {
 
   it.each([
     [{ timezone: 'Mars/Olympus' }, /not a known IANA time zone/],
-    [{ timezone: TZ, deliverChannelId: 'general' }, /Discord snowflake/],
+    [{ timezone: TZ, deliverChannelId: 'general' }, /camera-watch: deliverChannelId must be a Discord channel id .*signal:group:/],
     [{ timezone: TZ, workspacePath: 'relative/path' }, /must be absolute/],
     [{ timezone: TZ, policy: { nightStart: '9pm' } }, /nightStart must be HH:MM/],
     [{ timezone: TZ, policy: { nightEnd: '24:00' } }, /nightEnd must be HH:MM/],
@@ -60,6 +60,13 @@ describe('resolveConfig', () => {
     [{ timezone: TZ, policy: { vehicleActivities: [] } }, /vehicleActivities must list at least one/],
   ] as [Config, RegExp][])('rejects %j', (config, message) => {
     expect(() => resolveConfig(config)).toThrow(message)
+  })
+
+  it('accepts Signal and prefixed Discord delivery targets', () => {
+    const group = `signal:group:${Buffer.alloc(32, 3).toString('base64')}`
+    for (const target of [group, 'signal:number:+15551234567', 'discord:123456789012345678']) {
+      expect(resolveConfig({ timezone: TZ, deliverChannelId: target }).deliverChannelId).toBe(target)
+    }
   })
 
   it('bounds the retention sweep interval between one minute and one day', () => {

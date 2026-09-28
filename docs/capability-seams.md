@@ -7,6 +7,10 @@ A service can be a core spine service, a swappable capability seam, a bundle/com
 
 ```mermaid
 flowchart LR
+  pkg_signal["signal"]
+  svc_signal["ctx.signal<br/>Signal messages through a durable outbox"]
+  pkg_signal_cli["signal-cli"]
+  pkg_signal_notices["signal-notices"]
   pkg_camera["camera"]
   svc_camera["ctx.camera<br/>Camera devices and events with stored frames"]
   pkg_camera_ring["camera-ring"]
@@ -403,6 +407,8 @@ flowchart LR
   pkg_settings --> svc_settings
   pkg_shell --> svc_shell
   pkg_shell_env --> svc_shellEnv
+  pkg_signal --> svc_signal
+  pkg_signal_cli --> svc_signal
   pkg_skill --> svc_skills
   pkg_skill_badge --> svc_skills
   pkg_skill_filesystem --> svc_skills
@@ -547,6 +553,7 @@ flowchart LR
   svc_shell --> pkg_tool_pwsh
   svc_shellEnv --> pkg_tool_bash
   svc_shellEnv --> pkg_tool_pwsh
+  svc_signal --> pkg_signal_notices
   svc_skills --> pkg_tool_skill
   svc_speech --> pkg_discord_gateway
   svc_speechToText --> pkg_experimental_api_speech_to_text
@@ -602,7 +609,8 @@ flowchart LR
 
 | ctx key | Role | Owner | Implementations | Direct consumers | Companion plugins | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, notifies through the Discord outbox, and answers the camera tool. |
+| `ctx.signal` | `seam` | [`signal`](../packages/signal/signal) | [`signal-cli`](../packages/signal/signal-cli) | [`signal-notices`](../packages/signal/signal-notices) | - | The provider owns the daemon connection, the durable outbox, and the event stream; the notice consumer claims camera, health, and scheduled-run notices whose target is a Signal group or number. |
+| `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, hands notices to the delivery owner of their target, and answers the camera tool. |
 | `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The provider owns OAuth and Yahoo parsing; the model tool reads the caller's mapped team and scheduled reports read configured teams. |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The local provider persists run Sessions and report attachments and executes consumer workflows such as the weekly fantasy report. |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | Owns module and exact configuration watchers; application mutations share its queue and automatic reloads await the application file lock. |

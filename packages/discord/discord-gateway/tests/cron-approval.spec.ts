@@ -59,7 +59,7 @@ describe('cron approval through its configured Discord channel', () => {
     }
   })
 
-  it('fails closed without a channel and on listener restart', async () => {
+  it('fails closed without a Discord channel, for a Signal target, and on listener restart', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
     const h = harness({ eventContext: ctx, answerers: ['reaction', 'text'] })
@@ -67,7 +67,10 @@ describe('cron approval through its configured Discord channel', () => {
     const noChannel = registerCronApprovalRoute(agent)
     await expect(ctx.approval.request({ agent, toolName: 'memory' })).resolves.toBe('unavailable')
     noChannel()
-    const route = registerCronApprovalRoute(agent, GUILD_CHANNEL)
+    const signalRoute = registerCronApprovalRoute(agent, 'signal:number:+15551234567')
+    await expect(ctx.approval.request({ agent, toolName: 'memory' })).resolves.toBe('unavailable')
+    signalRoute()
+    const route = registerCronApprovalRoute(agent, `discord:${GUILD_CHANNEL}`)
     const pending = ctx.approval.request({ agent, toolName: 'memory' })
     await drain()
     h.controller.abort()

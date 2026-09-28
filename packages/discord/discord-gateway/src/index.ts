@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-camera-watch'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { discordChannelOf } from '@deepseek-ai/dsh-delivery-target'
 import { ConfiguredModelSelectionSchema, sleep } from '@deepseek-ai/dsh-unattended-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
@@ -652,12 +653,17 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     statusDetails: currentHealthStatusLines.bind(undefined, ctx),
   })
   attachCronDelivery(ctx, router)
-  ctx.on('health/transition', async (transition): Promise<true> => {
-    await router.deliver(transition.channelId, transition.text, transition.id)
+  // Each notice handler claims only Discord targets, leaving other transports' targets to their owners.
+  ctx.on('health/transition', async (transition): Promise<true | undefined> => {
+    const channelId = discordChannelOf(transition.channelId)
+    if (channelId === undefined) return undefined
+    await router.deliver(channelId, transition.text, transition.id)
     return true
   })
-  ctx.on('camera/notice', async (notice): Promise<true> => {
-    await router.deliver(notice.channelId, notice.image === undefined ? notice.text
+  ctx.on('camera/notice', async (notice): Promise<true | undefined> => {
+    const channelId = discordChannelOf(notice.channelId)
+    if (channelId === undefined) return undefined
+    await router.deliver(channelId, notice.image === undefined ? notice.text
       : { content: notice.text, image: notice.image }, notice.id)
     return true
   })

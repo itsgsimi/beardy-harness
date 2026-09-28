@@ -69,6 +69,8 @@ Beardy 还随附默认禁用的 `fantasy-yahoo` 和 `tool-fantasy` 条目。个�
 
 `camera-ring` 和 `camera-watch` 条目默认禁用，个人补丁须提供 Ring 刷新令牌的凭据引用、要监视的设备、ffmpeg 路径、时区、通知策略和 Discord 频道。[Ring 提供方](../../camera/camera-ring/README.zh.md)在每次门铃按下或移动警报时截取几帧画面；[摄像头监视](../../camera/camera-watch/README.zh.md)在一次记录在案的模型轮次中对画面分类，经网关发件箱发送通知，并用事件历史回答 `camera` 工具。完成一次性 Ring 登录后同时启用这两项。
 
+`signal-cli` 和 `signal-notices` 条目默认禁用，个人补丁须提供以 `-a <number>` 启动的 signal-cli 守护进程的回环 `baseUrl`，并把生产方指向 Signal 目标，例如 `camera-watch` 上的 `deliverChannelId: 'signal:group:<base64 id>'`。[signal-cli 提供方](../../signal/signal-cli/README.zh.md)经持久发件箱发送；[通知使用方](../../signal/signal-notices/README.zh.md)认领目标为 Signal 的摄像头、健康和定时运行通知，Discord 目标仍由网关处理。同时启用这两项。
+
 Beardy 默认把 `web_search` 发往 `http://127.0.0.1:8080` 的 SearXNG JSON 端点。启动前设置 `SEARXNG_BASE_URL` 可改用其他实例，并在该实例的 `search.formats` 配置中启用 `json` 格式。端点契约见 [SearXNG provider README](../../web/web-search-searxng/README.zh.md) 与 [SearXNG Search API](https://docs.searxng.org/dev/search_api.html)。
 
 ### 部署为常驻的 Discord agent

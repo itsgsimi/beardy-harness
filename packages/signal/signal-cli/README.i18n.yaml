@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/signal/signal-cli/README.md
+/:
+  en: af9348d4fec24911
+  zh: c77c87a06d88475b
+/deepseek-ai-dsh-signal-cli:
+  en: 3f7affc34b6ee680
+  zh: 0d8643db7e83ea6a
+/deepseek-ai-dsh-signal-cli/summary:
+  en: a5efc341945270f5
+  zh: f54216b18e422449
+/deepseek-ai-dsh-signal-cli/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-signal-cli/use-this-package:
+  en: 760156163037a388
+  zh: 35ace4ae844acf9f
+/deepseek-ai-dsh-signal-cli/understand-the-implementation:
+  en: f333c83a7989efda
+  zh: 558fbefac681b01a
+/deepseek-ai-dsh-signal-cli/further-exploration:
+  en: 0348a58e00af5bf8
+  zh: 373b76c60191a0ed
+/deepseek-ai-dsh-signal-cli/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-signal-cli/model-experience/signal-cli-provider:
+  en: c371159ad5108530
+  zh: 055f14b3b495027b
+/deepseek-ai-dsh-signal-cli/model-experience/signal-cli-provider/what-the-model-sees:
+  en: fe41db5f4d0c1b50
+  zh: 70497351f992c4cf
+/deepseek-ai-dsh-signal-cli/model-experience/signal-cli-provider/token-effect:
+  en: aa3eb16c184006bd
+  zh: 9f2d299e06ecbe87
+/deepseek-ai-dsh-signal-cli/model-experience/signal-cli-provider/kv-cache-effect:
+  en: 1417392ea053c1ea
+  zh: 6b7dac6af31885c7
+/deepseek-ai-dsh-signal-cli/known-limitations-and-deferred-work:
+  en: 6c2c2f75473ca51a
+  zh: e7e3500aea7d4d6e
+/deepseek-ai-dsh-signal-cli/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

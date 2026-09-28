@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/util/delivery-target/README.md
+/:
+  en: 8f95f1db9b7db6c0
+  zh: 69c82b43ae14d8ae
+/dsh-delivery-target:
+  en: 371ca3173a6ff542
+  zh: a3e59bca09229f76
+/dsh-delivery-target/summary:
+  en: a560f7dc9258cfb1
+  zh: b90c2416ee87e1e4
+/dsh-delivery-target/table-of-contents:
+  en: cd2a60a905c978d6
+  zh: 410c61e53262b80d
+/dsh-delivery-target/use-this-package:
+  en: 97550bb8b4711032
+  zh: 864538fbb1a071b0
+/dsh-delivery-target/api:
+  en: 9bd10cf55cf758ca
+  zh: 6c1486c3abb6c0b2
+/dsh-delivery-target/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/dsh-delivery-target/model-experience/delivery-targets:
+  en: 4b53855253561d39
+  zh: 12f27bba62eea181
+/dsh-delivery-target/model-experience/delivery-targets/what-the-model-sees:
+  en: d5c0da60def9a677
+  zh: 86e5ee448d08e7ce
+/dsh-delivery-target/model-experience/delivery-targets/token-effect:
+  en: f29512e9962fe3ab
+  zh: d213d9e521a8e7ca
+/dsh-delivery-target/model-experience/delivery-targets/kv-cache-effect:
+  en: 7a8fbf500d34304a
+  zh: c54d06e43a6dd453
+/dsh-delivery-target/known-limitations-and-deferred-work:
+  en: 695f210c558ee5ff
+  zh: eae4483f4b5d7bb7
+/dsh-delivery-target/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

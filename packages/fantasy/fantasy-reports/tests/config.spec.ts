@@ -69,18 +69,26 @@ describe('report configuration', () => {
       [{ firstWeek: 5, lastWeek: 4 }, /lastWeek must not precede firstWeek/],
       [{ workspacePath: 'relative' }, /workspacePath must be absolute/],
       [{ timezone: 'Mars/Olympus' }, /not an IANA timezone/],
-      [{ shadowChannelId: 'goran' }, /shadowChannelId/],
+      [{ shadowChannelId: 'goran' }, /fantasy-reports: shadowChannelId must be a Discord channel id .*signal:group:/],
       [{ excludedHosts: ['not a host'] }, /excludedHosts/],
       [{ teams: [] }, /at least one team/],
       [{ teams: [{ ...team, id: 'Googies' }] }, /team id/],
       [{ teams: [team, { ...team, teamKey: '470.l.809970.t.6' }] }, /duplicate team id googies/],
       [{ teams: [{ ...team, name: ' ' }] }, /needs a name/],
-      [{ teams: [{ ...team, channelId: '12' }] }, /channelId/],
+      [{ teams: [{ ...team, channelId: '12' }] }, /fantasy-reports: team googies channelId must be a Discord channel id/],
       [{ teams: [{ ...team, teamKey: '470.l.809970' }] }, /invalid fantasy team key/],
       [{ teams: [team, { ...team, id: 'copy' }] }, /duplicate team key/],
       [{ teams: [{ ...team, schedule: { ...team.schedule, sunday: '99 * * * *' } }] }, /./],
     ]
     for (const [override, error] of cases) expect(() => resolveConfig(Object.assign({}, household, override))).toThrow(error)
+  })
+
+  it('accepts Signal targets for team and shadow deliveries', () => {
+    const group = `signal:group:${Buffer.alloc(32, 5).toString('base64')}`
+    const team = { ...household.teams[0]!, channelId: group }
+    const resolved = resolveConfig({ ...household, teams: [team], shadowChannelId: 'signal:number:+15551234567' })
+    expect(resolved.teams[0]!.channelId).toBe(group)
+    expect(resolved.shadowChannelId).toBe('signal:number:+15551234567')
   })
 
   it('tags, parses, and dates reports in the configured timezone', () => {
