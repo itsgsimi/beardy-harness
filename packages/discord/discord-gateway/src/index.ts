@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-camera-watch'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { sleep } from '@deepseek-ai/dsh-unattended-session'
+import { ConfiguredModelSelectionSchema, sleep } from '@deepseek-ai/dsh-unattended-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import { attachCronDelivery, createConversationRouter } from './conversation.ts'
@@ -213,11 +213,7 @@ export const Config: z<Config> = z.object({
   workspacePath: z.string().required(),
   agentPreset: z.string().required(),
   permissionPreset: z.string().required(),
-  modelSelection: z.union([z.object({
-    provider: z.string().required(),
-    model: z.string().required(),
-    reasoningEffort: z.union([z.string(), z.const(undefined)]),
-  }), z.const(undefined)]),
+  modelSelection: z.union([ConfiguredModelSelectionSchema, z.const(undefined)]),
   toolFilter: optionalToolFilterSchema,
   userLanes: z.dict(z.object({
     workspacePath: z.string().required(),

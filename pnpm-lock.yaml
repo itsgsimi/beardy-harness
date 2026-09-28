@@ -1628,6 +1628,10 @@ importers:
         version: link:../../util/workspace-path
 
   packages/attachment/attachment:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -12119,6 +12123,10 @@ importers:
         version: link:../session-projection
 
   packages/session/unattended-session:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~

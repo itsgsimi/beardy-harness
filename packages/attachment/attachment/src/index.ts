@@ -23,6 +23,7 @@ export { AttachmentError, isAttachmentError, isImageAdmissionError } from './err
 export type { AttachmentErrorCode, ImageAdmissionErrorCode } from './error.ts'
 export { admitEncodedFile, admitEncodedImages } from './admission.ts'
 export { longEdgeDimensions, requestImageDimensions } from './request-projection.ts'
+export { imageAttachmentRefSchema } from './schema.ts'
 export type { ProjectedDimensions } from './request-projection.ts'
 export type {
   AttachmentId as AttachmentIdType,

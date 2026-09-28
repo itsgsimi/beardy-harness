@@ -1,7 +1,7 @@
 /** Camera watch configuration and its cross-field validation. @module @deepseek-ai/dsh-camera-watch/config */
 
 import { isAbsolute } from 'node:path'
-import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
+import { ConfiguredModelSelectionSchema, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 
 /** Which classified events notify; every rule applies independently. */
@@ -82,16 +82,10 @@ export const WATCH_DEFAULTS = Object.freeze({
   toolMaxEvents: 50,
 })
 
-const modelSelectionSchema = z.object({
-  provider: z.string().required(),
-  model: z.string().required(),
-  reasoningEffort: z.union([z.string(), z.const(undefined)]),
-})
-
 /** Validated camera watch configuration. */
 export const Config: z<Config> = z.object({
   timezone: z.string().required(),
-  modelSelection: z.union([modelSelectionSchema, z.const(undefined)]),
+  modelSelection: z.union([ConfiguredModelSelectionSchema, z.const(undefined)]),
   deliverChannelId: z.string(),
   workspacePath: z.string(),
   policy: z.object({
