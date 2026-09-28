@@ -332,6 +332,25 @@ describe('camera watch admission and delivery', () => {
     }).then(async (harness) => { await harness.dispose() })).resolves.toBeUndefined()
   })
 
+  it('refuses a person rule naming an unknown device', async () => {
+    await expect(watchHarness([], { policy: { personDevices: ['porch'] } }, {
+      load: async (load) => { await expect(load).rejects.toThrow('policy.personDevices names unknown camera device "porch"') },
+    }).then(async (harness) => { await harness.dispose() })).resolves.toBeUndefined()
+  })
+
+  it('notifies a daytime passer-by on a person device and stays quiet for the same verdict on the garage', async () => {
+    const passerBy = verdictText({ labels: ['person'], activity: 'passing', personFrames: [0], description: 'A neighbour walks past.' })
+    const harness = await start([passerBy, passerBy], { policy: { personDevices: ['front-door'] } })
+    mirror(harness)
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'visitor' }))
+    await until(() => recordOf(harness, 'visitor')?.delivery === 'delivered', 'person notice')
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'garage-walker', device: 'garage' }))
+    await until(() => recordOf(harness, 'garage-walker') !== undefined, 'garage record')
+    expect(recordOf(harness, 'visitor')).toMatchObject({ reasons: ['person'] })
+    expect(recordOf(harness, 'garage-walker')).toMatchObject({ reasons: [], delivery: 'none' })
+    expect(harness.notices.map(notice => notice.text.split('\n')[0])).toEqual(['**Front door** · 12:00: Person at Front door'])
+  })
+
   it('stops classification and delivery waits on disposal and still records the event', async () => {
     const harness = await watchHarness(['hang'], { turnTimeoutMs: 60_000, deliveryRetryMs: 60_000 }, { noticeListener: false })
     mirror(harness)

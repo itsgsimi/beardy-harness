@@ -1,7 +1,8 @@
 /**
  * Notification policy: which reasons one classified event carries. Every rule is evaluated in code
- * from the event and the verdict; the model's own `lingering` activity never triggers a notice, and a
- * vehicle notifies by what it does, never by being visible.
+ * from the event and the verdict; the model's own `lingering` activity never triggers a notice, a
+ * vehicle notifies by what it does, never by being visible, and a person notifies at any hour only on
+ * a `personDevices` camera.
  * @module @deepseek-ai/dsh-camera-watch/policy
  */
 
@@ -65,6 +66,7 @@ export function noticeReasons(
     && insideWindow(localMinute(event.occurredAt, timezone), policy.nightStartMinute, policy.nightEndMinute)) {
     reasons.push('night-person')
   }
+  if (person && policy.personDevices.includes(event.deviceId)) reasons.push('person')
   if (policy.vehicleDevices.includes(event.deviceId)
     && policy.vehicleActivities.some(activity => activity === verdict.vehicleActivity)) {
     reasons.push('vehicle')

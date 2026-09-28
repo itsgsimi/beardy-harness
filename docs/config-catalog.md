@@ -564,7 +564,7 @@ export interface DeviceConfig {
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `systemPrompt` · `tools`
 - `refs`: [`CameraVehicleActivity`](../packages/camera/camera/src/index.ts) · [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/camera/camera-watch/src/config.ts:34`](../packages/camera/camera-watch/src/config.ts)
+- `source`: [`packages/camera/camera-watch/src/config.ts:36`](../packages/camera/camera-watch/src/config.ts)
 
 ```ts config-catalog
 /** Camera watch configuration. */
@@ -627,6 +627,8 @@ export interface PolicyConfig {
   readonly nightStart?: string
   /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
   readonly nightEnd?: string
+  /** Device ids where any person seen notifies, day or night, subject to `minConfidence`; defaults to none. */
+  readonly personDevices?: string[]
   /** Device ids whose vehicle activity notifies; defaults to none. */
   readonly vehicleDevices?: string[]
   /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
