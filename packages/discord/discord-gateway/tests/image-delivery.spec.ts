@@ -1,3 +1,9 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Context } from '@deepseek-ai/cordis'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { discordImageMessage, outboxRecord } from '../src/domain.ts'
 import type { DiscordImageMessage, OutboxRecord } from '../src/domain.ts'
@@ -25,6 +31,12 @@ const image: DiscordImageMessage['image'] = {
 }
 
 const notice: DiscordImageMessage = { content: '**Front door** · 12:00: Doorbell rang', image }
+
+/** Synthetic one-pixel PNG. */
+const PNG = Uint8Array.from(Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWNgZGIGAAAOAAeCcsnOAAAAAElFTkSuQmCC',
+  'base64',
+))
 
 async function form(request: SentRequest): Promise<{ payload: unknown; file?: File }> {
   const body = request.body as FormData
@@ -72,6 +84,34 @@ describe('Discord image notices', () => {
       { content: 'Doorbell rang', allowed_mentions: { parse: [] } },
       { content: 'Doorbell rang', allowed_mentions: { parse: [] } },
     ])
+  })
+
+  it('posts text only when retention deletes the frame after the outbox accepted the notice', async () => {
+    stubFetch()
+    const dshHome = await mkdtemp(join(tmpdir(), 'dsh-discord-image-'))
+    try {
+      const store = new LocalAttachmentStore(new Context(), { dshHome })
+      const frame = await store.saveImage({ data: PNG, mediaType: 'image/png', name: 'front-door-1.png' })
+      const readImage = async (ref: unknown, signal?: AbortSignal): Promise<{ data: Uint8Array }> => {
+        await store.deleteImage(ref as ImageAttachmentRef)
+        return store.readImage(ref as ImageAttachmentRef, signal)
+      }
+      const records = new Map<string, OutboxRecord>()
+      const h = harness({ outboxStorage: tableFromMap(records, record => outboxRecord.parse(record)), attachments: { readImage } })
+      try {
+        await h.router.deliver(CHANNEL, { content: 'Doorbell rang', image: { ...frame, attachmentId: String(frame.attachmentId) } }, 'camera:ring-101-2')
+        await vi.waitFor(() => { expect(records.get('camera:ring-101-2')?.completedAt).toBeDefined() })
+      } finally {
+        h.controller.abort()
+        await h.router.dispose()
+      }
+      expect(h.warnings.some(warning => warning.includes(`stored image ${String(frame.attachmentId)} is unreadable; posting text only: Attachment object is missing.`))).toBe(true)
+      expect(sent.map(request => JSON.parse(String(request.body)) as Record<string, unknown>)).toEqual([
+        { content: 'Doorbell rang', allowed_mentions: { parse: [] } },
+      ])
+    } finally {
+      await rm(dshHome, { recursive: true, force: true })
+    }
   })
 
   it('names an unnamed frame from its media type', async () => {

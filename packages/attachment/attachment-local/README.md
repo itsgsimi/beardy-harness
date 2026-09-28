@@ -52,7 +52,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### Where your images are stored and how long they last
 
-Attached images are kept below `<DSH_HOME>/attachments/v1` on this machine. Stored images are never deleted automatically, identical images are stored only once, and a later tightening of the limits never makes already-saved images unreadable. If your images must be readable from another machine, this package is not the right fit.
+Attached images are kept below `<DSH_HOME>/attachments/v1` on this machine. Stored images are never deleted automatically; only an owner that holds every reference to an image, such as the camera watch's retention sweep, removes it. Identical images are stored only once, and a later tightening of the limits never makes already-saved images unreadable. If your images must be readable from another machine, this package is not the right fit.
 
 ### What happens when you attach an image
 
@@ -85,7 +85,9 @@ Objects land at `<DSH_HOME>/attachments/v1/objects/<sha256-prefix>/<sha256>`; eq
 
 Admission accepts up to 20 images and 200 MiB of source bytes per message; one source may use up to 20 MiB, 64 million pixels, and 8192 pixels per side. It applies orientation, removes metadata and color profiles, and normalizes under a 2048×2048 total-pixel budget, an 8192-pixel long edge, and a 4 MiB encoded-byte target. Extreme aspect ratios therefore retain their short-edge resolution. Clean single-frame 8-bit sRGB/sRGBA PNG, JPEG, or WebP input already within those limits passes through byte-identically; GIF, animation, metadata, orientation, 16-bit PNG, and incompatible color spaces force conversion.
 
-Request versions live below `<DSH_HOME>/cache/attachments/request-images/`, resolved by `dshCachePath`; an explicit `dshHome` setting applies to both cache and durable storage. Clearing this cache between requests preserves durable attachments, and later reads regenerate the variants. `readImageRequest` scales without enlargement to the route-chosen target, resizing by the long edge only so the encoder derives the short edge as the route predicts, then applies a separate encoded-byte target through the same alpha routing and quality ladder. Its cache identity includes the attachment id, transform version, target dimensions, byte target, and fixed encoder settings; cached bytes are header-probed for format, 8-bit sRGB/sRGBA, dimensions, and alpha facts, and a mismatch regenerates the entry. Concurrent callers share one transform and cache write, while cancellation stops shared work only when no waiter remains. `imageHostPath` derives the normalized object's host path, and the mounted filesystem may map that path into its execution world without writing it to durable history.
+Request versions live below `<DSH_HOME>/cache/attachments/request-images/<attachment-digest-prefix>/<attachment-digest>/`, resolved by `dshCachePath`; an explicit `dshHome` setting applies to both cache and durable storage. Clearing this cache between requests preserves durable attachments, and later reads regenerate the variants. `readImageRequest` scales without enlargement to the route-chosen target, resizing by the long edge only so the encoder derives the short edge as the route predicts, then applies a separate encoded-byte target through the same alpha routing and quality ladder. Its cache identity includes the attachment id, transform version, target dimensions, byte target, and fixed encoder settings; cached bytes are header-probed for format, 8-bit sRGB/sRGBA, dimensions, and alpha facts, and a mismatch regenerates the entry. Concurrent callers share one transform and cache write, while cancellation stops shared work only when no waiter remains. `imageHostPath` derives the normalized object's host path, and the mounted filesystem may map that path into its execution world without writing it to durable history.
+
+`deleteImage` refuses an object unless its resolved path is the expected path inside the resolved root, so it never removes an object reached through a shard or object link that leaves the store. It clears the read-only mode that Windows enforces on unlink, unlinks the object, syncs the shard directory, and then removes the attachment's request-version directory. A missing object returns `false`; a malformed id fails with `INVALID_ATTACHMENT_REF` and any other failure with `ATTACHMENT_WRITE_FAILED`, after which a retry is safe. A read that opened the object before the unlink still returns verified bytes, and a later read fails with `ATTACHMENT_NOT_FOUND`. A request derivation that read the object before the removal can still write its request version into the cache afterwards.
 
 Generic-file bytes have one canonical object at `<DSH_HOME>/attachments/v1/file-objects/<digest-prefix>/<digest>`. Each reference path at `<DSH_HOME>/attachments/v1/files/<digest-prefix>/<digest>/<name>` is a read-only hard link, so different names for equal bytes do not duplicate disk content. `readFileStream` reads the reference path in bounded chunks and verifies the complete digest and recorded byte count before a consumer can finish successfully. A missing, changed, or truncated object fails its consumer instead of producing a complete export with different bytes.
 
@@ -133,7 +135,7 @@ Normalization and request projection are deterministic. An unchanged attachment 
 
 These limits describe what this storage can and cannot do; they are current package constraints.
 
-- **Images are kept forever** — stored images are never deleted automatically, and nothing collects unreferenced objects.
+- **Images stay until their owner deletes them** — nothing collects unreferenced objects, and generic files have no deletion.
 - **Local to this machine** — images live on the machine that runs the harness; other hosts cannot read them.
 - **Animated GIF becomes static** — normalization retains only the first frame; animation is outside the version-one image contract.
 - **Encoder output is versioned** — the installed Sharp/libvips build pins normalization and request bytes; an encoder or transform-version upgrade re-addresses future variants while existing objects remain valid.
@@ -148,6 +150,6 @@ This Dev Note is working context for maintainers: undecided directions and open 
 
 #### Future: retention and remote storage
 
-Retention and garbage collection are deferred because resumed and forked sessions may share immutable objects, and a backend serving remote runtimes or shared storage would need its own durability proof. Both directions are undecided; the local storage currently retains every object under `DSH_HOME`.
+Retention and garbage collection are deferred because resumed and forked sessions may share immutable objects, and a backend serving remote runtimes or shared storage would need its own durability proof. Both directions are undecided; the local storage retains every object under `DSH_HOME` that no owner deletes.
 
 </details>

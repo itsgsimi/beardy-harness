@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
+import type { CameraFrame } from '@deepseek-ai/dsh-camera'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { cameraWatchDomainSpec, historyRecord } from '../src/history.ts'
@@ -307,15 +309,150 @@ describe('camera watch admission and delivery', () => {
 })
 
 describe('camera watch history retention', () => {
+  const DAY = 86_400_000
+
+  function sweepLogs(harness: WatchHarness): string[] {
+    return harness.logs.filter(log => log.text.startsWith('camera-watch: retention')).map(log => `${log.type}: ${log.text}`)
+  }
+
+  async function readable(harness: WatchHarness, frame: CameraFrame): Promise<boolean | string> {
+    try {
+      await harness.ctx.attachments.readImage(frame.attachment)
+      return true
+    } catch (error: unknown) {
+      return (error as { code?: string }).code ?? String(error)
+    }
+  }
+
   it('prunes by age and count on each sweep', async () => {
     const harness = await start([], { retentionDays: 1, maxHistory: 2, sweepIntervalMs: 20 }, { deps: { now: () => NOON } })
     mirror(harness)
-    for (const [id, age] of [['old', 3 * 86_400_000], ['a', 3_000], ['b', 2_000], ['c', 1_000]] as const) {
+    for (const [id, age] of [['old', 3 * DAY], ['a', 3_000], ['b', 2_000], ['c', 1_000]] as const) {
       await harness.camera.send(harness.event('motion', [], { id, at: NOON - age }))
       await until(() => written.get(harness)?.has(id) === true, `record ${id}`)
     }
     await until(() => records.get(harness)?.size === 2, 'sweep')
     expect([...records.get(harness)?.keys() ?? []].sort()).toEqual(['b', 'c'])
+  })
+
+  it('deletes an expired event with the frames no kept event cites and leaves its classification Session in the log', async () => {
+    let clock = NOON
+    const harness = await start([verdictText({}), verdictText({})], { retentionDays: 1, sweepIntervalMs: 20 },
+      { deps: { now: () => clock } })
+    mirror(harness)
+    const [shared, edgeOnly] = await harness.frames(2, undefined, [20, 60])
+    const [oldOnly] = await harness.frames(1, undefined, [100])
+    await harness.camera.send(harness.event('motion', [shared!, edgeOnly!], { id: 'edge', at: NOON - DAY }))
+    await until(() => recordOf(harness, 'edge')?.status === 'parsed', 'edge record')
+    await harness.camera.send(harness.event('motion', [oldOnly!, shared!], { id: 'old', at: NOON - DAY - 1 }))
+    await until(() => written.get(harness)?.has('old') === true && recordOf(harness, 'old') === undefined, 'old event pruned')
+    expect(recordOf(harness, 'edge')).toBeDefined()
+    expect(await Promise.all([oldOnly!, shared!, edgeOnly!].map(frame => readable(harness, frame))))
+      .toEqual(['ATTACHMENT_NOT_FOUND', true, true])
+    await until(() => sweepLogs(harness).length === 1, 'retention log')
+    expect(sweepLogs(harness)).toEqual(['info: camera-watch: retention removed 1 events and 1 frames'])
+
+    clock += 1
+    await until(() => records.get(harness)?.size === 0, 'edge event pruned')
+    expect(await Promise.all([shared!, edgeOnly!].map(frame => readable(harness, frame)))).toEqual(['ATTACHMENT_NOT_FOUND', 'ATTACHMENT_NOT_FOUND'])
+    await until(() => sweepLogs(harness).length === 2, 'second retention log')
+    expect(sweepLogs(harness)[1]).toBe('info: camera-watch: retention removed 1 events and 2 frames')
+    const sessions = (await harness.sessionLog()).filter(entry => entry.type === 'user/message' && JSON.stringify(entry).includes('"kind":"camera"'))
+    expect(sessions).toHaveLength(2)
+  })
+
+  it('keeps frames an unfinished event cites', async () => {
+    let clock = NOON - 2 * DAY
+    const harness = await start([verdictText({}), 'hang'], { retentionDays: 1, sweepIntervalMs: 20, turnTimeoutMs: 60_000 }, { deps: { now: () => clock } })
+    mirror(harness)
+    const [frame] = await harness.frames(1)
+    await harness.camera.send(harness.event('motion', [frame!], { id: 'old', at: NOON - 2 * DAY }))
+    await until(() => recordOf(harness, 'old')?.status === 'parsed', 'old record')
+    await harness.camera.send(harness.event('motion', [frame!], { id: 'waiting', at: NOON }))
+    await until(() => harness.adapter.requests.length === 2, 'second classification start')
+    clock = NOON
+    await until(() => recordOf(harness, 'old') === undefined, 'old event pruned')
+    expect(await readable(harness, frame!)).toBe(true)
+    expect(sweepLogs(harness)).toEqual(['info: camera-watch: retention removed 1 events and 0 frames'])
+  })
+
+  it('keeps an event whose frame could not be deleted and removes it on a later sweep', async () => {
+    const harness = await start([verdictText({})], { retentionDays: 1, sweepIntervalMs: 20 }, { deps: { now: () => NOON } })
+    mirror(harness)
+    const frames = await harness.frames(2)
+    const deleteImage = vi.spyOn(LocalAttachmentStore.prototype, 'deleteImage')
+    try {
+      deleteImage.mockRejectedValueOnce(new Error('disk offline'))
+      await harness.camera.send(harness.event('motion', frames, { id: 'stuck', at: NOON - 2 * DAY }))
+      await until(() => written.get(harness)?.has('stuck') === true && recordOf(harness, 'stuck') === undefined, 'stuck event pruned')
+    } finally {
+      deleteImage.mockRestore()
+    }
+    expect(sweepLogs(harness)).toEqual([
+      'info: camera-watch: retention removed 0 events and 1 frames',
+      'warn: camera-watch: retention kept events with 1 undeletable frames: disk offline',
+      'info: camera-watch: retention removed 1 events and 1 frames',
+    ])
+    expect(await Promise.all(frames.map(frame => readable(harness, frame)))).toEqual(['ATTACHMENT_NOT_FOUND', 'ATTACHMENT_NOT_FOUND'])
+  })
+
+  it('removes an event whose frames are already gone without counting them', async () => {
+    const harness = await start([verdictText({})], { retentionDays: 1, sweepIntervalMs: 60_000 }, { deps: { now: () => NOON } })
+    mirror(harness)
+    const frames = await harness.frames(1)
+    await harness.camera.send(harness.event('motion', frames, { id: 'gone', at: NOON - 2 * DAY }))
+    await until(() => recordOf(harness, 'gone')?.status === 'parsed', 'record')
+    await harness.ctx.attachments.deleteImage(frames[0]!.attachment)
+    await harness.fiber.dispose()
+    harness.remount()
+    await until(() => recordOf(harness, 'gone') === undefined, 'startup sweep')
+    expect(sweepLogs(harness)).toEqual(['info: camera-watch: retention removed 1 events and 0 frames'])
+  })
+
+  it('catches up at startup on events that expired while the watch was stopped', async () => {
+    let clock = NOON
+    const harness = await start([verdictText({}), verdictText({})], { retentionDays: 1, sweepIntervalMs: 3_600_000 },
+      { deps: { now: () => clock } })
+    mirror(harness)
+    const frames = await harness.frames(2, undefined, [20, 60])
+    await harness.camera.send(harness.event('motion', [frames[0]!], { id: 'first' }))
+    await until(() => recordOf(harness, 'first')?.status === 'parsed', 'first record')
+    await harness.camera.send(harness.event('ding', [frames[1]!], { id: 'second', at: NOON + 1_000 }))
+    await until(() => recordOf(harness, 'second')?.delivery === 'delivered', 'second record')
+    await harness.fiber.dispose()
+    clock = NOON + 30 * DAY
+    harness.remount()
+    await until(() => records.get(harness)?.size === 0, 'startup sweep')
+    expect(await Promise.all(frames.map(frame => readable(harness, frame)))).toEqual(['ATTACHMENT_NOT_FOUND', 'ATTACHMENT_NOT_FOUND'])
+    expect(sweepLogs(harness)).toEqual(['info: camera-watch: retention removed 2 events and 2 frames'])
+  })
+
+  it('stops a sweep at disposal and schedules no further sweep', async () => {
+    const harness = await start([verdictText({}), verdictText({})], { retentionDays: 1, sweepIntervalMs: 3_600_000 },
+      { deps: { now: () => NOON - 2 * DAY } })
+    mirror(harness)
+    for (const [id, shade] of [['one', 20], ['two', 60]] as const) {
+      await harness.camera.send(harness.event('motion', await harness.frames(1, undefined, [shade]), { id, at: NOON - 2 * DAY }))
+      await until(() => recordOf(harness, id)?.status === 'parsed', `record ${id}`)
+    }
+    await harness.fiber.dispose()
+    let release = (): void => {}
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const deleteImage = vi.spyOn(LocalAttachmentStore.prototype, 'deleteImage')
+    let deletions: number
+    try {
+      deleteImage.mockImplementation(async () => { await gate; return true })
+      const restarted = harness.remount({ now: () => NOON })
+      await until(() => deleteImage.mock.calls.length === 1, 'first frame deletion')
+      const disposed = restarted.dispose()
+      release()
+      await disposed
+      deletions = deleteImage.mock.calls.length
+    } finally {
+      deleteImage.mockRestore()
+    }
+    expect(deletions).toBe(1)
+    expect(records.get(harness)?.size).toBe(1)
   })
 
   it('logs a failed sweep and keeps sweeping', async () => {

@@ -2,8 +2,8 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
-import { chmod, link, mkdir, open, readFile, unlink } from 'node:fs/promises'
-import { dirname, join, parse, resolve } from 'node:path'
+import { chmod, link, mkdir, open, readFile, realpath, unlink } from 'node:fs/promises'
+import { dirname, join, parse, relative, resolve } from 'node:path'
 import {
   AttachmentError,
   AttachmentId,
@@ -36,7 +36,13 @@ function displayName(value: string | undefined): string | undefined {
   return clean === '' ? undefined : clean
 }
 
-function ensureReference(ref: ImageAttachmentRef): string {
+/**
+ * Validate one normalized image reference and return the digest that names its stored object.
+ * @param ref - durable normalized attachment reference.
+ * @returns the lowercase hexadecimal SHA-256 digest from the reference id.
+ * @throws an AttachmentError when the reference id is not a local `sha256:` identifier.
+ */
+export function normalizedImageDigest(ref: ImageAttachmentRef): string {
   const match = ID_PATTERN.exec(String(ref.attachmentId))
   if (match?.[1] === undefined) throw new AttachmentError('Attachment reference is invalid.', 'INVALID_ATTACHMENT_REF')
   return match[1]
@@ -49,8 +55,37 @@ function ensureReference(ref: ImageAttachmentRef): string {
  * @returns provider-local path without reading the object.
  */
 export function normalizedImagePath(root: string, ref: ImageAttachmentRef): string {
-  const sha256 = ensureReference(ref)
+  const sha256 = normalizedImageDigest(ref)
   return join(root, 'objects', sha256.slice(0, 2), sha256)
+}
+
+/**
+ * Remove one normalized image object and persist the removal of its directory entry. The object
+ * must resolve to its own path inside the resolved root, so a shard or object reached through a
+ * link that leaves the store is refused before anything changes. An absent object is not an error.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param ref - durable normalized image reference.
+ * @returns true when this call removed the object, false when it was already absent.
+ * @throws an AttachmentError: `INVALID_ATTACHMENT_REF` for a malformed reference, or
+ *   `ATTACHMENT_WRITE_FAILED` when the object resolves outside the store or removal fails.
+ */
+export async function deleteImageFile(root: string, ref: ImageAttachmentRef): Promise<boolean> {
+  const path = normalizedImagePath(root, ref)
+  try {
+    const object = await realpath(path)
+    if (object !== join(await realpath(root), relative(root, path))) {
+      throw new AttachmentError('Attachment object resolves outside the attachment store.', 'ATTACHMENT_WRITE_FAILED')
+    }
+    // Windows refuses to unlink a read-only name.
+    await chmod(object, 0o600)
+    await unlink(object)
+    await syncDirectory(dirname(object))
+    return true
+  } catch (error) {
+    if (error instanceof AttachmentError) throw error
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false
+    throw new AttachmentError('Unable to delete attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
+  }
 }
 
 async function inspectMetadata(
@@ -193,7 +228,7 @@ export async function commitPreparedImageFile(
   prepared: PreparedImageFile,
 ): Promise<ImageAttachmentRef> {
   const normalized = prepared.data
-  const sha256 = ensureReference(prepared.ref)
+  const sha256 = normalizedImageDigest(prepared.ref)
   if (digest(normalized) !== sha256 || normalized.byteLength !== prepared.ref.bytes) {
     throw new AttachmentError('Prepared attachment bytes do not match their reference.', 'ATTACHMENT_CORRUPT')
   }
@@ -434,7 +469,7 @@ export async function readImageFile(
   signal?: AbortSignal,
 ): Promise<StoredImageAttachment> {
   signal?.throwIfAborted()
-  const sha256 = ensureReference(ref)
+  const sha256 = normalizedImageDigest(ref)
   let data: Uint8Array
   try {
     data = new Uint8Array(await readFile(normalizedImagePath(root, ref), { signal }))

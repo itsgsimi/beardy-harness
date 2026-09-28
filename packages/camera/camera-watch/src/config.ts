@@ -44,11 +44,11 @@ export interface Config {
   readonly maxConcurrent?: number
   /** Events waiting for classification before new events are recorded unclassified; defaults to 10. */
   readonly maxQueued?: number
-  /** Days an event stays in history; defaults to 30. */
+  /** Days an event and its stored frames stay; defaults to 30. */
   readonly retentionDays?: number
-  /** Most events kept in history; defaults to 5000. */
+  /** Most events kept in history, with their stored frames; defaults to 5000. */
   readonly maxHistory?: number
-  /** Milliseconds between history retention sweeps; defaults to 3600000. */
+  /** Milliseconds from the end of one retention sweep to the start of the next, from 60000 to 86400000; defaults to 3600000. */
   readonly sweepIntervalMs?: number
   /** Delivery handoff attempts per notice; defaults to 3. */
   readonly deliveryAttempts?: number
@@ -104,7 +104,7 @@ export const Config: z<Config> = z.object({
   maxQueued: z.number().step(1).min(0).default(WATCH_DEFAULTS.maxQueued),
   retentionDays: z.number().step(1).min(1).max(3_650).default(WATCH_DEFAULTS.retentionDays),
   maxHistory: z.number().step(1).min(1).default(WATCH_DEFAULTS.maxHistory),
-  sweepIntervalMs: z.number().step(1).min(60_000).default(WATCH_DEFAULTS.sweepIntervalMs),
+  sweepIntervalMs: z.number().step(1).min(60_000).max(86_400_000).default(WATCH_DEFAULTS.sweepIntervalMs),
   deliveryAttempts: z.number().step(1).min(1).max(20).default(WATCH_DEFAULTS.deliveryAttempts),
   deliveryRetryMs: z.number().step(1).min(1_000).default(WATCH_DEFAULTS.deliveryRetryMs),
   tool: z.boolean().default(WATCH_DEFAULTS.tool),

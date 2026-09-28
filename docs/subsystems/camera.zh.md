@@ -10,7 +10,7 @@
 
 ## Verdicts and notices
 
-判定列出可见标签（`person`、`vehicle`、`package`、`animal`）、每个标签同时出现的最大数量、主要活动、0 到 1 的置信度、一行描述，以及出现人物的画面序号。监视插件为每个事件打开一个分类 Session 来生成判定，该 Session 的 `user/message` 带有来源类型 `camera`、提示文本以及作为图像块的画面，因此模型输入可以从会话日志重建。通知原因由代码根据事件和判定计算。`camera/notice` 是串行交接：持久接收通知的监听器返回 `true`，否则监视插件会重试。通知带有由事件 ID 派生的稳定 ID，因此重试交接不会重复发送。
+判定列出可见标签（`person`、`vehicle`、`package`、`animal`）、每个标签同时出现的最大数量、主要活动、0 到 1 的置信度、一行描述，以及出现人物的画面序号。监视插件为每个事件打开一个分类 Session 来生成判定，该 Session 的 `user/message` 带有来源类型 `camera`、提示文本以及作为图像块的画面，因此在监视插件的保留清理删除该事件的画面之前，模型输入都可以从会话日志重建。通知原因由代码根据事件和判定计算。`camera/notice` 是串行交接：持久接收通知的监听器返回 `true`，否则监视插件会重试。通知带有由事件 ID 派生的稳定 ID，因此重试交接不会重复发送。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

@@ -357,7 +357,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-attachment-local`
 
-- `source`: [`packages/attachment/attachment-local/src/index.ts:61`](../packages/attachment/attachment-local/src/index.ts)
+- `source`: [`packages/attachment/attachment-local/src/index.ts:65`](../packages/attachment/attachment-local/src/index.ts)
 
 ```ts config-catalog
 /** Local attachment backend configuration. */
@@ -587,11 +587,11 @@ export interface Config {
   readonly maxConcurrent?: number
   /** Events waiting for classification before new events are recorded unclassified; defaults to 10. */
   readonly maxQueued?: number
-  /** Days an event stays in history; defaults to 30. */
+  /** Days an event and its stored frames stay; defaults to 30. */
   readonly retentionDays?: number
-  /** Most events kept in history; defaults to 5000. */
+  /** Most events kept in history, with their stored frames; defaults to 5000. */
   readonly maxHistory?: number
-  /** Milliseconds between history retention sweeps; defaults to 3600000. */
+  /** Milliseconds from the end of one retention sweep to the start of the next, from 60000 to 86400000; defaults to 3600000. */
   readonly sweepIntervalMs?: number
   /** Delivery handoff attempts per notice; defaults to 3. */
   readonly deliveryAttempts?: number
