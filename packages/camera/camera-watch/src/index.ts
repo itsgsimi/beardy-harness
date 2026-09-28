@@ -2,7 +2,8 @@
  * Camera watch: classifies each camera event's frames in one logged model turn, applies the
  * notification policy, hands notices with a frame to the delivery owner through `camera/notice`
  * (a doorbell press first as soon as its first frame is stored), keeps a bounded event history, and
- * exposes it through the read-only `camera` tool.
+ * exposes it through the read-only `camera` tool. It resolves the model route when the route's
+ * provider registers and raises a rate-limited failure notice when classification keeps failing.
  * @module @deepseek-ai/dsh-camera-watch
  */
 
@@ -22,9 +23,11 @@ import { validateModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import { classifyFrames } from './classify.ts'
 import { Config, resolveConfig } from './config.ts'
 import type { ResolvedConfig } from './config.ts'
+import { ClassificationHealth, shortCause } from './health.ts'
+import type { HealthNotice, RouteFailureCode } from './health.ts'
 import { cameraWatchDomainSpec, frameAttachment, partitionHistory } from './history.ts'
 import type { HistoryRecord } from './history.ts'
-import { localDateTime, renderDingNotice, renderNotice } from './notice.ts'
+import { localDateTime, RECOVERY_NOTICE_TEXT, renderDingNotice, renderFailureNotice, renderNotice } from './notice.ts'
 import { lingeringMs, noticeReasons } from './policy.ts'
 import { createCameraTool } from './tool.ts'
 import type { CameraNotice, VerdictStatus } from './types.ts'
@@ -32,6 +35,7 @@ import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from
 
 export * from './classify.ts'
 export * from './config.ts'
+export * from './health.ts'
 export * from './history.ts'
 export * from './notice.ts'
 export * from './policy.ts'
@@ -95,6 +99,19 @@ interface Classification {
 /** A selected route that declares no image input. */
 class VisionRouteError extends Error {}
 
+/** One failed route resolution, as logged and as a failure notice states it. */
+interface RouteFailure {
+  readonly code: RouteFailureCode
+  /** Complete cause chain for the log. */
+  readonly chain: string
+  /** Bounded innermost cause for the notice. */
+  readonly cause: string
+}
+
+function routeFailure(error: unknown): RouteFailure {
+  return { code: error instanceof VisionRouteError ? 'MODEL_NOT_VISION' : 'MODEL_UNAVAILABLE', chain: errorChain(error), cause: shortCause(error) }
+}
+
 /** Handoff result of one notice after its attempts. */
 type Handoff = 'delivered' | 'undelivered'
 
@@ -125,8 +142,11 @@ export class CameraWatch {
   private readonly devices: ReadonlyMap<string, CameraDevice>
   private readonly now: () => number
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>
+  private readonly health: ClassificationHealth
   private running = 0
   private sweepTimer: ReturnType<typeof setTimeout> | undefined
+  /** Whether the route's provider was registered at the latest check. */
+  private routeRegistered = false
 
   /**
    * @param ctx - watch context with the injected services.
@@ -146,9 +166,13 @@ export class CameraWatch {
     }
     this.now = deps.now ?? Date.now
     this.sleep = deps.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }) })
+    this.health = new ClassificationHealth({ threshold: config.failureNoticeThreshold, intervalMs: config.failureNoticeIntervalMs })
   }
 
-  /** Run the first retention sweep now and each later one `sweepIntervalMs` after the previous one ends, until disposal. */
+  /**
+   * Run the first retention sweep now and each later one `sweepIntervalMs` after the previous one
+   * ends, until disposal, and check the model route if its provider is already registered.
+   */
   start(): void {
     const sweep = (): void => {
       this.track(this.sweep().finally(() => {
@@ -156,6 +180,51 @@ export class CameraWatch {
       }))
     }
     sweep()
+    this.checkRoute()
+  }
+
+  /**
+   * Resolve the classification route, with the image-input check, when its provider has become
+   * registered since the previous call: `modelSelection` or, without it, the host default model's
+   * provider at this call. Logs the route on success; a failure is logged and raises the failure
+   * notice. Never throws, so a broken route leaves the host running.
+   */
+  checkRoute(): void {
+    const { provider } = this.config.modelSelection ?? this.ctx.agentDefaultModel.currentSelection()
+    const registered = this.ctx.llm.listProviders().some(info => info.id === provider)
+    const appeared = registered && !this.routeRegistered
+    this.routeRegistered = registered
+    if (appeared) this.track(this.resolveRoute())
+  }
+
+  private async resolveRoute(): Promise<void> {
+    try {
+      const { provider, model } = await this.selection()
+      this.ctx.logger.info(`camera-watch: classifying with ${provider}/${model}`)
+    } catch (error: unknown) {
+      const failure = routeFailure(error)
+      this.ctx.logger.error(`camera-watch: model route check failed: ${failure.chain}`)
+      this.report(this.health.routeFailed(failure.code, failure.cause, this.now()))
+    }
+  }
+
+  /**
+   * Log a failure or recovery notice and, with a channel, hand it to `camera/notice` without
+   * waiting for the handoff. Nothing is reported after disposal starts.
+   */
+  private report(notice: HealthNotice | undefined): void {
+    if (notice === undefined || this.controller.signal.aborted) return
+    let text: string
+    if (notice.kind === 'failing') {
+      this.ctx.logger.warn(`camera-watch: classification is failing (${notice.code}: ${notice.cause})`)
+      text = renderFailureNotice({ code: notice.code, cause: notice.cause, dingNotifies: this.config.policy.ding })
+    } else {
+      this.ctx.logger.info('camera-watch: classification recovered')
+      text = RECOVERY_NOTICE_TEXT
+    }
+    const channelId = this.config.deliverChannelId
+    if (channelId === undefined) return
+    this.track(this.deliver({ id: notice.id, channelId, text }).then(() => undefined))
   }
 
   /**
@@ -290,7 +359,7 @@ export class CameraWatch {
       : await validateModelSelection(this.ctx, choice, 'camera-watch: modelSelection')
     const info = await this.ctx.llm.resolveModelInfo(selection.provider, selection.model)
     if (info.inputModalities !== undefined && !info.inputModalities.includes('image')) {
-      throw new VisionRouteError(`camera-watch: provider "${selection.provider}" model "${selection.model}" declares no image input`)
+      throw new VisionRouteError(`provider "${selection.provider}" model "${selection.model}" declares no image input`)
     }
     return selection
   }
@@ -300,8 +369,10 @@ export class CameraWatch {
     try {
       selection = await this.selection()
     } catch (error: unknown) {
-      this.ctx.logger.error(error instanceof VisionRouteError ? error.message : `camera-watch: model route unavailable: ${errorChain(error)}`)
-      return { status: 'failed', failure: error instanceof VisionRouteError ? 'MODEL_NOT_VISION' : 'MODEL_UNAVAILABLE' }
+      const failure = routeFailure(error)
+      this.ctx.logger.error(failure.code === 'MODEL_NOT_VISION' ? `camera-watch: ${failure.chain}` : `camera-watch: model route unavailable: ${failure.chain}`)
+      this.report(this.health.routeFailed(failure.code, failure.cause, this.now()))
+      return { status: 'failed', failure: failure.code }
     }
     const device = this.devices.get(event.deviceId) as CameraDevice
     const sessionId = SessionId(`camera-${event.deviceId}-${randomUUID()}`)
@@ -328,9 +399,14 @@ export class CameraWatch {
       })
     } catch (error: unknown) {
       this.ctx.logger.warn(`camera-watch: classification Session for ${event.id} could not start: ${errorChain(error)}`)
+      this.report(this.health.turnFailed('SESSION_FAILED', this.now()))
       return { status: 'failed', failure: 'SESSION_FAILED' }
     }
-    if (outcome.kind === 'failed') return { status: 'failed', sessionId, failure: outcome.code }
+    if (outcome.kind === 'failed') {
+      this.report(this.health.turnFailed(outcome.code, this.now()))
+      return { status: 'failed', sessionId, failure: outcome.code }
+    }
+    this.report(this.health.answered())
     const reading = parseVerdict(outcome.text, event.frames.length)
     return { status: reading.status, verdict: reading.verdict, text: reading.text, sessionId }
   }
@@ -411,7 +487,8 @@ export class CameraWatch {
 
 /**
  * Mount the watch on an opened history domain: validate device references, subscribe to
- * `camera/event`, register the tool, and own disposal.
+ * `camera/event`, check the model route at start and on each `llm/adapters-updated`, register the
+ * tool, and own disposal.
  * @param ctx - watch context with the injected services.
  * @param config - schema-resolved configuration.
  * @param deps - clock and delay seams.
@@ -429,6 +506,7 @@ export async function mountCameraWatch(ctx: Context, config: Config, deps: Camer
   }
   ctx.on('camera/preview', (preview) => { watch.preview(preview) })
   ctx.on('camera/event', (event) => { watch.accept(event) })
+  ctx.on('llm/adapters-updated', () => { watch.checkRoute() })
   if (resolved.tool) {
     ctx.effect(() => ctx.tools.register(createCameraTool({
       table, devices: ctx.camera.devices(), timezone: resolved.timezone, maxEvents: resolved.toolMaxEvents,

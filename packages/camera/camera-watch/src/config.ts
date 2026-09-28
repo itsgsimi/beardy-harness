@@ -65,6 +65,13 @@ export interface Config {
   readonly deliveryAttempts?: number
   /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
   readonly deliveryRetryMs?: number
+  /**
+   * Classification turns in a row that time out, fail, give no answer, or cannot start before a
+   * failure notice, from 1 to 100; defaults to 3.
+   */
+  readonly failureNoticeThreshold?: number
+  /** Least milliseconds between two classification failure notices, from 60000 to 604800000; defaults to 21600000. */
+  readonly failureNoticeIntervalMs?: number
   /** Register the read-only `camera` model tool; defaults to true. */
   readonly tool?: boolean
   /** Most events one tool result lists; defaults to 50. */
@@ -91,6 +98,8 @@ export const WATCH_DEFAULTS = Object.freeze({
   sweepIntervalMs: 3_600_000,
   deliveryAttempts: 3,
   deliveryRetryMs: 30_000,
+  failureNoticeThreshold: 3,
+  failureNoticeIntervalMs: 21_600_000,
   tool: true,
   toolMaxEvents: 50,
 })
@@ -122,6 +131,8 @@ export const Config: z<Config> = z.object({
   sweepIntervalMs: z.number().step(1).min(60_000).max(86_400_000).default(WATCH_DEFAULTS.sweepIntervalMs),
   deliveryAttempts: z.number().step(1).min(1).max(20).default(WATCH_DEFAULTS.deliveryAttempts),
   deliveryRetryMs: z.number().step(1).min(1_000).default(WATCH_DEFAULTS.deliveryRetryMs),
+  failureNoticeThreshold: z.number().step(1).min(1).max(100).default(WATCH_DEFAULTS.failureNoticeThreshold),
+  failureNoticeIntervalMs: z.number().step(1).min(60_000).max(604_800_000).default(WATCH_DEFAULTS.failureNoticeIntervalMs),
   tool: z.boolean().default(WATCH_DEFAULTS.tool),
   toolMaxEvents: z.number().step(1).min(1).max(200).default(WATCH_DEFAULTS.toolMaxEvents),
 })
@@ -156,6 +167,8 @@ export interface ResolvedConfig {
   readonly sweepIntervalMs: number
   readonly deliveryAttempts: number
   readonly deliveryRetryMs: number
+  readonly failureNoticeThreshold: number
+  readonly failureNoticeIntervalMs: number
   readonly tool: boolean
   readonly toolMaxEvents: number
 }
@@ -218,6 +231,8 @@ export function resolveConfig(config: Config): ResolvedConfig {
     sweepIntervalMs: config.sweepIntervalMs ?? WATCH_DEFAULTS.sweepIntervalMs,
     deliveryAttempts: config.deliveryAttempts ?? WATCH_DEFAULTS.deliveryAttempts,
     deliveryRetryMs: config.deliveryRetryMs ?? WATCH_DEFAULTS.deliveryRetryMs,
+    failureNoticeThreshold: config.failureNoticeThreshold ?? WATCH_DEFAULTS.failureNoticeThreshold,
+    failureNoticeIntervalMs: config.failureNoticeIntervalMs ?? WATCH_DEFAULTS.failureNoticeIntervalMs,
     tool: config.tool ?? WATCH_DEFAULTS.tool,
     toolMaxEvents: config.toolMaxEvents ?? WATCH_DEFAULTS.toolMaxEvents,
   }

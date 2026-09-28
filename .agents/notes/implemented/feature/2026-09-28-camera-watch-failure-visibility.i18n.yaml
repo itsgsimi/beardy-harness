@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-camera-watch-failure-visibility.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-camera-watch-failure-visibility.md
+/agent-note-camera-watch-reports-a-broken-classifier:
+  en: ffa6021415445db1
+  zh: a0d8ce6609d36775
+/agent-note-camera-watch-reports-a-broken-classifier/problem:
+  en: e0c48f671e541bb2
+  zh: 2092ca16b93afd3f
+/agent-note-camera-watch-reports-a-broken-classifier/decision:
+  en: 211c555a63a007b3
+  zh: ea6282159af8bd8b
+/agent-note-camera-watch-reports-a-broken-classifier/alternatives-considered:
+  en: d7ec9d1fba2783b3
+  zh: ce2565474fec8a63
+/agent-note-camera-watch-reports-a-broken-classifier/consequences:
+  en: 7508b75bcf7377c2
+  zh: f2e17f8fc24769d7
