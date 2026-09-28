@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { CameraVerdict } from '@deepseek-ai/dsh-camera'
 import { Config as ConfigSchema, resolveConfig, WATCH_DEFAULTS } from '../src/config.ts'
 import type { Config, ResolvedPolicy } from '../src/config.ts'
-import { frameAttachment, partitionHistory } from '../src/history.ts'
+import { frameAttachment, historyRecord, partitionHistory } from '../src/history.ts'
 import type { HistoryFrame, HistoryRecord } from '../src/history.ts'
-import { localDateTime, renderNotice } from '../src/notice.ts'
+import { localDateTime, renderDingNotice, renderNotice } from '../src/notice.ts'
 import { insideWindow, lingeringMs, localMinute, noticeReasons } from '../src/policy.ts'
 import type { PolicyEvent } from '../src/policy.ts'
-import { classificationPrompt, parseVerdict } from '../src/verdict.ts'
+import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from '../src/verdict.ts'
 import { NIGHT, NOON } from './support.ts'
 
 const TZ = 'America/Phoenix'
@@ -18,8 +18,9 @@ describe('resolveConfig', () => {
     expect(resolved).toEqual({
       timezone: TZ,
       policy: { ding: true, packageDelivered: true, nightPerson: true, nightStartMinute: 21 * 60, nightEndMinute: 6 * 60,
-        vehicleDevices: [], lingerMs: 20_000, minConfidence: 0.5 },
-      maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10, retentionMs: 30 * 86_400_000,
+        vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5 },
+      immediateDingNotice: true, maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
+      retentionMs: 30 * 86_400_000,
       maxHistory: 5_000, sweepIntervalMs: 3_600_000, deliveryAttempts: 3, deliveryRetryMs: 30_000, tool: true, toolMaxEvents: 50,
     })
     expect(WATCH_DEFAULTS.lingerSeconds).toBe(20)
@@ -30,16 +31,18 @@ describe('resolveConfig', () => {
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
       workspacePath: '/srv/beardy',
       policy: { ding: false, packageDelivered: false, nightPerson: false, nightStart: '22:15', nightEnd: '05:45', vehicleDevices: ['garage', 'garage'],
-        lingerSeconds: 30, minConfidence: 0.7 },
-      maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3, retentionDays: 2, maxHistory: 9,
+        vehicleActivities: ['passing', 'parked', 'passing'], lingerSeconds: 30, minConfidence: 0.7 },
+      immediateDingNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
+      retentionDays: 2, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, tool: false, toolMaxEvents: 7,
     }
     expect(resolveConfig(config)).toEqual({
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
       workspacePath: '/srv/beardy',
       policy: { ding: false, packageDelivered: false, nightPerson: false, nightStartMinute: 22 * 60 + 15, nightEndMinute: 5 * 60 + 45,
-        vehicleDevices: ['garage'], lingerMs: 30_000, minConfidence: 0.7 },
-      maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3, retentionMs: 2 * 86_400_000, maxHistory: 9,
+        vehicleDevices: ['garage'], vehicleActivities: ['passing', 'parked'], lingerMs: 30_000, minConfidence: 0.7 },
+      immediateDingNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
+      retentionMs: 2 * 86_400_000, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, tool: false, toolMaxEvents: 7,
     })
   })
@@ -51,6 +54,7 @@ describe('resolveConfig', () => {
     [{ timezone: TZ, policy: { nightStart: '9pm' } }, /nightStart must be HH:MM/],
     [{ timezone: TZ, policy: { nightEnd: '24:00' } }, /nightEnd must be HH:MM/],
     [{ timezone: TZ, policy: { nightStart: '06:00', nightEnd: '06:00' } }, /must differ/],
+    [{ timezone: TZ, policy: { vehicleActivities: [] } }, /vehicleActivities must list at least one/],
   ] as [Config, RegExp][])('rejects %j', (config, message) => {
     expect(() => resolveConfig(config)).toThrow(message)
   })
@@ -59,6 +63,23 @@ describe('resolveConfig', () => {
     expect(ConfigSchema({ timezone: TZ, sweepIntervalMs: 86_400_000 }).sweepIntervalMs).toBe(86_400_000)
     expect(() => ConfigSchema({ timezone: TZ, sweepIntervalMs: 86_400_001 })).toThrow()
     expect(() => ConfigSchema({ timezone: TZ, sweepIntervalMs: 59_999 })).toThrow()
+  })
+
+  it('accepts only vehicle activities that describe a vehicle', () => {
+    expect(ConfigSchema({ timezone: TZ }).policy?.vehicleActivities).toEqual(['arriving', 'leaving'])
+    expect(() => ConfigSchema({ timezone: TZ, policy: { vehicleActivities: ['none'] } } as never)).toThrow()
+  })
+})
+
+describe('historyRecord', () => {
+  it('reads a verdict stored before vehicle activity existed as unknown and keeps later fields', () => {
+    const stored = {
+      eventId: 'old', deviceId: 'garage', kind: 'motion', occurredAt: NOON, frames: [], status: 'parsed', reasons: [], delivery: 'none',
+      verdict: { labels: ['vehicle'], counts: { vehicle: 3 }, activity: 'none', confidence: 0.9, description: 'Three parked cars.', personFrames: [] },
+    }
+    expect(historyRecord.parse(stored).verdict?.vehicleActivity).toBe('unknown')
+    expect(historyRecord.parse({ ...stored, captureFailure: 'snapshot-stale', earlyDelivery: 'delivered' }))
+      .toMatchObject({ captureFailure: 'snapshot-stale', earlyDelivery: 'delivered' })
   })
 })
 
@@ -97,11 +118,14 @@ describe('classificationPrompt', () => {
       'Classify this doorbell press from the Front door camera at 2026-09-27 12:00:00. The 3 images are frames in capture order, taken 0 s, 10 s, 21 s after the alert.',
       '',
       'Reply with only one JSON object and no other text:',
-      '{"labels":[],"counts":{},"activity":"none","confidence":0,"description":"","personFrames":[]}',
+      '{"labels":[],"counts":{},"activity":"none","vehicleActivity":"none","confidence":0,"description":"","personFrames":[]}',
       '',
       '- labels: each of "person", "vehicle", "package", "animal" visible in any frame.',
       '- counts: the most of each label visible at once, for example {"person":1}.',
       '- activity: one of "delivering", "lingering", "passing", "ringing", "none".',
+      '- vehicleActivity: "arriving" or "leaving" when a vehicle drives into or out of the driveway or a parking spot across the frames, '
+        + '"passing" when one drives by without stopping, "parked" when every vehicle stays still (lights or a running engine do not count as moving), '
+        + '"none" when no vehicle is visible.',
       '- confidence: how sure you are, from 0 to 1.',
       '- description: one sentence of at most 25 words about what is happening. Do not guess who anyone is.',
       '- personFrames: zero-based indices of the frames that show a person.',
@@ -109,24 +133,43 @@ describe('classificationPrompt', () => {
     expect(classificationPrompt({ kind: 'motion', deviceLabel: 'Garage', localTime: 't', offsetsMs: [0] }))
       .toContain('Classify this motion alert from the Garage camera at t. The 1 image is a frame in capture order, taken 0 s after the alert.')
   })
+
+  it('pairs with a short classification-only system prompt', () => {
+    expect(CLASSIFICATION_SYSTEM_PROMPT).toBe([
+      'You classify still frames from a home security camera.',
+      'The user message states the alert and shows the frames. Reply with exactly the one JSON object it asks for and nothing else.',
+      'You have no tools. Describe people only by what is visible and never guess who anyone is.',
+    ].join('\n'))
+  })
 })
 
 describe('parseVerdict', () => {
   it('reads a complete verdict', () => {
-    expect(parseVerdict('{"labels":["person","package"],"counts":{"person":1,"package":1},"activity":"delivering","confidence":0.82,'
-      + '"description":"A courier sets a box by the door.","personFrames":[0,1]}', 3)).toEqual({
+    expect(parseVerdict('{"labels":["person","package"],"counts":{"person":1,"package":1},"activity":"delivering","vehicleActivity":"none",'
+      + '"confidence":0.82,"description":"A courier sets a box by the door.","personFrames":[0,1]}', 3)).toEqual({
       status: 'parsed',
-      verdict: { labels: ['person', 'package'], counts: { person: 1, package: 1 }, activity: 'delivering', confidence: 0.82,
+      verdict: { labels: ['person', 'package'], counts: { person: 1, package: 1 }, activity: 'delivering', vehicleActivity: 'none', confidence: 0.82,
         description: 'A courier sets a box by the door.', personFrames: [0, 1] },
     })
   })
 
+  it('reads the vehicle activity and adds the vehicle label a moving or parked vehicle implies', () => {
+    const answer = (vehicleActivity: unknown): string => JSON.stringify({ labels: [], counts: {}, activity: 'none', vehicleActivity,
+      confidence: 0.9, description: 'x', personFrames: [] })
+    expect(parseVerdict(answer('Arriving'), 1)).toMatchObject({ status: 'parsed', verdict: { labels: ['vehicle'], vehicleActivity: 'arriving' } })
+    expect(parseVerdict(answer('parked'), 1)).toMatchObject({ status: 'parsed', verdict: { labels: ['vehicle'], vehicleActivity: 'parked' } })
+    expect(parseVerdict(answer('none'), 1)).toMatchObject({ status: 'parsed', verdict: { labels: [], vehicleActivity: 'none' } })
+    expect(parseVerdict(answer('unknown'), 1)).toMatchObject({ status: 'partial', verdict: { labels: [], vehicleActivity: 'unknown' } })
+    expect(parseVerdict(answer('reversing'), 1)).toMatchObject({ status: 'partial', verdict: { vehicleActivity: 'unknown' } })
+    expect(parseVerdict(answer(undefined), 1)).toMatchObject({ status: 'partial', verdict: { vehicleActivity: 'unknown' } })
+  })
+
   it('finds the object inside fences and prose, skipping braces in strings and invalid candidates', () => {
     const text = 'Sure! {not json} Here it is:\n```json\n{"labels":["People","cars","boxes","Dogs"],"counts":{"people":2,"car":1,"truck":2},'
-      + '"activity":"Passing","confidence":"85%","description":"Two people {walk} past\\n a \\"car\\".","personFrames":[2,0,0]}\n```'
+      + '"activity":"Passing","vehicleActivity":"parked","confidence":"85%","description":"Two people {walk} past\\n a \\"car\\".","personFrames":[2,0,0]}\n```'
     expect(parseVerdict(text, 3)).toEqual({
       status: 'parsed',
-      verdict: { labels: ['person', 'vehicle', 'package', 'animal'], counts: { person: 2, vehicle: 2 }, activity: 'passing', confidence: 0.85,
+      verdict: { labels: ['person', 'vehicle', 'package', 'animal'], counts: { person: 2, vehicle: 2 }, activity: 'passing', vehicleActivity: 'parked', confidence: 0.85,
         description: 'Two people {walk} past a "car".', personFrames: [0, 2] },
     })
   })
@@ -135,12 +178,12 @@ describe('parseVerdict', () => {
     expect(parseVerdict('{"labels":["person","ghost",3],"counts":{"person":-1,"alien":1,"package":0,"animal":150},"activity":"dancing",'
       + '"confidence":250,"personFrames":[1,7,"x"]}', 2)).toEqual({
       status: 'partial',
-      verdict: { labels: ['person', 'animal'], counts: { package: 0, animal: 99 }, activity: 'unknown', confidence: 0,
+      verdict: { labels: ['person', 'animal'], counts: { package: 0, animal: 99 }, activity: 'unknown', vehicleActivity: 'unknown', confidence: 0,
         description: 'Visible: person, animal.', personFrames: [1] },
     })
     expect(parseVerdict('{"labels":"person","counts":[],"confidence":"high","description":"   "}', 1)).toEqual({
       status: 'partial',
-      verdict: { labels: [], counts: {}, activity: 'unknown', confidence: 0, description: 'Nothing identified.', personFrames: [] },
+      verdict: { labels: [], counts: {}, activity: 'unknown', vehicleActivity: 'unknown', confidence: 0, description: 'Nothing identified.', personFrames: [] },
     })
     expect(parseVerdict('{"labels":[],"counts":{},"activity":"none","confidence":"","description":"x","personFrames":[]}', 1).verdict?.confidence).toBe(0)
     expect(parseVerdict('{"labels":[],"counts":{},"activity":"none","confidence":0.5,"description":"x","personFrames":{}}', 1).status).toBe('partial')
@@ -161,11 +204,11 @@ describe('parseVerdict', () => {
 
 const policy: ResolvedPolicy = {
   ding: true, packageDelivered: true, nightPerson: true, nightStartMinute: 21 * 60, nightEndMinute: 6 * 60,
-  vehicleDevices: ['garage'], lingerMs: 20_000, minConfidence: 0.5,
+  vehicleDevices: ['garage'], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5,
 }
 
 function verdict(fields: Partial<CameraVerdict>): CameraVerdict {
-  return { labels: [], counts: {}, activity: 'none', confidence: 0.9, description: 'x', personFrames: [], ...fields }
+  return { labels: [], counts: {}, activity: 'none', vehicleActivity: 'none', confidence: 0.9, description: 'x', personFrames: [], ...fields }
 }
 
 function event(fields: Partial<PolicyEvent> = {}): PolicyEvent {
@@ -195,10 +238,15 @@ describe('noticeReasons', () => {
     expect(noticeReasons(event({ occurredAt: NIGHT }), night, 'parsed', { ...policy, nightPerson: false }, TZ)).toEqual([])
   })
 
-  it('notifies a vehicle only on configured devices', () => {
-    const car = verdict({ labels: ['vehicle'], counts: { vehicle: 1 } })
-    expect(noticeReasons(event({ deviceId: 'garage' }), car, 'parsed', policy, TZ)).toEqual(['vehicle'])
-    expect(noticeReasons(event(), car, 'parsed', policy, TZ)).toEqual([])
+  it('notifies an arriving or leaving vehicle only on configured devices, never a parked one', () => {
+    const car = (vehicleActivity: CameraVerdict['vehicleActivity']): CameraVerdict => verdict({ labels: ['vehicle'], counts: { vehicle: 1 }, vehicleActivity })
+    expect(noticeReasons(event({ deviceId: 'garage' }), car('arriving'), 'parsed', policy, TZ)).toEqual(['vehicle'])
+    expect(noticeReasons(event({ deviceId: 'garage' }), car('leaving'), 'partial', policy, TZ)).toEqual(['vehicle'])
+    expect(noticeReasons(event(), car('arriving'), 'parsed', policy, TZ)).toEqual([])
+    for (const quiet of ['parked', 'passing', 'unknown', 'none'] as const) {
+      expect(noticeReasons(event({ deviceId: 'garage' }), car(quiet), 'parsed', policy, TZ)).toEqual([])
+    }
+    expect(noticeReasons(event({ deviceId: 'garage' }), car('passing'), 'parsed', { ...policy, vehicleActivities: ['passing'] }, TZ)).toEqual(['vehicle'])
     expect(noticeReasons(event({ deviceId: 'garage' }), verdict({ labels: ['person'] }), 'parsed', policy, TZ)).toEqual([])
   })
 
@@ -234,13 +282,18 @@ describe('renderNotice', () => {
 
   it('states device, time, reasons, description, counts, and confidence', () => {
     expect(renderNotice({ ...base, reasons: ['ding', 'package', 'night-person', 'vehicle', 'lingering'], status: 'parsed', lingerSeconds: 21,
-      verdict: verdict({ description: 'A courier with a box.', counts: { person: 1, package: 1, animal: 0 }, confidence: 0.834 }) })).toBe([
-      '**Front door** · 23:30: Doorbell rang; Package delivered; Person at night; Vehicle seen; Someone lingering (21 s)',
+      verdict: verdict({ description: 'A courier with a box.', counts: { person: 1, package: 1, animal: 0 }, confidence: 0.834, vehicleActivity: 'leaving' }) })).toBe([
+      '**Front door** · 23:30: Doorbell rang; Package delivered; Person at night; Vehicle leaving; Someone lingering (21 s)',
       'A courier with a box.',
       'Seen: person 1, package 1 · confidence 83%',
     ].join('\n'))
     expect(renderNotice({ ...base, reasons: ['ding'], status: 'partial', verdict: verdict({ description: 'Nothing identified.', confidence: 0 }) }))
       .toContain('Nothing counted · confidence 0%')
+    expect(renderNotice({ ...base, reasons: ['vehicle'], status: 'failed' }).split('\n')[0]).toBe('**Front door** · 23:30: Vehicle seen')
+  })
+
+  it('announces a doorbell press before classification', () => {
+    expect(renderDingNotice(base)).toBe('**Front door** · 23:30: Someone rang the doorbell')
   })
 
   it('explains a missing description', () => {

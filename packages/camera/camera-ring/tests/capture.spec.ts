@@ -3,21 +3,26 @@ import { describe, expect, it } from 'vitest'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { captureFrames } from '../src/capture.ts'
-import type { CaptureSpec, StoreFrame } from '../src/capture.ts'
+import type { CaptureSpec, FrameSink } from '../src/capture.ts'
 import { FakeCamera, FakeClock } from './support.ts'
 
 const spec: CaptureSpec = { frameCount: 3, frameIntervalMs: 10_000, snapshotTimeoutMs: 20_000, streamFallback: true, streamSetupMs: 20_000 }
 
 const bytes = (value: number): Uint8Array => new Uint8Array([0xff, 0xd8, value])
 
-function recorder(failAt?: number): { store: StoreFrame; stored: number[][] } {
+function recorder(failAt?: number): { store: FrameSink; stored: number[][]; firsts: string[] } {
   const stored: number[][] = []
+  const firsts: string[] = []
   return {
     stored,
-    store: async (data, index) => {
-      if (index === failAt) throw new Error('storage full')
-      stored.push([...data])
-      return { attachmentId: AttachmentId(`sha256:${String(index)}`), mediaType: 'image/jpeg', bytes: data.length, width: 8, height: 6 } satisfies ImageAttachmentRef
+    firsts,
+    store: {
+      store: async (data, index) => {
+        if (index === failAt) throw new Error('storage full')
+        stored.push([...data])
+        return { attachmentId: AttachmentId(`sha256:${String(index)}`), mediaType: 'image/jpeg', bytes: data.length, width: 8, height: 6 } satisfies ImageAttachmentRef
+      },
+      first: async (frame) => { firsts.push(`${frame.attachment.attachmentId}@${String(frame.offsetMs)}:${frame.source}`) },
     },
   }
 }
@@ -27,24 +32,50 @@ describe('captureFrames', () => {
     const clock = new FakeClock()
     const camera = new FakeCamera(1, 'Front Door')
     camera.snapshots.push(bytes(1), bytes(2), bytes(3))
-    const { store, stored } = recorder()
+    const { store, stored, firsts } = recorder()
     const t0 = clock.time
     const result = await captureFrames(camera, spec, t0, store, new AbortController().signal, clock)
     expect(result.failure).toBeUndefined()
     expect(stored).toEqual([[0xff, 0xd8, 1], [0xff, 0xd8, 2], [0xff, 0xd8, 3]])
     expect(result.frames.map(frame => [frame.offsetMs, frame.source])).toEqual([[0, 'snapshot'], [10_000, 'snapshot'], [20_000, 'snapshot']])
     expect(clock.sleeps.filter(ms => ms !== spec.snapshotTimeoutMs)).toEqual([10_000, 10_000])
+    expect(firsts).toEqual(['sha256:0@0:snapshot'])
   })
 
-  it('counts an unchanged snapshot once instead of storing a duplicate', async () => {
+  it('moves the remaining slots to the live stream when a snapshot repeats the previous bytes', async () => {
     const clock = new FakeClock()
     const camera = new FakeCamera(1, 'Front Door')
     camera.snapshots.push(bytes(1), bytes(1), bytes(2))
-    const { store, stored } = recorder()
-    const result = await captureFrames(camera, spec, clock.time, store, new AbortController().signal, clock)
-    expect(result).toMatchObject({ frames: [{ offsetMs: 0 }, { offsetMs: 20_000 }] })
+    camera.stream_ = { frames: [bytes(7), bytes(8)] }
+    const { store, stored, firsts } = recorder()
+    const t0 = clock.time
+    const result = await captureFrames(camera, spec, t0, store, new AbortController().signal, clock)
     expect(result.failure).toBeUndefined()
+    expect(stored).toEqual([[0xff, 0xd8, 1], [0xff, 0xd8, 7], [0xff, 0xd8, 8]])
+    expect(result.frames.map(frame => [frame.offsetMs, frame.source])).toEqual([[0, 'snapshot'], [10_000, 'stream'], [20_000, 'stream']])
+    expect(camera.snapshotCalls).toBe(2)
+    expect(camera.streams[0]?.output.slice(0, 2)).toEqual(['-frames:v', '2'])
+    expect(firsts).toEqual(['sha256:0@0:snapshot'])
+  })
+
+  it('reports snapshot-stale when a snapshot repeats and the stream fallback is off', async () => {
+    const clock = new FakeClock()
+    const camera = new FakeCamera(1, 'Front Door')
+    camera.snapshots.push(bytes(1), bytes(2), bytes(2))
+    const { store, stored } = recorder()
+    const result = await captureFrames(camera, { ...spec, streamFallback: false }, clock.time, store, new AbortController().signal, clock)
+    expect(result).toMatchObject({ failure: 'snapshot-stale', frames: [{ offsetMs: 0 }, { offsetMs: 10_000 }] })
     expect(stored).toHaveLength(2)
+    expect(camera.streams).toEqual([])
+  })
+
+  it('reports stream-failed when a repeated snapshot leaves slots the stream cannot fill', async () => {
+    const clock = new FakeClock()
+    const camera = new FakeCamera(1, 'Front Door')
+    camera.snapshots.push(bytes(1), bytes(1))
+    camera.stream_ = { refuse: true }
+    const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
+    expect(result).toMatchObject({ failure: 'stream-failed', frames: [{ source: 'snapshot' }] })
   })
 
   it('reports a storage refusal and keeps the frames already stored', async () => {
@@ -95,9 +126,12 @@ describe('captureFrames', () => {
     const camera = new FakeCamera(1, 'Front Door')
     camera.snapshots.push(new Error('offline'))
     camera.stream_ = { frames: [bytes(7)] }
-    const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
+    const { store, firsts } = recorder()
+    const result = await captureFrames(camera, spec, clock.time, store, new AbortController().signal, clock)
     expect(result.failure).toBe('stream-failed')
     expect(result.frames.map(frame => frame.source)).toEqual(['stream'])
+    expect(firsts).toHaveLength(1)
+    expect(firsts[0]).toMatch(/^sha256:0@\d+:stream$/u)
   })
 
   it('reports stream-failed when the live call is refused', async () => {
@@ -156,9 +190,12 @@ describe('captureFrames', () => {
     const camera = new FakeCamera(1, 'Front Door')
     camera.snapshots.push(bytes(1), bytes(2))
     const controller = new AbortController()
-    const capture = captureFrames(camera, spec, clock.time, async () => {
-      controller.abort(new Error('disposed'))
-      return { attachmentId: AttachmentId('sha256:x'), mediaType: 'image/jpeg', bytes: 3, width: 8, height: 6 }
+    const capture = captureFrames(camera, spec, clock.time, {
+      store: async () => {
+        controller.abort(new Error('disposed'))
+        return { attachmentId: AttachmentId('sha256:x'), mediaType: 'image/jpeg', bytes: 3, width: 8, height: 6 }
+      },
+      first: async () => {},
     }, controller.signal, clock)
     await expect(capture).rejects.toThrow('disposed')
   })

@@ -1,8 +1,9 @@
 /**
- * Fixture camera provider: the first `camera` tool call publishes one doorbell press with a
- * synthetic flat-colour frame and waits until the watch records its notice as delivered, so the
- * classification Session binds to the child replay script and the tool reads a settled history.
- * Notices become workspace files instead of Discord messages. No Ring account or network is used.
+ * Fixture camera provider: the first `camera` tool call previews and then publishes one doorbell
+ * press with a synthetic flat-colour frame and waits until the watch records its classified notice
+ * as delivered, so the classification Session binds to the child replay script and the tool reads a
+ * settled history. Notices become workspace files instead of Discord messages. No Ring account or
+ * network is used.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -33,7 +34,7 @@ export default class SnapshotCamera extends CameraService {
     ctx.on('camera/notice', async (notice) => {
       const dir = join(process.cwd(), 'delivered', notice.channelId)
       await mkdir(dir, { recursive: true })
-      await writeFile(join(dir, `${notice.id.replace(':', '-')}.md`),
+      await writeFile(join(dir, `${notice.id.replaceAll(':', '-')}.md`),
         `${notice.text}\n\nImage: ${notice.image?.name ?? 'none'} (${notice.image?.mediaType ?? 'none'})\n`)
       return true
     })
@@ -41,10 +42,10 @@ export default class SnapshotCamera extends CameraService {
       if (exec.name === 'camera' && !fired) {
         fired = true
         const [attachment] = await ctx.attachments.saveImages([{ data: FRAME, mediaType: 'image/jpeg', name: 'front-door-1.jpg' }])
-        await this.publish({
-          id: CameraEventId('ring-101-5150'), deviceId: CameraDeviceId('front-door'), kind: 'ding',
-          occurredAt: OCCURRED_AT, frames: [{ attachment, offsetMs: 0, source: 'snapshot' }],
-        })
+        const frame = { attachment, offsetMs: 0, source: 'snapshot' }
+        const identity = { id: CameraEventId('ring-101-5150'), deviceId: CameraDeviceId('front-door'), kind: 'ding', occurredAt: OCCURRED_AT }
+        await this.publishPreview({ ...identity, frame })
+        await this.publish({ ...identity, frames: [frame] })
         await delivered
       }
       return next()

@@ -19,10 +19,12 @@ const frame = { attachmentId: 'sha256:a', mediaType: 'image/jpeg' as const, byte
 
 const history = [
   record({ eventId: 'ding', occurredAt: NIGHT, kind: 'ding', frames: [frame], reasons: ['ding'], delivery: 'delivered',
-    verdict: { labels: ['person'], counts: { person: 1 }, activity: 'ringing', confidence: 0.9, description: 'A visitor rings.', personFrames: [0] } }),
+    verdict: { labels: ['person'], counts: { person: 1 }, activity: 'ringing', vehicleActivity: 'none', confidence: 0.9, description: 'A visitor rings.',
+      personFrames: [0] } }),
   record({ eventId: 'car', occurredAt: NIGHT - 60_000, deviceId: 'garage', frames: [frame], status: 'unparsed', text: 'A car, I think.' }),
   record({ eventId: 'dark', occurredAt: NIGHT - 120_000, kind: 'ding', status: 'skipped', failure: 'NO_FRAMES', reasons: ['ding'], delivery: 'undelivered' }),
-  record({ eventId: 'blind', occurredAt: NIGHT - 180_000, frames: [frame], status: 'failed', failure: 'TIMEOUT' }),
+  record({ eventId: 'blind', occurredAt: NIGHT - 180_000, kind: 'ding', frames: [frame], status: 'failed', failure: 'TIMEOUT', reasons: ['ding'],
+    delivery: 'undelivered', earlyDelivery: 'delivered' }),
   record({ eventId: 'stray', occurredAt: NIGHT - 240_000, deviceId: 'porch' }),
   record({ eventId: 'old', occurredAt: NOON - 3 * 86_400_000 }),
 ]
@@ -61,13 +63,13 @@ describe('camera tool', () => {
     expect(result).toMatchObject({ timezone: 'America/Phoenix', from: '2026-09-26 23:30:01', to: '2026-09-27 23:30:01', total: 5 })
     expect(result.events).toEqual([
       { id: 'ding', time: '2026-09-27 23:30:00', camera: 'Front door', kind: 'ding', description: 'A visitor rings.', labels: ['person'],
-        counts: { person: 1 }, activity: 'ringing', confidence: 0.9, checked: 'parsed', notified: true, reasons: ['ding'] },
+        counts: { person: 1 }, activity: 'ringing', vehicleActivity: 'none', confidence: 0.9, checked: 'parsed', notified: true, reasons: ['ding'] },
       { id: 'car', time: '2026-09-27 23:29:00', camera: 'Garage', kind: 'motion', description: 'A car, I think.', labels: [], counts: {},
         checked: 'unparsed', notified: false, reasons: [] },
       { id: 'dark', time: '2026-09-27 23:28:00', camera: 'Front door', kind: 'ding', description: 'No picture was captured.', labels: [], counts: {},
         checked: 'skipped (NO_FRAMES)', notified: false, reasons: ['ding'] },
-      { id: 'blind', time: '2026-09-27 23:27:00', camera: 'Front door', kind: 'motion', description: 'Not described.', labels: [], counts: {},
-        checked: 'failed (TIMEOUT)', notified: false, reasons: [] },
+      { id: 'blind', time: '2026-09-27 23:27:00', camera: 'Front door', kind: 'ding', description: 'Not described.', labels: [], counts: {},
+        checked: 'failed (TIMEOUT)', notified: true, reasons: ['ding'] },
       { id: 'stray', time: '2026-09-27 23:26:00', camera: 'porch', kind: 'motion', description: 'No picture was captured.', labels: [], counts: {},
         checked: 'parsed', notified: false, reasons: [] },
     ])
@@ -75,7 +77,7 @@ describe('camera tool', () => {
 
   it('filters by camera, notification, window, and limit', async () => {
     expect((await read({ camera: 'garage' })).events.map(event => event.id)).toEqual(['car'])
-    expect((await read({ notified_only: true })).events.map(event => event.id)).toEqual(['ding'])
+    expect((await read({ notified_only: true })).events.map(event => event.id)).toEqual(['ding', 'blind'])
     expect((await read({ hours: 100 })).total).toBe(6)
     const limited = await read({ limit: 2 })
     expect([limited.total, limited.events.length]).toEqual([5, 2])

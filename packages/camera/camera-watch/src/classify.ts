@@ -1,6 +1,7 @@
 /**
- * One logged classification turn: a root Session with no preset and no tools receives the prompt
- * and the frames as one `user/message`, and its settled assistant text is the verdict answer.
+ * One logged classification turn: a root Session with no preset, no tools, and a dedicated complete
+ * system prompt receives the instruction and the frames as one `user/message`, and its settled
+ * assistant text is the verdict answer.
  * @module @deepseek-ai/dsh-camera-watch/classify
  */
 
@@ -11,12 +12,15 @@ import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSourceMap } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import { awaitTurn, lastAssistantText, lastTurnEndReason } from '@deepseek-ai/dsh-unattended-session'
 
 /** One classification request. */
 export interface ClassifyRequest {
   readonly sessionId: SessionId
+  /** Complete system prompt; every other prompt section and runtime context is left out. */
+  readonly systemPrompt: string
   readonly prompt: string
   readonly frames: readonly ImageAttachmentRef[]
   readonly source: MessageSourceMap['camera']
@@ -33,8 +37,11 @@ export type ClassifyOutcome =
   | { readonly kind: 'failed'; readonly code: 'TIMEOUT' | 'TURN_FAILED' | 'NO_ANSWER' | 'NOT_PERSISTED' }
 
 /**
- * Run one classification turn and release its Agent. The Session stays in the log. The turn may
- * make exactly one model request; a second request fails the turn.
+ * Run one classification turn and release its Agent. The Session stays in the log. Its Agent scope
+ * shadows the deployment persona with `systemPrompt` as the complete prompt, suppresses runtime
+ * context, drops every tool schema from prompt assembly (including tools other plugins register in
+ * the Agent's own scope after creation), and denies every tool execution. The turn may make exactly
+ * one model request; a second request fails the turn.
  * @param ctx - watch context that owns the Agent.
  * @param request - prompt, frames, attribution, route, and bounds.
  * @returns the settled answer text or a failure code.
@@ -48,7 +55,16 @@ export async function classifyFrames(ctx: Context, request: ClassifyRequest): Pr
     ...request.cwd === undefined ? {} : { meta: { cwd: request.cwd } },
     agentOptions: { ...request.selection, maxTokens: request.maxOutputTokens },
     setup: (agentCtx) => {
-      agentCtx.tools.restrict({ allow: [] })
+      agentCtx.systemPrompt.section({
+        name: PERSONA_PREFIX_SECTION,
+        order: agentCtx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'),
+        text: request.systemPrompt,
+        interpolate: false,
+        complete: true,
+      })
+      agentCtx.systemPrompt.suppressRuntimeContext()
+      agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => ({ ...await next(), tools: [] }))
+      agentCtx.tools.guard(() => 'camera classification runs without tools')
       agentCtx.on('llm/stream', (options, next) => {
         if (options.sessionId === sessionId && ++requests > 1) throw new Error('camera classification allows one model request')
         return next()

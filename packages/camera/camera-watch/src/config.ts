@@ -1,8 +1,12 @@
 /** Camera watch configuration and its cross-field validation. @module @deepseek-ai/dsh-camera-watch/config */
 
 import { isAbsolute } from 'node:path'
+import type { CameraVehicleActivity } from '@deepseek-ai/dsh-camera'
 import { ConfiguredModelSelectionSchema, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
+
+/** Vehicle activities a vehicle rule can notify on. */
+export type NotifyingVehicleActivity = Exclude<CameraVehicleActivity, 'none' | 'unknown'>
 
 /** Which classified events notify; every rule applies independently. */
 export interface PolicyConfig {
@@ -16,8 +20,10 @@ export interface PolicyConfig {
   readonly nightStart?: string
   /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
   readonly nightEnd?: string
-  /** Device ids whose vehicle sightings notify; defaults to none. */
+  /** Device ids whose vehicle activity notifies; defaults to none. */
   readonly vehicleDevices?: string[]
+  /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
+  readonly vehicleActivities?: NotifyingVehicleActivity[]
   /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
   readonly lingerSeconds?: number
   /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */
@@ -36,6 +42,11 @@ export interface Config {
   readonly workspacePath?: string
   /** Notification rules. */
   readonly policy?: PolicyConfig
+  /**
+   * Post a doorbell press notice as soon as its first frame is stored, then the classified notice as
+   * a follow-up; false posts only the classified notice. Applies while `policy.ding` is on; defaults to true.
+   */
+  readonly immediateDingNotice?: boolean
   /** Output token ceiling for one classification; defaults to 600. */
   readonly maxOutputTokens?: number
   /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
@@ -67,8 +78,10 @@ export const WATCH_DEFAULTS = Object.freeze({
   nightPerson: true,
   nightStart: '21:00',
   nightEnd: '06:00',
+  vehicleActivities: Object.freeze(['arriving', 'leaving'] as const) satisfies readonly NotifyingVehicleActivity[],
   lingerSeconds: 20,
   minConfidence: 0.5,
+  immediateDingNotice: true,
   maxOutputTokens: 600,
   turnTimeoutMs: 120_000,
   maxConcurrent: 1,
@@ -95,9 +108,11 @@ export const Config: z<Config> = z.object({
     nightStart: z.string().default(WATCH_DEFAULTS.nightStart),
     nightEnd: z.string().default(WATCH_DEFAULTS.nightEnd),
     vehicleDevices: z.array(z.string()).default([]),
+    vehicleActivities: z.array(z.union(['arriving', 'leaving', 'passing', 'parked'])).default([...WATCH_DEFAULTS.vehicleActivities]),
     lingerSeconds: z.number().min(1).default(WATCH_DEFAULTS.lingerSeconds),
     minConfidence: z.number().min(0).max(1).default(WATCH_DEFAULTS.minConfidence),
   }).default({}),
+  immediateDingNotice: z.boolean().default(WATCH_DEFAULTS.immediateDingNotice),
   maxOutputTokens: z.number().step(1).min(64).max(8_192).default(WATCH_DEFAULTS.maxOutputTokens),
   turnTimeoutMs: z.number().step(1).min(5_000).default(WATCH_DEFAULTS.turnTimeoutMs),
   maxConcurrent: z.number().step(1).min(1).max(8).default(WATCH_DEFAULTS.maxConcurrent),
@@ -119,6 +134,7 @@ export interface ResolvedPolicy {
   readonly nightStartMinute: number
   readonly nightEndMinute: number
   readonly vehicleDevices: readonly string[]
+  readonly vehicleActivities: readonly NotifyingVehicleActivity[]
   readonly lingerMs: number
   readonly minConfidence: number
 }
@@ -130,6 +146,7 @@ export interface ResolvedConfig {
   readonly deliverChannelId?: string
   readonly workspacePath?: string
   readonly policy: ResolvedPolicy
+  readonly immediateDingNotice: boolean
   readonly maxOutputTokens: number
   readonly turnTimeoutMs: number
   readonly maxConcurrent: number
@@ -151,8 +168,8 @@ function minuteOf(value: string, field: string): number {
 
 /**
  * Apply defaults and reject what the schema cannot: an unknown time zone, a malformed or empty night
- * window, a non-snowflake channel, and a relative workspace path. Device references are checked
- * against the camera provider when the watch starts.
+ * window, an empty vehicle activity list, a non-snowflake channel, and a relative workspace path.
+ * Device references are checked against the camera provider when the watch starts.
  * @param config - schema-resolved configuration.
  * @returns complete watch settings.
  */
@@ -173,6 +190,8 @@ export function resolveConfig(config: Config): ResolvedConfig {
   const nightStartMinute = minuteOf(policy.nightStart ?? WATCH_DEFAULTS.nightStart, 'nightStart')
   const nightEndMinute = minuteOf(policy.nightEnd ?? WATCH_DEFAULTS.nightEnd, 'nightEnd')
   if (nightStartMinute === nightEndMinute) throw new Error('camera-watch: policy.nightStart and policy.nightEnd must differ')
+  const vehicleActivities = [...new Set(policy.vehicleActivities ?? WATCH_DEFAULTS.vehicleActivities)]
+  if (vehicleActivities.length === 0) throw new Error('camera-watch: policy.vehicleActivities must list at least one vehicle activity')
   return {
     timezone: config.timezone,
     ...config.modelSelection === undefined ? {} : { modelSelection: config.modelSelection },
@@ -185,9 +204,11 @@ export function resolveConfig(config: Config): ResolvedConfig {
       nightStartMinute,
       nightEndMinute,
       vehicleDevices: [...new Set(policy.vehicleDevices ?? [])],
+      vehicleActivities,
       lingerMs: (policy.lingerSeconds ?? WATCH_DEFAULTS.lingerSeconds) * 1_000,
       minConfidence: policy.minConfidence ?? WATCH_DEFAULTS.minConfidence,
     },
+    immediateDingNotice: config.immediateDingNotice ?? WATCH_DEFAULTS.immediateDingNotice,
     maxOutputTokens: config.maxOutputTokens ?? WATCH_DEFAULTS.maxOutputTokens,
     turnTimeoutMs: config.turnTimeoutMs ?? WATCH_DEFAULTS.turnTimeoutMs,
     maxConcurrent: config.maxConcurrent ?? WATCH_DEFAULTS.maxConcurrent,
