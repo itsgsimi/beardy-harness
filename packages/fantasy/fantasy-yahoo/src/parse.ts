@@ -25,6 +25,13 @@ function flag(value: unknown): boolean {
   return value === true || value === 1 || value === '1'
 }
 
+/** Yahoo 1/0 flags; any other value is unknown rather than false. */
+function binary(value: unknown): boolean | undefined {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  return undefined
+}
+
 /** Merge Yahoo's array of entity fragments without flattening nested view objects. */
 function fragments(value: unknown): JsonObject {
   if (Array.isArray(value)) {
@@ -212,6 +219,7 @@ function playerFrom(value: unknown): FantasyPlayer {
     ...(string(row['editorial_team_abbr']) === undefined ? {} : { nflTeam: string(row['editorial_team_abbr']) }),
     positions: eligible.length > 0 ? eligible : string(row['display_position'])?.split(',') ?? [],
     ...(string(selected['position']) === undefined ? {} : { selectedSlot: string(selected['position']) }),
+    ...(binary(row['is_editable']) === undefined ? {} : { slotLocked: !binary(row['is_editable']) }),
     ...(string(row['status']) === undefined ? {} : { status: string(row['status']) }),
     ...(string(row['injury_note']) === undefined ? {} : { injuryNote: string(row['injury_note']) }),
     ...(number(object(row['bye_weeks'])?.['week']) === undefined ? {} : { byeWeek: number(object(row['bye_weeks'])?.['week']) }),

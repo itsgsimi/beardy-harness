@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CronRunFinished, Scheduler } from '@deepseek-ai/dsh-cron'
+import type { ResearchRunView } from '@deepseek-ai/dsh-research/types'
 import { resolveConfig, type Config } from '../src/config.ts'
 import { apply, handOff, inject, mountReports, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
-import { HANG, WEDNESDAY_WEEK_3, harness, promptOf, validDraft, yahoo, type Harness, type Reply } from './support.ts'
+import { HANG, WEDNESDAY_WEEK_3, harness, lockedRoster, promptOf, validDraft, yahoo, type Harness, type Reply } from './support.ts'
 
 /** Each case persists one or more 15-player runs with every ledger write flushed to JSONL. */
 const RUN_CASE_TIMEOUT_MS = 90_000
@@ -23,6 +24,7 @@ const household = {
       schedule: { full: '30 15 * * 3', thursday: '30 12 * * 4', sunday: '0 7 * * 0' } },
   ],
   searchesPerPlayer: 1, pagesPerPlayer: 1, maxConcurrentFetches: 1, deliveryAttempts: 1, deliveryRetryMs: 0,
+  catchUpWindowMs: 0,
 } satisfies Config
 const THURSDAY_WEEK_3 = Date.UTC(2026, 8, 24, 18, 0)
 const SUNDAY_WEEK_3 = Date.UTC(2026, 8, 27, 12, 30)
@@ -66,11 +68,37 @@ describe('scheduled weekly reports', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(promptOf(h.adapter.requests[4]!)).toContain('This is the Sunday update')
     const runs = await h.research.list({ owner: { kind: 'profile', namespace: 'beardy' }, limit: 10 })
     expect(runs.map(run => run.query)).toEqual([
-      'The Googies weekly fantasy report, 2026 week 3 (sunday) [fantasy-report:googies:2026:3:sunday]',
-      'The Googies weekly fantasy report, 2026 week 3 (thursday) [fantasy-report:googies:2026:3:thursday]',
-      'The Googies weekly fantasy report, 2026 week 3 (full) [fantasy-report:googies:2026:3:full]',
+      `The Googies weekly fantasy report, 2026 week 3 (sunday) [fantasy-report:googies:2026:3:sunday:scheduled:${SUNDAY_WEEK_3}]`,
+      `The Googies weekly fantasy report, 2026 week 3 (thursday) [fantasy-report:googies:2026:3:thursday:scheduled:${THURSDAY_WEEK_3}]`,
+      `The Googies weekly fantasy report, 2026 week 3 (full) [fantasy-report:googies:2026:3:full:scheduled:${WEDNESDAY_WEEK_3}]`,
     ])
     expect(new Set(runs.map(run => run.callerSessionId))).toEqual(new Set(['fantasy-reports-googies']))
+  })
+
+  it('keeps a Sunday starter whose game has started in his Yahoo slot and names every locked player', async () => {
+    const base = validDraft()
+    const swap = (row: typeof base.players[number]) => row.player === 'P4' ? { ...row, recommendation: 'SIT' as const }
+      : row.player === 'P8' ? { ...row, recommendation: 'START' as const } : row
+    const moved = { ...base, players: base.players.map(swap),
+      lineup: base.lineup.map(item => item.player === 'P4' ? { ...item, player: 'P8' } : item) }
+    const repair = JSON.stringify({ players: base.players.filter(row => row.player === 'P4' || row.player === 'P8'),
+      lineup: base.lineup, actions: [], decisions: [], caveats: [] })
+    const { h, delivered } = await setup([JSON.stringify(moved), repair, pass])
+    h.fantasy.data = { ...yahoo, roster: lockedRoster([3, 9]) }
+    expect((await fire(h, {}, SUNDAY_WEEK_3, 0, 'sunday')).kind).toBe('published')
+    const writer = promptOf(h.adapter.requests[0]!)
+    expect(writer).toMatch(/"id":"P4","name":"Parker Washington",[^}]*"yahooSlot":"WR","yahooSlotLocked":true/u)
+    expect(writer).toMatch(/"id":"P10","name":"J\.K\. Dobbins",[^}]*"yahooSlot":"BN","yahooSlotLocked":true/u)
+    expect(writer).toMatch(/"id":"P8","name":"Jordan Addison",[^}]*"yahooSlot":"BN","yahooSlotLocked":false/u)
+    expect(writer).toContain('a locked starter stays in his current yahooSlot in the lineup, and a locked bench player cannot start')
+    expect(promptOf(h.adapter.requests[1]!))
+      .toContain('- lineup: P4 (Parker Washington) is locked in WR by Yahoo because his game has started; keep him in WR')
+    const text = delivered[0]!.text
+    expect(text).toContain('- **WR** — Parker Washington\n')
+    expect(text).not.toContain('Changes from your Yahoo lineup')
+    expect(text).toContain('Locked by Yahoo because their games have started: Parker Washington (WR), J.K. Dobbins (BN). '
+      + 'Their slots cannot change this week.')
+    expect(text).toContain('**Parker Washington — Start** · WR · Jax · Yahoo slot WR (locked)')
   })
 
   it('leaves an unreadable earlier report out of the history instead of failing the new report', async () => {
@@ -193,6 +221,56 @@ describe('scheduled weekly reports', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
   })
 })
 
+describe('restart catch-up', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
+  /** Thirty minutes after the 5:30 AM Phoenix Sunday slot. */
+  const LATE = SUNDAY_WEEK_3 + 1_800_000
+  const SLOT = '[fantasy-report:googies:2026:3:sunday'
+  const catchUp = (open = true): Partial<ReportFireOptions> => ({ catchUp: { slotAt: SUNDAY_WEEK_3, open: () => open } })
+
+  function priorRun(phase: ResearchRunView['phase'], tag: string): ResearchRunView {
+    return { id: 'rp-native-prior' as ResearchRunView['id'], owner: { kind: 'profile', namespace: 'beardy' },
+      callerSessionId: 'fantasy-reports-googies' as ResearchRunView['callerSessionId'], query: `The Googies weekly fantasy report ${tag}`,
+      phase, round: 1, stageSessionIds: [], sourceCount: 0, createdAt: 1, updatedAt: 1, provider: 'mock', model: 'test-model',
+      reportAvailable: false }
+  }
+
+  it('runs a slot without history once inside its window, then only repeats the completed delivery', async () => {
+    const { h, delivered } = await setup([draft, pass])
+    const first = await fire(h, {}, LATE, 0, 'sunday', catchUp())
+    expect(first).toMatchObject({ kind: 'published', runId: expect.stringMatching(/^rp-native-/u) as string })
+    expect(delivered).toEqual([expect.objectContaining({ jobName: 'fantasy-googies-sunday', sessionId: first.runId, firedAt: LATE,
+      outcome: 'answered' })])
+    expect((await h.research.list({ owner: { kind: 'profile', namespace: 'beardy' }, limit: 10 })).map(run => run.query))
+      .toEqual([`The Googies weekly fantasy report, 2026 week 3 (sunday) ${SLOT}:catch-up:${LATE}]`])
+    expect(await fire(h, {}, LATE + 60_000, 0, 'sunday', catchUp())).toEqual({ kind: 'redelivered', runId: first.runId })
+    expect(delivered[1]).toEqual(delivered[0])
+    expect(h.adapter.requests).toHaveLength(2)
+    expect(await fire(h, {}, LATE + 120_000, 0, 'sunday')).toEqual({ kind: 'skipped', reason: `${SLOT}] already has a run` })
+  })
+
+  it('restarts an interrupted run once and leaves settled, caught-up, unrecorded, closed, and unscheduled slots alone', async () => {
+    const { h, delivered } = await setup([draft, pass])
+    const list = vi.spyOn(h.research, 'list')
+    list.mockResolvedValueOnce([priorRun('interrupted', `${SLOT}:scheduled:${SUNDAY_WEEK_3}]`),
+      priorRun('failed', `[fantasy-report:googies:2026:3:thursday:scheduled:${THURSDAY_WEEK_3}]`)])
+    expect(await fire(h, {}, LATE, 0, 'sunday', catchUp())).toMatchObject({ kind: 'published' })
+    list.mockResolvedValueOnce([priorRun('interrupted', `${SLOT}:catch-up:${LATE}]`), priorRun('interrupted', `${SLOT}:scheduled:1]`)])
+    expect(await fire(h, {}, LATE, 0, 'sunday', catchUp())).toEqual({ kind: 'skipped', reason: `${SLOT}] was already caught up once` })
+    list.mockResolvedValueOnce([priorRun('failed', `${SLOT}:scheduled:1]`)])
+    expect(await fire(h, {}, LATE, 0, 'sunday', catchUp())).toEqual({ kind: 'skipped', reason: `${SLOT}] already has a failed run` })
+    list.mockResolvedValueOnce([priorRun('completed', `${SLOT}]`)])
+    expect(await fire(h, {}, LATE, 0, 'sunday', catchUp())).toEqual({ kind: 'skipped',
+      reason: `${SLOT}] completed without a recorded fire, so its delivery is not repeated` })
+    list.mockResolvedValueOnce([])
+    expect(await fire(h, {}, LATE, 0, 'sunday', catchUp(false))).toEqual({ kind: 'skipped',
+      reason: `the catch-up window of ${SLOT}] closed before its start` })
+    expect(await fire(h, {}, LATE, 0, 'sunday', { catchUp: { slotAt: Date.UTC(2026, 6, 5, 12, 30), open: () => true } }))
+      .toEqual({ kind: 'skipped', reason: '2026-07-05 is outside report weeks 1-17' })
+    expect(delivered.map(item => item.outcome)).toEqual(['answered'])
+    expect(h.adapter.requests).toHaveLength(2)
+  })
+})
+
 describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
   function fakeScheduler() {
     const ticks = new Map<string, (firedAt: number) => void>()
@@ -215,7 +293,7 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       return start(request)
     })
     const fiber = await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
-      mountReports(ctx, { ...household, minimumStartGapMs: 1000 }, timers.scheduler)
+      mountReports(ctx, { ...household, minimumStartGapMs: 1000 }, timers.scheduler, Date.now)
     } })
     expect([...timers.ticks.keys()]).toHaveLength(6)
     const settled = new Promise<void>((resolve) => {
@@ -241,7 +319,7 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     const timers = fakeScheduler()
     const errors = vi.spyOn(h.ctx.logger, 'error')
     const fiber = await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
-      mountReports(ctx, household, timers.scheduler)
+      mountReports(ctx, household, timers.scheduler, Date.now)
     } })
     const entered = new Promise<void>((resolve) => { h.ctx.on('llm/stream', (_request, next) => { resolve(); return next() }) })
     timers.ticks.get('0 14 * * 3')!(WEDNESDAY_WEEK_3)
@@ -251,12 +329,29 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     const throwing = await setup([draft, pass])
     const again = fakeScheduler()
     const logged = vi.spyOn(throwing.h.ctx.logger, 'error')
-    await throwing.h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => { mountReports(ctx, household, again.scheduler) } })
+    await throwing.h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => { mountReports(ctx, household, again.scheduler, Date.now) } })
     vi.spyOn(throwing.h.research, 'report').mockRejectedValue(new Error('report attachment unreadable'))
     const failed = new Promise<void>((resolve) => { logged.mockImplementation(() => { resolve() }) })
     again.ticks.get('0 14 * * 3')!(WEDNESDAY_WEEK_3)
     await failed
     expect(logged).toHaveBeenCalledWith('fantasy-reports: googies full failed: Error: report attachment unreadable')
+  })
+
+  it('catches up each team\'s latest slot inside its window once, when the plugin starts', async () => {
+    const { h, delivered } = await setup([draft, pass])
+    const timers = fakeScheduler()
+    const info = vi.spyOn(h.ctx.logger, 'info')
+    const settled = new Promise<void>((resolve) => {
+      info.mockImplementation((line) => { if (String(line).startsWith('fantasy-reports: googies sunday catch-up')) resolve() })
+    })
+    const fiber = await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
+      mountReports(ctx, { ...household, catchUpWindowMs: 43_200_000 }, timers.scheduler, () => SUNDAY_WEEK_3 + 1_800_000)
+    } })
+    await settled
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^fantasy-reports: googies sunday catch-up published$/u) as string)
+    expect(delivered).toEqual([expect.objectContaining({ jobName: 'fantasy-googies-sunday', firedAt: SUNDAY_WEEK_3 + 1_800_000 })])
+    await fiber.dispose()
+    expect(info.mock.calls.flat().filter(line => String(line).includes('catch-up'))).toHaveLength(1)
   })
 
   it('mounts real croner timers through the plugin entry and releases them on disposal', async () => {

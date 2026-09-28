@@ -3,7 +3,7 @@
 import type { FantasyMatchup, FantasyPlayer, FantasyRosterSlot } from '@deepseek-ai/dsh-fantasy/types'
 import type { ReportMode } from './config.ts'
 import type { DraftPlayer, Evidence, FantasyDraft } from './draft.ts'
-import { lineupChanges } from './lineup.ts'
+import { lineupChanges, lockedPlayers } from './lineup.ts'
 
 /** Everything a rendered report states besides the accepted draft. */
 export interface RenderInput {
@@ -83,6 +83,11 @@ function render(draft: FantasyDraft, input: RenderInput, compact: boolean): stri
     const name = (input.players.get(assignment.player) as FantasyPlayer).name
     lines.push(`- **${assignment.slot}** — ${name}${rows.get(assignment.player)?.recommendation === 'CONDITIONAL' ? ' — conditional' : ''}`)
   }
+  const locked = lockedPlayers(input.players)
+  if (locked.length > 0) {
+    lines.push('', `Locked by Yahoo because their games have started: ${locked.map(player => `${player.name} (${player.selectedSlot ?? 'BN'})`)
+      .join(', ')}. Their slots cannot change this week.`)
+  }
   lines.push('', 'Recommendations only: check final injury reports and your league\'s lineup locks before changing Yahoo.', '',
     '## The close calls')
   for (const decision of draft.decisions) {
@@ -95,7 +100,7 @@ function render(draft: FantasyDraft, input: RenderInput, compact: boolean): stri
     const refs = [...new Set(row.facts.map(fact => fact.source))]
     refs.forEach(ref => cited.add(ref))
     const positions = player.positions.filter(position => !position.includes('/') && position !== 'IR').join('/')
-    const yahoo = [positions, player.nflTeam, `Yahoo slot ${player.selectedSlot ?? 'n/a'}`,
+    const yahoo = [positions, player.nflTeam, `Yahoo slot ${player.selectedSlot ?? 'n/a'}${player.slotLocked === true ? ' (locked)' : ''}`,
       player.byeWeek === undefined ? undefined : `bye ${player.byeWeek}`,
       player.status === undefined ? undefined : `status ${player.status}${player.injuryNote === undefined ? '' : ` (${player.injuryNote})`}`,
       player.projectedPoints === undefined ? undefined : `projected ${points(player.projectedPoints)}`]

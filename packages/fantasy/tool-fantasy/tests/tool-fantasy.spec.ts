@@ -40,6 +40,7 @@ async function setup(pageChars?: number) {
   const team = TeamKey('470.l.809970.t.6')
   const league = LeagueKey('470.l.809970')
   const player = { key: PlayerKey('470.p.1'), name: 'Player One', positions: ['RB'], percentOwned: 25 }
+  const started = { key: PlayerKey('470.p.2'), name: 'Player Two', positions: ['WR'], selectedSlot: 'WR', slotLocked: true }
   const service = {
     teamFor: vi.fn(() => team),
     leagues: vi.fn(async () => [{ key: league, name: 'League One' }]),
@@ -47,7 +48,7 @@ async function setup(pageChars?: number) {
     standings: vi.fn(async () => [{ key: team, name: 'Team Six', rank: 1 }]),
     scoreboard: vi.fn(async () => [{ week: 3, teams: [{ key: team, name: 'Team Six', projectedPoints: 110 }] }]),
     matchups: vi.fn(async () => [{ week: 3, teams: [{ key: team, name: 'Team Six' }] }]),
-    team: vi.fn(async () => ({ team: { key: team, name: 'Team Six' }, week: 3, players: [player] })),
+    team: vi.fn(async () => ({ team: { key: team, name: 'Team Six' }, week: 3, players: [player, started] })),
     players: vi.fn(async () => [player]),
     player: vi.fn(async () => player),
     transactions: vi.fn(async () => [{ key: 'tr.1', type: 'add', players: [] }]),
@@ -93,6 +94,11 @@ it('exposes all requested read actions and derives the caller team without a mod
     expect(response.text.length).toBeGreaterThan(0)
   }
   expect(h.service.team).toHaveBeenCalledWith(TeamKey('470.l.809970.t.6'), 3, expect.any(AbortSignal))
+  expect(schema?.description).toContain('slotLocked true cannot change lineup slots')
+  const roster = JSON.parse((JSON.parse(resultText(await h.call({ action: 'team', week: 3 }))) as { text: string }).text) as {
+    players: { name: string; slotLocked?: boolean }[]
+  }
+  expect(roster.players.map(item => [item.name, item.slotLocked])).toEqual([['Player One', undefined], ['Player Two', true]])
   expect(h.service.players).toHaveBeenCalledWith(LeagueKey('470.l.809970'),
     expect.objectContaining({ status: 'FA', position: 'RB', sort: 'rank', count: 10 }), expect.any(AbortSignal))
   await h.fiber.dispose()

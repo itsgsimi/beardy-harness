@@ -23,18 +23,21 @@
 /deepseek-ai-dsh-fantasy-reports/use-this-package/schedules-and-weeks:
   en: 79b94aca77c74b40
   zh: 4463d4172aeade8c
+/deepseek-ai-dsh-fantasy-reports/use-this-package/restart-catch-up:
+  en: c7fde07f3b9cc8b3
+  zh: af875302641dd8d3
 /deepseek-ai-dsh-fantasy-reports/use-this-package/delivery-notices-and-shadow-mode:
   en: 9cf3c612a04b47c5
   zh: 3fcb02ca0cf45d44
 /deepseek-ai-dsh-fantasy-reports/use-this-package/history:
-  en: 085fb838ce47d18a
-  zh: 0336f2da9d6c342a
+  en: feca115632722a61
+  zh: 9f2bc6e589d21b27
 /deepseek-ai-dsh-fantasy-reports/understand-the-implementation:
-  en: 11fce6010776730d
-  zh: 9a0a3d1eb72fa0ac
+  en: dbac3e7d0bcf062d
+  zh: f247688e11f95e86
 /deepseek-ai-dsh-fantasy-reports/further-exploration:
-  en: 5b96de67eac3c5bd
-  zh: 40f4328ec07da9c6
+  en: 43bfebf3ed90d556
+  zh: 908081ba0f46cbea
 /deepseek-ai-dsh-fantasy-reports/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -42,8 +45,8 @@
   en: fccfc4362bd365a5
   zh: 68a0704af2065c6e
 /deepseek-ai-dsh-fantasy-reports/model-experience/weekly-report-stages/what-the-model-sees:
-  en: 2cedfaae67cecd6e
-  zh: a90d288e8fc27817
+  en: 0772bea0f9d723e3
+  zh: cf3422e5a3036f71
 /deepseek-ai-dsh-fantasy-reports/model-experience/weekly-report-stages/token-effect:
   en: bea0ef1ccff161f8
   zh: 853d2b25b3153fad
@@ -51,8 +54,8 @@
   en: e1b659bb868e82ab
   zh: fb445b2c40e94bfa
 /deepseek-ai-dsh-fantasy-reports/known-limitations-and-deferred-work:
-  en: d5f57c4066184482
-  zh: fb05201c8638b49c
+  en: 3fd0d1dd129c6eb5
+  zh: 7a9cd11c4367622d
 /deepseek-ai-dsh-fantasy-reports/known-limitations-and-deferred-work/dev-note:
   en: 6a14b410b326528a
   zh: 9d131fc939f3af47

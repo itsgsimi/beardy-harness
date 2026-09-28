@@ -27,6 +27,18 @@ export function assertSchedule(expression: string, timezone: string): void {
 }
 
 /**
+ * Latest match of a pattern at or before an instant, so a caller can tell which fire a restart missed.
+ * Croner compares whole seconds, so the instant's own second counts as reached.
+ * @param expression - croner expression, validated by {@link assertSchedule}.
+ * @param timezone - IANA timezone used to interpret the expression.
+ * @param at - epoch milliseconds.
+ * @returns the match in epoch milliseconds, or undefined when the pattern has none at or before the instant.
+ */
+export function latestMatchAt(expression: string, timezone: string, at: number): number | undefined {
+  return new Cron(expression, { timezone }).previousRuns(1, new Date(Math.floor(at / 1_000) * 1_000 + 1_000))[0]?.getTime()
+}
+
+/**
  * Croner-backed scheduler protected against overlap and evaluated in the job's own timezone.
  * @param job - validated schedule expression and timezone.
  * @param onTick - callback invoked with each accepted fire time.

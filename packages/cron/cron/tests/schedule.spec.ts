@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { assertSchedule, cronerScheduler } from '../src/schedule.ts'
+import { assertSchedule, cronerScheduler, latestMatchAt } from '../src/schedule.ts'
 
 describe('assertSchedule', () => {
   it('accepts a five-field expression with a named timezone', () => {
@@ -12,6 +12,21 @@ describe('assertSchedule', () => {
 
   it('rejects an expression that is not a cron pattern', () => {
     expect(() => { assertSchedule('every morning', 'UTC') }).toThrow()
+  })
+})
+
+describe('latestMatchAt', () => {
+  const wednesday = Date.parse('2026-09-23T21:00:00Z')
+
+  it('returns the latest match at or before the instant in the pattern timezone', () => {
+    expect(latestMatchAt('0 14 * * 3', 'America/Phoenix', wednesday)).toBe(wednesday)
+    expect(latestMatchAt('0 14 * * 3', 'America/Phoenix', wednesday + 999)).toBe(wednesday)
+    expect(latestMatchAt('0 14 * * 3', 'America/Phoenix', wednesday + 86_400_000)).toBe(wednesday)
+    expect(latestMatchAt('0 14 * * 3', 'America/Phoenix', wednesday - 1)).toBe(wednesday - 7 * 86_400_000)
+  })
+
+  it('returns undefined for a pattern with no earlier match', () => {
+    expect(latestMatchAt('0 0 0 1 1 * 2030', 'UTC', wednesday)).toBeUndefined()
   })
 })
 

@@ -65,6 +65,18 @@ describe('report rendering', () => {
     expect(text).toContain('· bye 13 · status Q\n')
   })
 
+  it('names locked players with their Yahoo slot, or the bench when Yahoo shows none', () => {
+    const locked = new Map(players)
+    locked.set('P1', { ...players.get('P1')!, slotLocked: true })
+    locked.set('P10', { ...players.get('P10')!, slotLocked: true, selectedSlot: undefined })
+    const text = renderReport(draft(), { ...input, players: locked }, 19_000)
+    expect(text).toContain('\n\nLocked by Yahoo because their games have started: Trevor Lawrence (QB), J.K. Dobbins (BN). '
+      + 'Their slots cannot change this week.\n\nRecommendations only:')
+    expect(text).toContain('**Trevor Lawrence — Start** · QB · Jax · Yahoo slot QB (locked) · bye 7')
+    expect(text).toContain('Yahoo slot n/a (locked)')
+    expect(renderReport(draft(), input, 19_000)).not.toContain('Locked by Yahoo')
+  })
+
   it('renders uncited or unknown source numbers without links', () => {
     const current = draft()
     const text = renderReport({ ...current, decisions: [{ title: 'Missing', text: 'A comparison that cites a missing source.', sources: [99] }] },

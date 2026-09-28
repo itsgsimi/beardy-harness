@@ -56,7 +56,7 @@ The tool takes a live caller Session and obtains its team from the provider's va
 
 #### What the model sees
 
-One `fantasy` schema offers eleven read actions. Results contain normalized JSON in `text`, with `next_offset` for response slices and `next_start` for Yahoo player or transaction pages. Tool calls and results enter the caller Session.
+One `fantasy` schema offers eleven read actions; its description says that a roster player with `slotLocked: true` cannot change lineup slots this week. Results contain normalized JSON in `text`, with `next_offset` for response slices and `next_start` for Yahoo player or transaction pages. Tool calls and results enter the caller Session.
 
 #### Token effect
 

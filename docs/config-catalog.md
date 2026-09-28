@@ -1622,6 +1622,13 @@ export interface Config {
   readonly shadowChannelId?: string
   /** Minimum milliseconds between two report starts. */
   readonly minimumStartGapMs?: number
+  /**
+   * How long after a team's latest slot a plugin start still revisits it: a missing or interrupted
+   * report runs once, and a completed one is handed to delivery again; 0 turns catch-up off.
+   */
+  readonly catchUpWindowMs?: number
+  /** Tighter catch-up window for Sunday slots, which must finish before the first kickoff. */
+  readonly sundayCatchUpWindowMs?: number
   /** Search queries per roster player: availability first, then fantasy outlook. */
   readonly searchesPerPlayer?: number
   /** Search results considered per query. */

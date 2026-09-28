@@ -231,8 +231,8 @@ function yahooContext(input: WeeklyReportInput, roster: FantasyRoster, matchups:
     }))),
     roster: [...players].map(([id, player]) => ({
       id, name: player.name, nflTeam: player.nflTeam, positions: player.positions, yahooSlot: player.selectedSlot,
-      status: player.status, injuryNote: player.injuryNote, bye: player.byeWeek, yahooProjected: player.projectedPoints,
-      weekPoints: player.points,
+      yahooSlotLocked: player.slotLocked, status: player.status, injuryNote: player.injuryNote, bye: player.byeWeek,
+      yahooProjected: player.projectedPoints, weekPoints: player.points,
     })),
   }
 }

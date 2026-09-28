@@ -45,7 +45,9 @@ export function eligibleFor(player: FantasyPlayer, slot: string): boolean {
 }
 
 /**
- * Check a proposed lineup against Yahoo's starting slots, eligibility, and weekly availability.
+ * Check a proposed lineup against Yahoo's starting slots, eligibility, weekly availability, and slot locks.
+ * A player whose slot Yahoo has locked stays where Yahoo shows him: a locked starter keeps his current
+ * starting slot, exempt from the availability check, and a locked reserve player cannot start.
  * @param assignments - proposed starters.
  * @param players - roster players by short id.
  * @param slots - league roster slots from Yahoo settings.
@@ -77,8 +79,20 @@ export function lineupErrors(assignments: readonly LineupAssignment[], players: 
       continue
     }
     if (!eligibleFor(player, slot)) errors.push(`lineup: ${assignment.player} (${player.name}) is not eligible for ${slot}`)
-    const unavailable = unavailableReason(player, week)
+    const unavailable = player.slotLocked === true ? undefined : unavailableReason(player, week)
     if (unavailable !== undefined) errors.push(`lineup: ${assignment.player} cannot start because ${unavailable}`)
+  }
+  for (const [id, player] of players) {
+    if (player.slotLocked !== true) continue
+    const current = (player.selectedSlot ?? 'BN').toUpperCase()
+    const assigned = assignments.filter(assignment => assignment.player === id).map(assignment => assignment.slot.toUpperCase())
+    if (starting.has(current)) {
+      if (!assigned.includes(current)) {
+        errors.push(`lineup: ${id} (${player.name}) is locked in ${current} by Yahoo because his game has started; keep him in ${current}`)
+      }
+    } else if (assigned.length > 0) {
+      errors.push(`lineup: ${id} (${player.name}) is locked on ${current} by Yahoo because his game has started; he cannot start`)
+    }
   }
   for (const [slot, count] of starting) {
     const actual = counts.get(slot) ?? 0
@@ -104,4 +118,13 @@ export function lineupChanges(assignments: readonly LineupAssignment[], players:
     start: [...recommended].filter(id => !current.has(id)).flatMap(id => players.get(id) ?? []),
     bench: [...current].filter(id => !recommended.has(id)).map(id => players.get(id) as FantasyPlayer),
   }
+}
+
+/**
+ * Roster players whose slots Yahoo has locked for the week.
+ * @param players - roster players by short id.
+ * @returns locked players in roster order.
+ */
+export function lockedPlayers(players: ReadonlyMap<string, FantasyPlayer>): FantasyPlayer[] {
+  return [...players.values()].filter(player => player.slotLocked === true)
 }

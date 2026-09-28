@@ -86,7 +86,7 @@ cron 行上的 `modelSelection: { provider, model, reasoningEffort? }` 为每次
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-`schedule.ts` 把 croner 包在 `Scheduler` 接缝（seam）之后（`cronerScheduler`，以及只校验表达式而不调度的 `assertSchedule`），因此测试可以用假调度器挂载任务，同时用真实调度器证明一秒周期的表达式确实触发。`domain.ts` 定义 `cron_jobs` 存储域：`jobs` 表存放存储的任务定义，`state` 表为两种来源保存笔记与运行历史。`registry.ts` 把配置任务与存储任务合并成一个视图，在每次变更上执行护栏，并在构造时拒绝被两种来源同时占用的名字。`launch.ts` 负责会话创建顺序——解析 agent 预设、解析权限预设、注册工作区、生成会话 id、`agents.create`、attach、应用权限、命名——任一后续步骤失败时回滚为 detach 加 dispose。`index.ts` 承载活动定时器（`createSchedulerHost`：sync、trigger、重叠守卫），并在写入落到 `jobs` 表时重新排程；`tool.ts` 与 `command.ts` 是注册表之上面向模型与面向人的界面，审批服务在调用时刻读取。
+`schedule.ts` 把 croner 包在 `Scheduler` 接缝（seam）之后（`cronerScheduler`、只校验表达式而不调度的 `assertSchedule`，以及为调用方的重启补跑找出某一时刻或之前最近一次匹配的 `latestMatchAt`），因此测试可以用假调度器挂载任务，同时用真实调度器证明一秒周期的表达式确实触发。`domain.ts` 定义 `cron_jobs` 存储域：`jobs` 表存放存储的任务定义，`state` 表为两种来源保存笔记与运行历史。`registry.ts` 把配置任务与存储任务合并成一个视图，在每次变更上执行护栏，并在构造时拒绝被两种来源同时占用的名字。`launch.ts` 负责会话创建顺序——解析 agent 预设、解析权限预设、注册工作区、生成会话 id、`agents.create`、attach、应用权限、命名——任一后续步骤失败时回滚为 detach 加 dispose。`index.ts` 承载活动定时器（`createSchedulerHost`：sync、trigger、重叠守卫），并在写入落到 `jobs` 表时重新排程；`tool.ts` 与 `command.ts` 是注册表之上面向模型与面向人的界面，审批服务在调用时刻读取。
 
 </details>
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { cronerScheduler } from '@deepseek-ai/dsh-cron'
 import { Config as Schema, DEFAULT_EXCLUDED_HOSTS, resolveConfig, type Config } from '../src/config.ts'
-import { deliveryChannel, formatReportTag, localDate, parseReportTag, reportSchedules } from '../src/index.ts'
+import {
+  catchUpSlots, catchUpWindow, deliveryChannel, formatReportTag, localDate, parseReportTag, reportSchedules,
+} from '../src/index.ts'
 
 /** The two teams and Wednesday/Thursday/Sunday starts the Odysseus service used, in its timezone. */
 const household = {
@@ -47,7 +49,8 @@ describe('report configuration', () => {
 
   it('applies defaults and accepts overrides inside their bounds', () => {
     const config = resolveConfig(household)
-    expect(config).toMatchObject({ firstWeek: 1, lastWeek: 17, minimumStartGapMs: 5_400_000, searchesPerPlayer: 2,
+    expect(config).toMatchObject({ firstWeek: 1, lastWeek: 17, minimumStartGapMs: 5_400_000, catchUpWindowMs: 43_200_000,
+      sundayCatchUpWindowMs: 7_200_000, searchesPerPlayer: 2,
       pagesPerPlayer: 2, maxReviews: 3, maxStructuralRepairs: 2, runTimeoutMs: 14_400_000, maxDeliveryChars: 19_000 })
     expect(config.excludedHosts).toEqual(DEFAULT_EXCLUDED_HOSTS)
     expect(config).not.toHaveProperty('shadowChannelId')
@@ -61,6 +64,8 @@ describe('report configuration', () => {
     const cases: Array<[Partial<Config>, RegExp]> = [
       [{ maxReviews: 0 }, /maxReviews must be an integer from 1 through 6/],
       [{ runTimeoutMs: 1.5 }, /runTimeoutMs/],
+      [{ catchUpWindowMs: 604_800_001 }, /catchUpWindowMs must be an integer from 0 through 604800000/],
+      [{ sundayCatchUpWindowMs: -1 }, /sundayCatchUpWindowMs must be an integer from 0 through 86400000/],
       [{ firstWeek: 5, lastWeek: 4 }, /lastWeek must not precede firstWeek/],
       [{ workspacePath: 'relative' }, /workspacePath must be absolute/],
       [{ timezone: 'Mars/Olympus' }, /not an IANA timezone/],
@@ -83,6 +88,42 @@ describe('report configuration', () => {
     expect(tag).toBe('[fantasy-report:lights:2026:3:thursday]')
     expect(parseReportTag(`Lights weekly fantasy report ${tag}`)).toEqual({ team: 'lights', season: '2026', week: 3, mode: 'thursday' })
     expect(parseReportTag('General research question')).toBeUndefined()
+    const fired = formatReportTag({ team: 'lights', season: '2026', week: 3, mode: 'sunday', fire: { trigger: 'catch-up', at: 1_790_530_200_000 } })
+    expect(fired).toBe('[fantasy-report:lights:2026:3:sunday:catch-up:1790530200000]')
+    expect(parseReportTag(`Lights weekly fantasy report ${fired}`)).toEqual({ team: 'lights', season: '2026', week: 3, mode: 'sunday',
+      fire: { trigger: 'catch-up', at: 1_790_530_200_000 } })
     expect(localDate(Date.UTC(2026, 8, 24, 5, 0), 'America/Phoenix')).toBe('2026-09-23')
+  })
+})
+
+describe('restart catch-up slots', () => {
+  const config = resolveConfig(household)
+  /** Phoenix local time in week 3 of 2026 (UTC-7, no daylight saving). */
+  const phoenix = (day: number, hour: number, minute = 0): number => Date.UTC(2026, 8, day, hour + 7, minute)
+  const slots = (at: number, overrides: Partial<Config> = {}) => catchUpSlots(resolveConfig({ ...household, ...overrides }), at)
+    .map(slot => [slot.team.id, slot.mode, new Date(slot.slotAt).toISOString()])
+
+  it('picks each team\'s latest slot while it is inside the window', () => {
+    expect(slots(phoenix(23, 20))).toEqual([
+      ['googies', 'full', '2026-09-23T21:00:00.000Z'], ['lights', 'full', '2026-09-23T22:30:00.000Z']])
+    expect(slots(phoenix(24, 11, 30))).toEqual([['googies', 'thursday', '2026-09-24T18:00:00.000Z']])
+    expect(slots(phoenix(24, 11, 30), { catchUpWindowMs: 1_200_000 })).toEqual([])
+    expect(slots(phoenix(23, 20), { catchUpWindowMs: 0 })).toEqual([])
+  })
+
+  it('stops catching up a Sunday slot at its own cutoff, even inside the general window', () => {
+    expect(catchUpWindow(config, 'sunday')).toBe(7_200_000)
+    expect(catchUpWindow(config, 'full')).toBe(43_200_000)
+    expect(catchUpWindow(resolveConfig({ ...household, catchUpWindowMs: 3_600_000 }), 'sunday')).toBe(3_600_000)
+    expect(slots(phoenix(27, 6))).toEqual([['googies', 'sunday', '2026-09-27T12:30:00.000Z']])
+    expect(slots(phoenix(27, 8))).toEqual([['lights', 'sunday', '2026-09-27T14:00:00.000Z']])
+    expect(slots(phoenix(27, 9, 30))).toEqual([])
+  })
+
+  it('ignores a mode whose schedule has no match yet', () => {
+    const team = household.teams[0]!
+    const future = { ...team, schedule: { full: '0 0 0 1 1 * 2030', thursday: '0 0 0 1 1 * 2030', sunday: '30 5 * * 0' } }
+    expect(slots(phoenix(27, 6), { teams: [future] })).toEqual([['googies', 'sunday', '2026-09-27T12:30:00.000Z']])
+    expect(slots(phoenix(27, 6), { teams: [{ ...future, schedule: { ...future.schedule, sunday: '0 0 0 1 1 * 2030' } }] })).toEqual([])
   })
 })

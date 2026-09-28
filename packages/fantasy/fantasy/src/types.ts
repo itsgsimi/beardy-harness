@@ -73,6 +73,11 @@ export interface FantasyPlayer {
   readonly nflTeam?: string | undefined
   readonly positions: readonly string[]
   readonly selectedSlot?: string | undefined
+  /**
+   * Whether Yahoo refuses a slot change for this player in the roster's week, usually because his NFL
+   * game has started; absent when the response does not say, as on league player pages.
+   */
+  readonly slotLocked?: boolean | undefined
   readonly status?: string | undefined
   readonly injuryNote?: string | undefined
   readonly byeWeek?: number | undefined

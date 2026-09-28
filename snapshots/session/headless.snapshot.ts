@@ -856,7 +856,7 @@ function verifyFantasyReport(logs: readonly SessionLog[]): void {
   expect(caller?.header.id).toBe('fantasy-reports-googies')
   const runEvents = records(run!.content)
   expect(runEvents.find(event => event.type === 'research/started')?.data)
-    .toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v1', callerSessionId: 'fantasy-reports-googies' })
+    .toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v2', callerSessionId: 'fantasy-reports-googies' })
   expect(runEvents.find(event => event.type === 'research/finished')?.data).toMatchObject({ phase: 'completed', quality: 'verified_urls' })
   expect(runEvents.filter(event => event.type === 'research/source')).toHaveLength(15)
   expect(stages.every(stage => stage.header.parentSession === run!.header.id)).toBe(true)
