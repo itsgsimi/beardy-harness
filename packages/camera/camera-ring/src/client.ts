@@ -4,7 +4,9 @@
  * @module @deepseek-ai/dsh-camera-ring/client
  */
 
+import { inspect } from 'node:util'
 import { RingApi } from 'ring-client-api'
+import { enableDebug, useLogger } from 'ring-client-api/util'
 
 /** Disposer that stops one subscription. */
 export type Unsubscribe = () => void
@@ -173,4 +175,59 @@ export function createRingClient(options: RingClientOptions): RingClient {
     controlCenterDisplayName: options.controlCenterDisplayName,
     ...options.ffmpegPath === undefined ? {} : { ffmpegPath: options.ffmpegPath },
   }))
+}
+
+/** Where `ring-client-api` diagnostics go while a provider owns the library logger. */
+export interface RingLogSink {
+  /**
+   * Receive one library error, such as a failed signalling socket or an ffmpeg exit code.
+   * @param message - unredacted library text.
+   */
+  error(message: string): void
+  /**
+   * Receive one library info or debug line, including ffmpeg stderr when library debug is on.
+   * @param message - unredacted library text.
+   */
+  info(message: string): void
+}
+
+/** Process-global `ring-client-api` logging controls. */
+export interface RingLogging {
+  /**
+   * Route the library logger to `sink` until the returned disposer runs.
+   * @param sink - receiver of library errors and info lines.
+   * @returns disposer that silences the library logger when `sink` is still the installed one.
+   */
+  install(sink: RingLogSink): Unsubscribe
+  /** Turn on the library's debug lines for the rest of the process; the library offers no way to turn them off. */
+  enableDebug(): void
+}
+
+function vendorText(value: unknown): string {
+  if (typeof value === 'string') return value
+  return value instanceof Error ? value.message : inspect(value, { depth: 2, breakLength: Number.POSITIVE_INFINITY })
+}
+
+/** The sink whose logger `ring-client-api` currently calls, if any. */
+let installedSink: RingLogSink | undefined
+
+/**
+ * Production {@link RingLogging} over `ring-client-api/util`. The library keeps one logger per
+ * process and exposes no way to read its default, so the disposer installs a logger that drops
+ * every line; the default wrote only to the `ring` debug namespace.
+ */
+export const ringLogging: RingLogging = {
+  install(sink) {
+    installedSink = sink
+    useLogger({
+      logInfo: (...message: unknown[]) => { sink.info(message.map(vendorText).join(' ')) },
+      logError: (message: unknown) => { sink.error(vendorText(message)) },
+    })
+    return () => {
+      if (installedSink !== sink) return
+      installedSink = undefined
+      useLogger({ logInfo: () => {}, logError: () => {} })
+    }
+  },
+  enableDebug: () => { enableDebug() },
 }

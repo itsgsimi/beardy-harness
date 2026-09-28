@@ -2,7 +2,9 @@
 
 import { writeFileSync } from 'node:fs'
 import sharp from 'sharp'
-import type { RingCameraHandle, RingClient, RingClientOptions, RingNotification, RingStreamHandle, RingStreamOptions } from '../src/client.ts'
+import type {
+  RingCameraHandle, RingClient, RingClientOptions, RingLogging, RingLogSink, RingNotification, RingStreamHandle, RingStreamOptions,
+} from '../src/client.ts'
 
 /**
  * Encode a synthetic solid-colour JPEG.
@@ -194,4 +196,23 @@ export async function until(check: () => boolean, label: string): Promise<void> 
     await new Promise(resolve => setTimeout(resolve, 2))
   }
   throw new Error(`timed out waiting for ${label}`)
+}
+
+/** Recording stand-in for the process-global `ring-client-api` logger. */
+export class FakeLogging implements RingLogging {
+  sink: RingLogSink | undefined
+  installs = 0
+  uninstalls = 0
+  debugEnabled = false
+
+  install(sink: RingLogSink): () => void {
+    this.installs++
+    this.sink = sink
+    return () => {
+      this.uninstalls++
+      this.sink = undefined
+    }
+  }
+
+  enableDebug(): void { this.debugEnabled = true }
 }

@@ -541,6 +541,11 @@ export interface Config {
   readonly maxReconnectDelayMs?: number
   /** Name Ring lists for this client among authorized devices; defaults to `dsh-camera-ring`. */
   readonly controlCenterDisplayName?: string
+  /**
+   * Turn on `ring-client-api` debug lines, including ffmpeg stderr, and log them at `info`; noisy,
+   * and on for the rest of the process once loaded. Defaults to false.
+   */
+  readonly vendorDebug?: boolean
 }
 
 /** One watched device, matched to the Ring account by exactly one of `ringId` or `ringName`. */

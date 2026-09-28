@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import type { CameraEvent, CameraPreview } from '@deepseek-ai/dsh-camera'
-import RingCameraService, { RING_DING_CATEGORY, RING_MOTION_CATEGORY, redact, resolveSpec, tokenSecrets } from '../src/index.ts'
+import RingCameraService, {
+  describeSnapshotMiss, describeStreamFailure, RING_DING_CATEGORY, RING_MOTION_CATEGORY, redact, resolveSpec, tokenSecrets,
+} from '../src/index.ts'
 import type { Config, RingProviderDeps } from '../src/index.ts'
-import { FakeCamera, FakeClock, FakeCredentials, FakeRing, jpeg, until, wrappedToken } from './support.ts'
+import { FakeCamera, FakeClock, FakeCredentials, FakeLogging, FakeRing, jpeg, until, wrappedToken } from './support.ts'
 
 const REF = 'RING_REFRESH_TOKEN'
 const INNER = 'inner-refresh-secret-0001'
@@ -41,6 +43,7 @@ interface Harness {
   /** Previews in publication order, each tagged with how many complete events preceded it. */
   readonly previews: { readonly preview: CameraPreview; readonly eventsBefore: number }[]
   readonly logs: { type: string; text: string }[]
+  readonly logging: FakeLogging
   readonly load: Promise<unknown>
 }
 
@@ -71,15 +74,16 @@ async function harness(config: Partial<Config> = {}, options: {
   const previews: Harness['previews'][number][] = []
   ctx.on('camera/event', (event) => { events.push(event) })
   ctx.on('camera/preview', (preview) => { previews.push({ preview, eventsBefore: events.length }) })
+  const logging = new FakeLogging()
   const deps: RingProviderDeps = {
-    connect: ring.connect, now: clock.now, sleep: clock.sleep,
+    connect: ring.connect, now: clock.now, sleep: clock.sleep, logging,
     ...options.realExecutableCheck === true ? {} : { checkExecutable: async () => {} },
   }
   class TestRing extends RingCameraService {
     constructor(context: Context, value: Config) { super(context, value, deps) }
   }
   const load: Promise<unknown> = Promise.resolve(ctx.plugin(TestRing, { ...baseConfig, ...config }))
-  return { ctx, ring, front, garage, credentials, clock, events, previews, logs, load }
+  return { ctx, ring, front, garage, credentials, clock, events, previews, logs, logging, load }
 }
 
 async function started(config: Partial<Config> = {}, options: Parameters<typeof harness>[1] = {}): Promise<Harness> {
@@ -96,12 +100,14 @@ describe('resolveSpec', () => {
       events: ['motion', 'ding'], frameCount: 3, frameIntervalMs: 10_000, snapshotTimeoutMs: 20_000, streamFallback: true,
       ffmpegPath: '/usr/bin/ffmpeg', streamSetupMs: 20_000, motionCooldownMs: 120_000, dingCooldownMs: 30_000,
       dedupeWindowMs: 600_000, dedupeMaxIds: 500, reconnectDelayMs: 5_000, maxReconnectDelayMs: 600_000,
-      controlCenterDisplayName: 'dsh-camera-ring', devices: [{ id: 'front-door', label: 'Front door', match: { kind: 'name', name: 'Front Door' } }],
+      controlCenterDisplayName: 'dsh-camera-ring', vendorDebug: false, devices: [{ id: 'front-door', label: 'Front door', match: { kind: 'name', name: 'Front Door' } }],
     })
     const explicit = resolveSpec({ ...baseConfig, events: ['ding', 'ding'], frameCount: 2, frameIntervalMs: 5_000, snapshotTimeoutMs: 4_000,
       ffmpegPath: '/ignored', streamSetupMs: 9_000, motionCooldownMs: 1, dingCooldownMs: 2, dedupeWindowMs: 3_000, dedupeMaxIds: 4,
-      reconnectDelayMs: 6_000, maxReconnectDelayMs: 7_000, controlCenterDisplayName: 'beardy' })
-    expect(explicit).toMatchObject({ events: ['ding'], frameCount: 2, streamFallback: false, reconnectDelayMs: 6_000, controlCenterDisplayName: 'beardy' })
+      reconnectDelayMs: 6_000, maxReconnectDelayMs: 7_000, controlCenterDisplayName: 'beardy', vendorDebug: true })
+    expect(explicit).toMatchObject({
+      events: ['ding'], frameCount: 2, streamFallback: false, reconnectDelayMs: 6_000, controlCenterDisplayName: 'beardy', vendorDebug: true,
+    })
     expect(explicit.ffmpegPath).toBeUndefined()
   })
 
@@ -342,6 +348,76 @@ describe('RingCameraService events', () => {
     expect(value.logs.find(log => log.text.startsWith('camera-ring: capture for'))?.text)
       .toBe('camera-ring: capture for ring-101-x failed: stream refused for [redacted]')
     expect(value.events).toEqual([])
+  })
+})
+
+describe('RingCameraService capture diagnostics', () => {
+  const streaming = { streamFallback: true, ffmpegPath: '/usr/bin/ffmpeg', dingCooldownMs: 0 } satisfies Partial<Config>
+
+  it('describes each snapshot miss and stream failure stage', () => {
+    expect(describeSnapshotMiss({ reason: 'stale', slot: 1, remaining: 2 }, true)).toBe('repeated the previous snapshot; streaming the remaining 2 frame(s)')
+    expect(describeSnapshotMiss({ reason: 'timeout', slot: 0, remaining: 3 }, false)).toBe('timed out; stream fallback is off')
+    expect(describeSnapshotMiss({ reason: 'refused', slot: 0, remaining: 3, error: 'offline' }, true)).toBe('was refused: offline; streaming the remaining 3 frame(s)')
+    expect(describeStreamFailure({ stage: 'start-refused', error: 'Live view is currently disabled' })).toBe('Live view is currently disabled')
+    expect(describeStreamFailure({ stage: 'start-timeout', boundMs: 20_000 })).toBe('no stream within 20000 ms')
+    expect(describeStreamFailure({ stage: 'ended-short', framesWritten: 0, framesRequested: 2 })).toBe('the call ended with 0 of 2 frame(s) written')
+    expect(describeStreamFailure({ stage: 'run-timeout', framesWritten: 1, framesRequested: 3, boundMs: 50_000 }))
+      .toBe('stopped at the 50000 ms bound with 1 of 3 frame(s) written')
+  })
+
+  it('logs the snapshot that moved capture to the stream and where the stream failed, without the token', async () => {
+    const value = await started({ ...streaming, frameCount: 3 })
+    value.front.snapshots.push(await jpeg(1), new Error(`snapshot refused for ${INNER}`))
+    value.front.stream_ = { refuse: true }
+    value.front.stream = async () => { throw new Error(`Live view is currently disabled; token ${TOKEN}`) }
+    value.front.push(RING_DING_CATEGORY, 'r1')
+    await until(() => value.events.length === 1, 'published event')
+    expect(value.events[0]?.captureFailure).toBe('stream-failed')
+    expect(value.logs.filter(log => log.text.includes('ring-101-r1'))).toEqual([
+      { type: 'info', text: 'camera-ring: snapshot 2 for ring-101-r1 was refused: snapshot refused for [redacted]; streaming the remaining 2 frame(s)' },
+      { type: 'warn', text: 'camera-ring: stream capture for ring-101-r1 failed at start-refused: Live view is currently disabled; token [redacted]' },
+    ])
+  })
+
+  it('logs a stream that ended short and a stale snapshot with the fallback off', async () => {
+    const value = await started({ ...streaming, frameCount: 2 })
+    value.front.snapshots.push(new Error('offline'))
+    value.front.stream_ = { frames: [await jpeg(5)] }
+    value.front.push(RING_DING_CATEGORY, 's1')
+    await until(() => value.events.length === 1, 'streamed event')
+    expect(value.logs.find(log => log.type === 'warn')?.text)
+      .toBe('camera-ring: stream capture for ring-101-s1 failed at ended-short: the call ended with 1 of 2 frame(s) written')
+    const plain = await started({ frameCount: 2 })
+    plain.front.snapshots.push(await jpeg(1), await jpeg(1))
+    plain.front.push(RING_DING_CATEGORY, 's2')
+    await until(() => plain.events.length === 1, 'stale event')
+    expect(plain.events[0]?.captureFailure).toBe('snapshot-stale')
+    expect(plain.logs.filter(log => log.text.includes('ring-101-s2')).map(log => log.text))
+      .toEqual(['camera-ring: snapshot 2 for ring-101-s2 repeated the previous snapshot; stream fallback is off'])
+  })
+})
+
+describe('RingCameraService vendor logger', () => {
+  it('routes ring-client-api errors to warn and info lines to debug, redacted, until disposal', async () => {
+    const value = await started()
+    expect([value.logging.installs, value.logging.debugEnabled]).toEqual([1, false])
+    value.logging.sink?.error(`From Ring (Front Door): exited with code 1 and signal null; ${INNER}`)
+    value.logging.sink?.info(`WebSocket opened for ${TOKEN}`)
+    expect(value.logs.filter(log => log.text.startsWith('camera-ring: ring-client-api:'))).toEqual([
+      { type: 'warn', text: 'camera-ring: ring-client-api: From Ring (Front Door): exited with code 1 and signal null; [redacted]' },
+      { type: 'debug', text: 'camera-ring: ring-client-api: WebSocket opened for [redacted]' },
+    ])
+    await value.ctx.fiber.dispose()
+    contexts.splice(contexts.indexOf(value.ctx), 1)
+    expect(value.logging.uninstalls).toBe(1)
+  })
+
+  it('turns on library debug and logs its lines at info when vendorDebug is set', async () => {
+    const value = await started({ vendorDebug: true })
+    expect(value.logging.debugEnabled).toBe(true)
+    value.logging.sink?.info('From Ring (Front Door): frame=    1 fps=0.1')
+    expect(value.logs.find(log => log.text.startsWith('camera-ring: ring-client-api:')))
+      .toEqual({ type: 'info', text: 'camera-ring: ring-client-api: From Ring (Front Door): frame=    1 fps=0.1' })
   })
 })
 

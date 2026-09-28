@@ -35,10 +35,58 @@ export interface CaptureDeps {
   sleep(ms: number, signal: AbortSignal): Promise<void>
 }
 
-/** Frames captured for one event and the reason for any shortfall. */
+/** Why a scheduled snapshot ended the snapshot phase: repeated bytes, a rejected request, or no reply within `snapshotTimeoutMs`. */
+export type SnapshotMissReason = 'stale' | 'refused' | 'timeout'
+
+/** The snapshot that ended the snapshot phase. */
+export interface SnapshotMiss {
+  readonly reason: SnapshotMissReason
+  /** Zero-based slot of the missing snapshot. */
+  readonly slot: number
+  /** Slots left for the live stream, that one included. */
+  readonly remaining: number
+  /** Unredacted vendor error text for a `refused` snapshot. */
+  readonly error?: string
+}
+
+/**
+ * Where a live-stream capture reported as `stream-failed` stopped: the live call was refused or
+ * threw (`start-refused`), did not start within `streamSetupMs` (`start-timeout`), ended with fewer
+ * frame files than requested (`ended-short`), or was stopped by the capture bound with fewer frame
+ * files than requested (`run-timeout`).
+ */
+export type StreamFailureStage = 'start-refused' | 'start-timeout' | 'ended-short' | 'run-timeout'
+
+/** Cause of one `stream-failed` capture. */
+export interface StreamFailure {
+  readonly stage: StreamFailureStage
+  /** Frame files read before the first missing one, for `ended-short` and `run-timeout`. */
+  readonly framesWritten?: number
+  /** Frames the stream was asked for, for `ended-short` and `run-timeout`. */
+  readonly framesRequested?: number
+  /** The bound that expired in milliseconds, for `start-timeout` and `run-timeout`. */
+  readonly boundMs?: number
+  /** Unredacted vendor error text for `start-refused`. */
+  readonly error?: string
+}
+
+/** Frames captured for one event, the reason for any shortfall, and the diagnostics behind it. */
 export interface CaptureResult {
   readonly frames: readonly CameraFrame[]
   readonly failure?: CameraCaptureFailure
+  /** Present when a snapshot ended the snapshot phase early. */
+  readonly snapshotMiss?: SnapshotMiss
+  /** Present exactly when `failure` is `stream-failed`. */
+  readonly streamFailure?: StreamFailure
+}
+
+/**
+ * Text of a thrown value for diagnostics.
+ * @param error - thrown value.
+ * @returns the error message, or the value as a string.
+ */
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 /** Where one event's captured frames go. */
@@ -77,7 +125,8 @@ async function within<T>(operation: Promise<T>, ms: number, signal: AbortSignal,
  * Capture up to `spec.frameCount` frames for one event received at `t0`. A snapshot whose bytes
  * repeat the previous snapshot counts as a missing live frame, like a refused or timed-out one: the
  * remaining slots, that one included, move to one live stream when `spec.streamFallback` is on, and
- * otherwise the result reports `snapshot-stale` or `snapshot-unavailable`.
+ * otherwise the result reports `snapshot-stale` or `snapshot-unavailable`. The result names the
+ * snapshot that ended the snapshot phase and, for `stream-failed`, the stage where the stream stopped.
  * @param camera - device to capture from.
  * @param spec - frame count, spacing, and timeouts.
  * @param t0 - event receipt time in epoch milliseconds.
@@ -104,35 +153,37 @@ export async function captureFrames(
     return true
   }
   let previous: string | undefined
-  let missing: 'snapshot-unavailable' | 'snapshot-stale' | undefined
-  let slot = 0
-  for (; slot < spec.frameCount; slot++) {
+  let miss: SnapshotMiss | undefined
+  for (let slot = 0; slot < spec.frameCount; slot++) {
     const wait = t0 + slot * spec.frameIntervalMs - deps.now()
     if (wait > 0) await deps.sleep(wait, signal)
     signal.throwIfAborted()
+    const remaining = spec.frameCount - slot
     let data: Uint8Array | typeof TIMED_OUT
     try {
       data = await within(camera.snapshot(), spec.snapshotTimeoutMs, signal, deps)
-    } catch {
-      // The vendor error names the device and mode setting only; the fallback below reports the outcome.
-      data = TIMED_OUT
+    } catch (error: unknown) {
+      signal.throwIfAborted()
+      miss = { reason: 'refused', slot, remaining, error: errorText(error) }
+      break
     }
     signal.throwIfAborted()
     if (data === TIMED_OUT) {
-      missing = 'snapshot-unavailable'
+      miss = { reason: 'timeout', slot, remaining }
       break
     }
     const digest = createHash('sha256').update(data).digest('hex')
     if (digest === previous) {
-      missing = 'snapshot-stale'
+      miss = { reason: 'stale', slot, remaining }
       break
     }
     previous = digest
     if (!await commit(data, Math.max(0, deps.now() - t0), 'snapshot')) return { frames, failure: 'storage-failed' }
   }
-  if (missing === undefined) return { frames }
-  if (!spec.streamFallback) return { frames, failure: missing }
-  return await captureStream(camera, spec, t0, spec.frameCount - slot, frames, commit, signal, deps)
+  if (miss === undefined) return { frames }
+  if (!spec.streamFallback) return { frames, failure: miss.reason === 'stale' ? 'snapshot-stale' : 'snapshot-unavailable', snapshotMiss: miss }
+  const streamed = await captureStream(camera, spec, t0, miss.remaining, frames, commit, signal, deps)
+  return { ...streamed, snapshotMiss: miss }
 }
 
 /** Commits one frame; false means the attachment store refused it. */
@@ -153,20 +204,22 @@ async function captureStream(
     let stream: RingStreamHandle | typeof TIMED_OUT
     try {
       stream = await within(starting, spec.streamSetupMs, signal, deps)
-    } catch {
+    } catch (error: unknown) {
       // A refused live call (mode settings, offline device) leaves no stream to stop.
-      return { frames, failure: 'stream-failed' }
+      return { frames, failure: 'stream-failed', streamFailure: { stage: 'start-refused', error: errorText(error) } }
     }
     if (stream === TIMED_OUT) {
       void starting.then((late) => { late.stop() }, () => {
         // The late start failed, so there is no call left to end.
       })
       signal.throwIfAborted()
-      return { frames, failure: 'stream-failed' }
+      return { frames, failure: 'stream-failed', streamFailure: { stage: 'start-timeout', boundMs: spec.streamSetupMs } }
     }
     const startedAt = deps.now()
+    const runBoundMs = count * spec.frameIntervalMs + spec.streamSetupMs
+    let timedOut: boolean
     try {
-      await within(stream.ended, count * spec.frameIntervalMs + spec.streamSetupMs, signal, deps)
+      timedOut = await within(stream.ended, runBoundMs, signal, deps) === TIMED_OUT
     } finally {
       stream.stop()
     }
@@ -185,7 +238,11 @@ async function captureStream(
       }
       captured++
     }
-    return captured === count ? { frames } : { frames, failure: 'stream-failed' }
+    if (captured === count) return { frames }
+    const streamFailure: StreamFailure = timedOut
+      ? { stage: 'run-timeout', framesWritten: captured, framesRequested: count, boundMs: runBoundMs }
+      : { stage: 'ended-short', framesWritten: captured, framesRequested: count }
+    return { frames, failure: 'stream-failed', streamFailure }
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

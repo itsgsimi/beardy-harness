@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-camera-ring-stream-diagnostics.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-camera-ring-stream-diagnostics.md
+/agent-note-ring-capture-failures-name-their-cause:
+  en: 22d470518ccc1626
+  zh: d5c32a853a290625
+/agent-note-ring-capture-failures-name-their-cause/problem:
+  en: c2055e101895393f
+  zh: d574d965d0d13911
+/agent-note-ring-capture-failures-name-their-cause/decision:
+  en: 2727e46b9d153d00
+  zh: 84aaa60fd6653f65
+/agent-note-ring-capture-failures-name-their-cause/alternatives-considered:
+  en: 6ca33b51baa9fc12
+  zh: ae0f6393f701f6da
+/agent-note-ring-capture-failures-name-their-cause/consequences:
+  en: 3a0b84fe91910567
+  zh: 54f04108bf333f58
