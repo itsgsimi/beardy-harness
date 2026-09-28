@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import CameraService, { CAMERA_ACTIVITIES, CAMERA_LABELS, CameraDeviceId, CameraEventId } from '../src/index.ts'
-import type { CameraDevice, CameraEvent } from '../src/index.ts'
+import CameraService, {
+  CAMERA_ACTIVITIES, CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES, CameraDeviceId, CameraEventId,
+} from '../src/index.ts'
+import type { CameraDevice, CameraEvent, CameraPreview } from '../src/index.ts'
 
 const contexts: Context[] = []
 
@@ -13,6 +15,7 @@ afterEach(async () => {
 class FixtureCamera extends CameraService {
   devices(): readonly CameraDevice[] { return [{ id: CameraDeviceId('front-door'), label: 'Front door' }] }
   async send(event: CameraEvent): Promise<void> { await this.publish(event) }
+  async preview(preview: CameraPreview): Promise<void> { await this.publishPreview(preview) }
 }
 
 function event(): CameraEvent {
@@ -43,9 +46,11 @@ describe('camera identities', () => {
     for (const bad of ['', 'a/b', 'x'.repeat(129)]) expect(() => CameraEventId(bad)).toThrow(/camera event id/)
   })
 
-  it('lists labels and activities in canonical order', () => {
+  it('lists labels, activities, vehicle activities, and capture failures in canonical order', () => {
     expect(CAMERA_LABELS).toEqual(['person', 'vehicle', 'package', 'animal'])
     expect(CAMERA_ACTIVITIES).toEqual(['delivering', 'lingering', 'passing', 'ringing', 'none', 'unknown'])
+    expect(CAMERA_VEHICLE_ACTIVITIES).toEqual(['arriving', 'leaving', 'passing', 'parked', 'none', 'unknown'])
+    expect(CAMERA_CAPTURE_FAILURES).toEqual(['snapshot-unavailable', 'snapshot-stale', 'stream-failed', 'storage-failed'])
   })
 })
 
@@ -79,5 +84,17 @@ describe('CameraService', () => {
       'camera: a camera/event listener failed for ring-1-2: first broke',
       'camera: a camera/event listener failed for ring-1-2: second broke',
     ])
+  })
+
+  it('delivers a first-frame preview to every listener and contains their failures', async () => {
+    const { ctx, camera } = await mount()
+    const warn = vi.spyOn(ctx.logger, 'warn')
+    const { frames: [frame], ...rest } = event()
+    const seen: string[] = []
+    ctx.on('camera/preview', () => { throw new Error('preview broke') })
+    ctx.on('camera/preview', (received) => { seen.push(`${received.id}:${received.frame.offsetMs}`) })
+    await expect(camera.preview({ ...rest, frame: frame! })).resolves.toBeUndefined()
+    expect(seen).toEqual(['ring-1-2:0'])
+    expect(warn.mock.calls.map(call => String(call[0]))).toEqual(['camera: a camera/preview listener failed for ring-1-2: preview broke'])
   })
 })

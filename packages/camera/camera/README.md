@@ -25,7 +25,7 @@ Use `ctx.camera` to learn which cameras a provider watches and to receive their 
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount a provider such as [camera-ring](../camera-ring/README.md), then listen for `camera/event`. A listener should queue its work and return; the provider waits for every listener before its next event on that device and logs a listener failure without retrying it. `devices()` lists the configured device ids and labels, which consumers use to validate their own references and to name cameras in prompts and notices.
+Mount a provider such as [camera-ring](../camera-ring/README.md), then listen for `camera/event`. A listener should queue its work and return; the provider waits for every listener before its next event on that device and logs a listener failure without retrying it. Listen for `camera/preview` to act on an event before its capture ends: it carries the event's id, device, kind, receipt time, and first stored frame, and the provider awaits its listeners before capturing the next frame. `devices()` lists the configured device ids and labels, which consumers use to validate their own references and to name cameras in prompts and notices.
 
 -----
 
@@ -35,7 +35,7 @@ Mount a provider such as [camera-ring](../camera-ring/README.md), then listen fo
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The abstract service owns the `ctx.camera` key, the device list, and a protected `publish` that runs every `camera/event` listener in parallel and logs each failure. Device ids are deployment-chosen, lowercase, and hyphenated; event ids are provider-built and repeat when a vendor repeats a notification. Frames are `ImageAttachmentRef` values with their capture offset from the event and whether a snapshot or a live stream produced them. The verdict type lists visible labels, per-label counts, the dominant activity, a confidence from 0 to 1, a one-line description, and the frame indices showing a person. No invariant companion is published because the definition keeps no state of its own.
+The abstract service owns the `ctx.camera` key, the device list, and the protected `publish` and `publishPreview`, which run every `camera/event` or `camera/preview` listener in parallel and log each failure. Device ids are deployment-chosen, lowercase, and hyphenated; event ids are provider-built and repeat when a vendor repeats a notification. Frames are `ImageAttachmentRef` values with their capture offset from the event and whether a snapshot or a live stream produced them. The verdict type lists visible labels, per-label counts, the dominant activity, the vehicle activity (`arriving`, `leaving`, `passing`, `parked`, `none`, or `unknown`), a confidence from 0 to 1, a one-line description, and the frame indices showing a person. `CAMERA_LABELS`, `CAMERA_ACTIVITIES`, `CAMERA_VEHICLE_ACTIVITIES`, and `CAMERA_CAPTURE_FAILURES` list each closed set in canonical order. No invariant companion is published because the definition keeps no state of its own.
 
 </details>
 

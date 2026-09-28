@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Watch Ring doorbells and cameras through the unofficial [`ring-client-api`](https://github.com/dgreif/ring) library. The provider signs in with a stored refresh token, writes every rotated token back to the same credential reference, receives doorbell and motion pushes for the configured devices, and publishes each accepted event with a few stored frames. Frames come from on-demand snapshots at the event time and fixed intervals after it; when a snapshot fails, one short live stream through the host's ffmpeg supplies the rest.
+Watch Ring doorbells and cameras through the unofficial [`ring-client-api`](https://github.com/dgreif/ring) library. The provider signs in with a stored refresh token, writes every rotated token back to the same credential reference, receives doorbell and motion pushes for the configured devices, and publishes each accepted event with a few stored frames. Frames come from on-demand snapshots at the event time and fixed intervals after it; when a snapshot fails or repeats the previous one, one short live stream through the host's ffmpeg supplies the rest.
 
 ## Table of Contents
 
@@ -34,7 +34,7 @@ Run the library's login once outside the harness (`npx -p ring-client-api@14.3.0
 | `events` | Accepted kinds, `motion` and `ding` by default |
 | `frameCount`, `frameIntervalMs` | Frames per event (default 3) and their spacing (default 10 s) |
 | `snapshotTimeoutMs` | Longest wait for one snapshot |
-| `streamFallback`, `ffmpegPath`, `streamSetupMs` | Live-stream fallback, the absolute ffmpeg executable it requires, and its start bound |
+| `streamFallback`, `ffmpegPath`, `streamSetupMs` | Live-stream fallback for a failed or repeated snapshot, the absolute ffmpeg executable it requires, and its start bound |
 | `motionCooldownMs`, `dingCooldownMs` | Minimum gap between accepted events of one kind on one device |
 | `dedupeWindowMs`, `dedupeMaxIds` | How long and how many vendor event ids suppress repeated pushes |
 | `reconnectDelayMs`, `maxReconnectDelayMs` | Doubling retry delay after a failed connection |
@@ -52,7 +52,7 @@ A configured device that the account does not contain stops the provider with an
 
 Load checks the credential reference and the ffmpeg executable, then connects in the background. The first request refreshes the token; `ring-client-api` also re-encodes the token when its push credentials change, and every new value is written through `ctx.credentials.set` in rotation order. Diagnostics replace the wrapped token and its inner Ring token with `[redacted]`.
 
-A push is admitted once per vendor event id, only for configured kinds, only outside that device's cooldown for its kind, and, for motion, only when that device is not already capturing; doorbell presses queue behind a running capture. Each admitted event gets up to `frameCount` frames: a snapshot at the receipt time and one per interval after it. A snapshot identical to the previous one is dropped. When a snapshot fails and `streamFallback` is on, one live call runs ffmpeg with a frame-rate filter into a private temporary directory for the remaining frames, and the directory is removed afterwards. Frames are stored through `ctx.attachments` as JPEG before the event is published; a shortfall is reported on the event as `snapshot-unavailable`, `stream-failed`, or `storage-failed`. Disposal stops subscriptions, cancels waits, disconnects, and waits for captures and token writes. No invariant companion is published because the provider keeps only transient admission state.
+A push is admitted once per vendor event id, only for configured kinds, only outside that device's cooldown for its kind, and, for motion, only when that device is not already capturing; doorbell presses queue behind a running capture. Each admitted event gets up to `frameCount` frames: a snapshot at the receipt time and one per interval after it. Wired Ring cameras can return their cached snapshot again during motion, so a snapshot whose bytes repeat the previous one counts as a missing live frame, like a refused or timed-out snapshot. When a snapshot is missing and `streamFallback` is on, one live call runs ffmpeg with a frame-rate filter into a private temporary directory for that slot and every later one, and the directory is removed afterwards. Frames are stored through `ctx.attachments` as JPEG; the first stored frame is published as `camera/preview` before capture continues, and the complete event is published after the last frame. A shortfall is reported on the event as `snapshot-unavailable` or `snapshot-stale` when the fallback is off, `stream-failed` when the stream ends short, or `storage-failed`. Disposal stops subscriptions, cancels waits, disconnects, and waits for captures and token writes. No invariant companion is published because the provider keeps only transient admission state.
 
 </details>
 

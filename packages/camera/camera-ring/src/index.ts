@@ -1,7 +1,8 @@
 /**
  * Ring provider for the camera capability: one account connection by refresh-token credential
  * reference with every rotation written back, push subscriptions for the configured devices,
- * per-device cooldown and duplicate suppression, and a bounded frame set per accepted event.
+ * per-device cooldown and duplicate suppression, and a bounded frame set per accepted event whose
+ * first stored frame is previewed before the rest are captured.
  * @module @deepseek-ai/dsh-camera-ring
  */
 
@@ -19,7 +20,7 @@ import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import z from '@deepseek-ai/schemastery'
 import { captureFrames } from './capture.ts'
-import type { CaptureDeps, CaptureSpec } from './capture.ts'
+import type { CaptureDeps, CaptureSpec, FrameSink } from './capture.ts'
 import { createRingClient, RING_DING_CATEGORY, RING_MOTION_CATEGORY } from './client.ts'
 import type { RingCameraHandle, RingClient, RingClientFactory, RingNotification, Unsubscribe } from './client.ts'
 
@@ -52,7 +53,7 @@ export interface Config {
   readonly frameIntervalMs?: number
   /** Longest wait for one snapshot in milliseconds; defaults to 20000. */
   readonly snapshotTimeoutMs?: number
-  /** Capture the remaining frames from a short live stream when a snapshot fails; defaults to true. */
+  /** Capture the remaining frames from a short live stream when a snapshot fails or repeats the previous one; defaults to true. */
   readonly streamFallback?: boolean
   /** Absolute ffmpeg executable; required when `streamFallback` is true. */
   readonly ffmpegPath?: string
@@ -440,11 +441,14 @@ export class RingCameraService extends CameraService {
   private async capture(
     device: ResolvedDevice, camera: RingCameraHandle, kind: CameraEventKind, id: ReturnType<typeof CameraEventId>, t0: number,
   ): Promise<void> {
-    const store = async (data: Uint8Array, index: number): Promise<ImageAttachmentRef> => {
-      const refs = await this.ctx.attachments.saveImages([{ data, mediaType: 'image/jpeg', name: `${device.id}-${String(index + 1)}.jpg` }])
-      return refs[0] as ImageAttachmentRef
+    const sink: FrameSink = {
+      store: async (data, index) => {
+        const refs = await this.ctx.attachments.saveImages([{ data, mediaType: 'image/jpeg', name: `${device.id}-${String(index + 1)}.jpg` }])
+        return refs[0] as ImageAttachmentRef
+      },
+      first: frame => this.publishPreview({ id, deviceId: device.id, kind, occurredAt: t0, frame }),
     }
-    const result = await captureFrames(camera, this.spec, t0, store, this.signal, this.clock)
+    const result = await captureFrames(camera, this.spec, t0, sink, this.signal, this.clock)
     this.signal.throwIfAborted()
     await this.publish({
       id, deviceId: device.id, kind, occurredAt: t0, frames: result.frames,

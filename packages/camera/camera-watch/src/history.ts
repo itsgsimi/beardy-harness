@@ -1,13 +1,14 @@
 /**
  * Durable camera event history: one record per event with its frames, verdict, reasons, and
- * delivery outcome, pruned by age and count.
+ * delivery outcomes, pruned by age and count. Fields added after the first release are optional or
+ * defaulted, so earlier records keep parsing under the same domain version.
  * @module @deepseek-ai/dsh-camera-watch/history
  */
 
 import { z } from 'zod'
 import { AttachmentId, imageAttachmentRefSchema } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import { CAMERA_ACTIVITIES, CAMERA_LABELS } from '@deepseek-ai/dsh-camera'
+import { CAMERA_ACTIVITIES, CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES } from '@deepseek-ai/dsh-camera'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 
 const labels = z.enum(CAMERA_LABELS)
@@ -23,6 +24,8 @@ export const historyVerdict = z.object({
   labels: z.array(labels),
   counts: z.partialRecord(labels, z.number().int().min(0).max(99)),
   activity: z.enum(CAMERA_ACTIVITIES),
+  /** Absent from records written before vehicle activity existed; those read as `unknown`. */
+  vehicleActivity: z.enum(CAMERA_VEHICLE_ACTIVITIES).default('unknown'),
   confidence: z.number().min(0).max(1),
   description: z.string().max(200),
   personFrames: z.array(z.number().int().nonnegative()),
@@ -35,7 +38,7 @@ export const historyRecord = z.object({
   kind: z.enum(['motion', 'ding']),
   occurredAt: z.number(),
   frames: z.array(historyFrame),
-  captureFailure: z.enum(['snapshot-unavailable', 'stream-failed', 'storage-failed']).optional(),
+  captureFailure: z.enum(CAMERA_CAPTURE_FAILURES).optional(),
   /** Classification Session, when one was opened. */
   sessionId: z.string().optional(),
   status: z.enum(['parsed', 'partial', 'unparsed', 'failed', 'skipped']),
@@ -45,7 +48,10 @@ export const historyRecord = z.object({
   /** One-line model text for an `unparsed` status. */
   text: z.string().max(200).optional(),
   reasons: z.array(z.enum(['ding', 'package', 'night-person', 'vehicle', 'lingering'])),
+  /** Classified notice outcome. */
   delivery: z.enum(['none', 'delivered', 'undelivered', 'no-channel']),
+  /** Immediate doorbell notice outcome, present when one was attempted before classification. */
+  earlyDelivery: z.enum(['delivered', 'undelivered']).optional(),
 })
 
 /** Validated history record. */

@@ -1,15 +1,23 @@
 /**
- * The classification prompt and a tolerant reader for the model's verdict: it accepts fenced or
- * surrounded JSON, common synonyms, and percentages, and reports how complete the answer was.
+ * The classification system prompt and instruction, and a tolerant reader for the model's verdict:
+ * it accepts fenced or surrounded JSON, common synonyms, and percentages, and reports how complete
+ * the answer was.
  * @module @deepseek-ai/dsh-camera-watch/verdict
  */
 
-import { CAMERA_ACTIVITIES, CAMERA_LABELS } from '@deepseek-ai/dsh-camera'
-import type { CameraActivity, CameraEventKind, CameraLabel, CameraVerdict } from '@deepseek-ai/dsh-camera'
+import { CAMERA_ACTIVITIES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES } from '@deepseek-ai/dsh-camera'
+import type { CameraActivity, CameraEventKind, CameraLabel, CameraVehicleActivity, CameraVerdict } from '@deepseek-ai/dsh-camera'
 import type { VerdictStatus } from './types.ts'
 
 /** Longest stored verdict description. */
 export const DESCRIPTION_MAX_CHARS = 200
+
+/** Complete system prompt of every classification Session; it replaces the host's prompt sections. */
+export const CLASSIFICATION_SYSTEM_PROMPT = [
+  'You classify still frames from a home security camera.',
+  'The user message states the alert and shows the frames. Reply with exactly the one JSON object it asks for and nothing else.',
+  'You have no tools. Describe people only by what is visible and never guess who anyone is.',
+].join('\n')
 
 /** Everything the prompt states about one event. */
 export interface PromptFacts {
@@ -35,11 +43,14 @@ export function classificationPrompt(facts: PromptFacts): string {
       + `The ${String(count)} image${count === 1 ? ' is a frame' : 's are frames'} in capture order, taken ${offsets} after the alert.`,
     '',
     'Reply with only one JSON object and no other text:',
-    '{"labels":[],"counts":{},"activity":"none","confidence":0,"description":"","personFrames":[]}',
+    '{"labels":[],"counts":{},"activity":"none","vehicleActivity":"none","confidence":0,"description":"","personFrames":[]}',
     '',
     '- labels: each of "person", "vehicle", "package", "animal" visible in any frame.',
     '- counts: the most of each label visible at once, for example {"person":1}.',
     '- activity: one of "delivering", "lingering", "passing", "ringing", "none".',
+    '- vehicleActivity: "arriving" or "leaving" when a vehicle drives into or out of the driveway or a parking spot across the frames, '
+      + '"passing" when one drives by without stopping, "parked" when every vehicle stays still (lights or a running engine do not count as moving), '
+      + '"none" when no vehicle is visible.',
     '- confidence: how sure you are, from 0 to 1.',
     '- description: one sentence of at most 25 words about what is happening. Do not guess who anyone is.',
     '- personFrames: zero-based indices of the frames that show a person.',
@@ -99,6 +110,12 @@ function firstObject(text: string): Record<string, unknown> | undefined {
   return undefined
 }
 
+/** Read one enumerated field case-insensitively; a value outside the choices, or `unknown` itself, reads as `unknown`. */
+function choiceOf<T extends string>(choices: readonly (T | 'unknown')[], value: unknown): T | 'unknown' {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return choices.find(choice => choice === raw && choice !== 'unknown') ?? 'unknown'
+}
+
 function confidenceOf(value: unknown): number | undefined {
   const number = typeof value === 'number' ? value
     : typeof value === 'string' && value.trim() !== '' ? Number(value.trim().replace(/%$/u, '')) : Number.NaN
@@ -109,8 +126,10 @@ function confidenceOf(value: unknown): number | undefined {
 
 /**
  * Read the model's verdict. Missing or invalid fields make the reading `partial`: labels and counts
- * keep their valid members, activity becomes `unknown`, confidence becomes 0, an empty description
- * is replaced by the visible labels, and person frames outside the frame set are dropped.
+ * keep their valid members, activity and vehicle activity become `unknown`, confidence becomes 0, an
+ * empty description is replaced by the visible labels, and person frames outside the frame set are
+ * dropped. A person frame adds the `person` label and a vehicle activity other than `none` adds the
+ * `vehicle` label.
  * @param text - the classification turn's final assistant text.
  * @param frameCount - frames the model received.
  * @returns the reading and its completeness.
@@ -141,9 +160,10 @@ export function parseVerdict(text: string, frameCount: number): VerdictReading {
       if (count > 0) labels.add(label)
     }
   } else complete = false
-  const rawActivity = typeof object['activity'] === 'string' ? object['activity'].trim().toLowerCase() : ''
-  const activity: CameraActivity = CAMERA_ACTIVITIES.find(value => value === rawActivity && value !== 'unknown') ?? 'unknown'
-  if (activity === 'unknown') complete = false
+  const activity: CameraActivity = choiceOf(CAMERA_ACTIVITIES, object['activity'])
+  const vehicleActivity: CameraVehicleActivity = choiceOf(CAMERA_VEHICLE_ACTIVITIES, object['vehicleActivity'])
+  if (activity === 'unknown' || vehicleActivity === 'unknown') complete = false
+  if (vehicleActivity !== 'unknown' && vehicleActivity !== 'none') labels.add('vehicle')
   const confidence = confidenceOf(object['confidence'])
   if (confidence === undefined) complete = false
   const personFrames = new Set<number>()
@@ -166,6 +186,7 @@ export function parseVerdict(text: string, frameCount: number): VerdictReading {
       labels: ordered,
       counts,
       activity,
+      vehicleActivity,
       confidence: confidence ?? 0,
       description,
       personFrames: [...personFrames].sort((left, right) => left - right),

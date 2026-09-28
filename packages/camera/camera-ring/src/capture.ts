@@ -1,6 +1,7 @@
 /**
  * Bounded frame capture for one event: scheduled snapshots at the event time and fixed intervals
- * after it, with one short live-stream capture for the remaining slots when snapshots fail.
+ * after it, with one short live-stream capture for the remaining slots when a snapshot fails or
+ * repeats the previous one.
  * @module @deepseek-ai/dsh-camera-ring/capture
  */
 
@@ -20,7 +21,7 @@ export interface CaptureSpec {
   readonly frameIntervalMs: number
   /** Longest wait for one snapshot. */
   readonly snapshotTimeoutMs: number
-  /** Whether a failed snapshot switches the remaining frames to a live stream. */
+  /** Whether a failed or repeated snapshot switches the remaining frames to a live stream. */
   readonly streamFallback: boolean
   /** Longest wait for a live stream to start transcoding. */
   readonly streamSetupMs: number
@@ -40,8 +41,21 @@ export interface CaptureResult {
   readonly failure?: CameraCaptureFailure
 }
 
-/** Stores one encoded JPEG frame and returns its durable reference. */
-export type StoreFrame = (data: Uint8Array, index: number) => Promise<ImageAttachmentRef>
+/** Where one event's captured frames go. */
+export interface FrameSink {
+  /**
+   * Commit one encoded JPEG frame to the attachment store.
+   * @param data - JPEG bytes.
+   * @param index - zero-based position of the frame in the event.
+   * @returns the frame's durable reference.
+   */
+  store(data: Uint8Array, index: number): Promise<ImageAttachmentRef>
+  /**
+   * Receive the event's first stored frame once, before capture continues.
+   * @param frame - first frame with its offset and source.
+   */
+  first(frame: CameraFrame): Promise<void>
+}
 
 /** Marker for a bounded wait that expired. */
 const TIMED_OUT = Symbol('timed out')
@@ -60,21 +74,37 @@ async function within<T>(operation: Promise<T>, ms: number, signal: AbortSignal,
 }
 
 /**
- * Capture up to `spec.frameCount` frames for one event received at `t0`. Consecutive snapshots with
- * identical bytes count once, so an unrefreshed snapshot yields fewer frames without a failure code.
+ * Capture up to `spec.frameCount` frames for one event received at `t0`. A snapshot whose bytes
+ * repeat the previous snapshot counts as a missing live frame, like a refused or timed-out one: the
+ * remaining slots, that one included, move to one live stream when `spec.streamFallback` is on, and
+ * otherwise the result reports `snapshot-stale` or `snapshot-unavailable`.
  * @param camera - device to capture from.
  * @param spec - frame count, spacing, and timeouts.
  * @param t0 - event receipt time in epoch milliseconds.
- * @param store - commits one frame to the attachment store.
+ * @param sink - commits each frame and receives the first one.
  * @param signal - provider shutdown.
  * @param deps - clock and delay seams.
  * @returns stored frames in capture order and any shortfall reason.
  */
 export async function captureFrames(
-  camera: RingCameraHandle, spec: CaptureSpec, t0: number, store: StoreFrame, signal: AbortSignal, deps: CaptureDeps,
+  camera: RingCameraHandle, spec: CaptureSpec, t0: number, sink: FrameSink, signal: AbortSignal, deps: CaptureDeps,
 ): Promise<CaptureResult> {
   const frames: CameraFrame[] = []
+  const commit = async (data: Uint8Array, offsetMs: number, source: CameraFrame['source']): Promise<boolean> => {
+    let attachment: ImageAttachmentRef
+    try {
+      attachment = await sink.store(data, frames.length)
+    } catch {
+      // The attachment error carries a stable code for its caller; the event reports the shortfall instead.
+      return false
+    }
+    const frame: CameraFrame = { attachment, offsetMs, source }
+    frames.push(frame)
+    if (frames.length === 1) await sink.first(frame)
+    return true
+  }
   let previous: string | undefined
+  let missing: 'snapshot-unavailable' | 'snapshot-stale' | undefined
   let slot = 0
   for (; slot < spec.frameCount; slot++) {
     const wait = t0 + slot * spec.frameIntervalMs - deps.now()
@@ -88,27 +118,30 @@ export async function captureFrames(
       data = TIMED_OUT
     }
     signal.throwIfAborted()
-    if (data === TIMED_OUT) break
-    const digest = createHash('sha256').update(data).digest('hex')
-    if (digest === previous) continue
-    previous = digest
-    const capturedAt = deps.now()
-    try {
-      frames.push({ attachment: await store(data, frames.length), offsetMs: Math.max(0, capturedAt - t0), source: 'snapshot' })
-    } catch {
-      // The attachment error carries a stable code for its caller; the event reports the shortfall instead.
-      return { frames, failure: 'storage-failed' }
+    if (data === TIMED_OUT) {
+      missing = 'snapshot-unavailable'
+      break
     }
+    const digest = createHash('sha256').update(data).digest('hex')
+    if (digest === previous) {
+      missing = 'snapshot-stale'
+      break
+    }
+    previous = digest
+    if (!await commit(data, Math.max(0, deps.now() - t0), 'snapshot')) return { frames, failure: 'storage-failed' }
   }
-  if (slot === spec.frameCount) return { frames }
-  if (!spec.streamFallback) return { frames, failure: 'snapshot-unavailable' }
-  return await captureStream(camera, spec, t0, spec.frameCount - slot, frames, store, signal, deps)
+  if (missing === undefined) return { frames }
+  if (!spec.streamFallback) return { frames, failure: missing }
+  return await captureStream(camera, spec, t0, spec.frameCount - slot, frames, commit, signal, deps)
 }
+
+/** Commits one frame; false means the attachment store refused it. */
+type Commit = (data: Uint8Array, offsetMs: number, source: CameraFrame['source']) => Promise<boolean>
 
 /** Capture the remaining frames from one live stream through ffmpeg into a private scratch directory. */
 async function captureStream(
-  camera: RingCameraHandle, spec: CaptureSpec, t0: number, count: number, frames: CameraFrame[],
-  store: StoreFrame, signal: AbortSignal, deps: CaptureDeps,
+  camera: RingCameraHandle, spec: CaptureSpec, t0: number, count: number, frames: readonly CameraFrame[],
+  commit: Commit, signal: AbortSignal, deps: CaptureDeps,
 ): Promise<CaptureResult> {
   const directory = await mkdtemp(join(tmpdir(), 'dsh-camera-ring-'))
   try {
@@ -147,14 +180,7 @@ async function captureStream(
         // ffmpeg writes frames in order; the first missing file ends the sequence.
         break
       }
-      try {
-        frames.push({
-          attachment: await store(data, frames.length),
-          offsetMs: Math.max(0, startedAt - t0) + index * spec.frameIntervalMs,
-          source: 'stream',
-        })
-      } catch {
-        // See the snapshot path: the event reports the shortfall.
+      if (!await commit(data, Math.max(0, startedAt - t0) + index * spec.frameIntervalMs, 'stream')) {
         return { frames, failure: 'storage-failed' }
       }
       captured++

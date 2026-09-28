@@ -506,7 +506,7 @@ export interface WeatherConfig {
 
 - `inject`: `credentials` · `attachments`
 - `refs`: [`CameraEventKind`](../packages/camera/camera/src/index.ts)
-- `source`: [`packages/camera/camera-ring/src/index.ts:42`](../packages/camera/camera-ring/src/index.ts)
+- `source`: [`packages/camera/camera-ring/src/index.ts:43`](../packages/camera/camera-ring/src/index.ts)
 
 ```ts config-catalog
 /** Ring provider configuration. */
@@ -523,7 +523,7 @@ export interface Config {
   readonly frameIntervalMs?: number
   /** Longest wait for one snapshot in milliseconds; defaults to 20000. */
   readonly snapshotTimeoutMs?: number
-  /** Capture the remaining frames from a short live stream when a snapshot fails; defaults to true. */
+  /** Capture the remaining frames from a short live stream when a snapshot fails or repeats the previous one; defaults to true. */
   readonly streamFallback?: boolean
   /** Absolute ffmpeg executable; required when `streamFallback` is true. */
   readonly ffmpegPath?: string
@@ -564,9 +564,9 @@ export interface DeviceConfig {
 
 ## `@deepseek-ai/dsh-camera-watch`
 
-- `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `tools`
-- `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/camera/camera-watch/src/config.ts:28`](../packages/camera/camera-watch/src/config.ts)
+- `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `systemPrompt` · `tools`
+- `refs`: [`CameraVehicleActivity`](../packages/camera/camera/src/index.ts) · [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
+- `source`: [`packages/camera/camera-watch/src/config.ts:34`](../packages/camera/camera-watch/src/config.ts)
 
 ```ts config-catalog
 /** Camera watch configuration. */
@@ -581,6 +581,11 @@ export interface Config {
   readonly workspacePath?: string
   /** Notification rules. */
   readonly policy?: PolicyConfig
+  /**
+   * Post a doorbell press notice as soon as its first frame is stored, then the classified notice as
+   * a follow-up; false posts only the classified notice. Applies while `policy.ding` is on; defaults to true.
+   */
+  readonly immediateDingNotice?: boolean
   /** Output token ceiling for one classification; defaults to 600. */
   readonly maxOutputTokens?: number
   /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
@@ -617,13 +622,18 @@ export interface PolicyConfig {
   readonly nightStart?: string
   /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
   readonly nightEnd?: string
-  /** Device ids whose vehicle sightings notify; defaults to none. */
+  /** Device ids whose vehicle activity notifies; defaults to none. */
   readonly vehicleDevices?: string[]
+  /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
+  readonly vehicleActivities?: NotifyingVehicleActivity[]
   /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
   readonly lingerSeconds?: number
   /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */
   readonly minConfidence?: number
 }
+
+/** Vehicle activities a vehicle rule can notify on. */
+export type NotifyingVehicleActivity = Exclude<CameraVehicleActivity, 'none' | 'unknown'>
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-camera-watch -->
 

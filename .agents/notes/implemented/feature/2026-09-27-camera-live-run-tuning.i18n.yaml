@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-camera-live-run-tuning.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-camera-live-run-tuning.md
+/agent-note-camera-capture-vehicle-rule-classification-session-and-doorbell-notices-after-the-first-live-run:
+  en: 62d99416ac725e72
+  zh: 9e1d57c270c626f4
+/agent-note-camera-capture-vehicle-rule-classification-session-and-doorbell-notices-after-the-first-live-run/problem:
+  en: b6aa6140b9d72950
+  zh: 19875f068f486e65
+/agent-note-camera-capture-vehicle-rule-classification-session-and-doorbell-notices-after-the-first-live-run/decision:
+  en: f3d8440b26124455
+  zh: bb54d2203771edeb
+/agent-note-camera-capture-vehicle-rule-classification-session-and-doorbell-notices-after-the-first-live-run/alternatives-considered:
+  en: ec866eb375557937
+  zh: 50eadb09212affbc
+/agent-note-camera-capture-vehicle-rule-classification-session-and-doorbell-notices-after-the-first-live-run/consequences:
+  en: d895b1062cc6caf6
+  zh: 97e548c59e37f6d2
