@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod'
+import { imageAttachmentRefSchema } from '@deepseek-ai/dsh-attachment'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 
 const button = z.object({
@@ -52,23 +53,13 @@ export const discordMessageBody = z.object({
     return ids.length === new Set(ids).size
   }, 'Component custom ids must be unique within a message')
 
-const imageAttachment = z.object({
-  attachmentId: z.string().min(1),
-  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
-  bytes: z.number().int().positive(),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  name: z.string().optional(),
-  originalDimensions: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
-})
-
 /**
  * Persisted notice with one stored image. The record keeps the attachment reference; the bytes are
  * read and verified from the attachment store when the delivery is posted.
  */
 export const discordImageMessage = z.object({
   content: z.string().max(2000),
-  image: imageAttachment,
+  image: imageAttachmentRefSchema,
 }).refine(body => body.content.trim() !== '', 'Message has no visible text')
 
 /** Validated notice with one stored image. */

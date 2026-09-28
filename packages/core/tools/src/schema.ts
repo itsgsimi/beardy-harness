@@ -479,6 +479,22 @@ export function validateArgs(spec: ParameterSchemaSpec, args: unknown): string[]
   return validateJsonSchemaValue(parameterSchemaSpecToJsonSchema(spec), args, '')
 }
 
+const TEXT_TOOL_OUTPUT_SCHEMA = {
+  type: 'object', additionalProperties: false, properties: { text: { type: 'string', required: true } },
+} as const
+
+/**
+ * `defineTool` output declaration for a tool whose canonical value is `{ text }`, one required string
+ * that the model receives as a single text part.
+ */
+export const TEXT_TOOL_OUTPUT: {
+  readonly schema: typeof TEXT_TOOL_OUTPUT_SCHEMA
+  render(args: unknown, value: InferValue<typeof TEXT_TOOL_OUTPUT_SCHEMA>): ContentBlock[]
+} = {
+  schema: TEXT_TOOL_OUTPUT_SCHEMA,
+  render: (_args, value) => [{ type: 'text', text: value.text }],
+}
+
 /** Options for {@link defineTool}. */
 export interface DefineToolOptions<S extends ParameterSchemaSpec, O extends ValueSchemaSpec> {
   /** Tool name (must be unique). */

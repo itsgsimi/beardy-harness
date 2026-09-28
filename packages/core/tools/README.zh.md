@@ -57,7 +57,7 @@ ctx.tools.register(defineTool({
 }))
 ```
 
-统一 schema DSL 支持 `string`、`number`、`integer`、`boolean`、`null`、`array`、`object`、仅供作者使用的 `json` 与恰好匹配一个分支的 `oneOf`；`InferValue` 在 16 层容器内保留精确类型，之后加宽为 `JsonValue`。原始 JSON Schema（`JsonSchemaNode`）是与 subagent、工作流和 MCP 共享的协议级对应类型。
+统一 schema DSL 支持 `string`、`number`、`integer`、`boolean`、`null`、`array`、`object`、仅供作者使用的 `json` 与恰好匹配一个分支的 `oneOf`；`InferValue` 在 16 层容器内保留精确类型，之后加宽为 `JsonValue`。原始 JSON Schema（`JsonSchemaNode`）是与 subagent、工作流和 MCP 共享的协议级对应类型。完整结果只是一段文本的工具传入 `output: TEXT_TOOL_OUTPUT`：它声明规范值 `{ text }`，并把该文本渲染为单个文本部分。
 
 ### 配置呈现模式
 
@@ -110,7 +110,7 @@ ctx.tools.register(defineTool({
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`ToolRuntime` 服务、配置、注册表、执行流水线 |
 | [`src/types.ts`](src/types.ts) | `ToolDefinition`、`ToolExecution`、`ToolExecutionResult`、守卫与决策类型 |
-| [`src/schema.ts`](src/schema.ts) | `defineTool` DSL：`ValueSchemaSpec`、`ParameterSchemaSpec`、`InferValue`、`InferArgs` |
+| [`src/schema.ts`](src/schema.ts) | `defineTool` DSL：`ValueSchemaSpec`、`ParameterSchemaSpec`、`InferValue`、`InferArgs`、`TEXT_TOOL_OUTPUT` |
 | [`src/json-schema.ts`](src/json-schema.ts) | 强制执行的原始 JSON Schema 子集与校验 |
 | [`src/presentation.ts`](src/presentation.ts) | 带 `card` 标签的 UI 呈现意图 |
 | [`src/ptc.ts`](src/ptc.ts) | PTC mode：SDK 生成、`run_code` 分发桥接层、结算 |

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { validateModelSelection } from '../src/model-selection.ts'
+import { ConfiguredModelSelectionSchema, validateModelSelection } from '../src/model-selection.ts'
 
 describe('configured unattended model selection', () => {
   const ctx = new Context()
@@ -33,5 +33,12 @@ describe('configured unattended model selection', () => {
       .rejects.toThrow('lane: provider "missing" model "coder" cannot be resolved')
     await expect(validateModelSelection(ctx, { provider: 'local', model: 'coder', reasoningEffort: 'high' }, 'lane'))
       .rejects.toThrow('lane: provider "local" model "coder" does not support reasoning effort "high"')
+  })
+
+  it('shapes the config field as an exact route with an optional effort', () => {
+    expect(ConfiguredModelSelectionSchema({ provider: 'local', model: 'coder' })).toEqual({ provider: 'local', model: 'coder' })
+    expect(ConfiguredModelSelectionSchema({ provider: 'local', model: 'coder', reasoningEffort: 'medium' }))
+      .toEqual({ provider: 'local', model: 'coder', reasoningEffort: 'medium' })
+    expect(() => ConfiguredModelSelectionSchema({ provider: 'local' } as never)).toThrow()
   })
 })

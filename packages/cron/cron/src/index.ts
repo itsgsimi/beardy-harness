@@ -12,7 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-local-model-control'
-import { sleep, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
+import { ConfiguredModelSelectionSchema, sleep, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
 export { cronApprovalRoute, registerCronApprovalRoute } from './launch.ts'
@@ -70,12 +70,6 @@ export const DEFAULT_CRON_KEEP_RUN_HISTORY = 5
 /** Delay before retrying finished output that no delivery listener durably accepted. */
 export const DEFAULT_CRON_DELIVERY_RETRY_MS = 30_000
 
-const modelSelectionSchema = z.object({
-  provider: z.string().required(),
-  model: z.string().required(),
-  reasoningEffort: z.union([z.string(), z.const(undefined)]),
-})
-
 export const Config: z<{
   jobs: ConfiguredCronJob[]
   modelSelection?: ConfiguredModelSelection | undefined
@@ -103,9 +97,9 @@ export const Config: z<{
     title: z.string(),
     turnTimeoutMs: z.number().min(1_000),
     deliverChannel: z.string(),
-    modelSelection: z.union([modelSelectionSchema, z.const(undefined)]),
+    modelSelection: z.union([ConfiguredModelSelectionSchema, z.const(undefined)]),
   })).default([]),
-  modelSelection: z.union([modelSelectionSchema, z.const(undefined)]),
+  modelSelection: z.union([ConfiguredModelSelectionSchema, z.const(undefined)]),
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_CRON_TURN_TIMEOUT_MS),
   maxLiveRuns: z.number().min(1).default(DEFAULT_CRON_MAX_LIVE_RUNS),
   allowedAgentPresets: z.array(z.string()).default([]),

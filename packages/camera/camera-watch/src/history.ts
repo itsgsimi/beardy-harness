@@ -5,22 +5,15 @@
  */
 
 import { z } from 'zod'
+import { imageAttachmentRefSchema } from '@deepseek-ai/dsh-attachment'
 import { CAMERA_ACTIVITIES, CAMERA_LABELS } from '@deepseek-ai/dsh-camera'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 
 const labels = z.enum(CAMERA_LABELS)
-const dimensions = z.object({ width: z.number().int().positive(), height: z.number().int().positive() })
 
 /** One stored frame: its durable image reference plus capture offset and source. */
-export const historyFrame = z.object({
-  attachmentId: z.string().min(1),
-  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
-  bytes: z.number().int().positive(),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  name: z.string().optional(),
-  originalDimensions: dimensions.optional(),
+export const historyFrame = imageAttachmentRefSchema.extend({
   offsetMs: z.number().int().nonnegative(),
   source: z.enum(['snapshot', 'stream']),
 })

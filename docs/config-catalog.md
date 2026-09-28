@@ -965,7 +965,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/cron/cron/src/index.ts:124`](../packages/cron/cron/src/index.ts)
+- `source`: [`packages/cron/cron/src/index.ts:118`](../packages/cron/cron/src/index.ts)
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
@@ -4941,7 +4941,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tools`
 
 - `inject`: `systemPrompt`
-- `source`: [`packages/core/tools/src/index.ts:674`](../packages/core/tools/src/index.ts)
+- `source`: [`packages/core/tools/src/index.ts:675`](../packages/core/tools/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: how the registered tools are presented to the model. */

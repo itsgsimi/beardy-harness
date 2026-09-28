@@ -5,6 +5,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import z from '@deepseek-ai/schemastery'
 
 /** Deployment-owned exact route and optional adapter-owned effort. */
 export interface ConfiguredModelSelection {
@@ -12,6 +13,16 @@ export interface ConfiguredModelSelection {
   readonly model: string
   readonly reasoningEffort?: string | undefined
 }
+
+/**
+ * Loader schema for one `modelSelection` config field. It checks only the field shapes; entry points
+ * pass the value to {@link validateModelSelection} to check it against the registered adapter.
+ */
+export const ConfiguredModelSelectionSchema: z<ConfiguredModelSelection> = z.object({
+  provider: z.string().required(),
+  model: z.string().required(),
+  reasoningEffort: z.union([z.string(), z.const(undefined)]),
+})
 
 /**
  * Validate an explicit lane choice against the registered adapter when a Session opens.

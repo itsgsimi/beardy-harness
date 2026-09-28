@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { LeagueKey, PlayerKey, TeamKey } from '@deepseek-ai/dsh-fantasy'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 /** Cordis plugin identity. */
@@ -164,11 +164,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       count: { type: 'integer', description: 'Yahoo result count, from 1 through 25; defaults to 10.' },
       offset: { type: 'integer', description: 'Character offset into this response; follow next_offset.' },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: false,
-        properties: { text: { type: 'string', required: true } } },
-      render: (_args, result) => [{ type: 'text' as const, text: result.text }],
-    },
+    output: TEXT_TOOL_OUTPUT,
     execute: (args, exec) => executeFantasy(ctx, args, exec, pageChars),
     presentCall: args => ({ card: 'generic', title: 'Fantasy',
       kind: 'read', rawInput: JSON.stringify(args) }),

@@ -10,6 +10,7 @@
   "references": [
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
     { "path": "../../core/agent" },
     { "path": "../../core/session" },
     { "path": "../../interaction/permission-presets" },

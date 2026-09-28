@@ -2,7 +2,7 @@
 
 import type { CameraDevice } from '@deepseek-ai/dsh-camera'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { HistoryRecord } from './history.ts'
 import { localDateTime } from './notice.ts'
@@ -76,10 +76,7 @@ export function createCameraTool(options: CameraToolOptions): ToolDefinition {
       limit: { type: 'integer', description: `Most events to list, from 1 through ${String(options.maxEvents)}; defaults to 20.` },
       notified_only: { type: 'boolean', description: 'List only events the user was notified about.' },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: false, properties: { text: { type: 'string', required: true } } },
-      render: (_args, result) => [{ type: 'text' as const, text: result.text }],
-    },
+    output: TEXT_TOOL_OUTPUT,
     execute: (args) => {
       const hours = args.hours ?? 24
       if (hours < 1 || hours > options.maxHours) {
