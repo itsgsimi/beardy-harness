@@ -76,13 +76,14 @@ Source: [`packages/health/health/src/index.ts`](../../packages/health/health/src
 
 #### `health/transition` — serial
 
-One probe state transition awaiting durable Discord outbox acceptance.
+One probe state transition awaiting durable outbox acceptance by the gateway that owns the target's transport.
 
 ```ts cordis-catalog
 /**
- * One probe state transition awaiting durable Discord outbox acceptance.
- * @param transition - Stable identity, destination, and non-secret text.
- * @returns true after durable acceptance, or undefined when no gateway owns delivery.
+ * One probe state transition awaiting durable outbox acceptance by the gateway that owns the
+ * target's transport.
+ * @param transition - Stable identity, delivery target, and non-secret text.
+ * @returns true after durable acceptance, or undefined when no gateway owns the target.
  * @mode serial
  */
 'health/transition'(transition: { id: string; channelId: string; text: string }): true | undefined | Promise<true | undefined>

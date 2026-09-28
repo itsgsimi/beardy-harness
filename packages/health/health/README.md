@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Configure named HTTP endpoints in `probes` to observe reachability. An empty list makes no claim about model availability. The plugin keeps state in memory, announces down and recovered transitions through the Discord gateway's durable outbox when `noticeChannelId` is configured, and exposes current probe state and the latest observed cron failure to `/status`. It does not call a model, restart a provider, or keep an incident database.
+Configure named HTTP endpoints in `probes` to observe reachability. An empty list makes no claim about model availability. The plugin keeps state in memory, announces down and recovered transitions through the durable outbox of the target's delivery owner, the Discord gateway or signal-notices, when `noticeChannelId` is configured, and exposes current probe state and the latest observed cron failure to `/status`. It does not call a model, restart a provider, or keep an incident database.
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ Mount the plugin in a Host composition. The tested empty configuration makes no 
 | `timeoutMs` | `3000` | Deadline for each HTTP request |
 | `failureThreshold` | `3` | Consecutive failed observations before down |
 | `recoveryThreshold` | `1` | Consecutive successful observations before healthy |
-| `noticeChannelId` | absent | Discord channel for transition notices; absence keeps status only |
+| `noticeChannelId` | absent | Transition notice target: a Discord channel id, `discord:<id>`, `signal:group:<base64 id>`, or `signal:number:<E.164>`; absence keeps status only |
 | `noticeCooldownMs` | `900000` | Suppress repeated notices of the same transition kind during flapping |
 
 Probe URLs must be explicit HTTP(S) addresses without embedded user information or fragments. `credentialRef` resolves through the credentials provider and supplies a bearer token; a missing credential or unexpected HTTP status counts as a failed observation. See the generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-health) for the field schema.

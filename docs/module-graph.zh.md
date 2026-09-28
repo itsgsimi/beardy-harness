@@ -13,6 +13,7 @@ flowchart TD
     pkg_atomic_write["atomic-write"]
     pkg_brand["brand"]
     pkg_chunked_list["chunked-list"]
+    pkg_delivery_target["delivery-target"]
     pkg_deque["deque"]
     pkg_home_paths["home-paths"]
     pkg_http_proxy["http-proxy"]
@@ -421,6 +422,11 @@ flowchart TD
     pkg_tool_pwsh["tool-pwsh"]
     pkg_tool_pwsh_persistent["tool-pwsh-persistent"]
   end
+  subgraph group_signal["packages/signal"]
+    pkg_signal["signal"]
+    pkg_signal_cli["signal-cli"]
+    pkg_signal_notices["signal-notices"]
+  end
   subgraph group_speech["packages/speech"]
     pkg_speech_whisper["speech-whisper"]
   end
@@ -474,6 +480,7 @@ flowchart TD
   subgraph group_workspace["packages/workspace"]
     pkg_workspace["workspace"]
   end
+  pkg_delivery_target --> pkg_brand
   pkg_scope --> pkg_invariants
   pkg_web --> pkg_llm
   pkg_attachment --> pkg_brand
@@ -530,6 +537,9 @@ flowchart TD
   pkg_credentials_local --> pkg_launch_environment
   pkg_experimental_computer_use_cua_driver_mcp --> pkg_computer_use
   pkg_sandbox_windows_acl --> pkg_subprocess
+  pkg_signal --> pkg_attachment
+  pkg_signal --> pkg_brand
+  pkg_signal --> pkg_delivery_target
   pkg_subprocess_local --> pkg_subprocess
   pkg_subprocess_local --> pkg_timeout
   pkg_skill_badge --> pkg_skill
@@ -568,6 +578,10 @@ flowchart TD
   pkg_settings --> pkg_brand
   pkg_settings --> pkg_invariants
   pkg_settings --> pkg_session
+  pkg_signal_cli --> pkg_attachment
+  pkg_signal_cli --> pkg_delivery_target
+  pkg_signal_cli --> pkg_signal
+  pkg_signal_cli --> pkg_storage_domain
   pkg_session_snapshot --> pkg_http_proxy
   pkg_session_snapshot --> pkg_session
   pkg_fs --> pkg_brand
@@ -1257,6 +1271,7 @@ flowchart TD
   pkg_camera_watch --> pkg_agent_default_model
   pkg_camera_watch --> pkg_attachment
   pkg_camera_watch --> pkg_camera
+  pkg_camera_watch --> pkg_delivery_target
   pkg_camera_watch --> pkg_llm
   pkg_camera_watch --> pkg_session
   pkg_camera_watch --> pkg_storage_domain
@@ -1271,6 +1286,7 @@ flowchart TD
   pkg_cron --> pkg_agent_default_model
   pkg_cron --> pkg_agent_preset_registry
   pkg_cron --> pkg_commands
+  pkg_cron --> pkg_delivery_target
   pkg_cron --> pkg_llm
   pkg_cron --> pkg_local_model_control
   pkg_cron --> pkg_permission_presets
@@ -1403,6 +1419,7 @@ flowchart TD
   pkg_experimental_agent_team --> pkg_subagent
   pkg_fantasy_reports --> pkg_agent
   pkg_fantasy_reports --> pkg_cron
+  pkg_fantasy_reports --> pkg_delivery_target
   pkg_fantasy_reports --> pkg_fantasy
   pkg_fantasy_reports --> pkg_research
   pkg_fantasy_reports --> pkg_session
@@ -1411,6 +1428,7 @@ flowchart TD
   pkg_fantasy_reports --> pkg_web
   pkg_health --> pkg_credentials
   pkg_health --> pkg_cron
+  pkg_health --> pkg_delivery_target
   pkg_health --> pkg_local_model_control
   pkg_sdk_protocol --> pkg_llm
   pkg_sdk_protocol --> pkg_session
@@ -1493,6 +1511,12 @@ flowchart TD
   pkg_sdk_jsonrpc_server --> pkg_sdk_protocol
   pkg_sdk_jsonrpc_server --> pkg_session
   pkg_sdk_jsonrpc_server --> pkg_subagent
+  pkg_signal_notices --> pkg_attachment
+  pkg_signal_notices --> pkg_camera_watch
+  pkg_signal_notices --> pkg_cron
+  pkg_signal_notices --> pkg_delivery_target
+  pkg_signal_notices --> pkg_health
+  pkg_signal_notices --> pkg_signal
   pkg_client_test_runtime --> pkg_api_gateway
   pkg_client_test_runtime --> pkg_api_session_controller
   pkg_client_test_runtime --> pkg_api_workspace_controller
@@ -1526,6 +1550,7 @@ flowchart TD
   pkg_discord_gateway --> pkg_commands
   pkg_discord_gateway --> pkg_credentials
   pkg_discord_gateway --> pkg_cron
+  pkg_discord_gateway --> pkg_delivery_target
   pkg_discord_gateway --> pkg_health
   pkg_discord_gateway --> pkg_llm
   pkg_discord_gateway --> pkg_local_model_control
@@ -1659,6 +1684,7 @@ flowchart TD
 | [`typert-generator`](../packages/typert/generator) | `typert` | — |
 | [`typert-protocol`](../packages/typert/protocol) | `typert` | — |
 | [`typert-registry`](../packages/typert/registry) | `typert` | — |
+| [`delivery-target`](../packages/util/delivery-target) | `util` | [`brand`](../packages/util/brand) |
 | [`scope`](../packages/core/scope) | `core` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`web`](../packages/web/web) | `web` | [`llm`](../packages/llm/llm) |
 | [`attachment`](../packages/attachment/attachment) | `attachment` | [`brand`](../packages/util/brand) |
@@ -1692,6 +1718,7 @@ flowchart TD
 | [`credentials-local`](../packages/credentials/credentials-local) | `credentials` | [`atomic-write`](../packages/util/atomic-write), [`credentials`](../packages/credentials/credentials), [`home-paths`](../packages/util/home-paths), [`launch-environment`](../packages/util/launch-environment) |
 | [`experimental-computer-use-cua-driver-mcp`](../packages/experimental/computer-use-cua-driver-mcp) | `experimental` | [`computer-use`](../packages/computer-use/computer-use) |
 | [`sandbox-windows-acl`](../packages/sandbox/sandbox-windows-acl) | `sandbox` | [`subprocess`](../packages/subprocess/subprocess) |
+| [`signal`](../packages/signal/signal) | `signal` | [`attachment`](../packages/attachment/attachment), [`brand`](../packages/util/brand), [`delivery-target`](../packages/util/delivery-target) |
 | [`subprocess-local`](../packages/subprocess/subprocess-local) | `subprocess` | [`subprocess`](../packages/subprocess/subprocess), [`timeout`](../packages/util/timeout) |
 | [`skill-badge`](../packages/skill/skill-badge) | `skill` | [`skill`](../packages/skill/skill) |
 | [`skill-office`](../packages/skill/skill-office) | `skill` | [`skill`](../packages/skill/skill) |
@@ -1710,6 +1737,7 @@ flowchart TD
 | [`session-persistence`](../packages/session/session-persistence) | `session` | [`brand`](../packages/util/brand), [`session`](../packages/core/session), [`timeout`](../packages/util/timeout) |
 | [`session-projection`](../packages/session/session-projection) | `session` | [`session`](../packages/core/session) |
 | [`settings`](../packages/settings/settings) | `settings` | [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session) |
+| [`signal-cli`](../packages/signal/signal-cli) | `signal` | [`attachment`](../packages/attachment/attachment), [`delivery-target`](../packages/util/delivery-target), [`signal`](../packages/signal/signal), [`storage-domain`](../packages/storage/storage-domain) |
 | [`session-snapshot`](../packages/test-support/session-snapshot) | `test-support` | [`http-proxy`](../packages/util/http-proxy), [`session`](../packages/core/session) |
 | [`fs`](../packages/fs/fs) | `fs` | [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`sandbox`](../packages/sandbox/sandbox) |
 | [`spill-local`](../packages/spill/spill-local) | `spill` | [`spill`](../packages/spill/spill) |
@@ -1851,9 +1879,9 @@ flowchart TD
 | [`acp`](../packages/acp/acp) | `acp` | [`agent`](../packages/core/agent), [`attachment`](../packages/attachment/attachment), [`llm`](../packages/llm/llm), [`mcp-client`](../packages/mcp/mcp-client), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`token-meter`](../packages/llm/token-meter), [`user-approval`](../packages/interaction/user-approval) |
 | [`plugin-manager`](../packages/boot/plugin-manager) | `boot` | [`brand`](../packages/util/brand), [`hmr`](../packages/boot/hmr), [`host-plugin-inventory`](../packages/host/plugin-inventory), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`subprocess`](../packages/subprocess/subprocess), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol), [`user-approval`](../packages/interaction/user-approval) |
 | [`headless`](../packages/bundle/headless) | `bundle` | [`agent`](../packages/core/agent), [`agent-default-model`](../packages/core/agent-default-model), [`fs`](../packages/fs/fs), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-query`](../packages/session-query/session-query) |
-| [`camera-watch`](../packages/camera/camera-watch) | `camera` | [`agent`](../packages/core/agent), [`agent-default-model`](../packages/core/agent-default-model), [`attachment`](../packages/attachment/attachment), [`camera`](../packages/camera/camera), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`storage-domain`](../packages/storage/storage-domain), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools), [`unattended-session`](../packages/session/unattended-session) |
+| [`camera-watch`](../packages/camera/camera-watch) | `camera` | [`agent`](../packages/core/agent), [`agent-default-model`](../packages/core/agent-default-model), [`attachment`](../packages/attachment/attachment), [`camera`](../packages/camera/camera), [`delivery-target`](../packages/util/delivery-target), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`storage-domain`](../packages/storage/storage-domain), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools), [`unattended-session`](../packages/session/unattended-session) |
 | [`compaction-tool-result-pruner`](../packages/compaction/compaction-tool-result-pruner) | `compaction` | [`compaction`](../packages/compaction/compaction), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`token-meter`](../packages/llm/token-meter) |
-| [`cron`](../packages/cron/cron) | `cron` | [`agent`](../packages/core/agent), [`agent-default-model`](../packages/core/agent-default-model), [`agent-preset-registry`](../packages/preset/agent-preset-registry), [`commands`](../packages/interaction/commands), [`llm`](../packages/llm/llm), [`local-model-control`](../packages/health/local-model-control), [`permission-presets`](../packages/interaction/permission-presets), [`session`](../packages/core/session), [`session-title`](../packages/session/session-title), [`storage-domain`](../packages/storage/storage-domain), [`tools`](../packages/core/tools), [`unattended-session`](../packages/session/unattended-session), [`user-approval`](../packages/interaction/user-approval), [`workspace`](../packages/workspace/workspace) |
+| [`cron`](../packages/cron/cron) | `cron` | [`agent`](../packages/core/agent), [`agent-default-model`](../packages/core/agent-default-model), [`agent-preset-registry`](../packages/preset/agent-preset-registry), [`commands`](../packages/interaction/commands), [`delivery-target`](../packages/util/delivery-target), [`llm`](../packages/llm/llm), [`local-model-control`](../packages/health/local-model-control), [`permission-presets`](../packages/interaction/permission-presets), [`session`](../packages/core/session), [`session-title`](../packages/session/session-title), [`storage-domain`](../packages/storage/storage-domain), [`tools`](../packages/core/tools), [`unattended-session`](../packages/session/unattended-session), [`user-approval`](../packages/interaction/user-approval), [`workspace`](../packages/workspace/workspace) |
 | [`experimental-browser-use-runtime`](../packages/experimental/browser-use-runtime) | `experimental` | [`agent`](../packages/core/agent), [`browser-use`](../packages/browser-use/browser-use), [`mcp-client`](../packages/mcp/mcp-client), [`scope`](../packages/core/scope), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |
 | [`webhook`](../packages/webhook/webhook) | `webhook` | [`agent`](../packages/core/agent), [`agent-default-model`](../packages/core/agent-default-model), [`agent-preset-registry`](../packages/preset/agent-preset-registry), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`permission-presets`](../packages/interaction/permission-presets), [`session`](../packages/core/session), [`session-title`](../packages/session/session-title), [`unattended-session`](../packages/session/unattended-session), [`workspace`](../packages/workspace/workspace) |
 | [`subagent-acp`](../packages/subagent/subagent-acp) | `subagent` | [`agent`](../packages/core/agent), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`subagent`](../packages/subagent/subagent), [`subprocess`](../packages/subprocess/subprocess), [`timeout`](../packages/util/timeout) |
@@ -1868,8 +1896,8 @@ flowchart TD
 | [`session-reference`](../packages/context/session-reference) | `context` | [`agent`](../packages/core/agent), [`compaction`](../packages/compaction/compaction), [`llm`](../packages/llm/llm), [`output-retention`](../packages/util/output-retention), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`session-projection-cache`](../packages/session/session-projection-cache), [`session-query`](../packages/session-query/session-query), [`session-title`](../packages/session/session-title), [`spill`](../packages/spill/spill), [`subagent`](../packages/subagent/subagent), [`system-prompt`](../packages/core/system-prompt), [`typert-protocol`](../packages/typert/protocol) |
 | [`brief-collector`](../packages/cron/brief-collector) | `cron` | [`agent`](../packages/core/agent), [`cron`](../packages/cron/cron), [`llm`](../packages/llm/llm), [`tools`](../packages/core/tools), [`web`](../packages/web/web) |
 | [`experimental-agent-team`](../packages/experimental/agent-team) | `experimental` | [`agent`](../packages/core/agent), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`session-projection`](../packages/session/session-projection), [`subagent`](../packages/subagent/subagent) |
-| [`fantasy-reports`](../packages/fantasy/fantasy-reports) | `fantasy` | [`agent`](../packages/core/agent), [`cron`](../packages/cron/cron), [`fantasy`](../packages/fantasy/fantasy), [`research`](../packages/research/research), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`tool-web`](../packages/web/tool-web), [`web`](../packages/web/web) |
-| [`health`](../packages/health/health) | `health` | [`credentials`](../packages/credentials/credentials), [`cron`](../packages/cron/cron), [`local-model-control`](../packages/health/local-model-control) |
+| [`fantasy-reports`](../packages/fantasy/fantasy-reports) | `fantasy` | [`agent`](../packages/core/agent), [`cron`](../packages/cron/cron), [`delivery-target`](../packages/util/delivery-target), [`fantasy`](../packages/fantasy/fantasy), [`research`](../packages/research/research), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`tool-web`](../packages/web/tool-web), [`web`](../packages/web/web) |
+| [`health`](../packages/health/health) | `health` | [`credentials`](../packages/credentials/credentials), [`cron`](../packages/cron/cron), [`delivery-target`](../packages/util/delivery-target), [`local-model-control`](../packages/health/local-model-control) |
 | [`sdk-protocol`](../packages/sdk/protocol) | `sdk` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`subagent`](../packages/subagent/subagent) |
 | [`webhook-github`](../packages/webhook/webhook-github) | `webhook` | [`credentials`](../packages/credentials/credentials), [`host-webserver`](../packages/host/webserver), [`session`](../packages/core/session), [`webhook`](../packages/webhook/webhook) |
 | [`tool-ralph`](../packages/workflow/tool-ralph) | `workflow` | [`agent`](../packages/core/agent), [`llm`](../packages/llm/llm), [`subagent`](../packages/subagent/subagent), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools), [`workflow`](../packages/workflow/workflow) |
@@ -1882,7 +1910,8 @@ flowchart TD
 | [`schedule`](../packages/schedule/schedule) | `schedule` | [`agent`](../packages/core/agent), [`api-session-controller`](../packages/api/session-controller), [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`session-projection`](../packages/session/session-projection), [`storage-domain`](../packages/storage/storage-domain), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol), [`workspace`](../packages/workspace/workspace) |
 | [`sdk-client`](../packages/sdk/client) | `sdk` | [`llm`](../packages/llm/llm), [`sdk-protocol`](../packages/sdk/protocol), [`session`](../packages/core/session) |
 | [`sdk-jsonrpc-server`](../packages/sdk/server) | `sdk` | [`agent`](../packages/core/agent), [`attachment`](../packages/attachment/attachment), [`llm`](../packages/llm/llm), [`llm-deepseek-api-key`](../packages/llm/llm-deepseek-api-key), [`scope`](../packages/core/scope), [`sdk-protocol`](../packages/sdk/protocol), [`session`](../packages/core/session), [`subagent`](../packages/subagent/subagent) |
+| [`signal-notices`](../packages/signal/signal-notices) | `signal` | [`attachment`](../packages/attachment/attachment), [`camera-watch`](../packages/camera/camera-watch), [`cron`](../packages/cron/cron), [`delivery-target`](../packages/util/delivery-target), [`health`](../packages/health/health), [`signal`](../packages/signal/signal) |
 | [`client-test-runtime`](../packages/test-support/client-runtime) | `test-support` | [`api-gateway`](../packages/api/gateway), [`api-session-controller`](../packages/api/session-controller), [`api-workspace-controller`](../packages/api/workspace-controller), [`attachment`](../packages/attachment/attachment), [`client-connection`](../packages/client/connection), [`client-hmr`](../packages/client/hmr), [`client-modules`](../packages/client/modules), [`client-store`](../packages/client/store), [`client-ui-chat`](../packages/client/ui-chat), [`client-ui-conversation`](../packages/client/ui-conversation), [`client-ui-renderer`](../packages/client/ui-renderer), [`client-ui-session`](../packages/client/ui-session), [`client-ui-settings`](../packages/client/ui-settings), [`client-ui-slots`](../packages/client/ui-slots), [`client-web`](../packages/client/web), [`remote-mock`](../packages/test-support/remote-mock), [`session`](../packages/core/session), [`subagent`](../packages/subagent/subagent), [`typert-protocol`](../packages/typert/protocol) |
 | [`subagent-dsh-sdk`](../packages/subagent/subagent-dsh-sdk) | `subagent` | [`agent`](../packages/core/agent), [`llm`](../packages/llm/llm), [`sdk-client`](../packages/sdk/client), [`session`](../packages/core/session), [`subagent`](../packages/subagent/subagent), [`subprocess`](../packages/subprocess/subprocess) |
-| [`discord-gateway`](../packages/discord/discord-gateway) | `discord` | [`agent`](../packages/core/agent), [`agent-preset-registry`](../packages/preset/agent-preset-registry), [`attachment`](../packages/attachment/attachment), [`brand`](../packages/util/brand), [`camera-watch`](../packages/camera/camera-watch), [`commands`](../packages/interaction/commands), [`credentials`](../packages/credentials/credentials), [`cron`](../packages/cron/cron), [`health`](../packages/health/health), [`llm`](../packages/llm/llm), [`local-model-control`](../packages/health/local-model-control), [`permission-presets`](../packages/interaction/permission-presets), [`schedule`](../packages/schedule/schedule), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`session-title`](../packages/session/session-title), [`storage-domain`](../packages/storage/storage-domain), [`timeout`](../packages/util/timeout), [`tools`](../packages/core/tools), [`unattended-session`](../packages/session/unattended-session), [`user-approval`](../packages/interaction/user-approval), [`user-questions`](../packages/interaction/user-questions), [`workspace`](../packages/workspace/workspace) |
+| [`discord-gateway`](../packages/discord/discord-gateway) | `discord` | [`agent`](../packages/core/agent), [`agent-preset-registry`](../packages/preset/agent-preset-registry), [`attachment`](../packages/attachment/attachment), [`brand`](../packages/util/brand), [`camera-watch`](../packages/camera/camera-watch), [`commands`](../packages/interaction/commands), [`credentials`](../packages/credentials/credentials), [`cron`](../packages/cron/cron), [`delivery-target`](../packages/util/delivery-target), [`health`](../packages/health/health), [`llm`](../packages/llm/llm), [`local-model-control`](../packages/health/local-model-control), [`permission-presets`](../packages/interaction/permission-presets), [`schedule`](../packages/schedule/schedule), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`session-title`](../packages/session/session-title), [`storage-domain`](../packages/storage/storage-domain), [`timeout`](../packages/util/timeout), [`tools`](../packages/core/tools), [`unattended-session`](../packages/session/unattended-session), [`user-approval`](../packages/interaction/user-approval), [`user-questions`](../packages/interaction/user-questions), [`workspace`](../packages/workspace/workspace) |
 <!-- END GENERATED module-graph:packages -->

@@ -15,7 +15,8 @@ import { transcribeDiscordAudio } from './audio.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-attachment'
-import { cronApprovalRoute, type CronRunOutcome, type CronRunResult } from '@deepseek-ai/dsh-cron'
+import { cronApprovalRoute, cronDeliveryContent } from '@deepseek-ai/dsh-cron'
+import { discordChannelOf } from '@deepseek-ai/dsh-delivery-target'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
@@ -46,14 +47,6 @@ import { discordCommands, registerGatewayCommands } from './commands.ts'
 import type { DiscordInteraction } from './interactions.ts'
 import { approvalControls, questionControls, renderCards, CONVERSATION_CONTROLS, DiscordPromptId } from './presentation.ts'
 import type { ConversationLane, DiscordCommandActor, DiscordInboundMessage, DiscordInboundReaction, GatewaySettings } from './types.ts'
-
-/** What one settled scheduled run announces on the `cron/run-finished` event. */
-interface FinishedCronRun extends Pick<CronRunResult, 'outcome' | 'text' | 'failure'> {
-  readonly reportOutcome: boolean
-  readonly jobName?: string
-  readonly sessionId?: string
-  readonly nextFireAt?: string
-}
 
 /** Repeat interval for the typing indicator, fixed against Discord's own ~10-second expiry. */
 const TYPING_INTERVAL_MS = 8_000
@@ -1147,7 +1140,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   ctx.effect(() => ctx.on('approval/request', (req, next) => {
     const cron = cronApprovalRoute(req.agent)
     if (cron !== undefined) {
-      const channelId = cron.channelId
+      // A run delivering to another transport has no Discord channel to ask in.
+      const channelId = cron.channelId === undefined ? undefined : discordChannelOf(cron.channelId)
       if (channelId === undefined || activeApprovalRequestId(req) === undefined || !deps.policy.allowedChannelIds.has(channelId)
         || !settings.answerers.some(form => form === 'component' || form === 'reaction')) return Promise.resolve('unavailable')
       return askApproval(channelId, req, true)
@@ -1338,52 +1332,19 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 }
 
-/** Words delivered when a scheduled run has no text of its own and the operator wants to know. */
-const CRON_OUTCOME_LINES: Record<CronRunOutcome, string | undefined> = {
-  answered: undefined,
-  'no-text-answer': 'The scheduled run finished without a text answer.',
-  'timed-out': 'The scheduled run timed out.',
-  interrupted: 'The scheduled run was interrupted.',
-  failed: 'The scheduled run failed.',
-  skipped: undefined,
-}
-
 /**
- * Select the final text or requested outcome notice for one finished cron run.
- * @param run - Finished result and outcome-reporting preference.
- * @returns delivery text, or undefined when the run has nothing to announce.
- */
-export function cronDeliveryContent(run: FinishedCronRun): string | undefined {
-  if (run.outcome === 'answered' && run.text !== '') return run.text
-  if (!run.reportOutcome) return undefined
-  if (run.outcome === 'failed') {
-    const code = run.failure?.code
-    const label = run.jobName === undefined ? 'The scheduled run' : `The scheduled run "${run.jobName}"`
-    const safeCode = code !== undefined && /^[A-Z][A-Z0-9_-]{0,63}$/u.test(code) ? code : 'FAILED'
-    return `${label} failed (${safeCode}). Session: ${run.sessionId || 'unavailable'}. Next fire: ${run.nextFireAt ?? 'none'}.`
-  }
-  if (run.outcome === 'skipped') {
-    const label = run.jobName === undefined ? 'The scheduled run' : `The scheduled run "${run.jobName}"`
-    const reason = run.failure?.code === 'PREVIOUS_OUTCOME_PENDING'
-      ? 'its previous outcome is awaiting delivery'
-      : 'its previous run was still in progress'
-    return `${label} was skipped because ${reason}. Next fire: ${run.nextFireAt ?? 'none'}.`
-  }
-  return CRON_OUTCOME_LINES[run.outcome]
-}
-
-/**
- * Listen for finished cron runs on this host and deliver each one to its channel. Runs without a
- * delivery target, or with nothing worth posting, pass by silently.
+ * Listen for finished cron runs on this host and deliver each one whose target is a Discord channel.
+ * Runs without a target pass by, runs targeting another transport are left for that transport's
+ * owner, and runs with nothing worth posting are accepted silently.
  * @param ctx - registrant context carrying the event bus.
  * @param router - conversation router whose {@link ConversationRouter.deliver} posts to channels.
  */
 export function attachCronDelivery(ctx: Context, router: ConversationRouter): void {
   ctx.on('cron/run-finished', async (payload) => {
-    if (payload.deliverChannelId === undefined) return
+    const channelId = payload.deliverChannelId === undefined ? undefined : discordChannelOf(payload.deliverChannelId)
+    if (channelId === undefined) return
     const content = cronDeliveryContent(payload)
-    if (content !== undefined) await router.deliver(payload.deliverChannelId, content,
-      `cron:${payload.sessionId}:${String(payload.firedAt)}`)
+    if (content !== undefined) await router.deliver(channelId, content, `cron:${payload.sessionId}:${String(payload.firedAt)}`)
     return true
   })
 }

@@ -74,7 +74,7 @@ describe('cron_manage tool', () => {
 
   it('asks approval with the complete proposed job before creating', async () => {
     const h = setup({}, { requireApproval: true, approvalOutcome: 'allowed-once' })
-    expect(await h.tool.execute({ ...CREATE_ARGS, title: 'PR sweep', turn_timeout_ms: 3_000, deliver_channel: 'chan-7' }, h.exec))
+    expect(await h.tool.execute({ ...CREATE_ARGS, title: 'PR sweep', turn_timeout_ms: 3_000, deliver_channel: '123456789012345678' }, h.exec))
       .toMatchObject({ action: 'create' })
     const [askCall] = h.approval?.request.mock.calls as unknown[][]
     const asked = (askCall?.[0] ?? {}) as { toolName?: string; callId?: string; reason?: string }
@@ -83,7 +83,7 @@ describe('cron_manage tool', () => {
       'name: "pr-check"', 'expression: "0 9 * * 1"', 'timezone: "Europe/Zagreb"',
       'prompt: "Check open pull requests."', 'agentPreset: "beardy"',
       'permissionPreset: "workspace-write"', 'workspacePath: "/srv/repo"',
-      'title: "PR sweep"', 'turnTimeoutMs: 3000', 'deliverChannelId: "chan-7"', 'enabled: true',
+      'title: "PR sweep"', 'turnTimeoutMs: 3000', 'deliverChannelId: "123456789012345678"', 'enabled: true',
     ]) expect(asked.reason).toContain(detail)
     expect(h.jobsTable.rows.has('pr-check')).toBe(true)
   })
@@ -138,14 +138,14 @@ describe('cron_manage tool', () => {
 
   it('applies the create proposal captured before approval', async () => {
     const h = setup({}, { requireApproval: true, approvalOutcome: 'allowed-once' })
-    const args = { ...CREATE_ARGS, prompt: 'Approved prompt', deliver_channel: 'chan-7' }
+    const args = { ...CREATE_ARGS, prompt: 'Approved prompt', deliver_channel: '123456789012345678' }
     h.approval?.request.mockImplementation(async () => {
       args.prompt = 'changed after approval'
-      args.deliver_channel = 'other-channel'
+      args.deliver_channel = 'signal:number:+15551234567'
       return 'allowed-once'
     })
     await h.tool.execute(args, h.exec)
-    expect(h.jobsTable.rows.get('pr-check')).toMatchObject({ prompt: 'Approved prompt', deliver: { kind: 'channel', channelId: 'chan-7' } })
+    expect(h.jobsTable.rows.get('pr-check')).toMatchObject({ prompt: 'Approved prompt', deliver: { kind: 'channel', channelId: '123456789012345678' } })
   })
 
   it.each(['resume', 'run_now', 'note'] as const)('%s requires granted approval when enabled', async (action) => {
@@ -251,10 +251,10 @@ describe('cron_manage tool', () => {
 
   it('accepts optional create fields and an agent-less execution', async () => {
     const h = setup()
-    expect(await h.tool.execute({ ...CREATE_ARGS, title: 'PR sweep', deliver_channel: 'chan-7' }, h.exec))
+    expect(await h.tool.execute({ ...CREATE_ARGS, title: 'PR sweep', deliver_channel: '123456789012345678' }, h.exec))
       .toMatchObject({ action: 'create' })
     expect(h.jobsTable.rows.get('pr-check')).toMatchObject({
-      title: 'PR sweep', deliver: { kind: 'channel', channelId: 'chan-7' },
+      title: 'PR sweep', deliver: { kind: 'channel', channelId: '123456789012345678' },
     })
     const agentless = setup()
     const noAgent = { callId: 'c', signal: new AbortController().signal } as never
@@ -262,6 +262,18 @@ describe('cron_manage tool', () => {
     expect(agentless.jobsTable.rows.get('headless')?.createdBy).toBeUndefined()
     const gated = setup({}, { requireApproval: true, approvalOutcome: 'allowed-once' })
     await expect(gated.tool.execute(CREATE_ARGS, noAgent)).rejects.toThrow('requires an Agent-backed session')
+  })
+
+  it('rejects a delivery target no delivery owner can claim before approval', async () => {
+    const h = setup({ stored: [storedRow('pr-check')] }, { requireApproval: true, approvalOutcome: 'allowed-once' })
+    await expect(h.tool.execute({ ...CREATE_ARGS, name: 'fresh', deliver_channel: 'general' }, h.exec))
+      .rejects.toThrow('deliver_channel must be a Discord channel id of 17 to 20 digits (optionally prefixed "discord:"), "signal:group:<base64 group id>", or "signal:number:<E.164 number>"')
+    await expect(h.tool.execute({ ...CREATE_ARGS, name: 'fresh', deliver_channel: '' }, h.exec)).rejects.toThrow('deliver_channel must be')
+    await expect(h.tool.execute({ action: 'update', name: 'pr-check', deliver_channel: 'signal:group:abc' }, h.exec))
+      .rejects.toThrow('deliver_channel must be')
+    expect(h.approval?.request).not.toHaveBeenCalled()
+    await h.tool.execute({ action: 'update', name: 'pr-check', deliver_channel: 'signal:number:+15551234567' }, h.exec)
+    expect(h.jobsTable.rows.get('pr-check')?.deliver).toEqual({ kind: 'channel', channelId: 'signal:number:+15551234567' })
   })
 
   it('clears delivery on update and clears notes with an empty replacement', async () => {

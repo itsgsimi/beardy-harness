@@ -36,7 +36,7 @@ interface CronRunFinished extends CronRunResult {
   readonly jobName: string
   /** Epoch milliseconds of the scheduled or triggered fire. */
   readonly firedAt: number
-  /** Channel destination; absent means no channel delivery. */
+  /** Delivery target; the owner of its transport claims it, and absent means no delivery. */
   readonly deliverChannelId?: string
   /** Whether an outcome without answer text should produce a notice. */
   readonly reportOutcome: boolean

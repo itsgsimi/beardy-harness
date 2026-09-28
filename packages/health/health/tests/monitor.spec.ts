@@ -336,7 +336,10 @@ describe('configured endpoint health', () => {
     expect(() => { assertConfig(config({ intervalMs: 2_147_483_648 })) }).toThrow(/timer range/)
     expect(() => { assertConfig(config({ timeoutMs: 2_147_483_648 })) }).toThrow(/timer range/)
     expect(() => { assertConfig(config({ noticeCooldownMs: -1 })) }).toThrow(/noticeCooldownMs/)
-    expect(() => { assertConfig(config({ noticeChannelId: '' })) }).toThrow(/noticeChannelId/)
+    expect(() => { assertConfig(config({ noticeChannelId: '' })) }).toThrow(/health: noticeChannelId must be a Discord channel id .*signal:number:/)
+    for (const target of ['signal:number:+15551234567', `signal:group:${Buffer.alloc(32, 9).toString('base64')}`, 'discord:1472404859679670455']) {
+      expect(() => { assertConfig(config({ noticeChannelId: target })) }).not.toThrow()
+    }
     expect(() => { assertConfig(config({ probes: [{ name: '', url: 'http://a' }] })) }).toThrow(/name/)
     expect(() => { assertConfig(config({ probes: [{ name: 'x', url: 'http://a', credentialRef: '' }] })) }).toThrow(/credentialRef/)
     expect(() => { assertConfig(config({ probes: [{ name: 'x', url: 'http://a', credentialRef: 'bad-ref' }] })) }).toThrow(/credentialRef/)

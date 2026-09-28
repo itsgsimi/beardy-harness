@@ -25,7 +25,7 @@ Send each configured Yahoo team a weekly full report and Thursday and Sunday upd
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount a Fantasy provider such as [fantasy-yahoo](../fantasy-yahoo/README.md), the [local research provider](../../research/research-local/README.md) with `ownerScope: profile`, `ctx.web` search and fetch providers, and a `cron/run-finished` delivery listener such as the Discord gateway. The plugin fails a fire with a notice when research ownership is not profile-scoped, because report history must outlive each run.
+Mount a Fantasy provider such as [fantasy-yahoo](../fantasy-yahoo/README.md), the [local research provider](../../research/research-local/README.md) with `ownerScope: profile`, `ctx.web` search and fetch providers, and a `cron/run-finished` delivery listener for the targets you use: the Discord gateway for Discord channel ids, or signal-notices for `signal:group:<base64 id>` and `signal:number:<E.164>` targets. The plugin fails a fire with a notice when research ownership is not profile-scoped, because report history must outlive each run.
 
 ### Minimal configuration
 
@@ -54,7 +54,7 @@ When the plugin starts, it revisits each team's latest slot at or before that mo
 
 ### Delivery, notices, and shadow mode
 
-A completed report is handed to `cron/run-finished` with outcome `answered` and the team's `channelId`, and the gateway's durable outbox posts it. A withheld report sends the code `FANTASY_REPORT_WITHHELD`; a Yahoo, research, or model failure sends `FANTASY_REPORT_FAILED`. Both notices endorse no advice. With `shadowChannelId` set, every report and notice goes only to that channel; reports start with a shadow label naming the team, and job names start with `shadow-`.
+A completed report is handed to `cron/run-finished` with outcome `answered` and the team's `channelId`, and the durable outbox of that target's delivery owner posts it. A withheld report sends the code `FANTASY_REPORT_WITHHELD`; a Yahoo, research, or model failure sends `FANTASY_REPORT_FAILED`. Both notices endorse no advice. With `shadowChannelId` set, every report and notice goes only to that channel; reports start with a shadow label naming the team, and job names start with `shadow-`.
 
 ### History
 

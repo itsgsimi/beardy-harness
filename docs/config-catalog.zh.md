@@ -571,7 +571,7 @@ export interface DeviceConfig {
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `systemPrompt` · `tools`
 - `refs`: [`CameraVehicleActivity`](../packages/camera/camera/src/index.ts) · [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/camera/camera-watch/src/config.ts:36`](../packages/camera/camera-watch/src/config.ts)
+- `source`: [`packages/camera/camera-watch/src/config.ts:37`](../packages/camera/camera-watch/src/config.ts)
 
 ```ts config-catalog
 /** Camera watch configuration. */
@@ -580,7 +580,10 @@ export interface Config {
   readonly timezone: string
   /** Exact image-capable model route; absent uses the host default model at each event. */
   readonly modelSelection?: ConfiguredModelSelection | undefined
-  /** Discord channel for notices; absent keeps history only. */
+  /**
+   * Delivery target for notices: a Discord channel id, `discord:<id>`, `signal:group:<base64 id>`, or
+   * `signal:number:<E.164>`; absent keeps history only.
+   */
   readonly deliverChannelId?: string
   /** Absolute working directory recorded on classification Sessions. */
   readonly workspacePath?: string
@@ -991,7 +994,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `permissionPresets` · `sessionTitle` · `storageDomain` · `tools` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/cron/cron/src/index.ts:118`](../packages/cron/cron/src/index.ts)
+- `source`: [`packages/cron/cron/src/index.ts:120`](../packages/cron/cron/src/index.ts)
 
 ```ts config-catalog
 /** Complete configuration after schemastery applies every field default. */
@@ -1030,7 +1033,10 @@ export interface ResolvedConfig {
 export interface ConfiguredCronJob extends CronJobSpec {
   /** Exact model choice for this configured job; overrides the cron-wide choice. */
   readonly modelSelection?: ConfiguredModelSelection | undefined
-  /** Channel id where a finished run's final text is delivered; absent means none. */
+  /**
+   * Delivery target for a finished run's final text: a Discord channel id, `discord:<id>`,
+   * `signal:group:<base64 id>`, or `signal:number:<E.164>`; absent means none.
+   */
   readonly deliverChannel?: string
 }
 
@@ -1106,7 +1112,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/discord/discord-gateway/src/index.ts:98`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:99`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -1629,7 +1635,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-fantasy-reports`
 
 - `inject`: `agents` · `fantasy` · `research` · `sessionPersistence` · `web`
-- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:40`](../packages/fantasy/fantasy-reports/src/config.ts)
+- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:44`](../packages/fantasy/fantasy-reports/src/config.ts)
 
 ```ts config-catalog
 /** Deployment values. Teams, channels, and schedules have no defaults. */
@@ -1644,7 +1650,7 @@ export interface Config {
   readonly firstWeek?: number
   /** Last Yahoo game week that produces reports. */
   readonly lastWeek?: number
-  /** When set, every report and notice goes only to this channel, labeled with its team. */
+  /** When set, every report and notice goes only to this delivery target, labeled with its team; same forms as `channelId`. */
   readonly shadowChannelId?: string
   /** Minimum milliseconds between two report starts. */
   readonly minimumStartGapMs?: number
@@ -1707,7 +1713,10 @@ export interface TeamConfig {
   readonly name: string
   /** Yahoo team key; its league is the key's league prefix. */
   readonly teamKey: string
-  /** Discord channel that receives this team's reports outside shadow mode. */
+  /**
+   * Delivery target for this team's reports outside shadow mode: a Discord channel id, `discord:<id>`,
+   * `signal:group:<base64 id>`, or `signal:number:<E.164>`.
+   */
   readonly channelId: string
   /** Cron expressions for the three weekly reports, in the configured timezone. */
   readonly schedule: ReportScheduleConfig
@@ -1872,7 +1881,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-health`
 
 - `inject`: `credentials`
-- `source`: [`packages/health/health/src/index.ts:32`](../packages/health/health/src/index.ts)
+- `source`: [`packages/health/health/src/index.ts:34`](../packages/health/health/src/index.ts)
 
 ```ts config-catalog
 /** Health polling and notification bounds. */
@@ -1887,7 +1896,10 @@ export interface Config {
   readonly failureThreshold?: number
   /** Consecutive successes required to mark a down probe healthy. */
   readonly recoveryThreshold?: number
-  /** Discord channel that receives transition notices; absent means status only. */
+  /**
+   * Delivery target for transition notices: a Discord channel id, `discord:<id>`,
+   * `signal:group:<base64 id>`, or `signal:number:<E.164>`; absent means status only.
+   */
   readonly noticeChannelId?: string
   /** Minimum time between accepted notices of the same kind for one probe, in milliseconds. */
   readonly noticeCooldownMs?: number
@@ -3571,6 +3583,47 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-shell-env -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-signal-cli -->
+<a id="deepseek-aidsh-signal-cli"></a>
+
+## `@deepseek-ai/dsh-signal-cli`
+
+- `inject`: `storageDomain`
+- `source`: [`packages/signal/signal-cli/src/index.ts:32`](../packages/signal/signal-cli/src/index.ts)
+
+```ts config-catalog
+/** Provider configuration. */
+export interface Config {
+  /** Daemon HTTP root, such as `http://127.0.0.1:8820`; only loopback hosts are accepted because the daemon has no authentication. */
+  readonly baseUrl: string
+  /** E.164 account sent with every request, for a multi-account daemon; leave unset for a daemon started with `-a`. */
+  readonly account?: string
+  /** Longest wait for one HTTP request in milliseconds; defaults to 15000. */
+  readonly requestTimeoutMs?: number
+  /** Subscribe to the daemon's event stream and publish inbound messages as `signal/message`; defaults to true. */
+  readonly receive?: boolean
+  /** First delay before reconnecting the event stream in milliseconds; defaults to 1000 and doubles. */
+  readonly reconnectDelayMs?: number
+  /** Ceiling on the doubled reconnect delay in milliseconds; defaults to 60000. */
+  readonly maxReconnectDelayMs?: number
+  /** Longest text of one Signal message in UTF-16 units; longer deliveries are split; defaults to 2000. */
+  readonly maxMessageChars?: number
+  /** Most unfinished deliveries before `send` refuses; defaults to 200. */
+  readonly outboxMaxPending?: number
+  /** Longest text of one delivery in UTF-16 units; defaults to 20000. */
+  readonly outboxMaxChars?: number
+  /** First delay after a failed send in milliseconds; defaults to 5000 and doubles. */
+  readonly outboxRetryMs?: number
+  /** Ceiling on the doubled send delay in milliseconds; defaults to 600000. */
+  readonly outboxMaxRetryMs?: number
+  /** Failed attempts after which a delivery is abandoned; defaults to 30. */
+  readonly outboxMaxAttempts?: number
+  /** Completed delivery ids kept to recognize a repeated id; defaults to 1000. */
+  readonly outboxMaxReceipts?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-signal-cli -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-skill -->
 <a id="deepseek-aidsh-skill"></a>
@@ -5398,6 +5451,7 @@ export interface Config {
 | `@deepseek-ai/dsh-session-stats` | `sessionProjections` | [`packages/session/session-stats/src/index.ts`](../packages/session/session-stats/src/index.ts) |
 | `@deepseek-ai/dsh-session-turn-outline` | `sessionProjections` | [`packages/session/session-turn-outline/src/index.ts`](../packages/session/session-turn-outline/src/index.ts) |
 | `@deepseek-ai/dsh-settings` | `configEditor` · `profileContext` | [`packages/settings/settings/src/index.ts`](../packages/settings/settings/src/index.ts) |
+| `@deepseek-ai/dsh-signal-notices` | `signal` | [`packages/signal/signal-notices/src/index.ts`](../packages/signal/signal-notices/src/index.ts) |
 | `@deepseek-ai/dsh-skill-badge` | `skills` | [`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts) |
 | `@deepseek-ai/dsh-storage` | — | [`packages/storage/storage/src/index.ts`](../packages/storage/storage/src/index.ts) |
 | `@deepseek-ai/dsh-subprocess-local` | — | [`packages/subprocess/subprocess-local/src/index.ts`](../packages/subprocess/subprocess-local/src/index.ts) |
@@ -5435,6 +5489,7 @@ export interface Config {
 | `@deepseek-ai/dsh-session-persistence` | `SessionPersistence` | — | [`packages/session/session-persistence/src/index.ts`](../packages/session/session-persistence/src/index.ts) |
 | `@deepseek-ai/dsh-session-query` | `SessionQueryEngine` | — | [`packages/session-query/session-query/src/index.ts`](../packages/session-query/session-query/src/index.ts) |
 | `@deepseek-ai/dsh-shell` | `ShellExecutor` | — | [`packages/shell/shell/src/index.ts`](../packages/shell/shell/src/index.ts) |
+| `@deepseek-ai/dsh-signal` | `SignalService` | — | [`packages/signal/signal/src/index.ts`](../packages/signal/signal/src/index.ts) |
 | `@deepseek-ai/dsh-spill` | `SpillStore` | — | [`packages/spill/spill/src/index.ts`](../packages/spill/spill/src/index.ts) |
 | `@deepseek-ai/dsh-subprocess` | `SubprocessRuntime` | — | [`packages/subprocess/subprocess/src/index.ts`](../packages/subprocess/subprocess/src/index.ts) |
 | `@deepseek-ai/dsh-workflow` | `WorkflowEngine` | — | [`packages/workflow/workflow/src/index.ts`](../packages/workflow/workflow/src/index.ts) |
@@ -5462,6 +5517,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-slots` | — | [`packages/client/ui-slots/src/index.ts`](../packages/client/ui-slots/src/index.ts) |
 | `@deepseek-ai/dsh-client-web` | — | [`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts) |
 | `@deepseek-ai/dsh-cmdline` | — | [`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts) |
+| `@deepseek-ai/dsh-delivery-target` | — | [`packages/util/delivery-target/src/index.ts`](../packages/util/delivery-target/src/index.ts) |
 | `@deepseek-ai/dsh-deque` | — | [`packages/util/deque/src/index.ts`](../packages/util/deque/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-agent-team-profile` | — | [`packages/experimental/agent-team-profile/src/index.ts`](../packages/experimental/agent-team-profile/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-browser-use-runtime` | — | [`packages/experimental/browser-use-runtime/src/index.ts`](../packages/experimental/browser-use-runtime/src/index.ts) |

@@ -110,6 +110,13 @@ describe('assertConfig', () => {
       .toThrow('job "morning-brief" turnTimeoutMs must be a safe integer of at least 1000 milliseconds')
   })
 
+  it('rejects a configured delivery target no delivery owner can claim and accepts Signal targets', () => {
+    expect(() => { assertConfig(config({ jobs: [{ ...JOB, deliverChannel: 'general' }] })) })
+      .toThrow('dsh-cron: job "morning-brief" deliverChannel must be a Discord channel id of 17 to 20 digits')
+    expect(() => { assertConfig(config({ jobs: [{ ...JOB, deliverChannel: `signal:group:${Buffer.alloc(32, 1).toString('base64')}` }] }))
+    }).not.toThrow()
+  })
+
   it.each<[string, Partial<ResolvedConfig>]>([
     ['turnTimeoutMs', { turnTimeoutMs: 1.5 }],
     ['maxLiveRuns', { maxLiveRuns: 0 }],
@@ -571,7 +578,7 @@ describe('apply', () => {
       dispose: async () => {},
     }) } })
     const fake = fakeScheduler()
-    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }] }), fake.scheduler)
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: '123456789012345678' }] }), fake.scheduler)
     try {
       fake.fire()
       await vi.waitFor(() => {
@@ -585,7 +592,7 @@ describe('apply', () => {
         })
       })
       expect(emitted.find(item => item.event === 'cron/run-finished' && (item.payload as CronRunFinished).outcome === 'skipped'))
-        .toMatchObject({ payload: { jobName: JOB.name, reportOutcome: true, deliverChannelId: 'c' } })
+        .toMatchObject({ payload: { jobName: JOB.name, reportOutcome: true, deliverChannelId: '123456789012345678' } })
     } finally {
       releaseIdle.resolve(undefined)
     }
@@ -604,7 +611,7 @@ describe('apply', () => {
     const h = contextStub({ serial })
     const create = vi.spyOn(h.ctx.agents, 'create')
     const fake = fakeScheduler()
-    await apply(h.ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }], turnTimeoutMs: 1_000 }), fake.scheduler)
+    await apply(h.ctx, config({ jobs: [{ ...JOB, deliverChannel: '123456789012345678' }], turnTimeoutMs: 1_000 }), fake.scheduler)
     try {
       fake.fire()
       await entered.promise
@@ -681,7 +688,7 @@ describe('apply', () => {
     const serial = vi.fn(async () => { entered.resolve(undefined); return await accepted.promise })
     const { ctx, tables } = contextStub({ serial })
     const fake = fakeScheduler()
-    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }] }), fake.scheduler)
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: '123456789012345678' }] }), fake.scheduler)
     fake.fire()
     await entered.promise
     await vi.advanceTimersByTimeAsync(60_000)
@@ -697,7 +704,7 @@ describe('apply', () => {
     const serial = vi.fn(async () => undefined as true | undefined)
     const { ctx, logger, tables } = contextStub({ serial })
     const fake = fakeScheduler()
-    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'c' }] }), fake.scheduler)
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: '123456789012345678' }] }), fake.scheduler)
     fake.fire()
     await vi.waitFor(() => { expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('no delivery listener')) })
     serial.mockResolvedValue(true)
@@ -715,7 +722,7 @@ describe('apply', () => {
     tables.set('state', state)
     for (const name of ['first', 'second']) {
       state.rows.set(name, { notes: '', lastRuns: [], pendingOutcome: {
-        firedAt: 1, sessionId: name, outcome: 'answered', text: name, deliverChannelId: 'c', reportOutcome: true,
+        firedAt: 1, sessionId: name, outcome: 'answered', text: name, deliverChannelId: '123456789012345678', reportOutcome: true,
       } })
     }
     const loading = apply(ctx, config(), fakeScheduler().scheduler)
@@ -795,7 +802,7 @@ describe('apply', () => {
     const state = fakeTable()
     tables.set('state', state)
     state.rows.set('removed-job', { notes: '', lastRuns: [{ firedAt: 1, sessionId: 'saved', outcome: 'answered' }], pendingOutcome: {
-      firedAt: 1, sessionId: 'saved', outcome: 'answered', text: 'Saved answer', deliverChannelId: 'c', reportOutcome: true,
+      firedAt: 1, sessionId: 'saved', outcome: 'answered', text: 'Saved answer', deliverChannelId: '123456789012345678', reportOutcome: true,
     } })
     await apply(ctx, config(), fakeScheduler().scheduler)
     expect(serial).toHaveBeenCalledTimes(1)
@@ -856,10 +863,10 @@ describe('apply', () => {
   it('carries the configured delivery channel into the finished-run event', async () => {
     const { ctx, emitted } = contextStub()
     const fake = fakeScheduler()
-    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'channel-9' }] }), fake.scheduler)
+    await apply(ctx, config({ jobs: [{ ...JOB, deliverChannel: 'signal:number:+15551234567' }] }), fake.scheduler)
     fake.fire()
     await settle()
-    expect(emitted[0]?.payload).toMatchObject({ deliverChannelId: 'channel-9' })
+    expect(emitted[0]?.payload).toMatchObject({ deliverChannelId: 'signal:number:+15551234567' })
   })
 
   it('re-plans timers when a stored job lands in the domain', async () => {

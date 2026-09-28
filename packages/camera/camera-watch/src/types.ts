@@ -22,7 +22,7 @@ export type NoticeDelivery = 'none' | 'delivered' | 'undelivered' | 'no-channel'
 export interface CameraNotice {
   /** Stable delivery identity derived from the event id, or from the window of a classification failure notice; a retry reuses it. */
   readonly id: string
-  /** Destination Discord channel from validated configuration. */
+  /** Validated delivery target from configuration; each delivery owner claims only its own transport's targets. */
   readonly channelId: string
   /** Complete notice text of at most 2000 characters. */
   readonly text: string

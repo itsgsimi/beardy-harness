@@ -2,6 +2,7 @@
 
 import { isAbsolute } from 'node:path'
 import type { CameraVehicleActivity } from '@deepseek-ai/dsh-camera'
+import { assertDeliveryTarget } from '@deepseek-ai/dsh-delivery-target'
 import { ConfiguredModelSelectionSchema, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
 
@@ -38,7 +39,10 @@ export interface Config {
   readonly timezone: string
   /** Exact image-capable model route; absent uses the host default model at each event. */
   readonly modelSelection?: ConfiguredModelSelection | undefined
-  /** Discord channel for notices; absent keeps history only. */
+  /**
+   * Delivery target for notices: a Discord channel id, `discord:<id>`, `signal:group:<base64 id>`, or
+   * `signal:number:<E.164>`; absent keeps history only.
+   */
   readonly deliverChannelId?: string
   /** Absolute working directory recorded on classification Sessions. */
   readonly workspacePath?: string
@@ -185,7 +189,7 @@ function minuteOf(value: string, field: string): number {
 
 /**
  * Apply defaults and reject what the schema cannot: an unknown time zone, a malformed or empty night
- * window, an empty vehicle activity list, a non-snowflake channel, and a relative workspace path.
+ * window, an empty vehicle activity list, an unparseable delivery target, and a relative workspace path.
  * Device references are checked against the camera provider when the watch starts.
  * @param config - schema-resolved configuration.
  * @returns complete watch settings.
@@ -197,9 +201,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
     // Intl reports only RangeError for an unknown zone; the configured value is the useful detail.
     throw new Error(`camera-watch: timezone "${config.timezone}" is not a known IANA time zone`)
   }
-  if (config.deliverChannelId !== undefined && !/^\d{17,20}$/u.test(config.deliverChannelId)) {
-    throw new Error('camera-watch: deliverChannelId must be a Discord snowflake of 17 to 20 digits')
-  }
+  if (config.deliverChannelId !== undefined) assertDeliveryTarget(config.deliverChannelId, 'camera-watch: deliverChannelId')
   if (config.workspacePath !== undefined && !isAbsolute(config.workspacePath)) {
     throw new Error('camera-watch: workspacePath must be absolute')
   }

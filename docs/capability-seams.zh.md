@@ -9,6 +9,10 @@
 
 ```mermaid
 flowchart LR
+  pkg_signal["signal"]
+  svc_signal["ctx.signal<br/>Signal messages through a durable outbox"]
+  pkg_signal_cli["signal-cli"]
+  pkg_signal_notices["signal-notices"]
   pkg_camera["camera"]
   svc_camera["ctx.camera<br/>Camera devices and events with stored frames"]
   pkg_camera_ring["camera-ring"]
@@ -405,6 +409,8 @@ flowchart LR
   pkg_settings --> svc_settings
   pkg_shell --> svc_shell
   pkg_shell_env --> svc_shellEnv
+  pkg_signal --> svc_signal
+  pkg_signal_cli --> svc_signal
   pkg_skill --> svc_skills
   pkg_skill_badge --> svc_skills
   pkg_skill_filesystem --> svc_skills
@@ -549,6 +555,7 @@ flowchart LR
   svc_shell --> pkg_tool_pwsh
   svc_shellEnv --> pkg_tool_bash
   svc_shellEnv --> pkg_tool_pwsh
+  svc_signal --> pkg_signal_notices
   svc_skills --> pkg_tool_skill
   svc_speech --> pkg_discord_gateway
   svc_speechToText --> pkg_experimental_api_speech_to_text
@@ -604,7 +611,8 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | 提供方负责厂商登录、事件接纳和画面截取；监视插件在记录在案的 Session 中对画面分类，经 Discord 发件箱发送通知，并回答 camera 工具。 |
+| `ctx.signal` | `seam` | [`signal`](../packages/signal/signal) | [`signal-cli`](../packages/signal/signal-cli) | [`signal-notices`](../packages/signal/signal-notices) | - | 提供方负责守护进程连接、持久发件箱和事件流；通知使用方认领目标为 Signal 群组或号码的摄像头、健康和定时运行通知。 |
+| `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | 提供方负责厂商登录、事件接纳和画面截取；监视插件在记录在案的 Session 中对画面分类，把通知交给其目标的投递方，并回答 camera 工具。 |
 | `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 提供方拥有 OAuth 与 Yahoo 解析；模型工具读取调用方映射的球队，定时报告读取配置的球队。 |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 本地提供方保存运行 Session 和报告附件，并执行每周 Fantasy 报告等使用方工作流。 |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |

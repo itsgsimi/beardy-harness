@@ -17,6 +17,7 @@ kind: "package-reference"
 
 - [模型选择](#model-selection)
 - [命令](#commands)
+- [投递目标](#delivery-targets)
 - [模型体验](#model-experience)
 - [已知限制与后续工作](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
@@ -34,6 +35,13 @@ cron 行上的 `modelSelection: { provider, model, reasoningEffort? }` 为每次
 ## 命令
 
 `/cron status [name]` 在 Discord 和 Web 命令输入中运行，无需模型轮次。它显示最近保留的结果、结果 id、已记录的运行时长、失败或跳过的代码与原因，以及下一次已启用的触发时间。跳过的触发没有 Session。缺少时长的旧历史显示 `unknown`。失败运行通过现有 Discord 结果通知携带任务名、Session id、失败代码和下一次触发时间；启用结果通知时，跳过的触发也走同一通知路径。
+
+-----
+
+<a id="delivery-targets"></a>
+## 投递目标
+
+`deliverChannel` 与工具字段 `deliver_channel` 接受 Discord 频道 id、`discord:<id>`、`signal:group:<base64 id>` 或 `signal:number:<E.164>`，其他值在加载时或在工具中于审批前被拒绝；此项校验之前保存的任务保留原目标。目标传输方式的所属方认领 `cron/run-finished`，并发布 `cronDeliveryContent` 选出的文本。只有 Discord 目标会收到审批提示，因此投递到 Signal 的运行无法获得 home 写入审批。
 
 -----
 

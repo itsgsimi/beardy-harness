@@ -2,7 +2,7 @@
 
 [English](camera.md) | 中文
 
-[摄像头定义](../../packages/camera/camera/README.zh.md)声明设备、带已存储画面的事件以及判定。[Ring 提供方](../../packages/camera/camera-ring/README.zh.md)把门铃按下和移动警报转为事件。[摄像头监视](../../packages/camera/camera-watch/README.zh.md)对每个事件的画面分类，决定是否通知，把通知交给 Discord 网关发件箱，并用自己的历史回答 `camera` 模型工具。
+[摄像头定义](../../packages/camera/camera/README.zh.md)声明设备、带已存储画面的事件以及判定。[Ring 提供方](../../packages/camera/camera-ring/README.zh.md)把门铃按下和移动警报转为事件。[摄像头监视](../../packages/camera/camera-watch/README.zh.md)对每个事件的画面分类，决定是否通知，把通知交给其目标的投递方，并用自己的历史回答 `camera` 模型工具。
 
 ## Events and frames
 

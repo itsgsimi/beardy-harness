@@ -34,6 +34,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`goal/`](goal/README.zh.md) | 同会话 goal 的持久化与生命周期 |
 | [`fantasy/`](fantasy/README.zh.md) | Yahoo Fantasy 只读服务、提供方和模型工具 |
 | [`camera/`](camera/README.zh.md) | Ring 摄像头事件与视觉通知 |
+| [`signal/`](signal/README.zh.md) | Signal 消息与通知 |
 | [`research/`](research/README.zh.md) | 以 Session 保存的研究运行与存储 |
 | [`schedule/`](schedule/README.zh.md) | Host 拥有的定时后续操作 |
 | [`health/`](health/README.zh.md) | 显式端点探测与 Host 状态 |

@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-装载 Fantasy 提供方（如 [fantasy-yahoo](../fantasy-yahoo/README.zh.md)）、`ownerScope: profile` 的[本地研究提供方](../../research/research-local/README.zh.md)、`ctx.web` 搜索与抓取提供方，以及 `cron/run-finished` 投递监听器（如 Discord 网关）。研究所有权不是 profile 范围时，插件会让本次触发失败并发送通知，因为报告历史必须比每次运行存续更久。
+装载 Fantasy 提供方（如 [fantasy-yahoo](../fantasy-yahoo/README.zh.md)）、`ownerScope: profile` 的[本地研究提供方](../../research/research-local/README.zh.md)、`ctx.web` 搜索与抓取提供方，以及所用目标的 `cron/run-finished` 投递监听器：Discord 频道 id 用 Discord 网关，`signal:group:<base64 id>` 与 `signal:number:<E.164>` 目标用 signal-notices。研究所有权不是 profile 范围时，插件会让本次触发失败并发送通知，因为报告历史必须比每次运行存续更久。
 
 ### 最小配置
 
@@ -54,7 +54,7 @@ kind: "package-reference"
 
 ### 投递、通知与影子模式
 
-完成的报告以 `answered` 结果和球队的 `channelId` 交给 `cron/run-finished`，由网关的持久发件箱发布。被扣留的报告发送代码 `FANTASY_REPORT_WITHHELD`；Yahoo、研究或模型失败发送 `FANTASY_REPORT_FAILED`。两种通知都不认可任何建议。设置 `shadowChannelId` 后，所有报告和通知都只发到该频道；报告以标明球队的影子标签开头，任务名以 `shadow-` 开头。
+完成的报告以 `answered` 结果和球队的 `channelId` 交给 `cron/run-finished`，由该目标投递方的持久发件箱发布。被扣留的报告发送代码 `FANTASY_REPORT_WITHHELD`；Yahoo、研究或模型失败发送 `FANTASY_REPORT_FAILED`。两种通知都不认可任何建议。设置 `shadowChannelId` 后，所有报告和通知都只发到该频道；报告以标明球队的影子标签开头，任务名以 `shadow-` 开头。
 
 ### 历史
 

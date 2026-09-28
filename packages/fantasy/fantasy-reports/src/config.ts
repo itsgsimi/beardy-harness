@@ -5,6 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import { LeagueKey, TeamKey } from '@deepseek-ai/dsh-fantasy'
 import type { LeagueKey as LeagueKeyType, TeamKey as TeamKeyType } from '@deepseek-ai/dsh-fantasy/types'
 import { assertSchedule } from '@deepseek-ai/dsh-cron'
+import { assertDeliveryTarget } from '@deepseek-ai/dsh-delivery-target'
 
 /** Report timing; each mode has its own schedule and review emphasis. */
 export type ReportMode = 'full' | 'thursday' | 'sunday'
@@ -20,7 +21,10 @@ export interface TeamConfig {
   readonly name: string
   /** Yahoo team key; its league is the key's league prefix. */
   readonly teamKey: string
-  /** Discord channel that receives this team's reports outside shadow mode. */
+  /**
+   * Delivery target for this team's reports outside shadow mode: a Discord channel id, `discord:<id>`,
+   * `signal:group:<base64 id>`, or `signal:number:<E.164>`.
+   */
   readonly channelId: string
   /** Cron expressions for the three weekly reports, in the configured timezone. */
   readonly schedule: ReportScheduleConfig
@@ -48,7 +52,7 @@ export interface Config {
   readonly firstWeek?: number
   /** Last Yahoo game week that produces reports. */
   readonly lastWeek?: number
-  /** When set, every report and notice goes only to this channel, labeled with its team. */
+  /** When set, every report and notice goes only to this delivery target, labeled with its team; same forms as `channelId`. */
   readonly shadowChannelId?: string
   /** Minimum milliseconds between two report starts. */
   readonly minimumStartGapMs?: number
@@ -159,8 +163,6 @@ export const Config: z<Config> = z.object({
     [key, z.number().step(1).min(min).max(max).default(fallback)])) as Record<BoundKey, z<number>>,
 })
 
-const SNOWFLAKE = /^[1-9][0-9]{15,21}$/u
-
 /**
  * Apply defaults and reject unusable routes, schedules, keys, and bounds at load.
  * @param config - loader or direct-caller configuration.
@@ -182,9 +184,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
   } catch {
     throw new Error(`fantasy-reports: timezone ${config.timezone} is not an IANA timezone`)
   }
-  if (config.shadowChannelId !== undefined && !SNOWFLAKE.test(config.shadowChannelId)) {
-    throw new Error('fantasy-reports: shadowChannelId must be a Discord channel id')
-  }
+  if (config.shadowChannelId !== undefined) assertDeliveryTarget(config.shadowChannelId, 'fantasy-reports: shadowChannelId')
   const excludedHosts = (config.excludedHosts ?? DEFAULT_EXCLUDED_HOSTS).map(host => host.trim().toLowerCase())
   if (excludedHosts.some(host => !/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/u.test(host))) {
     throw new Error('fantasy-reports: excludedHosts must be host names')
@@ -199,7 +199,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
     if (ids.has(team.id)) throw new Error(`fantasy-reports: duplicate team id ${team.id}`)
     ids.add(team.id)
     if (!team.name.trim() || team.name.length > 80) throw new Error(`fantasy-reports: team ${team.id} needs a name of 1 to 80 characters`)
-    if (!SNOWFLAKE.test(team.channelId)) throw new Error(`fantasy-reports: team ${team.id} channelId must be a Discord channel id`)
+    assertDeliveryTarget(team.channelId, `fantasy-reports: team ${team.id} channelId`)
     const teamKey = TeamKey(team.teamKey)
     if (keys.has(teamKey)) throw new Error(`fantasy-reports: duplicate team key ${teamKey}`)
     keys.add(teamKey)

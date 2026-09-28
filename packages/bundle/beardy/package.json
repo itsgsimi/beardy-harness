@@ -70,7 +70,10 @@
     "@deepseek-ai/dsh-web-search-searxng": "workspace:*",
     "@deepseek-ai/dsh-camera": "workspace:*",
     "@deepseek-ai/dsh-camera-ring": "workspace:*",
-    "@deepseek-ai/dsh-camera-watch": "workspace:*"
+    "@deepseek-ai/dsh-camera-watch": "workspace:*",
+    "@deepseek-ai/dsh-signal": "workspace:*",
+    "@deepseek-ai/dsh-signal-cli": "workspace:*",
+    "@deepseek-ai/dsh-signal-notices": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

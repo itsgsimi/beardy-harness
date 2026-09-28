@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-signal-notices.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-signal-notices.md
+/agent-note-signal-notices-through-transport-tagged-delivery-targets:
+  en: 1bd3e132c3a495c9
+  zh: 469642f07be747c5
+/agent-note-signal-notices-through-transport-tagged-delivery-targets/problem:
+  en: 418bb80078c6f72e
+  zh: e9b385c0f1536f8d
+/agent-note-signal-notices-through-transport-tagged-delivery-targets/decision:
+  en: a8979dfcbf320c1d
+  zh: 89d638218f0d0374
+/agent-note-signal-notices-through-transport-tagged-delivery-targets/alternatives-considered:
+  en: fdac9dd071733429
+  zh: 22124115b7a61f85
+/agent-note-signal-notices-through-transport-tagged-delivery-targets/consequences:
+  en: fc14c4597ac086d3
+  zh: 18b52b8be9bcea9a

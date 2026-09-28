@@ -91,6 +91,9 @@
     },
     {
       "path": "../../camera/camera-watch"
+    },
+    {
+      "path": "../../util/delivery-target"
     }
   ]
 }

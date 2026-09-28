@@ -43,6 +43,9 @@
     },
     {
       "path": "../../session/unattended-session"
+    },
+    {
+      "path": "../../util/delivery-target"
     }
   ]
 }

@@ -17,6 +17,7 @@ An active run exposes its `deliverChannel` to the Discord approval answerer only
 
 - [Model selection](#model-selection)
 - [Commands](#commands)
+- [Delivery targets](#delivery-targets)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
@@ -32,6 +33,13 @@ An active run exposes its `deliverChannel` to the Discord approval answerer only
 ## Commands
 
 `/cron status [name]` works in Discord and Web command input without a model turn. It shows the last retained outcome, outcome id, elapsed duration when recorded, failure or skip code and cause, and the next armed fire. A skipped fire has no Session. Earlier history without duration displays `unknown`. A failed run's existing Discord outcome notice includes its job, Session id, failure code, and next fire; a skipped fire uses that same outcome path when notices are enabled.
+
+-----
+
+<a id="delivery-targets"></a>
+## Delivery targets
+
+`deliverChannel` and the `deliver_channel` tool field accept a Discord channel id, `discord:<id>`, `signal:group:<base64 id>`, or `signal:number:<E.164>`, and reject anything else at load or in the tool before approval; jobs stored before this check keep their target. The owner of the target's transport claims `cron/run-finished` and posts the text `cronDeliveryContent` selects. Only Discord targets receive approval prompts, so a run delivering to Signal cannot obtain home-write approval.
 
 -----
 

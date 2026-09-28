@@ -2748,6 +2748,26 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'signal',
+    summary: 'Provider-neutral Signal capability; one provider owns `ctx.signal`.',
+    description: 'Provider-neutral Signal capability; one provider owns `ctx.signal`.',
+    methods: [
+      {
+        signature: 'abstract send(request: SignalSendRequest): Promise<SignalDeliveryResult>',
+        description: 'Accept one outbound message durably; transmission and its retries happen afterwards.',
+        parameters: [{ name: 'request', description: 'delivery id, destination, text, and optional stored image.' }],
+        returns: 'the delivery id and whether it was newly queued or already accepted.',
+        throws: ['Error when the message is empty, too long, or the queue is full or stopping.'],
+      },
+      {
+        signature: 'abstract health(): Promise<SignalHealth>',
+        description: 'Check the transport now and report the outbound queue.',
+        parameters: [],
+        returns: 'reachability, masked account, and pending deliveries.',
+      },
+    ],
+  },
+  {
     key: 'skills',
     summary: 'Layered registry of skill providers, the host+per-scope shape the tools registry established.',
     description: 'Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context\'s scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset\'s standing composition lands in that preset\'s layer. A read merges the global layer with the viewing scope\'s chain — the nearest layer\'s entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.',
@@ -4259,9 +4279,9 @@ export const EVENT_API: readonly EventApiEntry[] = [
     name: 'health/transition',
     mode: 'serial',
     signature: '\'health/transition\'(transition: { id: string; channelId: string; text: string }): true | undefined | Promise<true | undefined>',
-    summary: 'One probe state transition awaiting durable Discord outbox acceptance.',
-    description: 'One probe state transition awaiting durable Discord outbox acceptance.',
-    parameters: [{ name: 'transition', description: 'Stable identity, destination, and non-secret text.' }],
+    summary: 'One probe state transition awaiting durable outbox acceptance by the gateway that owns the target\'s transport.',
+    description: 'One probe state transition awaiting durable outbox acceptance by the gateway that owns the target\'s transport.',
+    parameters: [{ name: 'transition', description: 'Stable identity, delivery target, and non-secret text.' }],
   },
   {
     name: 'hmr/change',
@@ -4390,6 +4410,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'One profile entry\'s form values, availability, or page policy changed.',
     description: 'One profile entry\'s form values, availability, or page policy changed. Form clients re-read its schema, resolved values, and revision.',
     parameters: [{ name: 'ns', description: 'Profile entry id.' }, { name: 'revision', description: 'The entry\'s new revision.' }],
+  },
+  {
+    name: 'signal/message',
+    mode: 'parallel',
+    signature: '\'signal/message\'(message: SignalInboundMessage): void | Promise<void>',
+    summary: 'One inbound data message from another account.',
+    description: 'One inbound data message from another account. Listeners should enqueue work and return; the provider awaits every listener before the next message and logs failures without retrying.',
+    parameters: [{ name: 'message', description: 'sender, group, text, timestamp, and attachment metadata.' }],
   },
   {
     name: 'skills/change',
@@ -7354,6 +7382,54 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ShellSandboxInfo',
     declaration: 'export interface ShellSandboxInfo {\n    mode: SandboxMode;\n    denied: boolean;\n    enforcement?: SandboxEnforcement;\n    runnerFailed?: boolean;\n}',
+  },
+  {
+    name: 'SignalAttachmentInfo',
+    declaration: 'export interface SignalAttachmentInfo {\n    readonly id?: string;\n    readonly contentType?: string;\n    readonly filename?: string;\n    readonly size?: number;\n    readonly width?: number;\n    readonly height?: number;\n    readonly voiceNote: boolean;\n}',
+  },
+  {
+    name: 'SignalDeliveryId',
+    declaration: 'export type SignalDeliveryId = Branded<\'SignalDeliveryId\'>;',
+  },
+  {
+    name: 'SignalDeliveryResult',
+    declaration: 'export interface SignalDeliveryResult {\n    readonly id: SignalDeliveryId;\n    readonly state: \'queued\' | \'duplicate\';\n}',
+  },
+  {
+    name: 'SignalDeliveryTarget',
+    declaration: 'export type SignalDeliveryTarget = {\n    readonly transport: \'signal\';\n    readonly kind: \'group\';\n    readonly groupId: SignalGroupId;\n} | {\n    readonly transport: \'signal\';\n    readonly kind: \'number\';\n    readonly number: SignalNumber;\n};',
+  },
+  {
+    name: 'SignalGroupId',
+    declaration: 'export type SignalGroupId = Branded<\'SignalGroupId\'>;',
+  },
+  {
+    name: 'SignalHealth',
+    declaration: 'export interface SignalHealth {\n    readonly reachable: boolean;\n    readonly account?: string;\n    readonly checkedAt: number;\n    readonly detail?: string;\n    readonly pending: number;\n}',
+  },
+  {
+    name: 'SignalInboundMessage',
+    declaration: 'export interface SignalInboundMessage {\n    readonly sender: SignalSender;\n    readonly groupId?: SignalGroupId;\n    readonly text: string;\n    readonly timestamp: number;\n    readonly attachments: readonly SignalAttachmentInfo[];\n}',
+  },
+  {
+    name: 'SignalNumber',
+    declaration: 'export type SignalNumber = Branded<\'SignalNumber\'>;',
+  },
+  {
+    name: 'SignalSender',
+    declaration: 'export interface SignalSender {\n    readonly number?: SignalNumber;\n    readonly serviceId?: SignalServiceId;\n    readonly name?: string;\n}',
+  },
+  {
+    name: 'SignalSendRequest',
+    declaration: 'export interface SignalSendRequest {\n    readonly id?: SignalDeliveryId;\n    readonly target: SignalTarget;\n    readonly text: string;\n    readonly image?: ImageAttachmentRef;\n}',
+  },
+  {
+    name: 'SignalServiceId',
+    declaration: 'export type SignalServiceId = Branded<\'SignalServiceId\'>;',
+  },
+  {
+    name: 'SignalTarget',
+    declaration: 'export type SignalTarget = SignalDeliveryTarget;',
   },
   {
     name: 'SignInAttemptId',

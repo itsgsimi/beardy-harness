@@ -284,8 +284,8 @@ describe('startListener', () => {
     const outbox = { get: (key: string) => notices.get(key), entries: () => notices.entries(),
       put: async (key: string, value: OutboxRecord) => { notices.set(key, value) },
       delete: async (key: string) => { notices.delete(key) } }
-    let healthTransition: ((transition: { id: string; channelId: string; text: string }) => Promise<true>) | undefined
-    let cameraNotice: ((notice: CameraNotice) => Promise<true>) | undefined
+    let healthTransition: ((transition: { id: string; channelId: string; text: string }) => Promise<true | undefined>) | undefined
+    let cameraNotice: ((notice: CameraNotice) => Promise<true | undefined>) | undefined
     let reads = 0
     const owner = new Context().extend({
       logger: ctx.logger,
@@ -335,6 +335,13 @@ describe('startListener', () => {
     await cameraNotice?.({ id: 'camera:ring-1-3', channelId: CHANNEL, text: 'Front door: Doorbell rang' })
     expect(notices.get('camera:ring-1-2')).toMatchObject({ chunks: [{ content: 'Front door: Doorbell rang', image }] })
     expect(notices.get('camera:ring-1-3')).toMatchObject({ chunks: ['Front door: Doorbell rang'] })
+    await expect(cameraNotice?.({ id: 'camera:ring-1-4', channelId: `discord:${CHANNEL}`, text: 'Prefixed' })).resolves.toBe(true)
+    expect(notices.get('camera:ring-1-4')).toMatchObject({ channelId: CHANNEL, chunks: ['Prefixed'] })
+    const group = `signal:group:${Buffer.alloc(32, 2).toString('base64')}`
+    await expect(cameraNotice?.({ id: 'camera:ring-1-5', channelId: group, text: 'Signal', image })).resolves.toBeUndefined()
+    await expect(healthTransition?.({ id: 'health:transition-2', channelId: 'signal:number:+15551234567', text: 'down' }))
+      .resolves.toBeUndefined()
+    expect(notices.has('camera:ring-1-5') || notices.has('health:transition-2')).toBe(false)
     await cleanup[0]?.()
     expect(readClosed).toHaveBeenCalledTimes(2)
     expect(domainClosed).toHaveBeenCalledTimes(1)

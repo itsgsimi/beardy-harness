@@ -110,13 +110,22 @@ const GROUP_ORDER = [
 
 const SERVICE_ROLES: ServiceRole[] = [
   {
+    key: 'signal',
+    pkg: 'signal',
+    title: 'Signal messages through a durable outbox',
+    mode: 'seam',
+    implementations: ['signal-cli'],
+    consumers: ['signal-notices'],
+    note: 'The provider owns the daemon connection, the durable outbox, and the event stream; the notice consumer claims camera, health, and scheduled-run notices whose target is a Signal group or number.',
+  },
+  {
     key: 'camera',
     pkg: 'camera',
     title: 'Camera devices and events with stored frames',
     mode: 'seam',
     implementations: ['camera-ring'],
     consumers: ['camera-watch'],
-    note: 'The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, notifies through the Discord outbox, and answers the camera tool.',
+    note: 'The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, hands notices to the delivery owner of their target, and answers the camera tool.',
   },
   {
     key: 'fantasy',

@@ -447,6 +447,13 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-tool-pwsh` | yes | Model-facing pwsh tool over the bash executor seam |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | yes | Model-facing owner-scoped persistent PowerShell tool backed by the Harness PTY service |
 
+## signal
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-signal-cli` | yes | Signal provider over a local signal-cli HTTP daemon: JSON-RPC sends through a durable outbox and inbound messages from its event stream |
+| `@deepseek-ai/dsh-signal-notices` | no | Delivers camera, health, and scheduled-run notices whose target is a Signal group or number |
+
 ## skill
 
 | Package | Config | Description |

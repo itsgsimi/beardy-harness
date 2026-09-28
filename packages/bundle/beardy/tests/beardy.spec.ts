@@ -84,7 +84,8 @@ describe('dsh-beardy bundle', () => {
       name: '@deepseek-ai/dsh-fantasy-reports', disabled: true,
     })
     expect(rows.find(row => row.id === 'fantasy-weekly-reports')).not.toHaveProperty('config')
-    for (const [id, name] of [['camera-ring', '@deepseek-ai/dsh-camera-ring'], ['camera-watch', '@deepseek-ai/dsh-camera-watch']]) {
+    for (const [id, name] of [['camera-ring', '@deepseek-ai/dsh-camera-ring'], ['camera-watch', '@deepseek-ai/dsh-camera-watch'],
+      ['signal-cli', '@deepseek-ai/dsh-signal-cli'], ['signal-notices', '@deepseek-ai/dsh-signal-notices']]) {
       expect(rows.find(row => row.id === id)).toMatchObject({ name, disabled: true })
       expect(rows.find(row => row.id === id)).not.toHaveProperty('config')
     }
@@ -103,6 +104,7 @@ describe('dsh-beardy bundle', () => {
       '@deepseek-ai/dsh-tool-homelab',
       '@deepseek-ai/dsh-subagent-dsh-sdk',
       '@deepseek-ai/dsh-camera', '@deepseek-ai/dsh-camera-ring', '@deepseek-ai/dsh-camera-watch',
+      '@deepseek-ai/dsh-signal', '@deepseek-ai/dsh-signal-cli', '@deepseek-ai/dsh-signal-notices',
     ]) expect(manifest.dependencies).toHaveProperty(name)
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-experimental-training-export')
   })
