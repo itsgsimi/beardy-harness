@@ -20,7 +20,7 @@ import { validateModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import { classifyFrames } from './classify.ts'
 import { Config, resolveConfig } from './config.ts'
 import type { ResolvedConfig } from './config.ts'
-import { cameraWatchDomainSpec, sweepHistory } from './history.ts'
+import { cameraWatchDomainSpec, frameAttachment, partitionHistory } from './history.ts'
 import type { HistoryRecord } from './history.ts'
 import { localDateTime, renderNotice } from './notice.ts'
 import { lingeringMs, noticeReasons } from './policy.ts'
@@ -93,10 +93,19 @@ interface Classification {
 /** A selected route that declares no image input. */
 class VisionRouteError extends Error {}
 
+/** Counts from one retention sweep. */
+interface SweepTally {
+  events: number
+  frames: number
+  failedFrames: number
+  firstFailure?: unknown
+}
+
 /** Queue, classification, policy, delivery, and history for accepted camera events. */
 export class CameraWatch {
   private readonly queue: CameraEvent[] = []
-  private readonly inFlight = new Set<string>()
+  /** Accepted events whose handling has not finished, with the attachment ids of their frames. */
+  private readonly inFlight = new Map<string, readonly string[]>()
   private readonly active = new Set<Promise<void>>()
   private readonly controller = new AbortController()
   private readonly devices: ReadonlyMap<string, CameraDevice>
@@ -125,11 +134,12 @@ export class CameraWatch {
     this.sleep = deps.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }) })
   }
 
-  /** Run the first retention sweep and schedule the next ones until disposal. */
+  /** Run the first retention sweep now and each later one `sweepIntervalMs` after the previous one ends, until disposal. */
   start(): void {
     const sweep = (): void => {
-      this.track(this.sweep())
-      this.sweepTimer = setTimeout(sweep, this.config.sweepIntervalMs)
+      this.track(this.sweep().finally(() => {
+        if (!this.controller.signal.aborted) this.sweepTimer = setTimeout(sweep, this.config.sweepIntervalMs)
+      }))
     }
     sweep()
   }
@@ -145,7 +155,7 @@ export class CameraWatch {
       this.ctx.logger.warn(`camera-watch: event ${event.id} names unknown device "${event.deviceId}"`)
       return
     }
-    this.inFlight.add(event.id)
+    this.inFlight.set(event.id, event.frames.map(frame => String(frame.attachment.attachmentId)))
     if (this.running >= this.config.maxConcurrent && this.queue.length >= this.config.maxQueued) {
       this.track(this.finish(event, { status: 'skipped', failure: 'QUEUE_FULL' }))
       return
@@ -162,12 +172,51 @@ export class CameraWatch {
     while (this.active.size > 0) await Promise.allSettled([...this.active])
   }
 
+  /**
+   * Delete expired records with the frames no kept record or unfinished event cites. A record stays
+   * while any of its frames fails to delete, so the next sweep retries it; frames already gone count
+   * as deleted.
+   */
   private async sweep(): Promise<void> {
+    const tally: SweepTally = { events: 0, frames: 0, failedFrames: 0 }
     try {
-      await sweepHistory(this.table, this.now(), this.config.retentionMs, this.config.maxHistory)
+      const { expired, kept } = partitionHistory(this.table.entries(), this.now(), this.config.retentionMs, this.config.maxHistory)
+      const cited = new Set(kept.flatMap(record => record.frames.map(frame => frame.attachmentId)))
+      for (const [key, record] of expired) {
+        if (this.controller.signal.aborted) break
+        if (await this.deleteFrames(record, cited, tally)) {
+          await this.table.delete(key)
+          tally.events++
+        }
+      }
     } catch (error: unknown) {
       this.ctx.logger.warn(`camera-watch: history sweep failed: ${errorChain(error)}`)
     }
+    if (tally.events > 0 || tally.frames > 0) {
+      this.ctx.logger.info(`camera-watch: retention removed ${String(tally.events)} events and ${String(tally.frames)} frames`)
+    }
+    if (tally.failedFrames > 0) {
+      this.ctx.logger.warn(`camera-watch: retention kept events with ${String(tally.failedFrames)} undeletable frames: ${errorChain(tally.firstFailure)}`)
+    }
+  }
+
+  /**
+   * Delete one expired record's frames that nothing retained cites.
+   * @returns whether every such frame is now gone.
+   */
+  private async deleteFrames(record: HistoryRecord, cited: ReadonlySet<string>, tally: SweepTally): Promise<boolean> {
+    let complete = true
+    for (const frame of record.frames) {
+      if (cited.has(frame.attachmentId) || [...this.inFlight.values()].some(ids => ids.includes(frame.attachmentId))) continue
+      try {
+        if (await this.ctx.attachments.deleteImage(frameAttachment(frame))) tally.frames++
+      } catch (error: unknown) {
+        complete = false
+        tally.failedFrames++
+        tally.firstFailure ??= error
+      }
+    }
+    return complete
   }
 
   private track(operation: Promise<void>): void {

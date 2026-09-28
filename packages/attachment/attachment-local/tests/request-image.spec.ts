@@ -2,6 +2,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import sharp from 'sharp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CompressionLimiter } from '../src/compression-limiter.ts'
@@ -17,6 +18,12 @@ async function home(): Promise<string> {
 
 async function store(): Promise<LocalAttachmentStore> {
   return new LocalAttachmentStore(new Context(), { dshHome: await home() })
+}
+
+/** Cache-root-relative path of one request version: variants group under their attachment digest. */
+function cachedVariant(attachment: ImageAttachmentRef, hash: string): string {
+  const sha256 = String(attachment.attachmentId).slice('sha256:'.length)
+  return join('request-images', sha256.slice(0, 2), sha256, hash)
 }
 
 async function image(width: number, height: number): Promise<Uint8Array> {
@@ -62,11 +69,12 @@ describe('local request-image cache', () => {
       const initial = await attachments.readImageRequest(attachment, policy)
       const hash = String(initial.variantId).slice('sha256:'.length)
       const cacheRoot = join(dshHome, 'cache')
-      const path = join(cacheRoot, 'attachments', 'request-images', hash.slice(0, 2), hash)
+      const variant = cachedVariant(attachment, hash)
+      const path = join(cacheRoot, 'attachments', variant)
 
       expect(attachments.root).toBe(join(dshHome, 'attachments', 'v1'))
       await expect(readFile(path)).resolves.toEqual(Buffer.from(initial.data))
-      await expect(readFile(join(attachments.root, 'request-images', hash.slice(0, 2), hash)))
+      await expect(readFile(join(attachments.root, variant)))
         .rejects.toMatchObject({ code: 'ENOENT' })
       await rm(cacheRoot, { recursive: true })
 
@@ -165,7 +173,7 @@ describe('local request-image cache', () => {
     const policy = { width: 22, height: 11, maxBytes: 4_096 }
     const initial = await attachments.readImageRequest(attachment, policy)
     const hash = String(initial.variantId).slice('sha256:'.length)
-    const path = join(dshHome, 'cache', 'attachments', 'request-images', hash.slice(0, 2), hash)
+    const path = join(dshHome, 'cache', 'attachments', cachedVariant(attachment, hash))
     const noisyPixels = new Uint8Array(64 * 64 * 3)
     let state = 0x2545f491
     for (let index = 0; index < noisyPixels.length; index += 1) {

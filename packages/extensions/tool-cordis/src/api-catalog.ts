@@ -472,6 +472,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['an AttachmentError when the durable reference is invalid.'],
       },
       {
+        signature: 'deleteImage(ref: ImageAttachmentRef): Promise<boolean>',
+        description: 'Permanently remove one normalized image and every request version derived from it. Equal bytes share one content-addressed object and the store counts no references, so the caller must own every holder of `ref`, such as its records, Sessions, and pending deliveries, and must skip a reference that a retained holder still cites. A read racing the removal returns verified bytes or fails with `ATTACHMENT_NOT_FOUND`, which readers treat as the image being gone; a save of equal bytes racing the removal can return a reference whose object this call then removes. Removing an absent object changes nothing, so a retried removal is safe. Backends without deletion keep this default rejection.',
+        parameters: [{ name: 'ref', description: 'durable normalized image reference.' }],
+        returns: 'true when this call removed the object, false when it was already absent.',
+        throws: ['an AttachmentError when the reference is invalid or the removal fails.'],
+      },
+      {
         signature: 'saveFile(input: SaveFileAttachment): Promise<FileAttachmentRef>',
         description: 'Durably commit one file byte-for-byte before its owning session event is appended. Files carry no admission limits: any byte content and length is accepted, and the stored object is the exact submitted bytes. Backends without verbatim file storage keep this default rejection.',
         parameters: [{ name: 'input', description: 'exact bytes and optional display name.' }],

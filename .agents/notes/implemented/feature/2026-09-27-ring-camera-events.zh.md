@@ -26,4 +26,4 @@ Goran 有一个有线 Ring 门铃和一个装在车库上方的有线泛光灯�
 
 ## 后果
 
-画面和分类 Session 会保存到 `retentionDays` 之后，因为附件存储和会话日志都没有按引用删除的机制；历史保留期只清理记录。一个 Ring 令牌应只由一个 harness 进程持有。主机需要能向外连接 TCP 5228 以接收 Ring 推送。此版本写入的待发图像投递无法被旧版网关解析，因此降级前需先清空发件箱。测试替换了 Ring 客户端，从不连接 Ring、Discord 或模型；`camera-watch` 快照回放一次带合成画面的分类轮次。
+分类 Session 会保存到 `retentionDays` 之后，因为会话持久化没有删除操作；[画面保留](2026-09-27-camera-frame-retention.zh.md)会把过期的历史记录与其画面一起删除。一个 Ring 令牌应只由一个 harness 进程持有。主机需要能向外连接 TCP 5228 以接收 Ring 推送。此版本写入的待发图像投递无法被旧版网关解析，因此降级前需先清空发件箱。测试替换了 Ring 客户端，从不连接 Ring、Discord 或模型；`camera-watch` 快照回放一次带合成画面的分类轮次。

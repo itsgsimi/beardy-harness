@@ -40,7 +40,7 @@ kind: "package-reference"
 | `policy.minConfidence` | 门铃按下之外的通知所需的最低判定置信度，默认 0.5 |
 | `maxOutputTokens`、`turnTimeoutMs` | 分类输出上限和时限 |
 | `maxConcurrent`、`maxQueued` | 同时进行的分类数，以及超出后排队等待的事件数 |
-| `retentionDays`、`maxHistory`、`sweepIntervalMs` | 历史的保留天数和条数上限，以及执行清理的间隔 |
+| `retentionDays`、`maxHistory`、`sweepIntervalMs` | 历史记录及其已存储画面的保留天数和条数上限，以及两次保留清理之间的间隔（一分钟到一天） |
 | `deliveryAttempts`、`deliveryRetryMs` | 单条通知的交接尝试次数及间隔 |
 | `tool`、`toolMaxEvents` | 是否注册 `camera` 工具，以及单次结果的上限 |
 
@@ -60,7 +60,7 @@ kind: "package-reference"
 
 策略在代码中执行。门铃按下总会产生 `ding`。其他原因都需要置信度不低于 `minConfidence` 的 `parsed` 或 `partial` 判定：`package` 需要包裹且活动为 `delivering`，`night-person` 需要夜间时段内出现人物，`vehicle` 需要列出的设备上出现车辆，`lingering` 需要出现人物的画面按记录的偏移跨越至少 `lingerSeconds`。模型自己给出的 `lingering` 活动从不触发通知。
 
-历史记录在投递之前写入。通知包含设备标签、本地时间、原因、描述或缺少描述的原因，以及数量和置信度；展示的画面是第一张出现人物的画面，否则是第一张画面。`camera/notice` 是串行事件；Discord 网关把它接入发件箱，发件箱上传经校验的已存储画面及文本。无监听器接收时监视插件会重试交接，并把投递结果记录为 `delivered`、`undelivered`、`no-channel` 或 `none`。清理任务删除超过 `retentionDays` 以及超出 `maxHistory` 的记录。历史是唯一的状态，所有写入都经过存储域，因此不发布不变量组件。
+历史记录在投递之前写入。通知包含设备标签、本地时间、原因、描述或缺少描述的原因，以及数量和置信度；展示的画面是第一张出现人物的画面，否则是第一张画面。`camera/notice` 是串行事件；Discord 网关把它接入发件箱，发件箱上传经校验的已存储画面及文本。无监听器接收时监视插件会重试交接，并把投递结果记录为 `delivered`、`undelivered`、`no-channel` 或 `none`。保留清理在启动时运行，此后每次在上一次清理结束 `sweepIntervalMs` 后再次运行。它删除每条超过 `retentionDays` 或超出 `maxHistory` 的记录，并通过 `ctx.attachments.deleteImage` 删除既不被保留记录引用、也不被未完成事件引用的画面。记录的某张画面删除失败时，该记录会保留，由下一次清理重试；已经不存在的画面视为已删除。删除了内容的清理会以 info 级别记录事件数和画面数。画面被删除时仍在 Discord 发件箱中等待的通知只发送文本。历史是唯一的状态，所有写入都经过存储域，因此不发布不变量组件。
 
 </details>
 
@@ -124,7 +124,9 @@ Reply with only one JSON object and no other text:
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **画面比历史保存得久** — `retentionDays` 只清理历史记录。画面留在附件存储中，分类 Session 留在会话日志中，因为两者都还没有按引用删除的机制。
+- **分类 Session 比历史保存得久** — 会话持久化没有删除操作，因此记录和画面被删除后，每个分类 Session 仍留在会话日志中，其中的图像随后读取为缺失。单个 Session 日志与其画面相比很小，但日志会随每个分类事件增长（[决策](../../../.agents/notes/implemented/feature/2026-09-27-camera-frame-retention.zh.md)）。
+- **未记录的事件保留其画面** — 关机时从队列中丢弃的事件、与已记录事件 ID 重复的事件，以及指向未知设备的事件，从不会被记录，因此没有清理任务能找到它们的画面。
+- **监视插件拥有已记录的画面** — 清理删除过期记录的画面时不会询问其他 `camera/event` 监听器，因此在 `retentionDays` 之后仍保留画面引用的其他消费方会发现画面缺失。
 - **不识别身份** — 判定只泛指人物；识别熟人需要另外的、需主动开启的人脸库。
 - **历史只读文本** — `camera` 工具返回描述，不返回已存储的画面。
 - **关机时的写入** — 与整个主机关机同时发生的历史写入可能在存储设施先关闭时丢失；插件重载会等待写入完成。

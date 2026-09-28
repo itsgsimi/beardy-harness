@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-27-camera-frame-retention.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-camera-frame-retention.md
+/agent-note-camera-frames-leave-with-their-expired-history-records:
+  en: 7b2b1534232a5f07
+  zh: 07c02ddc54fefe9f
+/agent-note-camera-frames-leave-with-their-expired-history-records/problem:
+  en: 83465cc62ce9491e
+  zh: 5bc8f101804d164b
+/agent-note-camera-frames-leave-with-their-expired-history-records/decision:
+  en: c1fa4807a87dc2e7
+  zh: 4ceaaa09a0c81fc8
+/agent-note-camera-frames-leave-with-their-expired-history-records/what-session-retention-still-needs:
+  en: 1760f5380f822268
+  zh: 9fdc9cf2b03972f8
+/agent-note-camera-frames-leave-with-their-expired-history-records/alternatives-considered:
+  en: c67874275712f396
+  zh: 9c615b9af68c0faf
+/agent-note-camera-frames-leave-with-their-expired-history-records/consequences:
+  en: 36c00f8d85504be3
+  zh: 5eef1e5ebb5b0858

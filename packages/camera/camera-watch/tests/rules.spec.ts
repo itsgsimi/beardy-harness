@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { CameraVerdict } from '@deepseek-ai/dsh-camera'
-import { resolveConfig, WATCH_DEFAULTS } from '../src/config.ts'
+import { Config as ConfigSchema, resolveConfig, WATCH_DEFAULTS } from '../src/config.ts'
 import type { Config, ResolvedPolicy } from '../src/config.ts'
+import { frameAttachment, partitionHistory } from '../src/history.ts'
+import type { HistoryFrame, HistoryRecord } from '../src/history.ts'
 import { localDateTime, renderNotice } from '../src/notice.ts'
 import { insideWindow, lingeringMs, localMinute, noticeReasons } from '../src/policy.ts'
 import type { PolicyEvent } from '../src/policy.ts'
@@ -51,6 +53,41 @@ describe('resolveConfig', () => {
     [{ timezone: TZ, policy: { nightStart: '06:00', nightEnd: '06:00' } }, /must differ/],
   ] as [Config, RegExp][])('rejects %j', (config, message) => {
     expect(() => resolveConfig(config)).toThrow(message)
+  })
+
+  it('bounds the retention sweep interval between one minute and one day', () => {
+    expect(ConfigSchema({ timezone: TZ, sweepIntervalMs: 86_400_000 }).sweepIntervalMs).toBe(86_400_000)
+    expect(() => ConfigSchema({ timezone: TZ, sweepIntervalMs: 86_400_001 })).toThrow()
+    expect(() => ConfigSchema({ timezone: TZ, sweepIntervalMs: 59_999 })).toThrow()
+  })
+})
+
+describe('partitionHistory', () => {
+  const record = (eventId: string, occurredAt: number): [string, HistoryRecord] => [eventId, {
+    eventId, deviceId: 'front-door', kind: 'motion', occurredAt, frames: [], status: 'skipped', reasons: [], delivery: 'none',
+  }]
+
+  it('keeps records at most the retention age old among the newest, and expires the rest oldest last', () => {
+    const { expired, kept } = partitionHistory([
+      record('edge', NOON - 1_000), record('past', NOON - 1_001), record('new', NOON), record('older', NOON - 5_000),
+    ], NOON, 1_000, 5)
+    expect(kept.map(entry => entry.eventId)).toEqual(['new', 'edge'])
+    expect(expired.map(([key]) => key)).toEqual(['past', 'older'])
+    const counted = partitionHistory([record('a', NOON - 2), record('b', NOON - 1), record('c', NOON)], NOON, 1_000, 2)
+    expect([counted.kept.map(entry => entry.eventId), counted.expired.map(([key]) => key)]).toEqual([['c', 'b'], ['a']])
+  })
+})
+
+describe('frameAttachment', () => {
+  it('rebuilds the stored image reference with only the fields it was saved with', () => {
+    const frame: HistoryFrame = {
+      attachmentId: `sha256:${'ab'.repeat(32)}`, mediaType: 'image/jpeg', bytes: 10, width: 16, height: 12, offsetMs: 0, source: 'snapshot',
+    }
+    expect(frameAttachment(frame)).toEqual({ attachmentId: frame.attachmentId, mediaType: 'image/jpeg', bytes: 10, width: 16, height: 12 })
+    expect(frameAttachment({ ...frame, name: 'front-door-1.jpg', originalDimensions: { width: 32, height: 24 }, source: 'stream' })).toEqual({
+      attachmentId: frame.attachmentId, mediaType: 'image/jpeg', bytes: 10, width: 16, height: 12,
+      name: 'front-door-1.jpg', originalDimensions: { width: 32, height: 24 },
+    })
   })
 })
 

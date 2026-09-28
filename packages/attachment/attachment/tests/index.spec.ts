@@ -162,10 +162,11 @@ describe('AttachmentStore.readImageRequest', () => {
     expect(() => store.readImageRequest(ref, { width: 1, height: 1, maxBytes: 1 }, controller.signal)).toThrow(reason)
   })
 
-  it('rejects generic-file storage and exposes no provider-owned host path by default', async () => {
+  it('rejects generic-file storage and image deletion and exposes no provider-owned host path by default', async () => {
     const store = new RecordingStore(new Context())
     const ref = await store.saveImage(image(1))
     expect(store.imageHostPath(ref)).toBeUndefined()
+    await expect(store.deleteImage(ref)).rejects.toMatchObject({ code: 'ATTACHMENT_DELETE_UNSUPPORTED' })
     await expect(store.saveFile({ data: Uint8Array.of(1), name: 'notes.txt' }))
       .rejects.toMatchObject({ code: 'ATTACHMENT_FILES_UNSUPPORTED' })
     await expect(store.saveFileStream({

@@ -18,17 +18,21 @@ import type {
 import { dshCachePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import type { NormalizationPolicy } from './normalization.ts'
 import { CompressionLimiter, compressionFailure } from './compression-limiter.ts'
-import { commitPreparedImageFile, normalizedImagePath, prepareImageFile, readImageFile, validateImageFile } from './store.ts'
+import {
+  commitPreparedImageFile, deleteImageFile, normalizedImagePath, prepareImageFile, readImageFile, validateImageFile,
+} from './store.ts'
 import {
   readFileStreamVerbatim, saveFileStreamVerbatim, saveFileVerbatim, storedFilePath,
 } from './file-store.ts'
-import { readRequestImageFile, requestImageVariantId } from './request-image.ts'
+import { readRequestImageFile, removeRequestImageFiles, requestImageVariantId } from './request-image.ts'
 
 export { canPassThroughNormalization, normalizeImage } from './normalization.ts'
 export type { NormalizedImage, NormalizationPolicy } from './normalization.ts'
-export { commitPreparedImageFile, prepareImageFile, readImageFile, saveImageFile, validateImageFile } from './store.ts'
+export {
+  commitPreparedImageFile, deleteImageFile, prepareImageFile, readImageFile, saveImageFile, validateImageFile,
+} from './store.ts'
 export type { PreparedImageFile } from './store.ts'
-export { readRequestImageFile, requestImageVariantId } from './request-image.ts'
+export { readRequestImageFile, removeRequestImageFiles, requestImageVariantId } from './request-image.ts'
 
 /** Default maximum encoded bytes for one submitted image; oversized sources are refused, not shrunk. */
 export const DEFAULT_MAX_IMAGE_BYTES = 20 * 1024 * 1024
@@ -227,6 +231,12 @@ export class LocalAttachmentStore extends AttachmentStore {
 
   override imageHostPath(ref: ImageAttachmentRef): string {
     return normalizedImagePath(this.root, ref)
+  }
+
+  override async deleteImage(ref: ImageAttachmentRef): Promise<boolean> {
+    const removed = await deleteImageFile(this.root, ref)
+    await removeRequestImageFiles(this.cacheRoot, ref)
+    return removed
   }
 
   override async saveFile(input: SaveFileAttachment): Promise<FileAttachmentRef> {

@@ -21,6 +21,7 @@ import {
 } from './encoding.ts'
 import { detectImage, encodedAlphaIsCompatible, probeImage } from './image.ts'
 import { requireSharp } from './sharp.ts'
+import { normalizedImageDigest } from './store.ts'
 
 /** Transform version included in every cache and upload-index identity. */
 export const REQUEST_IMAGE_TRANSFORM_VERSION = 'request-image-v6'
@@ -117,8 +118,28 @@ async function createRequestImage(
   return isExhaustedEncoding(encodedVersion) ? encodedVersion.smallest : encodedVersion
 }
 
-function cachePath(root: string, hash: string): string {
-  return join(root, 'request-images', hash.slice(0, 2), hash)
+/** Directory holding every cached request version of one normalized attachment. */
+function attachmentCacheDirectory(root: string, attachment: ImageAttachmentRef): string {
+  const sha256 = normalizedImageDigest(attachment)
+  return join(root, 'request-images', sha256.slice(0, 2), sha256)
+}
+
+/**
+ * Remove every cached request version derived from one normalized attachment. This module alone
+ * creates the attachment's cache directory, and a missing directory is not an error.
+ * @param root - absolute attachment cache root; variants use its `request-images` child.
+ * @param attachment - durable normalized attachment reference.
+ * @returns completion after the attachment's cache directory is gone.
+ * @throws an AttachmentError: `INVALID_ATTACHMENT_REF` for a malformed reference, or
+ *   `ATTACHMENT_WRITE_FAILED` when removal fails.
+ */
+export async function removeRequestImageFiles(root: string, attachment: ImageAttachmentRef): Promise<void> {
+  const directory = attachmentCacheDirectory(root, attachment)
+  try {
+    await rm(directory, { recursive: true, force: true })
+  } catch (error) {
+    throw new AttachmentError('Unable to delete cached request images.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
+  }
 }
 
 async function readCached(
@@ -186,8 +207,7 @@ export async function readRequestImageFile(
   validateTarget(target)
   const source = await probeImage(attachment.data)
   const variantId = requestImageVariantId(attachment.ref, target)
-  const hash = String(variantId).slice('sha256:'.length)
-  const path = cachePath(root, hash)
+  const path = join(attachmentCacheDirectory(root, attachment.ref), String(variantId).slice('sha256:'.length))
   const cached = await readCached(path, target, source.hasAlpha, signal)
   const created = cached ?? await createRequestImage(attachment, target, source.hasAlpha)
   const version = cached ?? (created.data === attachment.data

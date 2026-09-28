@@ -178,6 +178,27 @@ export abstract class AttachmentStore extends Service {
   }
 
   /**
+   * Permanently remove one normalized image and every request version derived from it.
+   * Equal bytes share one content-addressed object and the store counts no references, so the
+   * caller must own every holder of `ref`, such as its records, Sessions, and pending deliveries,
+   * and must skip a reference that a retained holder still cites. A read racing the removal
+   * returns verified bytes or fails with `ATTACHMENT_NOT_FOUND`, which readers treat as the image
+   * being gone; a save of equal bytes racing the removal can return a reference whose object this
+   * call then removes. Removing an absent object changes nothing, so a retried removal is safe.
+   * Backends without deletion keep this default rejection.
+   * @param ref - durable normalized image reference.
+   * @returns true when this call removed the object, false when it was already absent.
+   * @throws an AttachmentError when the reference is invalid or the removal fails.
+   */
+  deleteImage(ref: ImageAttachmentRef): Promise<boolean> {
+    void ref
+    return Promise.reject(new AttachmentError(
+      'The mounted attachment provider cannot delete images.',
+      'ATTACHMENT_DELETE_UNSUPPORTED',
+    ))
+  }
+
+  /**
    * Durably commit one file byte-for-byte before its owning session event is
    * appended. Files carry no admission limits: any byte content and length is
    * accepted, and the stored object is the exact submitted bytes. Backends

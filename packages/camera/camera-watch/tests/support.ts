@@ -73,9 +73,12 @@ export interface WatchHarness {
   readonly logs: { type: string; text: string }[]
   /** Scripted notice listener replies in order; the default accepts. */
   readonly noticeReplies: ('accept' | 'refuse' | 'throw')[]
-  frames(count: number, offsets?: readonly number[]): Promise<CameraFrame[]>
+  /** Store synthetic frames; equal shades store one shared object. */
+  frames(count: number, offsets?: readonly number[], shades?: readonly number[]): Promise<CameraFrame[]>
   event(kind: CameraEventKind, frames: readonly CameraFrame[], options?: { id?: string; device?: string; at?: number }): CameraEvent
   sessionLog(): Promise<Record<string, unknown>[]>
+  /** Mount another watch with the harness configuration, as a host restart does after disposing {@link fiber}. */
+  remount(deps?: CameraWatchDeps): Fiber & PromiseLike<Fiber>
   dispose(): Promise<void>
 }
 
@@ -122,20 +125,21 @@ export async function watchHarness(replies: readonly Reply[], config: Partial<Co
       return reply === 'accept' ? true : undefined
     })
   }
-  const load = ctx.plugin({
+  const mount = (deps: CameraWatchDeps): Fiber & PromiseLike<Fiber> => ctx.plugin({
     name: 'camera-watch-test',
     inject,
-    apply: (context: Context, value: Config) => mountCameraWatch(context, value, options.deps ?? {}),
+    apply: (context: Context, value: Config) => mountCameraWatch(context, value, deps),
   }, { timezone: 'America/Phoenix', ...options.channel === false ? {} : { deliverChannelId: '123456789012345678' }, ...config })
+  const load = mount(options.deps ?? {})
   if (options.load === undefined) await load
   else await options.load(load)
   let counter = 0
   return {
     ctx, fiber: load, root, adapter, camera, notices, logs, noticeReplies,
-    async frames(count, offsets) {
+    async frames(count, offsets, shades) {
       const frames: CameraFrame[] = []
       for (let index = 0; index < count; index++) {
-        const [attachment] = await ctx.attachments.saveImages([{ data: await jpeg(20 + index * 40), mediaType: 'image/jpeg', name: `front-door-${String(index + 1)}.jpg` }])
+        const [attachment] = await ctx.attachments.saveImages([{ data: await jpeg(shades?.[index] ?? 20 + index * 40), mediaType: 'image/jpeg', name: `front-door-${String(index + 1)}.jpg` }])
         frames.push({ attachment: attachment!, offsetMs: offsets?.[index] ?? index * 10_000, source: 'snapshot' })
       }
       return frames
@@ -153,6 +157,7 @@ export async function watchHarness(replies: readonly Reply[], config: Partial<Co
       const lines = await Promise.all(files.map(async file => (await readFile(join(root, 'sessions', file), 'utf8')).trim().split('\n')))
       return lines.flat().map(line => JSON.parse(line) as Record<string, unknown>)
     },
+    remount: (deps = options.deps ?? {}) => mount(deps),
     async dispose() {
       try {
         await ctx.fiber.dispose()
