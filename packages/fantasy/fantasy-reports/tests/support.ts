@@ -38,6 +38,19 @@ export const yahoo = {
 /** Short roster ids in roster order. */
 export const rosterIds = yahoo.roster.players.map((_, index) => `P${index + 1}`)
 
+/**
+ * The week 3 roster capture with Yahoo's `is_editable` set to 0 for the given roster indexes, as Yahoo
+ * returns it once those players' games have started.
+ * @param indexes - zero-based roster positions whose slots are locked.
+ * @returns the parsed roster.
+ */
+export function lockedRoster(indexes: readonly number[]): FantasyRoster {
+  const raw = fixture('team-roster-week-stats') as { fantasy_content: { team: [unknown, { roster: Record<string, unknown> }] } }
+  const players = (raw.fantasy_content.team[1].roster['0'] as { players: Record<string, { player: unknown[] }> }).players
+  for (const index of indexes) (players[String(index)]!.player[2] as { is_editable: number }).is_editable = 0
+  return parseRoster(raw)
+}
+
 /** Wednesday of week 3, 2:00 PM in Phoenix. */
 export const WEDNESDAY_WEEK_3 = Date.UTC(2026, 8, 23, 21, 0)
 

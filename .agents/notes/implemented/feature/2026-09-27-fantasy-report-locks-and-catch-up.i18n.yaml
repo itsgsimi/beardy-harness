@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-fantasy-report-locks-and-catch-up.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-fantasy-report-locks-and-catch-up.md
+/agent-note-fantasy-report-slot-locks-and-restart-catch-up:
+  en: 2dcf62b4abe785ae
+  zh: 764a9725bfced43c
+/agent-note-fantasy-report-slot-locks-and-restart-catch-up/problem:
+  en: c6ed83f5786100c2
+  zh: 137aad892e1e8afb
+/agent-note-fantasy-report-slot-locks-and-restart-catch-up/decision:
+  en: 6330a00bf71db308
+  zh: 0a4e794700774685
+/agent-note-fantasy-report-slot-locks-and-restart-catch-up/alternatives-considered:
+  en: c988d094e6299818
+  zh: 754dba8c2aed8dfb
+/agent-note-fantasy-report-slot-locks-and-restart-catch-up/consequences:
+  en: ff0d8eda8476bf71
+  zh: 404f967d5925a20b

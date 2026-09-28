@@ -52,6 +52,13 @@ export interface Config {
   readonly shadowChannelId?: string
   /** Minimum milliseconds between two report starts. */
   readonly minimumStartGapMs?: number
+  /**
+   * How long after a team's latest slot a plugin start still revisits it: a missing or interrupted
+   * report runs once, and a completed one is handed to delivery again; 0 turns catch-up off.
+   */
+  readonly catchUpWindowMs?: number
+  /** Tighter catch-up window for Sunday slots, which must finish before the first kickoff. */
+  readonly sundayCatchUpWindowMs?: number
   /** Search queries per roster player: availability first, then fantasy outlook. */
   readonly searchesPerPlayer?: number
   /** Search results considered per query. */
@@ -118,6 +125,7 @@ export const DEFAULT_EXCLUDED_HOSTS: readonly string[] = [
 const BOUNDS = {
   firstWeek: [1, 1, 22], lastWeek: [17, 1, 22],
   minimumStartGapMs: [5_400_000, 0, 86_400_000],
+  catchUpWindowMs: [43_200_000, 0, 604_800_000], sundayCatchUpWindowMs: [7_200_000, 0, 86_400_000],
   searchesPerPlayer: [2, 1, 2], searchResultsPerQuery: [4, 1, 20], pagesPerPlayer: [2, 1, 6],
   maxConcurrentFetches: [4, 1, 12], maxPageChars: [40_000, 1_000, 200_000], sourceExcerptChars: [5_000, 500, 20_000],
   promptSourceChars: [120_000, 5_000, 1_000_000],

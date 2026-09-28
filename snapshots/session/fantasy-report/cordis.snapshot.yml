@@ -41,6 +41,7 @@
         pagesPerPlayer: 1
         maxConcurrentFetches: 1
         deliveryAttempts: 1
+        catchUpWindowMs: 0
         teams:
           - id: googies
             name: The Googies

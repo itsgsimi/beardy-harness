@@ -56,7 +56,7 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-一个 `fantasy` 模式提供十一个只读动作。结果在 `text` 中包含规范化 JSON，`next_offset` 用于结果切片，`next_start` 用于 Yahoo 球员或交易分页。工具调用和结果进入调用方 Session。
+一个 `fantasy` 模式提供十一个只读动作；其描述说明 `slotLocked: true` 的在册球员本周不能更换阵容位。结果在 `text` 中包含规范化 JSON，`next_offset` 用于结果切片，`next_start` 用于 Yahoo 球员或交易分页。工具调用和结果进入调用方 Session。
 
 #### Token 影响
 

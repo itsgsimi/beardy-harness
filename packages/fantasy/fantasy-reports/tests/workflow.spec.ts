@@ -65,7 +65,7 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(evidence).toMatchObject({ workflow: 'fantasy-weekly-report', week: 3, mode: 'full',
       history: [{ runId: 'rp-native-earlier', week: 2, mode: 'sunday' }], structuralRepairs: 0 })
     const started = events.find(event => event.type === 'research/started')
-    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v1',
+    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v2',
       budgets: { stageTimeoutMs: 1_200_000, hardRunTimeoutMs: 14_400_000 } })
     expect(events.filter(event => event.type === 'research/search')).toHaveLength(15)
     expect(events.filter(event => event.type === 'research/finding' && event.data.accepted)).toHaveLength(15)

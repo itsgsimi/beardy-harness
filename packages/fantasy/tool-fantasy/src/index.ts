@@ -144,6 +144,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     name: 'fantasy',
     description: 'Read Yahoo Fantasy leagues, scoring rules, standings, weekly matchups and projections, rosters, '
       + 'players, free agents, waivers, transactions, draft picks, and game weeks. '
+      + 'Roster players with slotLocked true cannot change lineup slots this week, usually because their game has started. '
       + 'Use team without a key for the caller\'s configured team. For players, set search or availability. '
       + 'Use start/count for Yahoo result pages and next_offset to read every part of a long response. '
       + 'Percent-owned sorting applies within each returned page. '

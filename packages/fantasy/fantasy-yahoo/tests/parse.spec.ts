@@ -46,6 +46,20 @@ describe('Yahoo numbered collections and partial objects', () => {
     expect(roster.players[0]).toMatchObject({ selectedSlot: 'QB', byeWeek: 7, points: 0 })
     expect(Object.keys(roster.players[0]?.stats ?? {}).length).toBeGreaterThan(10)
     expect(roster.players.some(player => player.injuryNote !== undefined)).toBe(true)
+    expect(roster.players.every(player => player.slotLocked === false)).toBe(true)
+    expect(parsePlayers(fixture('league-fa-rb')).every(player => !('slotLocked' in player))).toBe(true)
+  })
+
+  it('reads a started game as a locked slot and leaves an unrecognized editability flag unknown', () => {
+    const raw = fixture('team-roster-week-stats') as { fantasy_content: { team: [unknown, { roster: Record<string, unknown> }] } }
+    const players = (raw.fantasy_content.team[1].roster['0'] as { players: Record<string, { player: unknown[] }> }).players
+    const editability = (index: number): { is_editable: unknown } => players[String(index)]!.player[2] as { is_editable: unknown }
+    editability(0).is_editable = 0
+    editability(1).is_editable = '0'
+    editability(2).is_editable = 'unknown'
+    const roster = parseRoster(raw)
+    expect(roster.players.slice(0, 4).map(player => player.slotLocked)).toEqual([true, true, undefined, false])
+    expect(roster.players[2]).not.toHaveProperty('slotLocked')
   })
 
   it('reads free agents, waivers, and searched player statistics', () => {

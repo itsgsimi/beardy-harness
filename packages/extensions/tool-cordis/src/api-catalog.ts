@@ -5397,7 +5397,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'FantasyPlayer',
-    declaration: 'export interface FantasyPlayer {\n    readonly key: PlayerKey;\n    readonly name: string;\n    readonly nflTeam?: string | undefined;\n    readonly positions: readonly string[];\n    readonly selectedSlot?: string | undefined;\n    readonly status?: string | undefined;\n    readonly injuryNote?: string | undefined;\n    readonly byeWeek?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly percentOwned?: number | undefined;\n    readonly rank?: number | undefined;\n    readonly ownershipType?: string | undefined;\n    readonly stats?: Readonly<Record<string, number>> | undefined;\n}',
+    declaration: 'export interface FantasyPlayer {\n    readonly key: PlayerKey;\n    readonly name: string;\n    readonly nflTeam?: string | undefined;\n    readonly positions: readonly string[];\n    readonly selectedSlot?: string | undefined;\n    readonly slotLocked?: boolean | undefined;\n    readonly status?: string | undefined;\n    readonly injuryNote?: string | undefined;\n    readonly byeWeek?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly percentOwned?: number | undefined;\n    readonly rank?: number | undefined;\n    readonly ownershipType?: string | undefined;\n    readonly stats?: Readonly<Record<string, number>> | undefined;\n}',
   },
   {
     name: 'FantasyRoster',

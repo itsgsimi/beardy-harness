@@ -18,5 +18,5 @@ export function apply(ctx, config) {
   mountReports(ctx, config, (job, onTick) => {
     registerTick(job.expression, onTick)
     return { stop() {}, nextRunAt: () => undefined }
-  })
+  }, Date.now)
 }

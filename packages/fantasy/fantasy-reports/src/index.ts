@@ -7,7 +7,7 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
-import { cronerScheduler, type Scheduler } from '@deepseek-ai/dsh-cron'
+import { cronerScheduler, latestMatchAt, type Scheduler, type ScheduledJob } from '@deepseek-ai/dsh-cron'
 import type { CronRunFinished } from '@deepseek-ai/dsh-cron'
 import type { ResearchOwner, ResearchReport, ResearchRunId, ResearchRunView } from '@deepseek-ai/dsh-research/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -56,22 +56,34 @@ export function deliveryChannel(config: ResolvedConfig, team: ResolvedTeam): str
   return config.shadowChannelId ?? team.channelId
 }
 
+/** What started a report run: its timer, or the restart catch-up. */
+export type ReportTrigger = 'scheduled' | 'catch-up'
+
 /** Identity of one scheduled report, parsed from its research query. */
 export interface ReportTag {
   readonly team: string
   readonly season: string
   readonly week: number
   readonly mode: ReportMode
+  /**
+   * What started the run and the fire time its delivery handoff carries. The short tag form, which
+   * names only the slot, has none.
+   */
+  readonly fire?: { readonly trigger: ReportTrigger; readonly at: number }
 }
 
 /**
  * Format the tag that identifies a report run in its research query and request key.
- * @param tag - team, season, week, and mode.
- * @returns bracketed tag text.
+ * @param tag - team, season, week, mode, and optionally the fire.
+ * @returns bracketed tag text; without a fire it names only the slot.
  */
 export function formatReportTag(tag: ReportTag): string {
-  return `[fantasy-report:${tag.team}:${tag.season}:${tag.week}:${tag.mode}]`
+  const fire = tag.fire === undefined ? '' : `:${tag.fire.trigger}:${tag.fire.at}`
+  return `[fantasy-report:${tag.team}:${tag.season}:${tag.week}:${tag.mode}${fire}]`
 }
+
+/** Slot fields, then the optional trigger and fire time of the full tag form. */
+const REPORT_TAG = /\[fantasy-report:([a-z][a-z0-9-]*):([0-9]{4}):([0-9]{1,2}):(full|thursday|sunday)(?::(scheduled|catch-up):([0-9]+))?\]/u
 
 /**
  * Read the report tag from a research query.
@@ -79,9 +91,10 @@ export function formatReportTag(tag: ReportTag): string {
  * @returns the tag, or undefined for other research runs.
  */
 export function parseReportTag(query: string): ReportTag | undefined {
-  const match = /\[fantasy-report:([a-z][a-z0-9-]*):([0-9]{4}):([0-9]{1,2}):(full|thursday|sunday)\]/u.exec(query)
+  const match = REPORT_TAG.exec(query)
   if (match === null) return undefined
-  return { team: match[1] as string, season: match[2] as string, week: Number(match[3]), mode: match[4] as ReportMode }
+  return { team: match[1] as string, season: match[2] as string, week: Number(match[3]), mode: match[4] as ReportMode,
+    ...(match[5] === undefined ? {} : { fire: { trigger: match[5] as ReportTrigger, at: Number(match[6]) } }) }
 }
 
 /**
@@ -94,9 +107,47 @@ export function localDate(at: number, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
 }
 
-/** Result of one scheduled fire, for logs and tests. */
+/** A team's latest scheduled slot, revisited once when the plugin starts. */
+export interface CatchUpSlot {
+  readonly team: ResolvedTeam
+  readonly mode: ReportMode
+  /** Scheduled time of the slot. */
+  readonly slotAt: number
+}
+
+/**
+ * How long after its slot a report may still be caught up.
+ * @param config - resolved report policy.
+ * @param mode - slot's report mode.
+ * @returns the window in milliseconds; Sunday uses the tighter of its own and the general window.
+ */
+export function catchUpWindow(config: ResolvedConfig, mode: ReportMode): number {
+  return mode === 'sunday' ? Math.min(config.catchUpWindowMs, config.sundayCatchUpWindowMs) : config.catchUpWindowMs
+}
+
+/**
+ * Pick each team's latest slot at or before an instant when that slot is still inside its catch-up
+ * window. Earlier slots of the week are superseded by the latest one and are never caught up.
+ * @param config - resolved report policy.
+ * @param now - plugin start time in epoch milliseconds.
+ * @returns at most one slot per team, in team order.
+ */
+export function catchUpSlots(config: ResolvedConfig, now: number): CatchUpSlot[] {
+  return config.teams.flatMap((team) => {
+    const slots = REPORT_MODES.flatMap((mode) => {
+      const slotAt = latestMatchAt(team.schedule[mode], config.timezone, now)
+      return slotAt === undefined ? [] : [{ team, mode, slotAt }]
+    })
+    const latest = slots.reduce<CatchUpSlot | undefined>((best, slot) => best === undefined || slot.slotAt > best.slotAt ? slot : best,
+      undefined)
+    return latest !== undefined && now - latest.slotAt < catchUpWindow(config, latest.mode) ? [latest] : []
+  })
+}
+
+/** Result of one scheduled fire or catch-up, for logs and tests. */
 export interface ReportOutcome {
-  readonly kind: 'skipped' | 'published' | 'withheld' | 'failed' | 'undelivered'
+  /** `redelivered` hands an already completed report to delivery again under its original fire. */
+  readonly kind: 'skipped' | 'published' | 'redelivered' | 'withheld' | 'failed' | 'undelivered'
   readonly reason?: string
   readonly runId?: ResearchRunId
 }
@@ -109,6 +160,11 @@ export interface ReportFireOptions {
   readonly nextFireAt?: string
   /** Awaited immediately before a research run starts; enforces spacing between starts. */
   readonly beforeStart?: () => Promise<void>
+  /**
+   * Present for a restart catch-up: the slot it revisits, and whether its window is still open once
+   * start spacing has elapsed.
+   */
+  readonly catchUp?: { readonly slotAt: number; readonly open: () => boolean }
 }
 
 /** Open the team's durable caller Session, which links every report run of that team. */
@@ -175,48 +231,89 @@ export async function handOff(ctx: Context, config: ResolvedConfig, payload: Cro
   }
 }
 
+/** A run to start, or a completed run whose report goes to delivery again. */
+type Started =
+  | { readonly kind: 'started'; readonly run: ResearchRunView; readonly owner: ResearchOwner }
+  | { readonly kind: 'completed'; readonly run: ResearchRunView; readonly owner: ResearchOwner; readonly firedAt: number }
+
+/**
+ * Decide what a catch-up does with the runs its slot already has: repeat the delivery of a completed
+ * report under its recorded fire, or start once when every earlier run was interrupted.
+ */
+function catchUpDecision(slot: string, runs: readonly ResearchRunView[], owner: ResearchOwner): ReportOutcome | Started | undefined {
+  const completed = runs.find(run => run.phase === 'completed')
+  if (completed !== undefined) {
+    const fire = parseReportTag(completed.query)?.fire
+    if (fire === undefined) return { kind: 'skipped', reason: `${slot} completed without a recorded fire, so its delivery is not repeated` }
+    return { kind: 'completed', run: completed, owner, firedAt: fire.at }
+  }
+  if (runs.some(run => parseReportTag(run.query)?.fire?.trigger === 'catch-up')) {
+    return { kind: 'skipped', reason: `${slot} was already caught up once` }
+  }
+  const settled = runs.find(run => run.phase !== 'interrupted')
+  if (settled !== undefined) return { kind: 'skipped', reason: `${slot} already has a ${settled.phase} run` }
+  return undefined
+}
+
 /** Resolve the week, skip unscheduled or repeated slots, gather history, and start the research run. */
 async function startReport(ctx: Context, config: ResolvedConfig, team: ResolvedTeam, mode: ReportMode, firedAt: number,
-  beforeStart: (() => Promise<void>) | undefined): Promise<ReportOutcome | { run: ResearchRunView; owner: ResearchOwner }> {
+  options: ReportFireOptions): Promise<ReportOutcome | Started> {
   const settings = await ctx.fantasy.league(team.leagueKey)
   const weeks = await ctx.fantasy.gameWeeks()
-  const date = localDate(firedAt, config.timezone)
+  const date = localDate(options.catchUp?.slotAt ?? firedAt, config.timezone)
   const week = weeks.find(item => item.start <= date && date <= item.end)?.week
   if (week === undefined || week < config.firstWeek || week > config.lastWeek) {
     return { kind: 'skipped', reason: `${date} is outside report weeks ${config.firstWeek}-${config.lastWeek}` }
   }
   const season = settings.league.season
   if (season === undefined) throw new Error('Yahoo league settings have no season')
-  const tag = formatReportTag({ team: team.id, season, week, mode })
+  const slot = formatReportTag({ team: team.id, season, week, mode })
+  const tag = formatReportTag({ team: team.id, season, week, mode,
+    fire: { trigger: options.catchUp === undefined ? 'scheduled' : 'catch-up', at: firedAt } })
   const caller = await openCaller(ctx, config, team)
   try {
     const owner = ctx.research.ownerFor(caller.agent.session)
     if (owner.kind !== 'profile') throw new Error('research ownerScope must be profile so report history outlives each run')
     const runs = await ctx.research.list({ owner, query: `[fantasy-report:${team.id}:${season}:`, limit: 200 })
-    if (runs.some(item => item.query.includes(tag))) return { kind: 'skipped', reason: `${tag} already has a run` }
+    const slotRuns = runs.filter((run) => {
+      const found = parseReportTag(run.query) as ReportTag
+      return found.team === team.id && found.season === season && found.week === week && found.mode === mode
+    })
+    if (options.catchUp === undefined) {
+      if (slotRuns.length > 0) return { kind: 'skipped', reason: `${slot} already has a run` }
+    } else {
+      const decision = catchUpDecision(slot, slotRuns, owner)
+      if (decision !== undefined) return decision
+    }
     const history = await earlierReports(ctx, config, owner, runs)
-    await beforeStart?.()
+    await options.beforeStart?.()
+    if (options.catchUp !== undefined && !options.catchUp.open()) {
+      return { kind: 'skipped', reason: `the catch-up window of ${slot} closed before its start` }
+    }
     const run = await ctx.research.start({
       caller: caller.agent.session, owner, requestKey: tag,
       query: `${team.name} weekly fantasy report, ${season} week ${week} (${mode}) ${tag}`,
       workflow: weeklyReportWorkflow(ctx, config, { team, settings, season, week, mode, firedAt, history }),
     })
-    return { run, owner }
+    return { kind: 'started', run, owner }
   } finally {
     await caller.dispose()
   }
 }
 
 /**
- * Run one scheduled report. Outside the configured weeks, or when the slot already has a run, nothing
- * is started or sent. A report reaches Discord only after its research run completes, which requires
- * the workflow's code checks and review policy; any other end sends a failure notice instead.
+ * Run one scheduled report or restart catch-up. Outside the configured weeks, or when the slot already
+ * has a run, a scheduled fire starts and sends nothing. A catch-up starts only when every earlier run
+ * of its slot was interrupted and none was itself a catch-up, and hands a completed report to delivery
+ * again under its original fire, which the listener deduplicates. A report reaches Discord only after
+ * its research run completes, which requires the workflow's code checks and review policy; any other
+ * end sends a failure notice instead.
  * @param ctx - consumer context.
  * @param config - resolved report policy.
  * @param team - configured team.
  * @param mode - report timing.
- * @param firedAt - scheduled fire time.
- * @param options - disposal signal, next fire, and start spacing.
+ * @param firedAt - scheduled fire time, or the catch-up time.
+ * @param options - disposal signal, next fire, start spacing, and catch-up slot.
  * @returns what happened, for logs.
  */
 export async function runScheduledReport(ctx: Context, config: ResolvedConfig, team: ResolvedTeam, mode: ReportMode,
@@ -231,14 +328,26 @@ export async function runScheduledReport(ctx: Context, config: ResolvedConfig, t
     if (!accepted) ctx.logger.error(`fantasy-reports: ${jobName} failure notice was not accepted for delivery`)
     return { kind, reason, ...(runId.startsWith('rp-') ? { runId: runId as ResearchRunId } : {}) }
   }
-  let started: ReportOutcome | { readonly run: ResearchRunView; readonly owner: ResearchOwner }
+  const deliver = async (run: ResearchRunView, owner: ResearchOwner, at: number,
+    kind: 'published' | 'redelivered'): Promise<ReportOutcome> => {
+    const report = await ctx.research.report(run.id, owner)
+    const text = config.shadowChannelId === undefined ? report.markdown
+      : `**Shadow run: native report for ${team.name}.** Sent only to this channel; the team's own channel received nothing from this run.`
+        + `\n\n${report.markdown}`
+    const accepted = await handOff(ctx, config, { jobName, sessionId: run.id, firedAt: at, outcome: 'answered', text,
+      reportOutcome: true, deliverChannelId: channel }, signal)
+    if (!accepted) return { kind: 'undelivered', reason: 'no delivery listener accepted the report', runId: run.id }
+    return { kind, runId: run.id }
+  }
+  let started: ReportOutcome | Started
   try {
-    started = await startReport(ctx, config, team, mode, firedAt, options.beforeStart)
+    started = await startReport(ctx, config, team, mode, firedAt, options)
   } catch (error) {
     signal.throwIfAborted()
     return notice(`fantasy-reports-${team.id}`, 'FANTASY_REPORT_FAILED', String(error), 'failed')
   }
-  if ('kind' in started) return started
+  if (started.kind === 'completed') return deliver(started.run, started.owner, started.firedAt, 'redelivered')
+  if (started.kind !== 'started') return started
   const { run, owner } = started
   const finished = await settledRun(ctx, run.id, owner, signal)
   if (finished.phase !== 'completed') {
@@ -247,24 +356,18 @@ export async function runScheduledReport(ctx: Context, config: ResolvedConfig, t
       ? notice(run.id, 'FANTASY_REPORT_WITHHELD', reason, 'withheld')
       : notice(run.id, 'FANTASY_REPORT_FAILED', reason, 'failed')
   }
-  const report = await ctx.research.report(run.id, owner)
-  const text = config.shadowChannelId === undefined ? report.markdown
-    : `**Shadow run: native report for ${team.name}.** Sent only to this channel; the team's own channel received nothing from this run.`
-      + `\n\n${report.markdown}`
-  const accepted = await handOff(ctx, config, { jobName, sessionId: run.id, firedAt, outcome: 'answered', text,
-    reportOutcome: true, deliverChannelId: channel }, signal)
-  if (!accepted) return { kind: 'undelivered', reason: 'no delivery listener accepted the report', runId: run.id }
-  return { kind: 'published', runId: run.id }
+  return deliver(run, owner, firedAt, 'published')
 }
 
 /**
- * Arm one timer per team and mode, run fires one at a time with the configured spacing between
- * research starts, and drain the queue on disposal.
+ * Arm one timer per team and mode, queue each team's restart catch-up, run fires one at a time with the
+ * configured spacing between research starts, and drain the queue on disposal.
  * @param ctx - consumer context.
  * @param supplied - loader configuration.
  * @param scheduler - timer factory; the plugin uses croner.
+ * @param clock - current epoch milliseconds for catch-up slots and windows; the plugin uses `Date.now`.
  */
-export function mountReports(ctx: Context, supplied: Config, scheduler: Scheduler): void {
+export function mountReports(ctx: Context, supplied: Config, scheduler: Scheduler, clock: () => number): void {
   const config = resolveConfig(supplied)
   ctx.effect(() => {
     const stopping = new AbortController()
@@ -275,33 +378,42 @@ export function mountReports(ctx: Context, supplied: Config, scheduler: Schedule
       if (wait > 0) await delay(wait, undefined, { signal: stopping.signal })
       lastStart = Date.now()
     }
-    const jobs = reportSchedules(config).map((row) => {
-      const job = scheduler({ expression: row.expression, timezone: row.timezone }, (firedAt) => {
-        const next = job.nextRunAt()
-        chain = chain.then(async () => {
-          const outcome = await runScheduledReport(ctx, config, row.team, row.mode, firedAt, {
-            signal: stopping.signal, beforeStart, ...(next === undefined ? {} : { nextFireAt: new Date(next).toISOString() }),
-          })
-          ctx.logger.info(`fantasy-reports: ${row.team.id} ${row.mode} ${outcome.kind}${outcome.reason === undefined ? '' : `: ${outcome.reason}`}`)
-        }).catch((error: unknown) => {
-          if (!stopping.signal.aborted) ctx.logger.error(`fantasy-reports: ${row.team.id} ${row.mode} failed: ${String(error)}`)
-        })
+    const enqueue = (label: string, job: ScheduledJob, fire: (options: ReportFireOptions) => Promise<ReportOutcome>): void => {
+      const next = job.nextRunAt()
+      chain = chain.then(async () => {
+        const outcome = await fire({ signal: stopping.signal, beforeStart,
+          ...(next === undefined ? {} : { nextFireAt: new Date(next).toISOString() }) })
+        ctx.logger.info(`fantasy-reports: ${label} ${outcome.kind}${outcome.reason === undefined ? '' : `: ${outcome.reason}`}`)
+      }).catch((error: unknown) => {
+        if (!stopping.signal.aborted) ctx.logger.error(`fantasy-reports: ${label} failed: ${String(error)}`)
       })
-      return job
-    })
+    }
+    const jobs = new Map<string, ScheduledJob>()
+    for (const row of reportSchedules(config)) {
+      const job: ScheduledJob = scheduler({ expression: row.expression, timezone: row.timezone }, (firedAt) => {
+        enqueue(`${row.team.id} ${row.mode}`, job, options => runScheduledReport(ctx, config, row.team, row.mode, firedAt, options))
+      })
+      jobs.set(`${row.team.id} ${row.mode}`, job)
+    }
+    for (const slot of catchUpSlots(config, clock())) {
+      const label = `${slot.team.id} ${slot.mode}`
+      const window = catchUpWindow(config, slot.mode)
+      enqueue(`${label} catch-up`, jobs.get(label) as ScheduledJob, options => runScheduledReport(ctx, config, slot.team, slot.mode,
+        clock(), { ...options, catchUp: { slotAt: slot.slotAt, open: () => clock() - slot.slotAt < window } }))
+    }
     return async () => {
       stopping.abort(new Error('fantasy-reports stopped'))
-      for (const job of jobs) job.stop()
+      for (const job of jobs.values()) job.stop()
       await chain
     }
   }, 'fantasy report schedules')
 }
 
 /**
- * Mount the configured report timers.
+ * Mount the configured report timers and the restart catch-up.
  * @param ctx - Cordis plugin context.
  * @param config - loader configuration.
  */
 export function apply(ctx: Context, config: Config): void {
-  mountReports(ctx, config, cronerScheduler)
+  mountReports(ctx, config, cronerScheduler, Date.now)
 }
