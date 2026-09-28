@@ -55,6 +55,8 @@ describe('captureFrames', () => {
     expect(result.frames.map(frame => [frame.offsetMs, frame.source])).toEqual([[0, 'snapshot'], [10_000, 'stream'], [20_000, 'stream']])
     expect(camera.snapshotCalls).toBe(2)
     expect(camera.streams[0]?.output.slice(0, 2)).toEqual(['-frames:v', '2'])
+    expect(result.snapshotMiss).toEqual({ reason: 'stale', slot: 1, remaining: 2 })
+    expect(result.streamFailure).toBeUndefined()
     expect(firsts).toEqual(['sha256:0@0:snapshot'])
   })
 
@@ -64,7 +66,7 @@ describe('captureFrames', () => {
     camera.snapshots.push(bytes(1), bytes(2), bytes(2))
     const { store, stored } = recorder()
     const result = await captureFrames(camera, { ...spec, streamFallback: false }, clock.time, store, new AbortController().signal, clock)
-    expect(result).toMatchObject({ failure: 'snapshot-stale', frames: [{ offsetMs: 0 }, { offsetMs: 10_000 }] })
+    expect(result).toMatchObject({ failure: 'snapshot-stale', frames: [{ offsetMs: 0 }, { offsetMs: 10_000 }], snapshotMiss: { reason: 'stale', slot: 2, remaining: 1 } })
     expect(stored).toHaveLength(2)
     expect(camera.streams).toEqual([])
   })
@@ -76,6 +78,7 @@ describe('captureFrames', () => {
     camera.stream_ = { refuse: true }
     const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
     expect(result).toMatchObject({ failure: 'stream-failed', frames: [{ source: 'snapshot' }] })
+    expect(result.streamFailure).toEqual({ stage: 'start-refused', error: 'Live view is currently disabled' })
   })
 
   it('reports a storage refusal and keeps the frames already stored', async () => {
@@ -94,6 +97,7 @@ describe('captureFrames', () => {
     const noFallback = { ...spec, streamFallback: false }
     const result = await captureFrames(camera, noFallback, clock.time, recorder().store, new AbortController().signal, clock)
     expect(result.failure).toBe('snapshot-unavailable')
+    expect(result.snapshotMiss).toEqual({ reason: 'refused', slot: 1, remaining: 2, error: 'Motion detection is disabled for Front Door' })
     expect(result.frames).toHaveLength(1)
     expect(camera.streams).toEqual([])
   })
@@ -107,6 +111,7 @@ describe('captureFrames', () => {
     const t0 = clock.time
     const result = await captureFrames(camera, spec, t0, store, new AbortController().signal, clock)
     expect(result.failure).toBeUndefined()
+    expect(result.snapshotMiss).toEqual({ reason: 'timeout', slot: 1, remaining: 2 })
     expect(result.frames.map(frame => frame.source)).toEqual(['snapshot', 'stream', 'stream'])
     expect(stored).toEqual([[0xff, 0xd8, 1], [0xff, 0xd8, 7], [0xff, 0xd8, 8]])
     const [options] = camera.streams
@@ -129,6 +134,7 @@ describe('captureFrames', () => {
     const { store, firsts } = recorder()
     const result = await captureFrames(camera, spec, clock.time, store, new AbortController().signal, clock)
     expect(result.failure).toBe('stream-failed')
+    expect(result.streamFailure).toEqual({ stage: 'ended-short', framesWritten: 1, framesRequested: 3 })
     expect(result.frames.map(frame => frame.source)).toEqual(['stream'])
     expect(firsts).toHaveLength(1)
     expect(firsts[0]).toMatch(/^sha256:0@\d+:stream$/u)
@@ -140,7 +146,10 @@ describe('captureFrames', () => {
     camera.stream_ = { refuse: true }
     camera.snapshots.push(new Error('offline'))
     const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
-    expect(result).toEqual({ frames: [], failure: 'stream-failed' })
+    expect(result).toEqual({
+      frames: [], failure: 'stream-failed', snapshotMiss: { reason: 'refused', slot: 0, remaining: 3, error: 'offline' },
+      streamFailure: { stage: 'start-refused', error: 'Live view is currently disabled' },
+    })
   })
 
   it('stops a stream that starts only after the setup bound', async () => {
@@ -150,7 +159,7 @@ describe('captureFrames', () => {
     camera.stream_ = { hang: true, late: new Promise<void>((resolve) => { release = resolve }) }
     camera.snapshots.push(new Error('offline'))
     const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
-    expect(result).toEqual({ frames: [], failure: 'stream-failed' })
+    expect(result).toEqual({ frames: [], failure: 'stream-failed', snapshotMiss: { reason: 'refused', slot: 0, remaining: 3, error: 'offline' }, streamFailure: { stage: 'start-timeout', boundMs: 20_000 } })
     release()
     await new Promise(resolve => setImmediate(resolve))
     expect(camera.stopped).toBe(1)
@@ -162,7 +171,7 @@ describe('captureFrames', () => {
     camera.stream_ = { hang: true }
     camera.snapshots.push(new Error('offline'))
     await expect(captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock))
-      .resolves.toEqual({ frames: [], failure: 'stream-failed' })
+      .resolves.toMatchObject({ frames: [], failure: 'stream-failed', streamFailure: { stage: 'start-timeout' } })
   })
 
   it('bounds a call that never ends and still reads what ffmpeg wrote', async () => {
@@ -174,6 +183,26 @@ describe('captureFrames', () => {
     expect(result.failure).toBeUndefined()
     expect(result.frames).toHaveLength(3)
     expect(camera.stopped).toBe(1)
+  })
+
+  it('reports a stream stopped by the capture bound with the frames it wrote', async () => {
+    const clock = new FakeClock()
+    const camera = new FakeCamera(1, 'Front Door')
+    camera.snapshots.push(new Error('offline'))
+    camera.stream_ = { frames: [bytes(5)], endless: true }
+    const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
+    expect(result).toMatchObject({ failure: 'stream-failed', frames: [{ source: 'stream' }] })
+    expect(result.streamFailure).toEqual({ stage: 'run-timeout', framesWritten: 1, framesRequested: 3, boundMs: 50_000 })
+    expect(camera.stopped).toBe(1)
+  })
+
+  it('reports a call that ended before ffmpeg wrote a frame', async () => {
+    const clock = new FakeClock()
+    const camera = new FakeCamera(1, 'Front Door')
+    camera.snapshots.push(bytes(1), 'hang')
+    camera.stream_ = { frames: [] }
+    const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
+    expect(result.streamFailure).toEqual({ stage: 'ended-short', framesWritten: 0, framesRequested: 2 })
   })
 
   it('reports a storage refusal for a streamed frame', async () => {
@@ -207,7 +236,7 @@ describe('captureFrames', () => {
     camera.stream_ = { hang: true, late: new Promise<void>((resolve) => { release = resolve }), lateFailure: true }
     camera.snapshots.push(new Error('offline'))
     const result = await captureFrames(camera, spec, clock.time, recorder().store, new AbortController().signal, clock)
-    expect(result).toEqual({ frames: [], failure: 'stream-failed' })
+    expect(result).toMatchObject({ frames: [], failure: 'stream-failed', streamFailure: { stage: 'start-timeout' } })
     release()
     await new Promise(resolve => setImmediate(resolve))
     expect(camera.stopped).toBe(0)

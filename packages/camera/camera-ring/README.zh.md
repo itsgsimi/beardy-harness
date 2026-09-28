@@ -39,8 +39,11 @@ kind: "package-reference"
 | `dedupeWindowMs`、`dedupeMaxIds` | 厂商事件 ID 抑制重复推送的时长和数量 |
 | `reconnectDelayMs`、`maxReconnectDelayMs` | 连接失败后逐次翻倍的重试延迟 |
 | `controlCenterDisplayName` | Ring 在已授权设备中为此客户端显示的名称 |
+| `vendorDebug` | 打开 `ring-client-api` 的调试日志（含 ffmpeg 输出），以 `info` 级别记录；输出很多，默认关闭，加载后一直开启到进程退出 |
 
 账户中不存在的已配置设备会让提供方停止并报错，错误信息列出账户中所有设备的名称和 ID。其他原因导致的连接失败（例如 Ring API 不可达）会以翻倍延迟重试。
+
+要查明事件画面少于 `frameCount` 的原因，请查看提供方日志。`info` 级别的 `camera-ring: snapshot <n> for <event id> …` 指出把截取转到直播流的那张快照，以及它是与上一张重复、被拒绝还是超时。`warn` 级别的 `camera-ring: stream capture for <event id> failed at <stage>: <cause>` 指出 `stream-failed` 截取停在哪一步：`start-refused` 附带 Ring 错误，`start-timeout` 表示 `streamSetupMs` 内没有启动直播流，`ended-short` 表示通话先结束，`run-timeout` 表示截取时限将其停止，后两者附带已写入帧数与请求帧数。`warn` 级别的 `camera-ring: ring-client-api: …` 是该库自身的错误，例如信令套接字失败或 ffmpeg 退出码；短时开启 `vendorDebug` 还能看到 ffmpeg 的输出。
 
 -----
 
@@ -50,7 +53,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-加载时检查凭据引用和 ffmpeg 可执行文件，然后在后台连接。第一次请求会刷新令牌；`ring-client-api` 在推送凭据变化时也会重新编码令牌，每个新值都按轮换顺序经 `ctx.credentials.set` 写回。诊断信息会把封装令牌及其内部 Ring 令牌替换为 `[redacted]`。
+加载时检查凭据引用和 ffmpeg 可执行文件，然后在后台连接。第一次请求会刷新令牌；`ring-client-api` 在推送凭据变化时也会重新编码令牌，每个新值都按轮换顺序经 `ctx.credentials.set` 写回。诊断信息（包括提供方加载期间经 `ctx.logger` 转发的库自身日志）会把封装令牌及其内部 Ring 令牌替换为 `[redacted]`。
 
 推送按厂商事件 ID 只接纳一次：只接纳已配置的类型，只在该设备该类型的冷却时间之外接纳；移动事件还要求该设备当前没有在截取画面，门铃按下则排在正在进行的截取之后。每个被接纳的事件最多获得 `frameCount` 帧：收到推送时一张快照，此后每个间隔一张。有线 Ring 摄像头在移动期间可能再次返回缓存的快照，因此字节与上一张相同的快照与被拒绝或超时的快照一样，算作缺失的实时画面。缺少快照且开启 `streamFallback` 时，一次直播通话运行带帧率过滤器的 ffmpeg，把该时段及之后所有时段的画面写入私有临时目录，之后删除该目录。画面经 `ctx.attachments` 以 JPEG 存储；第一帧存储后先以 `camera/preview` 发布，再继续截取，最后一帧之后发布完整事件。数量不足时，回退关闭时事件标注 `snapshot-unavailable` 或 `snapshot-stale`，直播流提前结束时标注 `stream-failed`，存储失败时标注 `storage-failed`。卸载时停止订阅、取消等待、断开连接，并等待截取和令牌写入结束。提供方只保存临时的接纳状态，因此不发布不变量组件。
 
@@ -92,6 +95,7 @@ kind: "package-reference"
 - 一个刷新令牌应只由一个 harness 进程持有。两个进程共用时会各自轮换，可能互相使令牌失效。
 - Ring 应用的模式关闭移动侦测时快照会停止，此时由直播流回退提供画面。
 - 直播流在推送后几秒才开始，因此流式画面比快照画面晚。
+- `ring-client-api` 每个进程只有一个日志器和一个调试开关，且无法读取或恢复其默认日志器；卸载提供方会让库日志静默，`vendorDebug` 一直开启到进程退出。
 
 <a id="dev-note"></a>
 ### 开发备注

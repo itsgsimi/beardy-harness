@@ -39,8 +39,11 @@ Run the library's login once outside the harness (`npx -p ring-client-api@14.3.0
 | `dedupeWindowMs`, `dedupeMaxIds` | How long and how many vendor event ids suppress repeated pushes |
 | `reconnectDelayMs`, `maxReconnectDelayMs` | Doubling retry delay after a failed connection |
 | `controlCenterDisplayName` | Name Ring lists for this client among authorized devices |
+| `vendorDebug` | Turn on `ring-client-api` debug lines, including ffmpeg output, at `info`; noisy, off by default, and on until the process exits once loaded |
 
 A configured device that the account does not contain stops the provider with an error that lists every device name and id in the account. A connection that fails for another reason, such as an unreachable Ring API, retries with a doubling delay.
+
+To find why an event has fewer frames than `frameCount`, read the provider log. `camera-ring: snapshot <n> for <event id> …` at `info` names the snapshot that moved capture to the live stream and whether it repeated the previous snapshot, was refused, or timed out. `camera-ring: stream capture for <event id> failed at <stage>: <cause>` at `warn` names where a `stream-failed` capture stopped: `start-refused` with the Ring error, `start-timeout` when no stream started within `streamSetupMs`, `ended-short` when the call ended first, or `run-timeout` when the capture bound stopped it, the last two with frames written against frames requested. `camera-ring: ring-client-api: …` at `warn` carries the library's own errors, such as a failed signalling socket or an ffmpeg exit code; set `vendorDebug` briefly to see ffmpeg's output as well.
 
 -----
 
@@ -50,7 +53,7 @@ A configured device that the account does not contain stops the provider with an
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-Load checks the credential reference and the ffmpeg executable, then connects in the background. The first request refreshes the token; `ring-client-api` also re-encodes the token when its push credentials change, and every new value is written through `ctx.credentials.set` in rotation order. Diagnostics replace the wrapped token and its inner Ring token with `[redacted]`.
+Load checks the credential reference and the ffmpeg executable, then connects in the background. The first request refreshes the token; `ring-client-api` also re-encodes the token when its push credentials change, and every new value is written through `ctx.credentials.set` in rotation order. Diagnostics, including the library's own log lines routed through `ctx.logger` while the provider is loaded, replace the wrapped token and its inner Ring token with `[redacted]`.
 
 A push is admitted once per vendor event id, only for configured kinds, only outside that device's cooldown for its kind, and, for motion, only when that device is not already capturing; doorbell presses queue behind a running capture. Each admitted event gets up to `frameCount` frames: a snapshot at the receipt time and one per interval after it. Wired Ring cameras can return their cached snapshot again during motion, so a snapshot whose bytes repeat the previous one counts as a missing live frame, like a refused or timed-out snapshot. When a snapshot is missing and `streamFallback` is on, one live call runs ffmpeg with a frame-rate filter into a private temporary directory for that slot and every later one, and the directory is removed afterwards. Frames are stored through `ctx.attachments` as JPEG; the first stored frame is published as `camera/preview` before capture continues, and the complete event is published after the last frame. A shortfall is reported on the event as `snapshot-unavailable` or `snapshot-stale` when the fallback is off, `stream-failed` when the stream ends short, or `storage-failed`. Disposal stops subscriptions, cancels waits, disconnects, and waits for captures and token writes. No invariant companion is published because the provider keeps only transient admission state.
 
@@ -92,6 +95,7 @@ The provider does not alter request caching.
 - One harness process should own a refresh token. Two processes sharing it rotate it independently and can invalidate each other.
 - Snapshots stop while motion detection is off in the Ring app's modes; the stream fallback then supplies frames.
 - The live stream starts a few seconds after the push, so streamed frames begin later than snapshot frames.
+- `ring-client-api` keeps one logger and one debug switch per process and cannot report or restore its default logger; unloading the provider silences the library logger, and `vendorDebug` stays on until the process exits.
 
 <a id="dev-note"></a>
 ### Dev Note

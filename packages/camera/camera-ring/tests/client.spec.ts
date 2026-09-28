@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { adaptRingApi, adaptRingCamera, createRingClient, RING_DING_CATEGORY } from '../src/client.ts'
+import { logDebug, logError, logInfo } from 'ring-client-api/util'
+import { adaptRingApi, adaptRingCamera, createRingClient, RING_DING_CATEGORY, ringLogging } from '../src/client.ts'
 import type { RingApiLike, RingCameraLike, RingPushShape, Subscribable } from '../src/client.ts'
 import { wrappedToken } from './support.ts'
 
@@ -75,5 +76,34 @@ describe('createRingClient', () => {
       stop()
       client.disconnect()
     }
+  })
+})
+
+describe('ringLogging', () => {
+  it('routes library errors and info lines to the installed sink until disposal', () => {
+    const lines: string[] = []
+    const sink = { error: (message: string) => { lines.push(`error ${message}`) }, info: (message: string) => { lines.push(`info ${message}`) } }
+    const uninstall = ringLogging.install(sink)
+    logError('Stream connection failed')
+    logError(new Error('socket hang up'))
+    logError({ type: 'error', code: 1006 })
+    logInfo('From Ring (Front Door):', 'stopped gracefully')
+    logDebug('hidden before debug is on')
+    ringLogging.enableDebug()
+    logDebug('frame=  1 fps=0.1')
+    const replaced = ringLogging.install({ error: () => { lines.push('second') }, info: () => {} })
+    uninstall()
+    logError('still routed to the second sink')
+    replaced()
+    logError('dropped after disposal')
+    logInfo('dropped after disposal')
+    expect(lines).toEqual([
+      'error Stream connection failed',
+      'error socket hang up',
+      "error { type: 'error', code: 1006 }",
+      'info From Ring (Front Door): stopped gracefully',
+      'info frame=  1 fps=0.1',
+      'second',
+    ])
   })
 })

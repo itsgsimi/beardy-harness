@@ -19,10 +19,10 @@ import type { CameraDevice, CameraEventKind } from '@deepseek-ai/dsh-camera'
 import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import z from '@deepseek-ai/schemastery'
-import { captureFrames } from './capture.ts'
-import type { CaptureDeps, CaptureSpec, FrameSink } from './capture.ts'
-import { createRingClient, RING_DING_CATEGORY, RING_MOTION_CATEGORY } from './client.ts'
-import type { RingCameraHandle, RingClient, RingClientFactory, RingNotification, Unsubscribe } from './client.ts'
+import { captureFrames, errorText } from './capture.ts'
+import type { CaptureDeps, CaptureResult, CaptureSpec, FrameSink, SnapshotMiss, StreamFailure, StreamFailureStage } from './capture.ts'
+import { createRingClient, RING_DING_CATEGORY, RING_MOTION_CATEGORY, ringLogging } from './client.ts'
+import type { RingCameraHandle, RingClient, RingClientFactory, RingLogging, RingNotification, Unsubscribe } from './client.ts'
 
 export * from './capture.ts'
 export * from './client.ts'
@@ -73,6 +73,11 @@ export interface Config {
   readonly maxReconnectDelayMs?: number
   /** Name Ring lists for this client among authorized devices; defaults to `dsh-camera-ring`. */
   readonly controlCenterDisplayName?: string
+  /**
+   * Turn on `ring-client-api` debug lines, including ffmpeg stderr, and log them at `info`; noisy,
+   * and on for the rest of the process once loaded. Defaults to false.
+   */
+  readonly vendorDebug?: boolean
 }
 
 /** Package defaults shared by the schema and {@link resolveSpec}. */
@@ -89,6 +94,7 @@ export const RING_DEFAULTS = Object.freeze({
   reconnectDelayMs: 5_000,
   maxReconnectDelayMs: 600_000,
   controlCenterDisplayName: 'dsh-camera-ring',
+  vendorDebug: false,
 })
 
 /** Validated Ring provider configuration. */
@@ -114,6 +120,7 @@ export const Config: z<Config> = z.object({
   reconnectDelayMs: z.number().step(1).min(1_000).default(RING_DEFAULTS.reconnectDelayMs),
   maxReconnectDelayMs: z.number().step(1).min(1_000).default(RING_DEFAULTS.maxReconnectDelayMs),
   controlCenterDisplayName: z.string().default(RING_DEFAULTS.controlCenterDisplayName),
+  vendorDebug: z.boolean().default(RING_DEFAULTS.vendorDebug),
 })
 
 /** How one configured device is found in the Ring account. */
@@ -139,6 +146,7 @@ export interface RingSpec extends CaptureSpec {
   readonly reconnectDelayMs: number
   readonly maxReconnectDelayMs: number
   readonly controlCenterDisplayName: string
+  readonly vendorDebug: boolean
 }
 
 /**
@@ -191,6 +199,7 @@ export function resolveSpec(config: Config): RingSpec {
     reconnectDelayMs,
     maxReconnectDelayMs,
     controlCenterDisplayName: config.controlCenterDisplayName ?? RING_DEFAULTS.controlCenterDisplayName,
+    vendorDebug: config.vendorDebug ?? RING_DEFAULTS.vendorDebug,
   }
 }
 
@@ -200,6 +209,8 @@ export interface RingProviderDeps extends Partial<CaptureDeps> {
   readonly connect?: RingClientFactory
   /** Reject unless `path` is an executable regular file. */
   readonly checkExecutable?: (path: string) => Promise<void>
+  /** Process-global `ring-client-api` logging; defaults to {@link ringLogging}. */
+  readonly logging?: RingLogging
 }
 
 /** A configured device that the account does not contain; retrying cannot fix it. */
@@ -246,8 +257,36 @@ export function redact(text: string, secrets: readonly string[]): string {
   return result.length > 300 ? `${result.slice(0, 299)}…` : result
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+const SNAPSHOT_MISS_TEXT = { stale: 'repeated the previous snapshot', refused: 'was refused', timeout: 'timed out' } as const
+
+/**
+ * Describe the snapshot that ended the snapshot phase.
+ * @param miss - the missing snapshot.
+ * @param streamFallback - whether the remaining slots moved to a live stream.
+ * @returns cause text after `snapshot <n> for <event id>`; `error` is not redacted here.
+ */
+export function describeSnapshotMiss(miss: SnapshotMiss, streamFallback: boolean): string {
+  const cause = miss.error === undefined ? SNAPSHOT_MISS_TEXT[miss.reason] : `${SNAPSHOT_MISS_TEXT[miss.reason]}: ${miss.error}`
+  return `${cause}; ${streamFallback ? `streaming the remaining ${String(miss.remaining)} frame(s)` : 'stream fallback is off'}`
+}
+
+const writtenText = (failure: StreamFailure): string => `${String(failure.framesWritten)} of ${String(failure.framesRequested)} frame(s) written`
+
+/** Cause text per stream failure stage; the record type keeps the stage union exhaustive. */
+const STREAM_FAILURE_TEXT: Readonly<Record<StreamFailureStage, (failure: StreamFailure) => string>> = {
+  'start-refused': failure => String(failure.error),
+  'start-timeout': failure => `no stream within ${String(failure.boundMs)} ms`,
+  'ended-short': failure => `the call ended with ${writtenText(failure)}`,
+  'run-timeout': failure => `stopped at the ${String(failure.boundMs)} ms bound with ${writtenText(failure)}`,
+}
+
+/**
+ * Describe where a failed live-stream capture stopped.
+ * @param failure - stream failure stage and counts.
+ * @returns cause text after `failed at <stage>: `; `error` is not redacted here.
+ */
+export function describeStreamFailure(failure: StreamFailure): string {
+  return STREAM_FAILURE_TEXT[failure.stage](failure)
 }
 
 /** Ring-backed `ctx.camera` provider. */
@@ -257,6 +296,7 @@ export class RingCameraService extends CameraService {
   private readonly spec: RingSpec
   private readonly connectClient: RingClientFactory
   private readonly checkExecutable: (path: string) => Promise<void>
+  private readonly logging: RingLogging
   private readonly clock: CaptureDeps
   private readonly controller = new AbortController()
   private client: RingClient | undefined
@@ -278,6 +318,7 @@ export class RingCameraService extends CameraService {
     this.spec = resolveSpec(config)
     this.connectClient = deps.connect ?? createRingClient
     this.checkExecutable = deps.checkExecutable ?? executable
+    this.logging = deps.logging ?? ringLogging
     this.clock = {
       now: deps.now ?? Date.now,
       sleep: deps.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }) }),
@@ -311,6 +352,15 @@ export class RingCameraService extends CameraService {
         throw new Error(`camera-ring: ffmpegPath ${this.spec.ffmpegPath} is not an executable file`)
       }
     }
+    this.ctx.effect(() => this.logging.install({
+      error: (message) => { this.ctx.logger.warn(`camera-ring: ring-client-api: ${this.redact(message)}`) },
+      info: (message) => {
+        const line = `camera-ring: ring-client-api: ${this.redact(message)}`
+        if (this.spec.vendorDebug) this.ctx.logger.info(line)
+        else this.ctx.logger.debug(line)
+      },
+    }), 'camera-ring vendor logger')
+    if (this.spec.vendorDebug) this.logging.enableDebug()
     this.ctx.effect(() => {
       const running = this.run()
       return async () => {
@@ -450,10 +500,23 @@ export class RingCameraService extends CameraService {
     }
     const result = await captureFrames(camera, this.spec, t0, sink, this.signal, this.clock)
     this.signal.throwIfAborted()
+    this.report(id, result)
     await this.publish({
       id, deviceId: device.id, kind, occurredAt: t0, frames: result.frames,
       ...result.failure === undefined ? {} : { captureFailure: result.failure },
     })
+  }
+
+  /** Log the snapshot that ended the snapshot phase at `info` and a failed live stream at `warn`. */
+  private report(id: ReturnType<typeof CameraEventId>, result: CaptureResult): void {
+    if (result.snapshotMiss !== undefined) {
+      this.ctx.logger.info(`camera-ring: snapshot ${String(result.snapshotMiss.slot + 1)} for ${id} `
+        + this.redact(describeSnapshotMiss(result.snapshotMiss, this.spec.streamFallback)))
+    }
+    if (result.streamFailure !== undefined) {
+      this.ctx.logger.warn(`camera-ring: stream capture for ${id} failed at ${result.streamFailure.stage}: `
+        + this.redact(describeStreamFailure(result.streamFailure)))
+    }
   }
 }
 
