@@ -16,6 +16,11 @@ packages:
 
 overrides:
   'extract-zip>yauzl': '3.4.0'
+  # asn1-schema keeps its schema registry per module copy, so a second copy
+  # makes @peculiar/x509 throw "Cannot get schema for 'SubjectPublicKeyInfo'
+  # target" when werift creates its DTLS certificate for Ring live streams.
+  # Pin every consumer to the version the @peculiar/asn1-* packages require.
+  '@peculiar/asn1-schema': '2.9.5'
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
 
