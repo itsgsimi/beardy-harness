@@ -556,6 +556,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'camera',
+    summary: 'Provider-neutral camera capability; one provider owns `ctx.camera`.',
+    description: 'Provider-neutral camera capability; one provider owns `ctx.camera`.',
+    methods: [
+      {
+        signature: 'abstract devices(): readonly CameraDevice[]',
+        description: 'List the configured devices this provider watches.',
+        parameters: [],
+        returns: 'devices in configuration order.',
+      },
+    ],
+  },
+  {
     key: 'clientModules',
     summary: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows.',
     description: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows. Construction runs the activation scan synchronously — a malformed declaration or missing bundle among the already-loaded entries aggregates into one loud throw (FAILED fiber; the boot activation audit reports it).',
@@ -4036,6 +4049,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'key', description: 'the credential record the finished attempt was authorizing.' }, { name: 'settlement', description: 'how it ended, including the `failed` case its caller sees as a thrown error.' }],
   },
   {
+    name: 'camera/event',
+    mode: 'parallel',
+    signature: '\'camera/event\'(event: CameraEvent): void | Promise<void>',
+    summary: 'One accepted device event whose frames are already stored.',
+    description: 'One accepted device event whose frames are already stored. Listeners should enqueue work and return; the provider awaits every listener and logs failures without retrying.',
+    parameters: [{ name: 'event', description: 'device, kind, receipt time, and captured frames.' }],
+  },
+  {
+    name: 'camera/notice',
+    mode: 'serial',
+    signature: '\'camera/notice\'(notice: CameraNotice): true | undefined | Promise<true | undefined>',
+    summary: 'One camera notice awaiting durable acceptance by its delivery owner.',
+    description: 'One camera notice awaiting durable acceptance by its delivery owner.',
+    parameters: [{ name: 'notice', description: 'stable identity, destination channel, text, and optional frame.' }],
+  },
+  {
     name: 'commands/change',
     mode: 'emit',
     signature: '\'commands/change\'(): void',
@@ -4838,6 +4867,42 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BundleRowInfo',
     declaration: 'export interface BundleRowInfo {\n    rowId: string;\n    moduleName: string;\n    meta?: PluginLocalizedMeta;\n    entryId?: PluginEntryId;\n}',
+  },
+  {
+    name: 'CameraCaptureFailure',
+    declaration: 'export type CameraCaptureFailure = \'snapshot-unavailable\' | \'stream-failed\' | \'storage-failed\';',
+  },
+  {
+    name: 'CameraDevice',
+    declaration: 'export interface CameraDevice {\n    readonly id: CameraDeviceId;\n    readonly label: string;\n}',
+  },
+  {
+    name: 'CameraDeviceId',
+    declaration: 'export type CameraDeviceId = Branded<\'CameraDeviceId\'>;',
+  },
+  {
+    name: 'CameraEvent',
+    declaration: 'export interface CameraEvent {\n    readonly id: CameraEventId;\n    readonly deviceId: CameraDeviceId;\n    readonly kind: CameraEventKind;\n    readonly occurredAt: number;\n    readonly frames: readonly CameraFrame[];\n    readonly captureFailure?: CameraCaptureFailure | undefined;\n}',
+  },
+  {
+    name: 'CameraEventId',
+    declaration: 'export type CameraEventId = Branded<\'CameraEventId\'>;',
+  },
+  {
+    name: 'CameraEventKind',
+    declaration: 'export type CameraEventKind = \'motion\' | \'ding\';',
+  },
+  {
+    name: 'CameraFrame',
+    declaration: 'export interface CameraFrame {\n    readonly attachment: ImageAttachmentRef;\n    readonly offsetMs: number;\n    readonly source: CameraFrameSource;\n}',
+  },
+  {
+    name: 'CameraFrameSource',
+    declaration: 'export type CameraFrameSource = \'snapshot\' | \'stream\';',
+  },
+  {
+    name: 'CameraNotice',
+    declaration: 'export interface CameraNotice {\n    readonly id: string;\n    readonly channelId: string;\n    readonly text: string;\n    readonly image?: ImageAttachmentRef | undefined;\n}',
   },
   {
     name: 'ChangeResult',

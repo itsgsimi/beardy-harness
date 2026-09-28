@@ -1,0 +1,13 @@
+version: 1
+scenario: camera-watch
+profile: headless
+composition: camera-watch
+recording: authored
+permission: workspace-write
+header:
+  class: camera-watch
+  pin: true
+  childSystemPrompts: [1]
+  toolFreeSessions: [1]
+workspace:
+  final: true

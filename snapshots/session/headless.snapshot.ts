@@ -907,8 +907,9 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
         .toBe(1 + (logIndex === 0 ? pin.manifest.header.promptChanges ?? 0 : 0))
     }
     for (const [index, header] of headers.entries()) {
-      if (RESEARCH_RUN_SCENARIOS.has(scenario.name) && typeof log.header.parentSession === 'string') {
-        expect(header, `${scenario.name}: stage tools`).not.toHaveProperty('tools')
+      if (RESEARCH_RUN_SCENARIOS.has(scenario.name) && typeof log.header.parentSession === 'string'
+        || scenario.manifest.header.toolFreeSessions?.includes(logIndex) === true) {
+        expect(header, `${scenario.name}: tool-free Session ${logIndex} tools`).not.toHaveProperty('tools')
         continue
       }
       const selectedSchemas = childSchemas.get(logIndex)?.[index]

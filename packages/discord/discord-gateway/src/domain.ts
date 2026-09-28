@@ -52,6 +52,31 @@ export const discordMessageBody = z.object({
     return ids.length === new Set(ids).size
   }, 'Component custom ids must be unique within a message')
 
+const imageAttachment = z.object({
+  attachmentId: z.string().min(1),
+  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
+  bytes: z.number().int().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  name: z.string().optional(),
+  originalDimensions: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
+})
+
+/**
+ * Persisted notice with one stored image. The record keeps the attachment reference; the bytes are
+ * read and verified from the attachment store when the delivery is posted.
+ */
+export const discordImageMessage = z.object({
+  content: z.string().max(2000),
+  image: imageAttachment,
+}).refine(body => body.content.trim() !== '', 'Message has no visible text')
+
+/** Validated notice with one stored image. */
+export type DiscordImageMessage = z.infer<typeof discordImageMessage>
+
+/** Any persisted non-text delivery body; the image form is tried first because it is the narrower shape. */
+export const discordOutboxBody = z.union([discordImageMessage, discordMessageBody])
+
 /**
  * Durable shape of one channel's conversation record. `sessionId` is the Session the next
  * inbound message resumes; timestamps are epoch milliseconds taken when the listener routed work.
@@ -81,7 +106,7 @@ export type ConversationRecord = z.infer<typeof conversationRecord>
 /** One persisted delivery, including acknowledged chunks and bounded duplicate-detection receipts. */
 export const outboxRecord = z.object({
   channelId: z.string(),
-  chunks: z.array(z.union([z.string().max(2000), discordMessageBody])),
+  chunks: z.array(z.union([z.string().max(2000), discordOutboxBody])),
   cursor: z.number().int().nonnegative(),
   /** Enqueue order independent of backend iteration order or clock movement. */
   ordinal: z.number().int().positive(),

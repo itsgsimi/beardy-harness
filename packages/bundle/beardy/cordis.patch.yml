@@ -107,6 +107,19 @@
       name: '@deepseek-ai/dsh-fantasy-reports'
       disabled: true
 
+# Ring camera events: the provider watches the configured doorbell and cameras, and the watch
+# classifies each event's frames, notifies through the Discord gateway outbox, and keeps a history
+# the `camera` tool reads. The personal profile supplies the token reference, devices, ffmpeg path,
+# time zone, policy, and channel; enable both rows together after the one-time Ring login.
+- insert:
+    - id: camera-ring
+      name: '@deepseek-ai/dsh-camera-ring'
+      disabled: true
+
+    - id: camera-watch
+      name: '@deepseek-ai/dsh-camera-watch'
+      disabled: true
+
 # Discord: outbound delivery, an inbound listener, and the unattended cron fires. All three mount
 # only when a bot token is present, so a checkout without Discord credentials starts unchanged. The
 # token itself lives in the environment or the root .env; the composition names the reference, never

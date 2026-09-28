@@ -67,6 +67,8 @@ Beardy 还随附默认禁用的 `fantasy-yahoo` 和 `tool-fantasy` 条目。个�
 
 `tool-homelab` 条目默认禁用，个人补丁须提供 Beardy 可执行文件、其密钥文件、Docker 主机允许列表以及可调用它的 agent 预设。[homelab 工具](../../homelab/tool-homelab/README.zh.md)运行固定的只读 Beardy 命令；为他人服务的预设不要列入 `allowedAgentPresets`。
 
+`camera-ring` 和 `camera-watch` 条目默认禁用，个人补丁须提供 Ring 刷新令牌的凭据引用、要监视的设备、ffmpeg 路径、时区、通知策略和 Discord 频道。[Ring 提供方](../../camera/camera-ring/README.zh.md)在每次门铃按下或移动警报时截取几帧画面；[摄像头监视](../../camera/camera-watch/README.zh.md)在一次记录在案的模型轮次中对画面分类，经网关发件箱发送通知，并用事件历史回答 `camera` 工具。完成一次性 Ring 登录后同时启用这两项。
+
 Beardy 默认把 `web_search` 发往 `http://127.0.0.1:8080` 的 SearXNG JSON 端点。启动前设置 `SEARXNG_BASE_URL` 可改用其他实例，并在该实例的 `search.formats` 配置中启用 `json` 格式。端点契约见 [SearXNG provider README](../../web/web-search-searxng/README.zh.md) 与 [SearXNG Search API](https://docs.searxng.org/dev/search_api.html)。
 
 ### 部署为常驻的 Discord agent

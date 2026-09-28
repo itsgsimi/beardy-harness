@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { HealthStatus } from '@deepseek-ai/dsh-health'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import type { CameraNotice } from '@deepseek-ai/dsh-camera-watch'
 import type { OutboxRecord } from '../src/domain.ts'
 import { apply, assertConfig, Config, currentHealthStatusLines, healthStatusLines, laneCommandCatalog, resolveBotToken, resolvePresetScopes, startListener, toSettings } from '../src/index.ts'
 import type { GatewayConnector, ResolvedConfig } from '../src/index.ts'
@@ -283,14 +285,16 @@ describe('startListener', () => {
       put: async (key: string, value: OutboxRecord) => { notices.set(key, value) },
       delete: async (key: string) => { notices.delete(key) } }
     let healthTransition: ((transition: { id: string; channelId: string; text: string }) => Promise<true>) | undefined
+    let cameraNotice: ((notice: CameraNotice) => Promise<true>) | undefined
     let reads = 0
     const owner = new Context().extend({
       logger: ctx.logger,
       credentials: ctx.credentials,
       agentPresets: ctx.agentPresets,
       permissionPresets: ctx.permissionPresets,
-      on: (event: string, handler: (transition: { id: string; channelId: string; text: string }) => Promise<true>) => {
-        if (event === 'health/transition') healthTransition = handler
+      on: (event: string, handler: unknown) => {
+        if (event === 'health/transition') healthTransition = handler as typeof healthTransition
+        if (event === 'camera/notice') cameraNotice = handler as typeof cameraNotice
         return () => {}
       },
       effect: (effect: () => (() => unknown), label: string) => {
@@ -326,6 +330,11 @@ describe('startListener', () => {
     expect(healthTransition).toBeDefined()
     await healthTransition?.({ id: 'health:transition-1', channelId: CHANNEL, text: 'Probe main: down.' })
     expect(notices.get('health:transition-1')).toMatchObject({ channelId: CHANNEL, chunks: ['Probe main: down.'] })
+    const image = { attachmentId: AttachmentId('sha256:frame'), mediaType: 'image/jpeg' as const, bytes: 3, width: 16, height: 12 }
+    await cameraNotice?.({ id: 'camera:ring-1-2', channelId: CHANNEL, text: 'Front door: Doorbell rang', image })
+    await cameraNotice?.({ id: 'camera:ring-1-3', channelId: CHANNEL, text: 'Front door: Doorbell rang' })
+    expect(notices.get('camera:ring-1-2')).toMatchObject({ chunks: [{ content: 'Front door: Doorbell rang', image }] })
+    expect(notices.get('camera:ring-1-3')).toMatchObject({ chunks: ['Front door: Doorbell rang'] })
     await cleanup[0]?.()
     expect(readClosed).toHaveBeenCalledTimes(2)
     expect(domainClosed).toHaveBeenCalledTimes(1)

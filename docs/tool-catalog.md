@@ -49,6 +49,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-weather` | `get_weather` | `ctx.tools`, `ctx.web` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
+| `@deepseek-ai/dsh-camera-watch` | `camera` | `ctx.tools`, `ctx.camera`, `the camera watch event history` | `tool/call`, `tool/result` | - | The camera watch registers this read-only tool when its `tool` config is on. The `camera` enum is the camera provider's configured device ids (two fixture ids here), the time zone in the description is the watch's `timezone`, and the `hours` and `limit` bounds follow `retentionDays` and `toolMaxEvents`. |
 | `@deepseek-ai/dsh-tool-fantasy` | `fantasy` | `ctx.tools`, `ctx.fantasy` | `tool/call`, `tool/result` | - | Read-only Yahoo views use the trusted caller preset for my-team resolution and bounded JSON result pages. |
 | `@deepseek-ai/dsh-tool-research` | `deep_research` | `ctx.tools`, `ctx.research` | `tool/call`, `tool/result`, `research/linked` | - | Native runs and reports survive process restart. The tool derives owner authority from the caller Session and pages report text. |
 | `@deepseek-ai/dsh-tool-discord` | `discord_send` | `ctx.tools`, `ctx.credentials` | `tool/call`, `tool/result` | - | discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time, so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids, and bodies over 2000 characters post as consecutive messages. |
@@ -3009,6 +3010,46 @@ Run deep research with Odysseus. start launches a job and returns its id; status
 Source: [`packages/web/tool-odysseus-research/src/index.ts`](../packages/web/tool-odysseus-research/src/index.ts)
 
 Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets.
+
+<a id="deepseek-aidsh-camera-watch"></a>
+
+## `@deepseek-ai/dsh-camera-watch`
+
+### `camera`
+
+Read what the home cameras recorded: doorbell presses and motion events with the time, the camera, what the vision check saw (people, vehicles, packages, animals), a one-line description, and whether the user was notified. Times are local to America/Phoenix. Use it for questions such as what happened at the door today. It cannot show live video, take new pictures, or say who someone is.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "camera": {
+      "type": "string",
+      "description": "Only this camera; omit for every camera.",
+      "enum": [
+        "front-door",
+        "garage"
+      ]
+    },
+    "hours": {
+      "type": "integer",
+      "description": "How many hours back to read, from 1 through 720; defaults to 24."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Most events to list, from 1 through 50; defaults to 20."
+    },
+    "notified_only": {
+      "type": "boolean",
+      "description": "List only events the user was notified about."
+    }
+  }
+}
+```
+
+Source: [`packages/camera/camera-watch/src/tool.ts`](../packages/camera/camera-watch/src/tool.ts)
+
+The camera watch registers this read-only tool when its `tool` config is on. The `camera` enum is the camera provider's configured device ids (two fixture ids here), the time zone in the description is the watch's `timezone`, and the `hours` and `limit` bounds follow `retentionDays` and `toolMaxEvents`.
 
 <a id="deepseek-aidsh-tool-fantasy"></a>
 

@@ -67,6 +67,8 @@ Beardy also ships disabled `fantasy-yahoo` and `tool-fantasy` rows. A personal p
 
 The `tool-homelab` row is disabled until a personal patch supplies the Beardy executable, its secrets file, the Docker host allowlist, and the agent presets allowed to call it. The [homelab tool](../../homelab/tool-homelab/README.md) runs fixed read-only Beardy commands; leave presets that serve other people out of `allowedAgentPresets`.
 
+The `camera-ring` and `camera-watch` rows are disabled until a personal patch supplies the Ring refresh-token credential reference, the watched devices, the ffmpeg path, the time zone, the notification policy, and the Discord channel. The [Ring provider](../../camera/camera-ring/README.md) captures a few frames per doorbell press or motion alert; the [camera watch](../../camera/camera-watch/README.md) classifies them in one logged model turn, notifies through the gateway outbox, and answers the `camera` tool from its event history. Enable both rows together after the one-time Ring login.
+
 Beardy sends `web_search` to the SearXNG JSON endpoint at `http://127.0.0.1:8080` by default. Set `SEARXNG_BASE_URL` before launch to use another instance, and enable the `json` format in that instance's `search.formats` configuration. See the [SearXNG provider README](../../web/web-search-searxng/README.md) and [SearXNG Search API](https://docs.searxng.org/dev/search_api.html) for the endpoint contract.
 
 ### Deploy as an always-on Discord agent

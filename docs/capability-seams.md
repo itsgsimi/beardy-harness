@@ -7,6 +7,10 @@ A service can be a core spine service, a swappable capability seam, a bundle/com
 
 ```mermaid
 flowchart LR
+  pkg_camera["camera"]
+  svc_camera["ctx.camera<br/>Camera devices and events with stored frames"]
+  pkg_camera_ring["camera-ring"]
+  pkg_camera_watch["camera-watch"]
   pkg_fantasy["fantasy"]
   svc_fantasy["ctx.fantasy<br/>Read-only Yahoo Fantasy data"]
   pkg_fantasy_yahoo["fantasy-yahoo"]
@@ -308,6 +312,8 @@ flowchart LR
   pkg_bash_local --> svc_shell
   pkg_bash_sandbox --> svc_shell
   pkg_browser_use --> svc_browserUse
+  pkg_camera --> svc_camera
+  pkg_camera_ring --> svc_camera
   pkg_client_connection --> svc_connection
   pkg_client_file_upload --> svc_fileUploads
   pkg_client_modules --> svc_clientModules
@@ -458,6 +464,7 @@ flowchart LR
   svc_browserUse --> pkg_experimental_browser_use_chrome_devtools_mcp
   svc_browserUse --> pkg_experimental_browser_use_playwright_mcp
   svc_browserUse --> pkg_experimental_browser_use_stagehand_native
+  svc_camera --> pkg_camera_watch
   svc_clientModules --> pkg_client_hmr
   svc_compaction --> pkg_compaction_basic
   svc_computerUse --> pkg_experimental_computer_use_cua_driver_mcp
@@ -595,6 +602,7 @@ flowchart LR
 
 | ctx key | Role | Owner | Implementations | Direct consumers | Companion plugins | Note |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, notifies through the Discord outbox, and answers the camera tool. |
 | `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The provider owns OAuth and Yahoo parsing; the model tool reads the caller's mapped team and scheduled reports read configured teams. |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The local provider persists run Sessions and report attachments and executes consumer workflows such as the weekly fantasy report. |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | Owns module and exact configuration watchers; application mutations share its queue and automatic reloads await the application file lock. |

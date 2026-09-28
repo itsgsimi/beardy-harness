@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 0b035d3ac5988bd5
-  zh: c9643495d7e75b0c
+  en: cd63b74266a690f8
+  zh: 984e993b6e8df7d6
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -339,8 +339,14 @@
   en: baae482dea4c5a39
   zh: baae482dea4c5a39
 /tool-schema-catalog/deepseek-ai-dsh-tool-odysseus-research/odysseus-research:
-  en: df6dfd357243a997
-  zh: 1b38f344844c7827
+  en: 7fb57264f3a7e40b
+  zh: aa444472a9c7013c
+/tool-schema-catalog/deepseek-ai-dsh-camera-watch:
+  en: 7b86974a740e516a
+  zh: 7b86974a740e516a
+/tool-schema-catalog/deepseek-ai-dsh-camera-watch/camera:
+  en: b022a9111a903689
+  zh: 0c7f1bb834a8da4c
 /tool-schema-catalog/deepseek-ai-dsh-tool-fantasy:
   en: b680d291c7b816e5
   zh: b680d291c7b816e5

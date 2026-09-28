@@ -131,6 +131,51 @@ describe('rich message transport', () => {
   })
 })
 
+/** Read a form field that must be text. */
+function text(value: FormDataEntryValue | null): string {
+  return typeof value === 'string' ? value : ''
+}
+
+describe('multipart uploads', () => {
+  it('posts a message with files as payload_json plus one part per file, without a JSON content type', async () => {
+    const forms: FormData[] = []
+    const calls = stubFetch(new Response('{"id":"7"}'))
+    vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
+      if (init?.body instanceof FormData) forms.push(init.body)
+      const headers = { ...(init?.headers as Record<string, string> | undefined) }
+      calls.push({ url: String(input), method: init?.method, redirect: init?.redirect, headers })
+      return Promise.resolve(new Response('{"id":"7"}'))
+    })
+    await postChannelMessage({
+      channelId: CHANNEL, token: 'secret-token', content: 'Doorbell rang',
+      files: [{ name: 'front-door-1.jpg', mediaType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8]) }, { name: 'b.png', mediaType: 'image/png', data: new Uint8Array([1]) }],
+    }, new AbortController().signal)
+    expect(calls[0]?.headers).toEqual({ authorization: 'Bot secret-token' })
+    const form = forms[0] as FormData
+    expect(JSON.parse(text(form.get('payload_json')))).toEqual({
+      content: 'Doorbell rang', allowed_mentions: { parse: [] },
+      attachments: [{ id: 0, filename: 'front-door-1.jpg' }, { id: 1, filename: 'b.png' }],
+    })
+    const first = form.get('files[0]') as File
+    expect([first.name, first.type, [...new Uint8Array(await first.arrayBuffer())]]).toEqual(['front-door-1.jpg', 'image/jpeg', [0xff, 0xd8]])
+    expect((form.get('files[1]') as File).name).toBe('b.png')
+  })
+
+  it('sends files without a body as attachments alone and keeps an empty file list as JSON', async () => {
+    const forms: FormData[] = []
+    const bodies: unknown[] = []
+    vi.stubGlobal('fetch', (_input: string | URL, init?: RequestInit) => {
+      if (init?.body instanceof FormData) forms.push(init.body)
+      else bodies.push(init?.body)
+      return Promise.resolve(new Response(null, { status: 204 }))
+    })
+    await discordRequest({ method: 'POST', path: '/channels/1/messages', token: 't', files: [{ name: 'a.gif', mediaType: 'image/gif', data: new Uint8Array([1]) }] }, new AbortController().signal)
+    await discordRequest({ method: 'POST', path: '/channels/1/messages', token: 't', body: { content: 'x' }, files: [] }, new AbortController().signal)
+    expect(JSON.parse(text(forms[0]?.get('payload_json') ?? null))).toEqual({ attachments: [{ id: 0, filename: 'a.gif' }] })
+    expect(bodies).toEqual(['{"content":"x"}'])
+  })
+})
+
 describe('discordRequest', () => {
   it('gets a command catalog without sending a JSON body', async () => {
     const calls = stubFetch(new Response('[]'))

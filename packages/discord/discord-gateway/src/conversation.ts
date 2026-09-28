@@ -13,6 +13,8 @@ import { randomUUID } from 'node:crypto'
 import type {} from '@deepseek-ai/dsh-speech-whisper'
 import { transcribeDiscordAudio } from './audio.ts'
 import type { Context } from '@deepseek-ai/cordis'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import type {} from '@deepseek-ai/dsh-attachment'
 import { cronApprovalRoute, type CronRunOutcome, type CronRunResult } from '@deepseek-ai/dsh-cron'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
@@ -36,7 +38,7 @@ import { chunkContent, defangBroadcastMentions, discordRequest, postChannelMessa
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-workspace'
 import { approvalOutcomeForLine, approvalOutcomeForReaction, buildApprovalPrompt, buildQuestionPrompt, parseQuestionAnswer } from './answerers.ts'
-import type { ConversationRecord, OutboxRecord } from './domain.ts'
+import type { ConversationRecord, DiscordImageMessage, OutboxRecord } from './domain.ts'
 import { DiscordOutbox } from './outbox.ts'
 import { DiscordWakeCoordinator, dispatchLegacyReminders } from './wake.ts'
 import { DISCORD_CHANNEL_TYPE_DM } from './gateway.ts'
@@ -101,6 +103,8 @@ export interface ConversationRouterDeps {
   readonly post?: ReplyPoster
   /** Delivery seam for one already-bounded card. */
   readonly postRich?: (body: DiscordMessageBody, channelId: string, token: string, signal: AbortSignal) => Promise<void>
+  /** Delivery seam for one notice with a stored image. Defaults to a verified attachment read and a multipart post. */
+  readonly postImage?: (message: DiscordImageMessage, channelId: string, token: string, signal: AbortSignal) => Promise<void>
   /** Remove controls from a settled prompt without changing its text. */
   readonly clearPrompt?: (channelId: string, messageId: string, signal: AbortSignal) => Promise<void>
   /** Set or remove the bot's processing/completion reaction. */
@@ -183,8 +187,12 @@ export interface ConversationRouter {
   execute(channelId: string, actor: DiscordCommandActor, line: string, signal?: AbortSignal): Promise<CommandResult>
   /** Resolve a native control against the currently pending prompt. */
   component(interaction: Extract<DiscordInteraction, { kind: 'component' }>, signal?: AbortSignal): Promise<string>
-  /** Post finished-run text to a channel; delivery failures are logged, never thrown. */
-  deliver(channelId: string, content: string, deliveryId?: string): Promise<void>
+  /**
+   * Post finished-run text, or a notice with one stored image, to a channel. With a durable outbox
+   * the promise resolves after the delivery is persisted and rejects when it cannot be; without
+   * one, delivery failures are logged, never thrown.
+   */
+  deliver(channelId: string, content: string | DiscordImageMessage, deliveryId?: string): Promise<void>
   /** Dispose every live Agent and forget its channel; durable records stay. */
   dispose(): Promise<void>
 }
@@ -288,6 +296,30 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const postRich = deps.postRich ?? (async (body: DiscordMessageBody, channelId: string, token: string, replySignal: AbortSignal) => {
     await postDiscordMessageBody(sender(channelId), token, body, replySignal)
   })
+  const postImage = deps.postImage ?? (async (message: DiscordImageMessage, channelId: string, token: string, replySignal: AbortSignal) => {
+    const store = ctx.get('attachments')
+    const { image } = message
+    const ref = {
+      attachmentId: AttachmentId(image.attachmentId), mediaType: image.mediaType, bytes: image.bytes,
+      width: image.width, height: image.height,
+      ...image.name === undefined ? {} : { name: image.name },
+      ...image.originalDimensions === undefined ? {} : { originalDimensions: image.originalDimensions },
+    }
+    let data: Uint8Array | undefined
+    try {
+      data = (await store?.readImage(ref, replySignal))?.data
+    } catch (error: unknown) {
+      // A missing or corrupted stored image must not block the channel queue; the text still posts.
+      ctx.logger.warn(`discord-gateway: stored image ${message.image.attachmentId} is unreadable; posting text only: ${errorChain(error)}`)
+    }
+    if (data === undefined && store === undefined) ctx.logger.warn('discord-gateway: no attachment store is mounted; posting text only')
+    const extension = image.mediaType === 'image/jpeg' ? 'jpg' : image.mediaType.slice('image/'.length)
+    const name = `${(image.name ?? 'image').replace(/\.[^.]*$/u, '')}.${extension}`
+    await postDiscordMessageBody(sender(channelId), token, {
+      content: message.content,
+      ...data === undefined ? {} : { files: [{ name, mediaType: message.image.mediaType, data }] },
+    }, replySignal)
+  })
   const prompt: PromptPoster = deps.prompt ?? (async (content, channelId, token, promptSignal, components) => {
     const chunks = chunkContent(defangBroadcastMentions(content).content)
     if (chunks.length > settings.replyMaxChunksPerCall) throw new Error('discord-gateway: prompt exceeds the message limit')
@@ -359,6 +391,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     async (channelId, content) => {
       const token = await deps.resolveToken()
       if (typeof content === 'string' && deps.post !== undefined) await deps.post(content, channelId, token, signal)
+      else if (typeof content !== 'string' && 'image' in content) await postImage(content, channelId, token, signal)
       else await postRich(typeof content === 'string' ? { content } : content, channelId, token, signal)
     },
     (message) => { ctx.logger.warn(message) },
@@ -1266,8 +1299,20 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       if (outcome !== undefined) pending.settle(outcome)
     },
 
-    deliver(channelId: string, content: string, deliveryId = randomUUID()): Promise<void> {
-      return outbox === undefined ? postReply(channelId, content) : outbox.enqueue(deliveryId, channelId, content)
+    async deliver(channelId: string, content: string | DiscordImageMessage, deliveryId = randomUUID()): Promise<void> {
+      if (outbox !== undefined) {
+        await outbox.enqueue(deliveryId, channelId, typeof content === 'string' ? content : [content])
+        return
+      }
+      if (typeof content === 'string') {
+        await postReply(channelId, content)
+        return
+      }
+      try {
+        await postImage(content, channelId, await deps.resolveToken(), signal)
+      } catch (error: unknown) {
+        ctx.logger.warn(`discord-gateway: notice to channel ${channelId} failed: ${errorChain(error)}`)
+      }
     },
     async dispose(): Promise<void> {
       stopping.abort()

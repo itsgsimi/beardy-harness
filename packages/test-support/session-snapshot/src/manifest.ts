@@ -23,6 +23,8 @@ export interface SnapshotHeaderManifest {
   childSystemPrompts?: number[]
   /** Child fixture indexes that own distinct tool-schema sidecars. */
   childToolSchemas?: number[]
+  /** Child fixture indexes whose request headers carry no tool schemas, such as a tool-free classification Session. */
+  toolFreeSessions?: number[]
   /** Legitimate changed-header count after the initial request header. */
   changes?: number
   /** Legitimate later `system/message` count (replacements or in-history appends) after the initial system prompt. */
@@ -251,6 +253,7 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
         'toolSchemasSource',
         'childSystemPrompts',
         'childToolSchemas',
+        'toolFreeSessions',
         'changes',
         'promptChanges',
       ], 'manifest.header')
@@ -277,6 +280,9 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
         ...(value.childToolSchemas === undefined
           ? {}
           : { childToolSchemas: positiveIndexes(value.childToolSchemas, 'manifest.header.childToolSchemas') }),
+        ...(value.toolFreeSessions === undefined
+          ? {}
+          : { toolFreeSessions: positiveIndexes(value.toolFreeSessions, 'manifest.header.toolFreeSessions') }),
         ...(value.changes === undefined ? {} : { changes: Number(value.changes) }),
         ...(value.promptChanges === undefined ? {} : { promptChanges: Number(value.promptChanges) }),
       }

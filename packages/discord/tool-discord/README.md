@@ -52,7 +52,7 @@ Prefix-stable while the tool definition and visibility are unchanged. Shadowing,
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-The gateway reuses the package's Markdown formatter, chunker, and REST transport. Typed message bodies support embeds, buttons, and string selectors; message posts and edits always disable mentions. The shared request helper accepts bot-authenticated and interaction-token endpoints, refuses redirects, bounds responses to 2 MiB, and omits credential-bearing URLs and causes from transport errors. `postDiscordMessageBody` applies the sender’s bounded rate-limit retries and per-attempt timeout to an already-formatted message and returns the accepted response. Other REST callers own response-status handling and retry timing.
+The gateway reuses the package's Markdown formatter, chunker, and REST transport. Typed message bodies support embeds, buttons, and string selectors; message posts and edits always disable mentions. The shared request helper accepts bot-authenticated and interaction-token endpoints, refuses redirects, bounds responses to 2 MiB, and omits credential-bearing URLs and causes from transport errors. `postDiscordMessageBody` applies the sender’s bounded rate-limit retries and per-attempt timeout to an already-formatted message and returns the accepted response. A body with `files` is sent as a multipart request: the JSON fields and one `attachments` entry per file travel in `payload_json`, and each file is a `files[n]` part. Other REST callers own response-status handling and retry timing.
 
 </details>
 

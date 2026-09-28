@@ -186,6 +186,9 @@ it('keeps every recorded session owned, pinned, redacted, and header-scrubbed', 
       expect(names[index], `${key}: child prompt index ${index}`).toBeDefined()
       expect(existsSync(join(dir, `system-prompt.${index}.expected.md`)), `${key}: child prompt sidecar ${index}`).toBe(true)
     }
+    for (const index of manifest.header.toolFreeSessions ?? []) {
+      expect(names[index], `${key}: tool-free Session index ${index}`).toBeDefined()
+    }
     for (const index of manifest.header.childToolSchemas ?? []) {
       expect(names[index], `${key}: child schema index ${index}`).toBeDefined()
       expect(existsSync(join(dir, `tool-schemas.${index}.expected.json`)), `${key}: child schema sidecar ${index}`).toBe(true)

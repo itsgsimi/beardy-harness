@@ -59,3 +59,12 @@ export interface DiscordMessageBody {
   readonly embeds?: readonly DiscordEmbed[] | undefined
   readonly components?: readonly DiscordActionRow[] | undefined
 }
+
+/** One file uploaded with a message; the bytes travel only in the multipart request body. */
+export interface DiscordFileUpload {
+  /** File name Discord shows, without directory components. */
+  readonly name: string
+  /** Media type sent with the file part, such as `image/jpeg`. */
+  readonly mediaType: string
+  readonly data: Uint8Array
+}

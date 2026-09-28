@@ -9,6 +9,10 @@
 
 ```mermaid
 flowchart LR
+  pkg_camera["camera"]
+  svc_camera["ctx.camera<br/>Camera devices and events with stored frames"]
+  pkg_camera_ring["camera-ring"]
+  pkg_camera_watch["camera-watch"]
   pkg_fantasy["fantasy"]
   svc_fantasy["ctx.fantasy<br/>Read-only Yahoo Fantasy data"]
   pkg_fantasy_yahoo["fantasy-yahoo"]
@@ -310,6 +314,8 @@ flowchart LR
   pkg_bash_local --> svc_shell
   pkg_bash_sandbox --> svc_shell
   pkg_browser_use --> svc_browserUse
+  pkg_camera --> svc_camera
+  pkg_camera_ring --> svc_camera
   pkg_client_connection --> svc_connection
   pkg_client_file_upload --> svc_fileUploads
   pkg_client_modules --> svc_clientModules
@@ -460,6 +466,7 @@ flowchart LR
   svc_browserUse --> pkg_experimental_browser_use_chrome_devtools_mcp
   svc_browserUse --> pkg_experimental_browser_use_playwright_mcp
   svc_browserUse --> pkg_experimental_browser_use_stagehand_native
+  svc_camera --> pkg_camera_watch
   svc_clientModules --> pkg_client_hmr
   svc_compaction --> pkg_compaction_basic
   svc_computerUse --> pkg_experimental_computer_use_cua_driver_mcp
@@ -597,6 +604,7 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | 提供方负责厂商登录、事件接纳和画面截取；监视插件在记录在案的 Session 中对画面分类，经 Discord 发件箱发送通知，并回答 camera 工具。 |
 | `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 提供方拥有 OAuth 与 Yahoo 解析；模型工具读取调用方映射的球队，定时报告读取配置的球队。 |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 本地提供方保存运行 Session 和报告附件，并执行每周 Fantasy 报告等使用方工作流。 |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |

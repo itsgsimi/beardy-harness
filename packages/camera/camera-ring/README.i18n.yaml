@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/camera/camera-ring/README.md
+/:
+  en: 7eadd96a736e1be0
+  zh: c68eb722c822dfc3
+/deepseek-ai-dsh-camera-ring:
+  en: 59da9c25f810db48
+  zh: 8fb743c80815d696
+/deepseek-ai-dsh-camera-ring/summary:
+  en: 0bd58b27b5b2a47a
+  zh: 8dd89816f6e1ce4a
+/deepseek-ai-dsh-camera-ring/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-camera-ring/use-this-package:
+  en: 84347fab3e987b7f
+  zh: db8d0dd9c0157422
+/deepseek-ai-dsh-camera-ring/understand-the-implementation:
+  en: ee25a63149edbb79
+  zh: a87ab222ba7fba8c
+/deepseek-ai-dsh-camera-ring/further-exploration:
+  en: 4c4613364392c6fa
+  zh: 2d399656d70e81bf
+/deepseek-ai-dsh-camera-ring/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-camera-ring/model-experience/ring-provider:
+  en: f54a76f6e28ecc6f
+  zh: b3a356d495f18240
+/deepseek-ai-dsh-camera-ring/model-experience/ring-provider/what-the-model-sees:
+  en: bfb5b33ceaf8bb45
+  zh: 6d28b3d703d24266
+/deepseek-ai-dsh-camera-ring/model-experience/ring-provider/token-effect:
+  en: aa3eb16c184006bd
+  zh: 9f2d299e06ecbe87
+/deepseek-ai-dsh-camera-ring/model-experience/ring-provider/kv-cache-effect:
+  en: 1417392ea053c1ea
+  zh: 6a40105fca08bb61
+/deepseek-ai-dsh-camera-ring/known-limitations-and-deferred-work:
+  en: 69460df0e965ede4
+  zh: 6cd86a6de0df629f
+/deepseek-ai-dsh-camera-ring/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

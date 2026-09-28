@@ -497,6 +497,134 @@ export interface WeatherConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-brief-collector -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-camera-ring -->
+<a id="deepseek-aidsh-camera-ring"></a>
+
+## `@deepseek-ai/dsh-camera-ring`
+
+- `inject`: `credentials` · `attachments`
+- `refs`: [`CameraEventKind`](../packages/camera/camera/src/index.ts)
+- `source`: [`packages/camera/camera-ring/src/index.ts:42`](../packages/camera/camera-ring/src/index.ts)
+
+```ts config-catalog
+/** Ring provider configuration. */
+export interface Config {
+  /** Credential reference holding the Ring refresh token; the managed store must be able to write it. */
+  readonly refreshTokenRef: string
+  /** Devices to watch; every entry must match one device in the account. */
+  readonly devices: DeviceConfig[]
+  /** Event kinds to accept; defaults to motion and doorbell presses. */
+  readonly events?: CameraEventKind[]
+  /** Frames captured per event, from 1 through 6; defaults to 3. */
+  readonly frameCount?: number
+  /** Planned gap between frames in milliseconds; defaults to 10000. */
+  readonly frameIntervalMs?: number
+  /** Longest wait for one snapshot in milliseconds; defaults to 20000. */
+  readonly snapshotTimeoutMs?: number
+  /** Capture the remaining frames from a short live stream when a snapshot fails; defaults to true. */
+  readonly streamFallback?: boolean
+  /** Absolute ffmpeg executable; required when `streamFallback` is true. */
+  readonly ffmpegPath?: string
+  /** Longest wait for a live stream to start in milliseconds; defaults to 20000. */
+  readonly streamSetupMs?: number
+  /** Minimum gap between accepted motion events of one device in milliseconds; defaults to 120000. */
+  readonly motionCooldownMs?: number
+  /** Minimum gap between accepted doorbell presses of one device in milliseconds; defaults to 30000. */
+  readonly dingCooldownMs?: number
+  /** How long a vendor event id suppresses a repeated push, in milliseconds; defaults to 600000. */
+  readonly dedupeWindowMs?: number
+  /** Most remembered vendor event ids; defaults to 500. */
+  readonly dedupeMaxIds?: number
+  /** First delay after a failed connection in milliseconds; defaults to 5000 and doubles. */
+  readonly reconnectDelayMs?: number
+  /** Ceiling on the doubled reconnect delay in milliseconds; defaults to 600000. */
+  readonly maxReconnectDelayMs?: number
+  /** Name Ring lists for this client among authorized devices; defaults to `dsh-camera-ring`. */
+  readonly controlCenterDisplayName?: string
+}
+
+/** One watched device, matched to the Ring account by exactly one of `ringId` or `ringName`. */
+export interface DeviceConfig {
+  /** Deployment device id used by consumers, such as `front-door`. */
+  readonly id: string
+  /** Label used in notices and prompts, such as `Front door`. */
+  readonly label: string
+  /** Ring's numeric device id. */
+  readonly ringId?: number
+  /** Device name shown in the Ring app, compared case-insensitively. */
+  readonly ringName?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-camera-ring -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-camera-watch -->
+<a id="deepseek-aidsh-camera-watch"></a>
+
+## `@deepseek-ai/dsh-camera-watch`
+
+- `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `tools`
+- `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
+- `source`: [`packages/camera/camera-watch/src/config.ts:28`](../packages/camera/camera-watch/src/config.ts)
+
+```ts config-catalog
+/** Camera watch configuration. */
+export interface Config {
+  /** IANA time zone for the night window, notices, and tool results. */
+  readonly timezone: string
+  /** Exact image-capable model route; absent uses the host default model at each event. */
+  readonly modelSelection?: ConfiguredModelSelection | undefined
+  /** Discord channel for notices; absent keeps history only. */
+  readonly deliverChannelId?: string
+  /** Absolute working directory recorded on classification Sessions. */
+  readonly workspacePath?: string
+  /** Notification rules. */
+  readonly policy?: PolicyConfig
+  /** Output token ceiling for one classification; defaults to 600. */
+  readonly maxOutputTokens?: number
+  /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
+  readonly turnTimeoutMs?: number
+  /** Classifications running at once; defaults to 1. */
+  readonly maxConcurrent?: number
+  /** Events waiting for classification before new events are recorded unclassified; defaults to 10. */
+  readonly maxQueued?: number
+  /** Days an event stays in history; defaults to 30. */
+  readonly retentionDays?: number
+  /** Most events kept in history; defaults to 5000. */
+  readonly maxHistory?: number
+  /** Milliseconds between history retention sweeps; defaults to 3600000. */
+  readonly sweepIntervalMs?: number
+  /** Delivery handoff attempts per notice; defaults to 3. */
+  readonly deliveryAttempts?: number
+  /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
+  readonly deliveryRetryMs?: number
+  /** Register the read-only `camera` model tool; defaults to true. */
+  readonly tool?: boolean
+  /** Most events one tool result lists; defaults to 50. */
+  readonly toolMaxEvents?: number
+}
+
+/** Which classified events notify; every rule applies independently. */
+export interface PolicyConfig {
+  /** Notify every doorbell press, with or without a usable verdict; defaults to true. */
+  readonly ding?: boolean
+  /** Notify a verdict showing a package with the `delivering` activity; defaults to true. */
+  readonly packageDelivered?: boolean
+  /** Notify a person seen inside the night window; defaults to true. */
+  readonly nightPerson?: boolean
+  /** Night window start as local `HH:MM`; defaults to `21:00`. */
+  readonly nightStart?: string
+  /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
+  readonly nightEnd?: string
+  /** Device ids whose vehicle sightings notify; defaults to none. */
+  readonly vehicleDevices?: string[]
+  /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
+  readonly lingerSeconds?: number
+  /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */
+  readonly minConfidence?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-camera-watch -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-connection -->
 <a id="deepseek-aidsh-client-connection"></a>
 
@@ -952,7 +1080,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/discord/discord-gateway/src/index.ts:97`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:98`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -5259,6 +5387,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 | `package` | `class` | `inject` | `source` |
 | --- | --- | --- | --- |
 | `@deepseek-ai/dsh-attachment` | `AttachmentStore` | — | [`packages/attachment/attachment/src/index.ts`](../packages/attachment/attachment/src/index.ts) |
+| `@deepseek-ai/dsh-camera` | `CameraService` | — | [`packages/camera/camera/src/index.ts`](../packages/camera/camera/src/index.ts) |
 | `@deepseek-ai/dsh-compaction` | `CompactionEngine` | — | [`packages/compaction/compaction/src/index.ts`](../packages/compaction/compaction/src/index.ts) |
 | `@deepseek-ai/dsh-credentials` | `CredentialProvider` | — | [`packages/credentials/credentials/src/index.ts`](../packages/credentials/credentials/src/index.ts) |
 | `@deepseek-ai/dsh-deepseek-account` | `DeepSeekAccount` | — | [`packages/credentials/deepseek-account/src/index.ts`](../packages/credentials/deepseek-account/src/index.ts) |

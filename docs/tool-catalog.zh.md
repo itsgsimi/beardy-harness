@@ -53,6 +53,7 @@
 | `@deepseek-ai/dsh-tool-weather` | `get_weather` | `ctx.tools`、`ctx.web` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 | `@deepseek-ai/dsh-tool-odysseus-research` | `odysseus_research` | `ctx.tools`、`ctx.credentials` | `tool/call`、`tool/result` | - | Odysseus owns background execution and saved reports. Configuration fixes the endpoint、model、and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets. |
+| `@deepseek-ai/dsh-camera-watch` | `camera` | `ctx.tools`、`ctx.camera`、`the camera watch event history` | `tool/call`、`tool/result` | - | 摄像头监视在 `tool` 配置开启时注册此只读工具。`camera` 枚举是摄像头提供方配置的设备 ID（此处为两个示例 ID），描述中的时区是监视插件的 `timezone`，`hours` 和 `limit` 的上限分别取决于 `retentionDays` 和 `toolMaxEvents`。 |
 | `@deepseek-ai/dsh-tool-fantasy` | `fantasy` | `ctx.tools`, `ctx.fantasy` | `tool/call`, `tool/result` | - | Yahoo 只读视图依据可信调用方预设解析自己的球队，并返回有界 JSON 结果页。 |
 | `@deepseek-ai/dsh-tool-research` | `deep_research` | `ctx.tools`、`ctx.research` | `tool/call`、`tool/result`、`research/linked` | - | 原生运行和报告可在进程重启后保留。工具从调用方 Session 推导所有者权限，并对报告文本分页。 |
 | `@deepseek-ai/dsh-tool-discord` | `discord_send` | `ctx.tools`、`ctx.credentials` | `tool/call`、`tool/result` | - | discord_send posts to the channel named in configuration and resolves the bot token from a credential reference at call time、so no token appears in composition. The `recipient` parameter exists only when `dmUserIds` lists user ids、and bodies over 2000 characters post as consecutive messages. |
@@ -3023,6 +3024,46 @@ web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可�
 来源：[`packages/web/tool-odysseus-research/src/index.ts`](../packages/web/tool-odysseus-research/src/index.ts)
 
 Odysseus 负责后台执行和保存报告。配置确定端点、模型及预算；凭据按次调用解析。读取操作返回带明确续读偏移量的分页。
+
+<a id="deepseek-aidsh-camera-watch"></a>
+
+## `@deepseek-ai/dsh-camera-watch`
+
+### `camera`
+
+读取家中摄像头记录的内容：门铃按下和移动事件，包括时间、摄像头、视觉检查看到的内容（人、车辆、包裹、动物）、一行描述，以及是否已通知用户。时间为 America/Phoenix 本地时间。用于回答诸如今天门口发生了什么之类的问题。它不能显示实时视频、拍摄新画面，也不能判断某人是谁。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "camera": {
+      "type": "string",
+      "description": "Only this camera; omit for every camera.",
+      "enum": [
+        "front-door",
+        "garage"
+      ]
+    },
+    "hours": {
+      "type": "integer",
+      "description": "How many hours back to read, from 1 through 720; defaults to 24."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Most events to list, from 1 through 50; defaults to 20."
+    },
+    "notified_only": {
+      "type": "boolean",
+      "description": "List only events the user was notified about."
+    }
+  }
+}
+```
+
+来源：[`packages/camera/camera-watch/src/tool.ts`](../packages/camera/camera-watch/src/tool.ts)
+
+摄像头监视在 `tool` 配置开启时注册此只读工具。`camera` 枚举是摄像头提供方配置的设备 ID（此处为两个示例 ID），描述中的时区是监视插件的 `timezone`，`hours` 和 `limit` 的上限分别取决于 `retentionDays` 和 `toolMaxEvents`。
 
 <a id="deepseek-aidsh-tool-fantasy"></a>
 

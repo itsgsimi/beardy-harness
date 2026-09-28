@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-27-ring-camera-events.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-27-ring-camera-events.md
+/agent-note-ring-camera-events-classified-by-a-logged-vision-turn:
+  en: e33e34089121d7f9
+  zh: dc9793411a80c6cd
+/agent-note-ring-camera-events-classified-by-a-logged-vision-turn/problem:
+  en: 5dea42fc78313a84
+  zh: d05b5fdca79c8230
+/agent-note-ring-camera-events-classified-by-a-logged-vision-turn/decision:
+  en: a62c1f7ecec6f2d6
+  zh: 97670d5f5eecf3ed
+/agent-note-ring-camera-events-classified-by-a-logged-vision-turn/alternatives-considered:
+  en: 4b8d420419a2f4d2
+  zh: 1d64bbb9367d3181
+/agent-note-ring-camera-events-classified-by-a-logged-vision-turn/consequences:
+  en: 250f5a7d8ecd0836
+  zh: cd02a117cf791b2a

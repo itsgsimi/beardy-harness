@@ -1,0 +1,14 @@
+- insert:
+    - id: camera-fixture
+      name: './camera-fixture.mjs'
+    - id: camera-watch
+      name: './watch-fixture.mjs'
+      config:
+        timezone: America/Phoenix
+        deliverChannelId: '123456789012345678'
+        workspacePath: !!js process.cwd()
+        modelSelection:
+          provider: deepseek-official
+          model: deepseek-v4-flash-vision-exp
+        policy:
+          vehicleDevices: [garage]

@@ -1,0 +1,13 @@
+# Bilingual-pair consistency record for camera.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/subsystems/camera.md
+/camera-events:
+  en: 4f818b425fbedde5
+  zh: 2096843389a6d17b
+/camera-events/events-and-frames:
+  en: 2063f715a3b50c79
+  zh: c3e45af45f1b8e78
+/camera-events/verdicts-and-notices:
+  en: a7881591457f0b5c
+  zh: e3f7acb29559fb93

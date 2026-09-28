@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import type { HealthStatus } from '@deepseek-ai/dsh-health'
 import type {} from '@deepseek-ai/dsh-local-model-control'
+import type {} from '@deepseek-ai/dsh-camera-watch'
 import type { CommandDescriptor } from '@deepseek-ai/dsh-commands'
 import { isAbsolute } from 'node:path'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -657,6 +658,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   attachCronDelivery(ctx, router)
   ctx.on('health/transition', async (transition): Promise<true> => {
     await router.deliver(transition.channelId, transition.text, transition.id)
+    return true
+  })
+  ctx.on('camera/notice', async (notice): Promise<true> => {
+    await router.deliver(notice.channelId, notice.image === undefined ? notice.text
+      : { content: notice.text, image: notice.image }, notice.id)
     return true
   })
 
