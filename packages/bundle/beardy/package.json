@@ -67,7 +67,10 @@
     "@deepseek-ai/dsh-tool-odysseus-research": "workspace:*",
     "@deepseek-ai/dsh-tool-research": "workspace:*",
     "@deepseek-ai/dsh-tool-session-query": "workspace:*",
-    "@deepseek-ai/dsh-web-search-searxng": "workspace:*"
+    "@deepseek-ai/dsh-web-search-searxng": "workspace:*",
+    "@deepseek-ai/dsh-camera": "workspace:*",
+    "@deepseek-ai/dsh-camera-ring": "workspace:*",
+    "@deepseek-ai/dsh-camera-watch": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

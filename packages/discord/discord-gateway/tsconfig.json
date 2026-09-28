@@ -85,6 +85,12 @@
     },
     {
       "path": "../../core/tools"
+    },
+    {
+      "path": "../../attachment/attachment"
+    },
+    {
+      "path": "../../camera/camera-watch"
     }
   ]
 }

@@ -6,8 +6,8 @@
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { chunkContent, defangBroadcastMentions } from '@deepseek-ai/dsh-tool-discord'
 import type { DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
-import { discordMessageBody } from './domain.ts'
-import type { OutboxRecord } from './domain.ts'
+import { discordOutboxBody } from './domain.ts'
+import type { DiscordImageMessage, OutboxRecord } from './domain.ts'
 
 /** Deployment bounds for retained deliveries and retry scheduling. */
 export interface OutboxSettings {
@@ -41,7 +41,7 @@ export class DiscordOutbox {
   constructor(
     private readonly table: KvTable<string, OutboxRecord>,
     private readonly settings: OutboxSettings,
-    private readonly post: (channelId: string, content: string | DiscordMessageBody) => Promise<void>,
+    private readonly post: (channelId: string, content: string | DiscordMessageBody | DiscordImageMessage) => Promise<void>,
     private readonly warn: (message: string) => void,
   ) {}
 
@@ -52,15 +52,15 @@ export class DiscordOutbox {
    * Persist a complete delivery once, retaining its id through the receipt window.
    * @param id - Stable source identity, or a fresh id for a non-repeatable notice.
    * @param channelId - Destination Discord channel.
-   * @param content - Complete text or already-rendered message bodies, persisted before any delivery attempt.
+   * @param content - Complete text, or already-rendered message and image bodies, persisted before any delivery attempt.
    */
-  async enqueue(id: string, channelId: string, content: string | readonly DiscordMessageBody[]): Promise<void> {
+  async enqueue(id: string, channelId: string, content: string | readonly (DiscordMessageBody | DiscordImageMessage)[]): Promise<void> {
     const operation = this.mutation.then(async () => {
       if (this.isStopping()) throw new Error('Discord outbox is stopping')
       if (this.table.get(id) !== undefined) return
       const chunks = typeof content === 'string'
         ? chunkContent(defangBroadcastMentions(content).content)
-        : content.map(body => discordMessageBody.parse(body))
+        : content.map(body => discordOutboxBody.parse(body))
       const characters = chunks.reduce((total, chunk) => total + (typeof chunk === 'string'
         ? chunk.length : JSON.stringify(chunk).length), 0)
       if (characters === 0 || characters > this.settings.outboxMaxChars) {

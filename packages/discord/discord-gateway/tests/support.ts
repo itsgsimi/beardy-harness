@@ -190,6 +190,8 @@ export interface HarnessOptions {
   /** Lane command catalog seam used while no conversation is live. */
   readonly commands?: (lane: ConversationLane) => readonly CommandDescriptor[]
   readonly statusDetails?: () => readonly string[]
+  /** Attachment store the default image poster reads from; absent leaves no store mounted. */
+  readonly attachments?: { readImage(ref: unknown, signal?: AbortSignal): Promise<{ data: Uint8Array }> }
 }
 
 /** Context carrying the services the router touches, recording every call it makes. */
@@ -259,7 +261,7 @@ export function harness(options: HarnessOptions = {}) {
       return { provider, id: model, name: model, reasoning: {
         efforts: (options.modelEfforts ?? ['low', 'medium', 'high']).map(id => ({ id, name: id })),
       } }
-    } } : options.eventContext?.[name as keyof Context],
+    } } : name === 'attachments' ? options.attachments : options.eventContext?.[name as keyof Context],
     sessions: { flush: async () => true },
     sessionPersistence: {
       open: async () => ({ inheritedEventCount: 0, read: async () => ({ events }), close: async () => {} }),

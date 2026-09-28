@@ -8,7 +8,7 @@ import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { chunkContent } from './chunk.ts'
 import { discordReplyMessage, discordReplyObject } from './http.ts'
 import type { DiscordMessagePoster, DiscordPostReply } from './http.ts'
-import type { DiscordMessageBody } from './types.ts'
+import type { DiscordFileUpload, DiscordMessageBody } from './types.ts'
 
 /** Timeout code stamped on the per-attempt deadline. */
 const TIMEOUT_CODE = 'DISCORD_TIMEOUT'
@@ -86,7 +86,7 @@ function failureMessage(reply: DiscordPostReply): string {
  *
  * @param options - channel, limits, transport, and delay seams.
  * @param token - bot token resolved for this operation.
- * @param body - Complete message body already within Discord's text, embed, and component limits.
+ * @param body - Complete message body already within Discord's text, embed, and component limits, plus any files to upload.
  * @param signal - cancellation for the whole call; each attempt also carries its own timeout.
  * @returns the accepted Discord response, including the message id when supplied.
  * @throws Error on a non-2xx reply, an expired deadline, or a rate-limit delay above the configured cap.
@@ -94,7 +94,7 @@ function failureMessage(reply: DiscordPostReply): string {
 export async function postDiscordMessageBody(
   options: Omit<DiscordSenderOptions, 'maxChunksPerCall'>,
   token: string,
-  body: DiscordMessageBody,
+  body: DiscordMessageBody & { readonly files?: readonly DiscordFileUpload[] | undefined },
   signal: AbortSignal,
 ): Promise<DiscordPostReply> {
   for (let attempt = 0; ; attempt++) {

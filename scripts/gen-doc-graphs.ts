@@ -110,6 +110,15 @@ const GROUP_ORDER = [
 
 const SERVICE_ROLES: ServiceRole[] = [
   {
+    key: 'camera',
+    pkg: 'camera',
+    title: 'Camera devices and events with stored frames',
+    mode: 'seam',
+    implementations: ['camera-ring'],
+    consumers: ['camera-watch'],
+    note: 'The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, notifies through the Discord outbox, and answers the camera tool.',
+  },
+  {
     key: 'fantasy',
     pkg: 'fantasy',
     title: 'Read-only Yahoo Fantasy data',

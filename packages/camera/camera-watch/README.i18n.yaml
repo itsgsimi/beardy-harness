@@ -1,0 +1,61 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/camera/camera-watch/README.md
+/:
+  en: 5eb783936c7b8648
+  zh: e32c7e216e3423c4
+/deepseek-ai-dsh-camera-watch:
+  en: a4636fff84cfe4be
+  zh: 6ab8ebdaad4049e4
+/deepseek-ai-dsh-camera-watch/summary:
+  en: 08e51581e25b55bc
+  zh: fab88fa2ccdbaa23
+/deepseek-ai-dsh-camera-watch/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-camera-watch/use-this-package:
+  en: 31009e544576d9b8
+  zh: 263120e6d4fe2730
+/deepseek-ai-dsh-camera-watch/understand-the-implementation:
+  en: 75d6c9b9849451a9
+  zh: 58deba96deba0f50
+/deepseek-ai-dsh-camera-watch/further-exploration:
+  en: 4183704cecc4a063
+  zh: 598e880059cca5ef
+/deepseek-ai-dsh-camera-watch/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-camera-watch/model-experience/classification-session:
+  en: a1cfff1b838153e6
+  zh: faf89e20f801b9f2
+/deepseek-ai-dsh-camera-watch/model-experience/classification-session/what-the-model-sees:
+  en: 7bc6e41b9fa5791c
+  zh: 4adf55db2c0664a5
+/deepseek-ai-dsh-camera-watch/model-experience/classification-session/what-the-model-sees/verbatim-instruction-after-the-first-line:
+  en: e5b13ed976550e77
+  zh: 1d1cdd4bcac43aab
+/deepseek-ai-dsh-camera-watch/model-experience/classification-session/token-effect:
+  en: 1d2487d8c3e91ca2
+  zh: 64076b504803c592
+/deepseek-ai-dsh-camera-watch/model-experience/classification-session/kv-cache-effect:
+  en: 2326bf1dc41fdbc1
+  zh: 5ab0a09d1f7a258e
+/deepseek-ai-dsh-camera-watch/model-experience/camera-tool:
+  en: 76d9f52e0288fda0
+  zh: 44c8d123d23075b0
+/deepseek-ai-dsh-camera-watch/model-experience/camera-tool/what-the-model-sees:
+  en: ef54069a5e5e4fa9
+  zh: b607c979853aacee
+/deepseek-ai-dsh-camera-watch/model-experience/camera-tool/token-effect:
+  en: 2cc4184bf15cdd12
+  zh: 72c6364ce51fc58a
+/deepseek-ai-dsh-camera-watch/model-experience/camera-tool/kv-cache-effect:
+  en: 55d313644ec51de3
+  zh: a525fe9e04b0d73d
+/deepseek-ai-dsh-camera-watch/known-limitations-and-deferred-work:
+  en: 2fa1ed29849e2853
+  zh: 875a92c66bc45cea
+/deepseek-ai-dsh-camera-watch/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

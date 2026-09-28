@@ -79,6 +79,8 @@ import type { ResearchService } from '@deepseek-ai/dsh-research'
 import * as ToolResearch from '@deepseek-ai/dsh-tool-research'
 import type { FantasyService } from '@deepseek-ai/dsh-fantasy'
 import * as ToolFantasy from '@deepseek-ai/dsh-tool-fantasy'
+import { CameraDeviceId } from '@deepseek-ai/dsh-camera'
+import { createCameraTool } from '@deepseek-ai/dsh-camera-watch'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import * as ToolWeather from '@deepseek-ai/dsh-tool-weather'
 import * as ToolHomelab from '@deepseek-ai/dsh-tool-homelab'
@@ -749,6 +751,23 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
     },
     note: 'Odysseus owns background execution and saved reports. Configuration fixes the endpoint, model, and budget; credentials resolve per call. Read operations return pages with explicit continuation offsets.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-camera-watch',
+    dir: 'camera-watch',
+    source: 'packages/camera/camera-watch/src/tool.ts',
+    requires: ['ctx.tools', 'ctx.camera', 'the camera watch event history'],
+    writes: ['tool/call', 'tool/result'],
+    mount(ctx) {
+      // Schema harvest reads an empty history; the enum lists the provider's configured device ids.
+      ctx.effect(() => ctx.tools.register(createCameraTool({
+        table: { entries: () => new Map().entries() },
+        devices: [{ id: CameraDeviceId('front-door'), label: 'Front door' }, { id: CameraDeviceId('garage'), label: 'Garage' }],
+        timezone: 'America/Phoenix', maxEvents: 50, maxHours: 720, now: Date.now,
+      })), 'camera tool catalog registration')
+      return Promise.resolve()
+    },
+    note: 'The camera watch registers this read-only tool when its `tool` config is on. The `camera` enum is the camera provider\'s configured device ids (two fixture ids here), the time zone in the description is the watch\'s `timezone`, and the `hours` and `limit` bounds follow `retentionDays` and `toolMaxEvents`.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-fantasy',

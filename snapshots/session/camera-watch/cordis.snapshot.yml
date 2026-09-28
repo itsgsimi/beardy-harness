@@ -1,0 +1,29 @@
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+  disabled: true
+- insert:
+    - id: llm-replay
+      name: '@deepseek-ai/dsh-llm-replay'
+      config:
+        providers:
+          - id: deepseek-official
+            name: DeepSeek
+            models:
+              - id: deepseek-v4-flash
+              - id: deepseek-v4-pro
+              - id: deepseek-v4-flash-vision-exp
+                inputModalities: [text, image]
+                imageRequestTokens: 169
+    - id: camera-fixture
+      name: './camera-fixture.mjs'
+    - id: camera-watch
+      name: './watch-fixture.mjs'
+      config:
+        timezone: America/Phoenix
+        deliverChannelId: '123456789012345678'
+        workspacePath: !!js process.cwd()
+        modelSelection:
+          provider: deepseek-official
+          model: deepseek-v4-flash-vision-exp
+        policy:
+          vehicleDevices: [garage]

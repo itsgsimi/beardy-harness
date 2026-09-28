@@ -4,7 +4,7 @@
  * @module @deepseek-ai/dsh-tool-discord/http
  */
 
-import type { DiscordMessageBody } from './types.ts'
+import type { DiscordFileUpload, DiscordMessageBody } from './types.ts'
 
 /** Base URL of the Discord REST API version this package targets. A published protocol constant. */
 export const DISCORD_API_BASE = 'https://discord.com/api/v10'
@@ -20,6 +20,8 @@ export interface DiscordPostRequest extends DiscordMessageBody {
   readonly channelId: string
   /** Bot token resolved from a credential reference for this operation only. */
   readonly token: string
+  /** Files uploaded with the message; the request becomes multipart when present. */
+  readonly files?: readonly DiscordFileUpload[] | undefined
 }
 
 /** One existing channel message replaced with a complete visible body. */
@@ -36,6 +38,11 @@ export interface DiscordRequest {
   /** Bot credential; omitted for interaction-token-authenticated endpoints. */
   readonly token?: string
   readonly body?: unknown
+  /**
+   * Files sent as `files[n]` parts beside a `payload_json` part holding `body` and one
+   * `attachments` entry per file; absent keeps the JSON request.
+   */
+  readonly files?: readonly DiscordFileUpload[] | undefined
 }
 
 /** One API reply reduced to the facts the sender acts on. */
@@ -123,15 +130,18 @@ export async function discordRequest(
   signal: AbortSignal,
 ): Promise<DiscordPostReply> {
   let response: Response
+  const files = request.files ?? []
+  const multipart = files.length > 0
   try {
     response = await fetch(`${DISCORD_API_BASE}${request.path}`, {
       method: request.method,
       redirect: 'error',
       headers: {
         ...(request.token === undefined ? {} : { authorization: `Bot ${request.token}` }),
-        ...(request.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(request.body === undefined || multipart ? {} : { 'content-type': 'application/json' }),
       },
-      ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+      ...(multipart ? { body: multipartBody(request.body, files) }
+        : request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
       signal,
     })
   } catch {
@@ -140,6 +150,26 @@ export async function discordRequest(
   }
   const body = await readBoundedBody(response)
   return { status: response.status, retryAfterMs: parseRetryAfter(response.headers.get('retry-after')), body }
+}
+
+/**
+ * Build Discord's multipart message form: the JSON payload with one attachment entry per file,
+ * then each file as `files[n]`.
+ * @param body - JSON message fields.
+ * @param files - uploaded files in attachment order.
+ * @returns the form data sent as the request body.
+ */
+function multipartBody(body: unknown, files: readonly DiscordFileUpload[]): FormData {
+  const form = new FormData()
+  const payload = typeof body === 'object' && body !== null ? body : {}
+  form.append('payload_json', JSON.stringify({
+    ...payload,
+    attachments: files.map((file, index) => ({ id: index, filename: file.name })),
+  }))
+  files.forEach((file, index) => {
+    form.append(`files[${String(index)}]`, new Blob([new Uint8Array(file.data)], { type: file.mediaType }), file.name)
+  })
+  return form
 }
 
 /** Longest slice of Discord's own error text carried into a failure message. */
@@ -194,6 +224,7 @@ export const postChannelMessage: DiscordMessagePoster = (request, signal) => dis
   // `parse: []` disables every mention form, so a mention token planted in fetched content
   // cannot ping the channel regardless of what the model composed.
   body: messageBody(request),
+  files: request.files,
 }, signal)
 
 /** Add mention suppression without copying destination ids or credentials into the JSON body. */

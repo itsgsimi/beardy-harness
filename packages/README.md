@@ -33,6 +33,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`typert/`](typert/README.md) | Type graph generation, artifact loading, and runtime registry |
 | [`goal/`](goal/README.md) | Same-session goal persistence and lifecycle |
 | [`fantasy/`](fantasy/README.md) | Yahoo Fantasy read-only service, provider, and model tool |
+| [`camera/`](camera/README.md) | Ring camera events and vision notices |
 | [`research/`](research/README.md) | Session-backed research runs and storage |
 | [`schedule/`](schedule/README.md) | Host-owned scheduled follow-ups |
 | [`health/`](health/README.md) | Explicit endpoint probes and Host status |

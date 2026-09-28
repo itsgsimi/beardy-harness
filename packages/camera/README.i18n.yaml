@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/camera/README.md
+/:
+  en: 170272b7d294df0a
+  zh: bc62663b495eee16
+/packages-camera:
+  en: 628148f1868faae6
+  zh: 63c3951191535d03
+/packages-camera/summary:
+  en: 1a8e5e0c26abb41d
+  zh: 121531df554d594c
+/packages-camera/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: 1eb35b015a6c423f
+/packages-camera/packages:
+  en: 65921874469f7cf0
+  zh: e7a29cb69dc69f2a
+/packages-camera/related-documentation:
+  en: 1145fe58f37c0531
+  zh: 91586d729c927920
+/packages-camera/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

@@ -52,7 +52,7 @@ kind: "package-reference"
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-网关复用本包的 Markdown 格式化器、分条器和 REST 传输。类型化消息正文支持嵌入卡片、按钮和字符串选择器；消息发送和编辑始终禁用提及。共享请求辅助函数支持 bot 鉴权和交互 token 端点，拒绝重定向，将响应限制在 2 MiB 内，并从传输错误中省略带有凭据的 URL 和原因链。`postDiscordMessageBody` 对已格式化的消息应用发送器的有界限速重试和单次尝试超时，并返回已接受的响应。其他 REST 调用方负责响应状态处理和重试时机。
+网关复用本包的 Markdown 格式化器、分条器和 REST 传输。类型化消息正文支持嵌入卡片、按钮和字符串选择器；消息发送和编辑始终禁用提及。共享请求辅助函数支持 bot 鉴权和交互 token 端点，拒绝重定向，将响应限制在 2 MiB 内，并从传输错误中省略带有凭据的 URL 和原因链。`postDiscordMessageBody` 对已格式化的消息应用发送器的有界限速重试和单次尝试超时，并返回已接受的响应。带 `files` 的正文以 multipart 请求发送：JSON 字段和每个文件对应的一条 `attachments` 条目放在 `payload_json` 中，每个文件作为一个 `files[n]` 部分。其他 REST 调用方负责响应状态处理和重试时机。
 
 </details>
 

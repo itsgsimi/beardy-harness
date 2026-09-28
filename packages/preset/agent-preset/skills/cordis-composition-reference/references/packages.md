@@ -54,6 +54,13 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-sdk-app` | yes | The dsh SDK profile bundle: stdio JSON-RPC serving and process lifecycle over dsh-base |
 | `@deepseek-ai/dsh-web-app` | yes | The dsh browser-surface bundle: the web patch layer over dsh-base plus the runtime glue plugin (frontend dist serving, web-surface prompt, bash runtime variables, URL line) |
 
+## camera
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-camera-ring` | yes | Ring doorbell and camera provider with bounded snapshot and live-stream frame capture |
+| `@deepseek-ai/dsh-camera-watch` | yes | Camera event classification, notification policy, event history, and the camera model tool |
+
 ## client
 
 | Package | Config | Description |
