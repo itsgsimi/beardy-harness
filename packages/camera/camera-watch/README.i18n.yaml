@@ -3,23 +3,23 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/camera/camera-watch/README.md
 /:
-  en: 5eb783936c7b8648
+  en: 80944efd931e6f6d
   zh: e32c7e216e3423c4
 /deepseek-ai-dsh-camera-watch:
   en: a4636fff84cfe4be
   zh: 6ab8ebdaad4049e4
 /deepseek-ai-dsh-camera-watch/summary:
-  en: 08e51581e25b55bc
-  zh: fab88fa2ccdbaa23
+  en: 1ae8e6307b529ae1
+  zh: 2b00118b5a7f4f12
 /deepseek-ai-dsh-camera-watch/table-of-contents:
   en: d152484eb41ac6b4
   zh: 3eaa889f39470150
 /deepseek-ai-dsh-camera-watch/use-this-package:
-  en: c0d20442ba11d663
-  zh: 91167acff2b59326
+  en: ca7344f4ea54b1e0
+  zh: d4c57799ca554e69
 /deepseek-ai-dsh-camera-watch/understand-the-implementation:
-  en: b0e52edfe35c5eb3
-  zh: 8f4856259bf08bb3
+  en: 6f4f2baa52eda40b
+  zh: d1feaeb8705ab864
 /deepseek-ai-dsh-camera-watch/further-exploration:
   en: 4183704cecc4a063
   zh: 598e880059cca5ef
@@ -30,14 +30,17 @@
   en: a1cfff1b838153e6
   zh: faf89e20f801b9f2
 /deepseek-ai-dsh-camera-watch/model-experience/classification-session/what-the-model-sees:
-  en: 7bc6e41b9fa5791c
-  zh: 4adf55db2c0664a5
+  en: 538f9931c38eb5e3
+  zh: 56fcef8d8f28cb64
+/deepseek-ai-dsh-camera-watch/model-experience/classification-session/what-the-model-sees/verbatim-system-prompt:
+  en: d6934dd21d446bfc
+  zh: 8ee48f419a703ef5
 /deepseek-ai-dsh-camera-watch/model-experience/classification-session/what-the-model-sees/verbatim-instruction-after-the-first-line:
   en: e5b13ed976550e77
   zh: 1d1cdd4bcac43aab
 /deepseek-ai-dsh-camera-watch/model-experience/classification-session/token-effect:
-  en: 1d2487d8c3e91ca2
-  zh: 64076b504803c592
+  en: 2907a805b7d9d1dd
+  zh: a4a8b39bc3e43795
 /deepseek-ai-dsh-camera-watch/model-experience/classification-session/kv-cache-effect:
   en: 2326bf1dc41fdbc1
   zh: 5ab0a09d1f7a258e
@@ -45,8 +48,8 @@
   en: 76d9f52e0288fda0
   zh: 44c8d123d23075b0
 /deepseek-ai-dsh-camera-watch/model-experience/camera-tool/what-the-model-sees:
-  en: ef54069a5e5e4fa9
-  zh: b607c979853aacee
+  en: 54dc5a80ae293a5a
+  zh: 43fe135a81501eb1
 /deepseek-ai-dsh-camera-watch/model-experience/camera-tool/token-effect:
   en: 2cc4184bf15cdd12
   zh: 72c6364ce51fc58a
@@ -54,8 +57,8 @@
   en: 55d313644ec51de3
   zh: a525fe9e04b0d73d
 /deepseek-ai-dsh-camera-watch/known-limitations-and-deferred-work:
-  en: 8a2d1c4b1a1399ff
-  zh: 8792c501ace35824
+  en: 3abe9ec9f55dc038
+  zh: 6e829cb8b14d78d0
 /deepseek-ai-dsh-camera-watch/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 6c5f9788c6536776

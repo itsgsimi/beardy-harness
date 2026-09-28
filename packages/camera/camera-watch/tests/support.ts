@@ -46,6 +46,15 @@ export class FixtureCamera extends CameraService {
    * @param event - event with stored frames.
    */
   async send(event: CameraEvent): Promise<void> { await this.publish(event) }
+
+  /**
+   * Publish one event's first frame, as a provider does before capturing the rest.
+   * @param event - the event whose first frame to preview.
+   */
+  async preview(event: CameraEvent): Promise<void> {
+    const { frames: [frame], captureFailure: _failure, ...identity } = event
+    await this.publishPreview({ ...identity, frame: frame! })
+  }
 }
 
 /** Mock route whose declared input modalities are configurable. */
@@ -174,7 +183,7 @@ export async function watchHarness(replies: readonly Reply[], config: Partial<Co
  * @returns JSON text.
  */
 export function verdictText(verdict: Record<string, unknown>): string {
-  return JSON.stringify({ labels: [], counts: {}, activity: 'none', confidence: 0.9, description: 'Quiet street.', personFrames: [], ...verdict })
+  return JSON.stringify({ labels: [], counts: {}, activity: 'none', vehicleActivity: 'none', confidence: 0.9, description: 'Quiet street.', personFrames: [], ...verdict })
 }
 
 /**

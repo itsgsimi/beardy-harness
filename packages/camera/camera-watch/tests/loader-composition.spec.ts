@@ -104,12 +104,15 @@ it('mounts the Definition, Ring Provider, watch Consumer, and camera tool throug
 
   front.snapshots.push(await jpeg(90))
   front.push(RING_DING_CATEGORY, '5150')
-  await until(() => notices.length === 1, 'doorbell notice')
-  expect(notices[0]).toMatchObject({ id: 'camera:ring-101-5150', channelId: '123456789012345678' })
-  const [headline, ...details] = notices[0]?.text.split('\n') ?? []
+  await until(() => notices.length === 2, 'doorbell notice and follow-up')
+  expect(notices[0]).toMatchObject({ id: 'camera:ring-101-5150:ding', channelId: '123456789012345678' })
+  expect(notices[0]?.text).toMatch(/^\*\*Front door\*\* · \d\d:\d\d: Someone rang the doorbell$/u)
+  expect(notices[0]?.image?.name).toBe('front-door-1.jpg')
+  expect(notices[1]).toMatchObject({ id: 'camera:ring-101-5150', channelId: '123456789012345678' })
+  const [headline, ...details] = notices[1]?.text.split('\n') ?? []
   expect(headline).toMatch(/^\*\*Front door\*\* · \d\d:\d\d: Doorbell rang(; Person at night)?$/u)
   expect(details).toEqual(['A person waits at the door.', 'Seen: person 1 · confidence 90%'])
-  expect(notices[0]?.image?.name).toBe('front-door-1.jpg')
+  expect(notices[1]?.image).toBeUndefined()
   expect(adapter.requests[0]?.tools ?? []).toEqual([])
 
   const tool = ctx.tools.get('camera')

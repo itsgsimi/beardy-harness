@@ -10,9 +10,9 @@ Goran 有一个有线 Ring 门铃和一个装在车库上方的有线泛光灯�
 
 ## 决策
 
-摄像头能力由三个包组成一个接缝。`@deepseek-ai/dsh-camera` 定义 `ctx.camera`：配置的设备和并行的 `camera/event`，其画面是已提交到附件存储的 `ImageAttachmentRef`，另外还有判定类型。`@deepseek-ai/dsh-camera-ring` 基于 `ring-client-api` 14.3.0（MIT，ESM，由一位作者维护，每隔几个月发布一次）实现它。刷新令牌按凭据引用读取，每次轮换（包括推送凭据的重新编码）都经 `ctx.credentials.set` 写回；引用未设置或只读时加载失败，因为未持久化的轮换会让下次重启拿不到有效令牌。提供方对每个厂商事件 ID 只接纳一次，按设备和类型应用冷却时间，丢弃与正在进行的截取重叠的移动事件，并截取最多三帧画面：事件发生时及其后十秒、二十秒的快照；快照失败时，由主机 ffmpeg 处理的一次直播流补齐剩余画面。`allowBuilds` 拒绝 ffmpeg 自带的下载脚本；启用回退时必须提供 `ffmpegPath` 绝对路径。
+摄像头能力由三个包组成一个接缝。`@deepseek-ai/dsh-camera` 定义 `ctx.camera`：配置的设备和并行的 `camera/event`，其画面是已提交到附件存储的 `ImageAttachmentRef`，另外还有判定类型。`@deepseek-ai/dsh-camera-ring` 基于 `ring-client-api` 14.3.0（MIT，ESM，由一位作者维护，每隔几个月发布一次）实现它。刷新令牌按凭据引用读取，每次轮换（包括推送凭据的重新编码）都经 `ctx.credentials.set` 写回；引用未设置或只读时加载失败，因为未持久化的轮换会让下次重启拿不到有效令牌。提供方对每个厂商事件 ID 只接纳一次，按设备和类型应用冷却时间，丢弃与正在进行的截取重叠的移动事件，并截取最多三帧画面：事件发生时及其后十秒、二十秒的快照；快照失败或与上一张重复时，由主机 ffmpeg 处理的一次直播流补齐剩余画面（[实际运行后的调整](2026-09-27-camera-live-run-tuning.zh.md)）。`allowBuilds` 拒绝 ffmpeg 自带的下载脚本；启用回退时必须提供 `ffmpegPath` 绝对路径。
 
-`@deepseek-ai/dsh-camera-watch` 使用这些事件。每次分类都是一个根 Session，不带预设，工具限制为空，只允许一次模型请求；它唯一的 `user/message` 带有来源类型 `camera`、提示文本以及作为图像块的画面，因此模型输入可以从日志重建。判定解析器接受位于代码围栏或说明文字中的 JSON、标签同义词和百分比，并把读取结果分级为 `parsed`、`partial` 或 `unparsed`。策略由代码执行：每次门铃、活动为 `delivering` 的包裹、夜间时段内出现的人、列出设备上的车辆，以及按记录偏移跨越 `lingerSeconds` 的人物画面。声明不接受图像输入的路由会在每个事件时被拒绝，而不是悄悄把图像降级为文本。通知经串行的 `camera/notice` 交给 Discord 网关，网关把它接入持久发件箱；发件箱新增的正文变体保存图像引用，发送时读取并校验画面，再经 `dsh-tool-discord` 新增的 multipart 路径上传。历史保存在带时限和条数上限的 `camera_watch` 存储域中，只读的 `camera` 工具据此作答。
+`@deepseek-ai/dsh-camera-watch` 使用这些事件。每次分类都是一个根 Session，不带预设，使用自己的完整系统提示词，没有工具，只允许一次模型请求；它唯一的 `user/message` 带有来源类型 `camera`、提示文本以及作为图像块的画面，因此模型输入可以从日志重建。判定解析器接受位于代码围栏或说明文字中的 JSON、标签同义词和百分比，并把读取结果分级为 `parsed`、`partial` 或 `unparsed`。策略由代码执行：每次门铃、活动为 `delivering` 的包裹、夜间时段内出现的人、列出设备上驶入或驶离的车辆，以及按记录偏移跨越 `lingerSeconds` 的人物画面。声明不接受图像输入的路由会在每个事件时被拒绝，而不是悄悄把图像降级为文本。通知经串行的 `camera/notice` 交给 Discord 网关，网关把它接入持久发件箱；发件箱新增的正文变体保存图像引用，发送时读取并校验画面，再经 `dsh-tool-discord` 新增的 multipart 路径上传。历史保存在带时限和条数上限的 `camera_watch` 存储域中，只读的 `camera` 工具据此作答。
 
 ## 考虑过的替代方案
 

@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-先装载 [camera-ring](../camera-ring/README.zh.md) 等提供方，再监听 `camera/event`。监听器应把工作排入队列后立即返回；提供方会等待所有监听器完成后才处理该设备的下一个事件，监听器失败时只记录日志、不重试。`devices()` 列出已配置的设备 ID 和标签，使用方用它们校验自身引用，并在提示词和通知中称呼摄像头。
+先装载 [camera-ring](../camera-ring/README.zh.md) 等提供方，再监听 `camera/event`。监听器应把工作排入队列后立即返回；提供方会等待所有监听器完成后才处理该设备的下一个事件，监听器失败时只记录日志、不重试。如需在截取结束前处理事件，可监听 `camera/preview`：它带有事件 ID、设备、类型、接收时间和第一帧已存储画面，提供方会等待其监听器完成后再截取下一帧。`devices()` 列出已配置的设备 ID 和标签，使用方用它们校验自身引用，并在提示词和通知中称呼摄像头。
 
 -----
 
@@ -35,7 +35,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-抽象服务拥有 `ctx.camera` 键、设备列表，以及受保护的 `publish`：它并行运行所有 `camera/event` 监听器，并逐一记录失败。设备 ID 由部署选定，使用小写字母和连字符；事件 ID 由提供方构造，厂商重复发送同一通知时 ID 也相同。画面是 `ImageAttachmentRef` 值，附带相对事件的截取偏移，以及它来自快照还是直播流。判定类型列出可见标签、各标签数量、主要活动、0 到 1 的置信度、一行描述，以及出现人物的画面序号。定义没有自身状态，因此不发布不变量组件。
+抽象服务拥有 `ctx.camera` 键、设备列表，以及受保护的 `publish` 和 `publishPreview`：它们并行运行所有 `camera/event` 或 `camera/preview` 监听器，并逐一记录失败。设备 ID 由部署选定，使用小写字母和连字符；事件 ID 由提供方构造，厂商重复发送同一通知时 ID 也相同。画面是 `ImageAttachmentRef` 值，附带相对事件的截取偏移，以及它来自快照还是直播流。判定类型列出可见标签、各标签数量、主要活动、车辆活动（`arriving`、`leaving`、`passing`、`parked`、`none` 或 `unknown`）、0 到 1 的置信度、一行描述，以及出现人物的画面序号。`CAMERA_LABELS`、`CAMERA_ACTIVITIES`、`CAMERA_VEHICLE_ACTIVITIES` 和 `CAMERA_CAPTURE_FAILURES` 按规范顺序列出各个封闭集合。定义没有自身状态，因此不发布不变量组件。
 
 </details>
 

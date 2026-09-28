@@ -33,10 +33,16 @@ export interface CameraToolEvent {
   readonly labels: readonly string[]
   readonly counts: Readonly<Record<string, number>>
   readonly activity?: string
+  readonly vehicleActivity?: string
   readonly confidence?: number
   readonly checked: string
   readonly notified: boolean
   readonly reasons: readonly string[]
+}
+
+/** Whether any notice for the record reached its delivery owner. */
+function notified(record: HistoryRecord): boolean {
+  return record.delivery === 'delivered' || record.earlyDelivery === 'delivered'
 }
 
 function modelEvent(record: HistoryRecord, labels: ReadonlyMap<string, string>, timezone: string): CameraToolEvent {
@@ -49,9 +55,11 @@ function modelEvent(record: HistoryRecord, labels: ReadonlyMap<string, string>, 
     description: verdict?.description ?? record.text ?? (record.frames.length === 0 ? 'No picture was captured.' : 'Not described.'),
     labels: verdict?.labels ?? [],
     counts: verdict?.counts ?? {},
-    ...verdict === undefined ? {} : { activity: verdict.activity, confidence: verdict.confidence },
+    ...verdict === undefined ? {} : {
+      activity: verdict.activity, vehicleActivity: verdict.vehicleActivity, confidence: verdict.confidence,
+    },
     checked: record.failure === undefined ? record.status : `${record.status} (${record.failure})`,
-    notified: record.delivery === 'delivered',
+    notified: notified(record),
     reasons: record.reasons,
   }
 }
@@ -91,7 +99,7 @@ export function createCameraTool(options: CameraToolOptions): ToolDefinition {
       const matching = [...options.table.entries()].map(([, record]) => record)
         .filter(record => record.occurredAt >= since
           && (args.camera === undefined || record.deviceId === args.camera)
-          && (args.notified_only !== true || record.delivery === 'delivered'))
+          && (args.notified_only !== true || notified(record)))
         .sort((left, right) => right.occurredAt - left.occurredAt)
       return Promise.resolve({ text: JSON.stringify({
         timezone: options.timezone,

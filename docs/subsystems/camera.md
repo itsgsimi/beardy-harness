@@ -6,11 +6,11 @@ The [camera definition](../../packages/camera/camera/README.md) declares devices
 
 ## Events and frames
 
-A provider publishes one `camera/event` per accepted notification. The event names the configured device, its kind (`ding` or `motion`), the receipt time, and up to the configured number of frames. Each frame is an `ImageAttachmentRef` already committed to the attachment store, with its offset after the event and whether a snapshot or a live stream produced it. `captureFailure` reports a shortfall. Providers own admission: duplicate vendor notifications, per-device cooldowns, and overlapping captures never reach consumers.
+A provider publishes one `camera/event` per accepted notification. The event names the configured device, its kind (`ding` or `motion`), the receipt time, and up to the configured number of frames. Each frame is an `ImageAttachmentRef` already committed to the attachment store, with its offset after the event and whether a snapshot or a live stream produced it. `captureFailure` reports a shortfall: `snapshot-unavailable` for a refused or timed-out snapshot and `snapshot-stale` for a snapshot that repeats the previous one, each when no stream fallback ran, `stream-failed` when the fallback ended short, and `storage-failed` when the attachment store refused a frame. Before the rest of the capture, a provider publishes `camera/preview` with the event's identity and its first stored frame, so a consumer can act while the remaining frames are still being captured; the complete `camera/event` with the same id follows unless the provider stops. Providers own admission: duplicate vendor notifications, per-device cooldowns, and overlapping captures never reach consumers.
 
 ## Verdicts and notices
 
-A verdict lists visible labels (`person`, `vehicle`, `package`, `animal`), the largest simultaneous count of each, the dominant activity, a confidence from 0 to 1, a one-line description, and the indices of frames showing a person. The watch produces it from one classification Session per event whose `user/message` carries the source kind `camera`, the prompt text, and the frames as image blocks, so the model input is reconstructable from the session log until the watch's retention sweep deletes the event's frames. Notification reasons are computed in code from the event and the verdict. `camera/notice` is a serial handoff: the listener that durably accepts the notice returns `true`, and the watch retries otherwise. The notice carries a stable id derived from the event id, so a retried handoff cannot post twice.
+A verdict lists visible labels (`person`, `vehicle`, `package`, `animal`), the largest simultaneous count of each, the dominant activity, what the vehicles do (`arriving`, `leaving`, `passing`, `parked`, `none`, or `unknown`), a confidence from 0 to 1, a one-line description, and the indices of frames showing a person. The watch produces it from one classification Session per event whose logged system prompt is the watch's own classification prompt and whose `user/message` carries the source kind `camera`, the prompt text, and the frames as image blocks; the Session has no tools and no runtime context, so the model input is reconstructable from the session log until the watch's retention sweep deletes the event's frames. Notification reasons are computed in code from the event and the verdict. `camera/notice` is a serial handoff: the listener that durably accepts the notice returns `true`, and the watch retries otherwise. The notice carries a stable id derived from the event id, so a retried handoff cannot post twice; a doorbell press can yield two notices, an immediate one when its first frame is stored and the classified one, with distinct ids.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -75,4 +75,23 @@ One camera notice awaiting durable acceptance by its delivery owner.
 ```
 
 Source: [`packages/camera/camera-watch/src/index.ts`](../../packages/camera/camera-watch/src/index.ts)
+
+<a id="camerapreview--parallel"></a>
+
+#### `camera/preview` — parallel
+
+One accepted event's first stored frame, published before the provider captures the rest. The complete `camera/event` with the same id follows unless the provider stops first. Listeners should enqueue work and return, because the provider awaits them before the next frame.
+
+```ts cordis-catalog
+/**
+ * One accepted event's first stored frame, published before the provider captures the rest.
+ * The complete `camera/event` with the same id follows unless the provider stops first. Listeners
+ * should enqueue work and return, because the provider awaits them before the next frame.
+ * @param preview - event identity, device, kind, receipt time, and first frame.
+ * @mode parallel
+ */
+'camera/preview'(preview: CameraPreview): void | Promise<void>
+```
+
+Source: [`packages/camera/camera/src/index.ts`](../../packages/camera/camera/src/index.ts)
 <!-- END GENERATED cordis-surface -->

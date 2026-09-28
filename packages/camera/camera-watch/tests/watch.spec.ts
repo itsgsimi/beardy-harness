@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import type { CameraFrame } from '@deepseek-ai/dsh-camera'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
+import { defineTool, TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-tools'
 import { toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { cameraWatchDomainSpec, historyRecord } from '../src/history.ts'
+import { CLASSIFICATION_SYSTEM_PROMPT } from '../src/verdict.ts'
 import type { HistoryRecord } from '../src/history.ts'
 import { NIGHT, NOON, until, verdictText, watchHarness } from './support.ts'
 import type { WatchHarness } from './support.ts'
@@ -86,12 +88,19 @@ describe('camera watch classification', () => {
     })
   })
 
-  it('stays quiet for an ordinary daytime passer-by but records the event', async () => {
-    const harness = await start([verdictText({ labels: ['person'], activity: 'passing', personFrames: [0] })])
+  it('stays quiet for an ordinary daytime passer-by and for parked cars on a vehicle camera but records the events', async () => {
+    const harness = await start([
+      verdictText({ labels: ['person'], activity: 'passing', personFrames: [0] }),
+      verdictText({ labels: ['vehicle'], counts: { vehicle: 3 }, vehicleActivity: 'parked', description: 'Three parked vehicles, one idling with headlights on.' }),
+    ], { policy: { vehicleDevices: ['garage'] } })
     mirror(harness)
     await harness.camera.send(harness.event('motion', await harness.frames(2), { id: 'quiet' }))
     await until(() => recordOf(harness, 'quiet') !== undefined, 'history record')
     expect(recordOf(harness, 'quiet')).toMatchObject({ status: 'parsed', reasons: [], delivery: 'none' })
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'parked', device: 'garage' }))
+    await until(() => recordOf(harness, 'parked') !== undefined, 'parked record')
+    expect(recordOf(harness, 'parked')).toMatchObject({ status: 'parsed', reasons: [], delivery: 'none',
+      verdict: { labels: ['vehicle'], vehicleActivity: 'parked' } })
     expect(harness.notices).toEqual([])
   })
 
@@ -100,7 +109,7 @@ describe('camera watch classification', () => {
       verdictText({ labels: ['person'], personFrames: [0], description: 'Someone walks up the path.' }),
       verdictText({ labels: ['person', 'package'], activity: 'delivering', personFrames: [0] }),
       verdictText({ labels: ['person'], personFrames: [0, 2] }),
-      verdictText({ labels: ['vehicle'], counts: { vehicle: 1 } }),
+      verdictText({ labels: ['vehicle'], counts: { vehicle: 2 }, vehicleActivity: 'arriving' }),
     ], { policy: { vehicleDevices: ['garage'] } })
     mirror(harness)
     await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'night', at: NIGHT }))
@@ -115,7 +124,7 @@ describe('camera watch classification', () => {
       '**Front door** · 23:30: Person at night',
       '**Front door** · 12:00: Package delivered',
       '**Front door** · 12:00: Someone lingering (22 s)',
-      '**Garage** · 12:00: Vehicle seen',
+      '**Garage** · 12:00: Vehicle arriving',
     ])
   })
 
@@ -171,15 +180,50 @@ describe('camera watch classification', () => {
     expect(['crash', 'blank', 'slow'].map(id => recordOf(harness, id)?.failure)).toEqual(['TURN_FAILED', 'NO_ANSWER', 'TIMEOUT'])
   })
 
-  it('denies tool calls through the executor and fails a turn that asks the model again', async () => {
-    const harness = await start([toolCallResponse('call-1', 'camera', {}), verdictText({})])
+  it('sends only the classification system prompt and no tools, even tools registered into the Agent scope', async () => {
+    const harness = await start([verdictText({})])
     mirror(harness)
+    harness.ctx.systemPrompt.section({ name: 'test:host-persona', order: 5, text: 'You are a coding agent.' })
+    harness.ctx.systemPrompt.context({ name: 'test:runtime', order: 1, text: 'Current runtime fact.' })
+    harness.ctx.on('agent/created', ({ agent }) => {
+      agent.ctx.effect(() => agent.ctx.tools.register(defineTool({
+        name: 'schedule_create', description: 'Create a reminder.', parameters: {}, output: TEXT_TOOL_OUTPUT,
+        execute: () => Promise.resolve({ text: 'created' }),
+      })))
+    })
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'bare' }))
+    await until(() => recordOf(harness, 'bare') !== undefined, 'record')
+    const [request] = harness.adapter.requests
+    expect(request?.tools ?? []).toEqual([])
+    const text = request!.messages.map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('')).join('\n')
+    expect(request!.messages.filter(message => message.role === 'system').map(message => message.content))
+      .toEqual([[{ type: 'text', text: CLASSIFICATION_SYSTEM_PROMPT }]])
+    expect(text).not.toContain('You are a coding agent.')
+    expect(text).not.toContain('Current runtime fact.')
+    const log = await harness.sessionLog()
+    expect(log.find(entry => entry.type === 'system/message')).toMatchObject({ data: { message: { content: [{ type: 'text', text: CLASSIFICATION_SYSTEM_PROMPT }] } } })
+    expect(log.find(entry => entry.type === 'request/header')).toMatchObject({ data: { header: { config: { model: 'vision-model' } } } })
+    expect((log.find(entry => entry.type === 'request/header')?.data as { header: { tools?: unknown } }).header.tools).toBeUndefined()
+  })
+
+  it('denies tool calls, including Agent-scope tools, and fails a turn that asks the model again', async () => {
+    const harness = await start([toolCallResponse('call-1', 'schedule_create', {}), verdictText({})])
+    mirror(harness)
+    const executed: string[] = []
+    harness.ctx.on('agent/created', ({ agent }) => {
+      agent.ctx.effect(() => agent.ctx.tools.register(defineTool({
+        name: 'schedule_create', description: 'Create a reminder.', parameters: {}, output: TEXT_TOOL_OUTPUT,
+        execute: () => { executed.push('schedule_create'); return Promise.resolve({ text: 'created' }) },
+      })))
+    })
     await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'tool-use' }))
     await until(() => recordOf(harness, 'tool-use') !== undefined, 'record')
     expect(recordOf(harness, 'tool-use')).toMatchObject({ status: 'failed', failure: 'TURN_FAILED' })
     expect(harness.adapter.requests).toHaveLength(1)
+    expect(executed).toEqual([])
     const result = (await harness.sessionLog()).find(entry => entry.type === 'tool/result')
     expect(result).toMatchObject({ data: { message: { isError: true } } })
+    expect(JSON.stringify(result)).toContain('camera classification runs without tools')
   })
 
   it('runs classifications concurrently up to the bound, each limited to its own request', async () => {
@@ -297,6 +341,84 @@ describe('camera watch admission and delivery', () => {
     const stored = JSON.parse(await readFile(join(harness.root, 'storage', 'camera_watch.json'), 'utf8')) as { tables: { events: Record<string, unknown> } }
     await harness.dispose()
     expect(stored.tables.events['shutdown']).toMatchObject({ status: 'failed', failure: 'TIMEOUT', reasons: ['ding'], delivery: 'undelivered' })
+  })
+
+  it('posts a doorbell notice with the first frame at once, then the classified notice with a better frame as a follow-up', async () => {
+    const harness = await start([verdictText({ labels: ['person'], counts: { person: 1 }, activity: 'ringing', confidence: 0.9,
+      description: 'A courier waits at the door.', personFrames: [1, 2] })])
+    mirror(harness)
+    const frames = await harness.frames(3)
+    const event = harness.event('ding', frames, { id: 'rang' })
+    await harness.camera.preview(event)
+    expect(harness.notices).toEqual([{ id: 'camera:rang:ding', channelId: '123456789012345678',
+      text: '**Front door** · 12:00: Someone rang the doorbell', image: frames[0]!.attachment }])
+    await harness.camera.send(event)
+    await until(() => recordOf(harness, 'rang')?.delivery === 'delivered', 'follow-up')
+    expect(harness.notices.map(notice => [notice.id, notice.text.split('\n')[1], notice.image?.attachmentId])).toEqual([
+      ['camera:rang:ding', undefined, frames[0]!.attachment.attachmentId],
+      ['camera:rang', 'A courier waits at the door.', frames[1]!.attachment.attachmentId],
+    ])
+    expect(recordOf(harness, 'rang')).toMatchObject({ reasons: ['ding'], earlyDelivery: 'delivered', delivery: 'delivered' })
+  })
+
+  it('does not attach the shown frame again and states a failed check in the follow-up', async () => {
+    const harness = await start([[{ type: 'finish', reason: { kind: 'error', failure: { code: 'UPSTREAM', message: 'down' } } }]])
+    mirror(harness)
+    const event = harness.event('ding', await harness.frames(2), { id: 'unchecked' })
+    await harness.camera.preview(event)
+    await harness.camera.send(event)
+    await until(() => recordOf(harness, 'unchecked')?.delivery === 'delivered', 'follow-up')
+    expect(harness.notices[1]).toEqual({ id: 'camera:unchecked', channelId: '123456789012345678',
+      text: '**Front door** · 12:00: Doorbell rang\nThe vision check did not answer (TURN_FAILED).' })
+    expect(recordOf(harness, 'unchecked')).toMatchObject({ status: 'failed', earlyDelivery: 'delivered', delivery: 'delivered' })
+  })
+
+  it('records a refused immediate notice and attaches the frame to the follow-up', async () => {
+    const sleeps: number[] = []
+    const harness = await start([verdictText({})], { deliveryAttempts: 1 }, { deps: { sleep: async (ms) => { sleeps.push(ms) } } })
+    mirror(harness)
+    harness.noticeReplies.push('refuse')
+    const event = harness.event('ding', await harness.frames(1), { id: 'refused' })
+    await harness.camera.preview(event)
+    await harness.camera.send(event)
+    await until(() => recordOf(harness, 'refused')?.delivery === 'delivered', 'follow-up')
+    expect(recordOf(harness, 'refused')).toMatchObject({ earlyDelivery: 'undelivered', delivery: 'delivered' })
+    expect(harness.notices[1]?.image).toEqual(event.frames[0]!.attachment)
+  })
+
+  it('ignores previews of motion, of repeated or recorded events, of unknown devices, and when disabled or without a channel', async () => {
+    const harness = await start([verdictText({}), verdictText({})])
+    mirror(harness)
+    const frames = await harness.frames(1)
+    await harness.camera.preview(harness.event('motion', frames, { id: 'moving' }))
+    await harness.camera.preview(harness.event('ding', frames, { id: 'stray', device: 'porch' }))
+    const twice = harness.event('ding', frames, { id: 'twice' })
+    await harness.camera.preview(twice)
+    await harness.camera.preview(twice)
+    await harness.camera.send(twice)
+    await until(() => recordOf(harness, 'twice')?.delivery === 'delivered', 'twice record')
+    await harness.camera.preview(twice)
+    const queued = harness.event('ding', frames, { id: 'queued' })
+    await harness.camera.send(queued)
+    await harness.camera.preview(queued)
+    await until(() => recordOf(harness, 'queued')?.delivery === 'delivered', 'queued record')
+    expect(harness.notices.map(notice => notice.id)).toEqual(['camera:twice:ding', 'camera:twice', 'camera:queued'])
+    const disabled = [[{ immediateDingNotice: false }, {}], [{ policy: { ding: false } }, {}], [{}, { channel: false as const }]] as const
+    for (const [config, options] of disabled) {
+      const quiet = await start([], config, options)
+      await quiet.camera.preview(quiet.event('ding', frames, { id: 'off' }))
+      expect(quiet.notices).toEqual([])
+    }
+  })
+
+  it('keeps a previewed frame through a sweep until its event is recorded', async () => {
+    const harness = await start([verdictText({})], { retentionDays: 1, sweepIntervalMs: 20 }, { deps: { now: () => NOON } })
+    mirror(harness)
+    const [frame] = await harness.frames(1)
+    await harness.camera.preview(harness.event('ding', [frame!], { id: 'pending' }))
+    await harness.camera.send(harness.event('motion', [frame!], { id: 'expired', at: NOON - 3 * 86_400_000 }))
+    await until(() => written.get(harness)?.has('expired') === true && recordOf(harness, 'expired') === undefined, 'expired record pruned')
+    expect((await harness.ctx.attachments.readImage(frame!.attachment)).data.length).toBeGreaterThan(0)
   })
 
   it('stops a delivery retry wait on disposal', async () => {

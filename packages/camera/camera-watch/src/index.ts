@@ -1,7 +1,8 @@
 /**
  * Camera watch: classifies each camera event's frames in one logged model turn, applies the
- * notification policy, hands notices with a frame to the delivery owner through `camera/notice`,
- * keeps a bounded event history, and exposes it through the read-only `camera` tool.
+ * notification policy, hands notices with a frame to the delivery owner through `camera/notice`
+ * (a doorbell press first as soon as its first frame is stored), keeps a bounded event history, and
+ * exposes it through the read-only `camera` tool.
  * @module @deepseek-ai/dsh-camera-watch
  */
 
@@ -11,22 +12,23 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-attachment'
-import type { CameraDevice, CameraEvent, CameraVerdict } from '@deepseek-ai/dsh-camera'
+import type { CameraDevice, CameraEvent, CameraPreview, CameraVerdict } from '@deepseek-ai/dsh-camera'
 import { boundContextSummary, errorChain } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-storage-domain'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import { validateModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import { classifyFrames } from './classify.ts'
 import { Config, resolveConfig } from './config.ts'
 import type { ResolvedConfig } from './config.ts'
 import { cameraWatchDomainSpec, frameAttachment, partitionHistory } from './history.ts'
 import type { HistoryRecord } from './history.ts'
-import { localDateTime, renderNotice } from './notice.ts'
+import { localDateTime, renderDingNotice, renderNotice } from './notice.ts'
 import { lingeringMs, noticeReasons } from './policy.ts'
 import { createCameraTool } from './tool.ts'
-import type { CameraNotice, NoticeDelivery, VerdictStatus } from './types.ts'
-import { classificationPrompt, parseVerdict } from './verdict.ts'
+import type { CameraNotice, VerdictStatus } from './types.ts'
+import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from './verdict.ts'
 
 export * from './classify.ts'
 export * from './config.ts'
@@ -70,8 +72,8 @@ declare module '@deepseek-ai/dsh-llm' {
 /** Cordis plugin name. */
 export const name = 'camera-watch'
 
-/** The camera provider, model routes, Agent creation, image storage, durable history, and tool registry. */
-export const inject = ['agentDefaultModel', 'agents', 'attachments', 'camera', 'llm', 'sessions', 'storageDomain', 'tools']
+/** The camera provider, model routes, Agent creation, prompt assembly, image storage, durable history, and tool registry. */
+export const inject = ['agentDefaultModel', 'agents', 'attachments', 'camera', 'llm', 'sessions', 'storageDomain', 'systemPrompt', 'tools']
 
 export { Config }
 
@@ -93,6 +95,16 @@ interface Classification {
 /** A selected route that declares no image input. */
 class VisionRouteError extends Error {}
 
+/** Handoff result of one notice after its attempts. */
+type Handoff = 'delivered' | 'undelivered'
+
+/** An immediate doorbell notice awaiting its event. */
+interface EarlyNotice {
+  /** Attachment id of the frame the notice showed. */
+  readonly frameId: string
+  readonly delivery: Promise<Handoff>
+}
+
 /** Counts from one retention sweep. */
 interface SweepTally {
   events: number
@@ -106,6 +118,8 @@ export class CameraWatch {
   private readonly queue: CameraEvent[] = []
   /** Accepted events whose handling has not finished, with the attachment ids of their frames. */
   private readonly inFlight = new Map<string, readonly string[]>()
+  /** Immediate doorbell notices by event id, until their event is recorded. */
+  private readonly early = new Map<string, EarlyNotice>()
   private readonly active = new Set<Promise<void>>()
   private readonly controller = new AbortController()
   private readonly devices: ReadonlyMap<string, CameraDevice>
@@ -164,12 +178,36 @@ export class CameraWatch {
     this.pump()
   }
 
+  /**
+   * Post the immediate notice for a doorbell press whose first frame is stored, when enabled, a
+   * channel is configured, and the event is new. The classified notice for the same event follows
+   * after this handoff settles.
+   * @param preview - accepted event's identity and first frame.
+   */
+  preview(preview: CameraPreview): void {
+    const channelId = this.config.deliverChannelId
+    if (preview.kind !== 'ding' || !this.config.immediateDingNotice || !this.config.policy.ding || channelId === undefined
+      || this.controller.signal.aborted || this.early.has(preview.id) || this.inFlight.has(preview.id)
+      || this.table.get(preview.id) !== undefined) return
+    const device = this.devices.get(preview.deviceId)
+    if (device === undefined) return
+    const delivery = this.deliver({
+      id: `camera:${preview.id}:ding`,
+      channelId,
+      text: renderDingNotice({ deviceLabel: device.label, occurredAt: preview.occurredAt, timezone: this.config.timezone }),
+      image: preview.frame.attachment,
+    })
+    this.early.set(preview.id, { frameId: String(preview.frame.attachment.attachmentId), delivery })
+    this.track(delivery.then(() => undefined))
+  }
+
   /** Stop accepting events, cancel classifications and delivery waits, and wait for every write. */
   async dispose(): Promise<void> {
     this.controller.abort(new Error('camera-watch disposed'))
     clearTimeout(this.sweepTimer)
     this.queue.length = 0
     while (this.active.size > 0) await Promise.allSettled([...this.active])
+    this.early.clear()
   }
 
   /**
@@ -207,7 +245,8 @@ export class CameraWatch {
   private async deleteFrames(record: HistoryRecord, cited: ReadonlySet<string>, tally: SweepTally): Promise<boolean> {
     let complete = true
     for (const frame of record.frames) {
-      if (cited.has(frame.attachmentId) || [...this.inFlight.values()].some(ids => ids.includes(frame.attachmentId))) continue
+      if (cited.has(frame.attachmentId) || [...this.inFlight.values()].some(ids => ids.includes(frame.attachmentId))
+        || [...this.early.values()].some(early => early.frameId === frame.attachmentId)) continue
       try {
         if (await this.ctx.attachments.deleteImage(frameAttachment(frame))) tally.frames++
       } catch (error: unknown) {
@@ -275,7 +314,7 @@ export class CameraWatch {
     let outcome: Awaited<ReturnType<typeof classifyFrames>>
     try {
       outcome = await classifyFrames(this.ctx, {
-        sessionId, prompt,
+        sessionId, systemPrompt: CLASSIFICATION_SYSTEM_PROMPT, prompt,
         frames: event.frames.map(frame => frame.attachment),
         source: {
           kind: 'camera', deviceId: event.deviceId, eventId: event.id, form: 'notice',
@@ -302,26 +341,36 @@ export class CameraWatch {
     const { verdict } = classification
     const reasons = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone)
     const channelId = this.config.deliverChannelId
-    const record: HistoryRecord = {
-      eventId: event.id,
-      deviceId: event.deviceId,
-      kind: event.kind,
-      occurredAt: event.occurredAt,
-      frames: event.frames.map(frame => ({ ...frame.attachment, offsetMs: Math.round(frame.offsetMs), source: frame.source })),
-      ...event.captureFailure === undefined ? {} : { captureFailure: event.captureFailure },
-      ...classification.sessionId === undefined ? {} : { sessionId: classification.sessionId },
-      status: classification.status,
-      ...classification.failure === undefined ? {} : { failure: classification.failure },
-      ...verdict === undefined ? {} : { verdict: { ...verdict, labels: [...verdict.labels], personFrames: [...verdict.personFrames] } },
-      ...classification.text === undefined ? {} : { text: classification.text },
-      reasons,
-      delivery: reasons.length === 0 ? 'none' : channelId === undefined ? 'no-channel' : 'undelivered',
-    }
+    const early = this.early.get(event.id)
     try {
+      let earlyDelivery: Handoff | undefined
+      let postedFrameId: string | undefined
+      if (early !== undefined) {
+        earlyDelivery = await early.delivery
+        if (earlyDelivery === 'delivered') postedFrameId = early.frameId
+      }
+      const record: HistoryRecord = {
+        eventId: event.id,
+        deviceId: event.deviceId,
+        kind: event.kind,
+        occurredAt: event.occurredAt,
+        frames: event.frames.map(frame => ({ ...frame.attachment, offsetMs: Math.round(frame.offsetMs), source: frame.source })),
+        ...event.captureFailure === undefined ? {} : { captureFailure: event.captureFailure },
+        ...classification.sessionId === undefined ? {} : { sessionId: classification.sessionId },
+        status: classification.status,
+        ...classification.failure === undefined ? {} : { failure: classification.failure },
+        ...verdict === undefined ? {} : { verdict: { ...verdict, labels: [...verdict.labels], personFrames: [...verdict.personFrames] } },
+        ...classification.text === undefined ? {} : { text: classification.text },
+        reasons,
+        delivery: reasons.length === 0 ? 'none' : channelId === undefined ? 'no-channel' : 'undelivered',
+        ...earlyDelivery === undefined ? {} : { earlyDelivery },
+      }
       await this.table.put(event.id, record)
       if (reasons.length === 0 || channelId === undefined) return
       const device = this.devices.get(event.deviceId) as CameraDevice
       const shown = event.frames[classification.verdict?.personFrames[0] ?? 0]
+      // A frame the delivered immediate notice already showed is not attached again.
+      const image = shown === undefined || String(shown.attachment.attachmentId) === postedFrameId ? undefined : shown.attachment
       const notice: CameraNotice = {
         id: `camera:${event.id}`,
         channelId,
@@ -331,16 +380,17 @@ export class CameraWatch {
           failure: classification.failure, captureFailure: event.captureFailure,
           lingerSeconds: classification.verdict === undefined ? 0 : Math.round(lingeringMs(policyEvent, classification.verdict) / 1_000),
         }),
-        ...shown === undefined ? {} : { image: shown.attachment },
+        ...image === undefined ? {} : { image },
       }
       const delivery = await this.deliver(notice)
       if (delivery === 'delivered') await this.table.put(event.id, { ...record, delivery })
     } finally {
       this.inFlight.delete(event.id)
+      this.early.delete(event.id)
     }
   }
 
-  private async deliver(notice: CameraNotice): Promise<NoticeDelivery> {
+  private async deliver(notice: CameraNotice): Promise<Handoff> {
     for (let attempt = 1; ; attempt++) {
       try {
         if (await this.ctx.serial('camera/notice', notice) === true) return 'delivered'
@@ -377,6 +427,7 @@ export async function mountCameraWatch(ctx: Context, config: Config, deps: Camer
     await domain.close()
     throw error
   }
+  ctx.on('camera/preview', (preview) => { watch.preview(preview) })
   ctx.on('camera/event', (event) => { watch.accept(event) })
   if (resolved.tool) {
     ctx.effect(() => ctx.tools.register(createCameraTool({

@@ -4072,6 +4072,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'notice', description: 'stable identity, destination channel, text, and optional frame.' }],
   },
   {
+    name: 'camera/preview',
+    mode: 'parallel',
+    signature: '\'camera/preview\'(preview: CameraPreview): void | Promise<void>',
+    summary: 'One accepted event\'s first stored frame, published before the provider captures the rest.',
+    description: 'One accepted event\'s first stored frame, published before the provider captures the rest. The complete `camera/event` with the same id follows unless the provider stops first. Listeners should enqueue work and return, because the provider awaits them before the next frame.',
+    parameters: [{ name: 'preview', description: 'event identity, device, kind, receipt time, and first frame.' }],
+  },
+  {
     name: 'commands/change',
     mode: 'emit',
     signature: '\'commands/change\'(): void',
@@ -4877,7 +4885,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CameraCaptureFailure',
-    declaration: 'export type CameraCaptureFailure = \'snapshot-unavailable\' | \'stream-failed\' | \'storage-failed\';',
+    declaration: 'export type CameraCaptureFailure = \'snapshot-unavailable\' | \'snapshot-stale\' | \'stream-failed\' | \'storage-failed\';',
   },
   {
     name: 'CameraDevice',
@@ -4910,6 +4918,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CameraNotice',
     declaration: 'export interface CameraNotice {\n    readonly id: string;\n    readonly channelId: string;\n    readonly text: string;\n    readonly image?: ImageAttachmentRef | undefined;\n}',
+  },
+  {
+    name: 'CameraPreview',
+    declaration: 'export interface CameraPreview {\n    readonly id: CameraEventId;\n    readonly deviceId: CameraDeviceId;\n    readonly kind: CameraEventKind;\n    readonly occurredAt: number;\n    readonly frame: CameraFrame;\n}',
   },
   {
     name: 'ChangeResult',

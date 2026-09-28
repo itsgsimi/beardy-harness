@@ -31,12 +31,34 @@ export interface NoticeFacts {
   readonly lingerSeconds: number
 }
 
-const HEADLINES: Readonly<Record<NoticeReason, (lingerSeconds: number) => string>> = {
+const HEADLINES: Readonly<Record<NoticeReason, (facts: NoticeFacts) => string>> = {
   ding: () => 'Doorbell rang',
   package: () => 'Package delivered',
   'night-person': () => 'Person at night',
-  vehicle: () => 'Vehicle seen',
-  lingering: lingerSeconds => `Someone lingering (${String(lingerSeconds)} s)`,
+  // The vehicle reason exists only for a verdict whose vehicle activity matched the policy.
+  vehicle: facts => `Vehicle ${facts.verdict?.vehicleActivity ?? 'seen'}`,
+  lingering: facts => `Someone lingering (${String(facts.lingerSeconds)} s)`,
+}
+
+function heading(deviceLabel: string, occurredAt: number, timezone: string): string {
+  return `**${deviceLabel}** · ${localDateTime(occurredAt, timezone).slice(11, 16)}`
+}
+
+/** Everything the immediate doorbell notice states. */
+export interface DingNoticeFacts {
+  readonly deviceLabel: string
+  readonly occurredAt: number
+  readonly timezone: string
+}
+
+/**
+ * Compose the immediate doorbell notice posted before classification: device, local time, and
+ * that someone rang.
+ * @param facts - device label, event time, and zone.
+ * @returns notice text.
+ */
+export function renderDingNotice(facts: DingNoticeFacts): string {
+  return `${heading(facts.deviceLabel, facts.occurredAt, facts.timezone)}: Someone rang the doorbell`
 }
 
 function missingDescription(facts: NoticeFacts): string {
@@ -52,8 +74,7 @@ function missingDescription(facts: NoticeFacts): string {
  * @returns notice text.
  */
 export function renderNotice(facts: NoticeFacts): string {
-  const time = localDateTime(facts.occurredAt, facts.timezone).slice(11, 16)
-  const lines = [`**${facts.deviceLabel}** · ${time}: ${facts.reasons.map(reason => HEADLINES[reason](facts.lingerSeconds)).join('; ')}`]
+  const lines = [`${heading(facts.deviceLabel, facts.occurredAt, facts.timezone)}: ${facts.reasons.map(reason => HEADLINES[reason](facts)).join('; ')}`]
   if (facts.verdict !== undefined) {
     lines.push(facts.verdict.description)
     const counts = Object.entries(facts.verdict.counts).filter(([, count]) => count > 0).map(([label, count]) => `${label} ${String(count)}`)

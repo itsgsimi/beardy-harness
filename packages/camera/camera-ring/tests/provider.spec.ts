@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
-import type { CameraEvent } from '@deepseek-ai/dsh-camera'
+import type { CameraEvent, CameraPreview } from '@deepseek-ai/dsh-camera'
 import RingCameraService, { RING_DING_CATEGORY, RING_MOTION_CATEGORY, redact, resolveSpec, tokenSecrets } from '../src/index.ts'
 import type { Config, RingProviderDeps } from '../src/index.ts'
 import { FakeCamera, FakeClock, FakeCredentials, FakeRing, jpeg, until, wrappedToken } from './support.ts'
@@ -38,6 +38,8 @@ interface Harness {
   readonly credentials: FakeCredentials
   readonly clock: FakeClock
   readonly events: CameraEvent[]
+  /** Previews in publication order, each tagged with how many complete events preceded it. */
+  readonly previews: { readonly preview: CameraPreview; readonly eventsBefore: number }[]
   readonly logs: { type: string; text: string }[]
   readonly load: Promise<unknown>
 }
@@ -66,7 +68,9 @@ async function harness(config: Partial<Config> = {}, options: {
   options.ring?.(ring)
   const clock = options.clock ?? new FakeClock()
   const events: CameraEvent[] = []
+  const previews: Harness['previews'][number][] = []
   ctx.on('camera/event', (event) => { events.push(event) })
+  ctx.on('camera/preview', (preview) => { previews.push({ preview, eventsBefore: events.length }) })
   const deps: RingProviderDeps = {
     connect: ring.connect, now: clock.now, sleep: clock.sleep,
     ...options.realExecutableCheck === true ? {} : { checkExecutable: async () => {} },
@@ -75,7 +79,7 @@ async function harness(config: Partial<Config> = {}, options: {
     constructor(context: Context, value: Config) { super(context, value, deps) }
   }
   const load: Promise<unknown> = Promise.resolve(ctx.plugin(TestRing, { ...baseConfig, ...config }))
-  return { ctx, ring, front, garage, credentials, clock, events, logs, load }
+  return { ctx, ring, front, garage, credentials, clock, events, previews, logs, load }
 }
 
 async function started(config: Partial<Config> = {}, options: Parameters<typeof harness>[1] = {}): Promise<Harness> {
@@ -259,6 +263,10 @@ describe('RingCameraService events', () => {
     const stored = await value.ctx.attachments.readImage(event!.frames[0]!.attachment)
     expect(stored.data.length).toBeGreaterThan(0)
     expect(value.front.snapshotCalls).toBe(2)
+    expect(value.previews).toEqual([{
+      preview: { id: 'ring-101-7001', deviceId: 'front-door', kind: 'ding', occurredAt: Date.UTC(2026, 8, 27, 4, 0), frame: event!.frames[0] },
+      eventsBefore: 0,
+    }])
   })
 
   it('reports a capture shortfall on the event', async () => {
@@ -267,6 +275,7 @@ describe('RingCameraService events', () => {
     value.garage.push(RING_MOTION_CATEGORY, '8')
     await until(() => value.events.length === 1, 'published event')
     expect(value.events[0]).toMatchObject({ kind: 'motion', deviceId: 'garage', frames: [], captureFailure: 'snapshot-unavailable' })
+    expect(value.previews).toEqual([])
   })
 
   it('ignores other categories and kinds outside the configured events', async () => {

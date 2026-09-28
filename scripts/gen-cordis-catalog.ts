@@ -499,6 +499,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   CameraEvent: 'camera.md',
   CameraFrame: 'camera.md',
   CameraNotice: 'camera.md',
+  CameraPreview: 'camera.md',
   CameraVerdict: 'camera.md',
   FantasyDraftPick: 'fantasy.md',
   FantasyGameWeek: 'fantasy.md',

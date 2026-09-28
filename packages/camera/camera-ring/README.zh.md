@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-通过非官方的 [`ring-client-api`](https://github.com/dgreif/ring) 库监视 Ring 门铃和摄像头。提供方用已存储的刷新令牌登录，把每次轮换后的令牌写回同一凭据引用，接收已配置设备的门铃和移动推送，并为每个被接纳的事件发布几帧已存储的画面。画面来自事件发生时及其后固定间隔的按需快照；快照失败时，由主机 ffmpeg 处理的一段短直播流补齐其余画面。
+通过非官方的 [`ring-client-api`](https://github.com/dgreif/ring) 库监视 Ring 门铃和摄像头。提供方用已存储的刷新令牌登录，把每次轮换后的令牌写回同一凭据引用，接收已配置设备的门铃和移动推送，并为每个被接纳的事件发布几帧已存储的画面。画面来自事件发生时及其后固定间隔的按需快照；快照失败或与上一张重复时，由主机 ffmpeg 处理的一段短直播流补齐其余画面。
 
 ## 目录
 
@@ -34,7 +34,7 @@ kind: "package-reference"
 | `events` | 接纳的事件类型，默认 `motion` 和 `ding` |
 | `frameCount`、`frameIntervalMs` | 每个事件的画面数（默认 3）及间隔（默认 10 秒） |
 | `snapshotTimeoutMs` | 单张快照的最长等待时间 |
-| `streamFallback`、`ffmpegPath`、`streamSetupMs` | 直播流回退、它所需的 ffmpeg 绝对路径及启动时限 |
+| `streamFallback`、`ffmpegPath`、`streamSetupMs` | 快照失败或重复时的直播流回退、它所需的 ffmpeg 绝对路径及启动时限 |
 | `motionCooldownMs`、`dingCooldownMs` | 同一设备同类事件之间的最短接纳间隔 |
 | `dedupeWindowMs`、`dedupeMaxIds` | 厂商事件 ID 抑制重复推送的时长和数量 |
 | `reconnectDelayMs`、`maxReconnectDelayMs` | 连接失败后逐次翻倍的重试延迟 |
@@ -52,7 +52,7 @@ kind: "package-reference"
 
 加载时检查凭据引用和 ffmpeg 可执行文件，然后在后台连接。第一次请求会刷新令牌；`ring-client-api` 在推送凭据变化时也会重新编码令牌，每个新值都按轮换顺序经 `ctx.credentials.set` 写回。诊断信息会把封装令牌及其内部 Ring 令牌替换为 `[redacted]`。
 
-推送按厂商事件 ID 只接纳一次：只接纳已配置的类型，只在该设备该类型的冷却时间之外接纳；移动事件还要求该设备当前没有在截取画面，门铃按下则排在正在进行的截取之后。每个被接纳的事件最多获得 `frameCount` 帧：收到推送时一张快照，此后每个间隔一张。与上一张完全相同的快照会被丢弃。快照失败且开启 `streamFallback` 时，一次直播通话运行带帧率过滤器的 ffmpeg，把剩余画面写入私有临时目录，之后删除该目录。画面先经 `ctx.attachments` 以 JPEG 存储，再发布事件；数量不足时事件会标注 `snapshot-unavailable`、`stream-failed` 或 `storage-failed`。卸载时停止订阅、取消等待、断开连接，并等待截取和令牌写入结束。提供方只保存临时的接纳状态，因此不发布不变量组件。
+推送按厂商事件 ID 只接纳一次：只接纳已配置的类型，只在该设备该类型的冷却时间之外接纳；移动事件还要求该设备当前没有在截取画面，门铃按下则排在正在进行的截取之后。每个被接纳的事件最多获得 `frameCount` 帧：收到推送时一张快照，此后每个间隔一张。有线 Ring 摄像头在移动期间可能再次返回缓存的快照，因此字节与上一张相同的快照与被拒绝或超时的快照一样，算作缺失的实时画面。缺少快照且开启 `streamFallback` 时，一次直播通话运行带帧率过滤器的 ffmpeg，把该时段及之后所有时段的画面写入私有临时目录，之后删除该目录。画面经 `ctx.attachments` 以 JPEG 存储；第一帧存储后先以 `camera/preview` 发布，再继续截取，最后一帧之后发布完整事件。数量不足时，回退关闭时事件标注 `snapshot-unavailable` 或 `snapshot-stale`，直播流提前结束时标注 `stream-failed`，存储失败时标注 `storage-failed`。卸载时停止订阅、取消等待、断开连接，并等待截取和令牌写入结束。提供方只保存临时的接纳状态，因此不发布不变量组件。
 
 </details>
 

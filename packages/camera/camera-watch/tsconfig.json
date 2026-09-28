@@ -36,6 +36,9 @@
       "path": "../../storage/storage-domain"
     },
     {
+      "path": "../../core/system-prompt"
+    },
+    {
       "path": "../../core/tools"
     },
     {

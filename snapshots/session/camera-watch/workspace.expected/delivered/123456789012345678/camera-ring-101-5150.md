@@ -2,4 +2,4 @@
 A person in a dark jacket stands at the front door and presses the doorbell.
 Seen: person 1 · confidence 88%
 
-Image: front-door-1.jpg (image/jpeg)
+Image: none (none)
