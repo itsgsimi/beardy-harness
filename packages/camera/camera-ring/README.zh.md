@@ -43,7 +43,7 @@ kind: "package-reference"
 
 账户中不存在的已配置设备会让提供方停止并报错，错误信息列出账户中所有设备的名称和 ID。其他原因导致的连接失败（例如 Ring API 不可达）会以翻倍延迟重试。
 
-要查明事件画面少于 `frameCount` 的原因，请查看提供方日志。`info` 级别的 `camera-ring: snapshot <n> for <event id> …` 指出把截取转到直播流的那张快照，以及它是与上一张重复、被拒绝还是超时。`warn` 级别的 `camera-ring: stream capture for <event id> failed at <stage>: <cause>` 指出 `stream-failed` 截取停在哪一步：`start-refused` 附带 Ring 错误，`start-timeout` 表示 `streamSetupMs` 内没有启动直播流，`ended-short` 表示通话先结束，`run-timeout` 表示截取时限将其停止，后两者附带已写入帧数与请求帧数。`warn` 级别的 `camera-ring: ring-client-api: …` 是该库自身的错误，例如信令套接字失败或 ffmpeg 退出码；短时开启 `vendorDebug` 还能看到 ffmpeg 的输出。
+要查明事件画面少于 `frameCount` 的原因，请查看提供方日志。`info` 级别的 `camera-ring: snapshot <n> for <event id> …` 指出把截取转到直播流的那张快照，以及它是与上一张重复、被拒绝还是超时。`warn` 级别的 `camera-ring: stream capture for <event id> failed at <stage>: <cause>` 指出 `stream-failed` 截取停在哪一步：`start-refused` 附带 Ring 错误，`start-timeout` 表示 `streamSetupMs` 内没有启动直播流，`ended-short` 表示通话先结束，`run-timeout` 表示截取时限将其停止，后两者附带已写入帧数与请求帧数。`warn` 级别的 `camera-ring: ring-client-api: …` 是该库自身的错误，例如信令套接字失败或 ffmpeg 退出码；短时开启 `vendorDebug` 还能看到 ffmpeg 的输出。如果每次直播流都先报 `camera-ring: ring-client-api: Cannot get schema for 'SubjectPublicKeyInfo' target`，随后以 `ended-short` 结束且写入 0 帧，说明安装中存在两份 `@peculiar/asn1-schema`；根目录 `pnpm-workspace.yaml` 的 override 将其固定为一份，请在该 override 生效时重新安装，并确认 `node_modules/.pnpm` 中只有一个 `@peculiar+asn1-schema` 目录。
 
 -----
 

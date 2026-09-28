@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-ring-stream-asn1-schema-dedupe.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-28-ring-stream-asn1-schema-dedupe.md
+/agent-note-ring-live-streams-need-one-asn1-schema-copy:
+  en: 002715edb87b4a45
+  zh: 05287cbf400d1758
+/agent-note-ring-live-streams-need-one-asn1-schema-copy/problem:
+  en: 34fe419a26870eae
+  zh: 9663d823fb737318
+/agent-note-ring-live-streams-need-one-asn1-schema-copy/decision:
+  en: 6a8a76cd9baddcb6
+  zh: d2ff54b18f876242
+/agent-note-ring-live-streams-need-one-asn1-schema-copy/alternatives-considered:
+  en: ed1707cd4ef5ee57
+  zh: ec09075f74e86f17
+/agent-note-ring-live-streams-need-one-asn1-schema-copy/consequences:
+  en: c7c18675fb8e7cc7
+  zh: a41ca4ddde3d6ba8
