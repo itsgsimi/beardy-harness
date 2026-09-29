@@ -70,6 +70,11 @@ export interface Config {
   /** Exact image-capable model route; absent uses the host default model at each event. */
   readonly modelSelection?: ConfiguredModelSelection | undefined
   /**
+   * Exact image-capable model route for first-frame checks only, such as a faster model than
+   * `modelSelection`; absent uses the full classification's route. Requires `earlyMotionNotice`.
+   */
+  readonly earlyModelSelection?: ConfiguredModelSelection | undefined
+  /**
    * Delivery target for notices: a Discord channel id, `discord:<id>`, `signal:group:<base64 id>`, or
    * `signal:number:<E.164>`; absent keeps history only.
    */
@@ -111,8 +116,9 @@ export interface Config {
   /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
   readonly deliveryRetryMs?: number
   /**
-   * Classification turns in a row that time out, fail, give no answer, or cannot start before a
-   * failure notice, from 1 to 100; defaults to 3.
+   * Classification turns in a row that time out, fail, give no or an empty answer, or cannot start
+   * before a failure notice, from 1 to 100; defaults to 3. With `earlyModelSelection`, first-frame
+   * checks count their own run and raise their own notice.
    */
   readonly failureNoticeThreshold?: number
   /** Least milliseconds between two classification failure notices, from 60000 to 604800000; defaults to 21600000. */
@@ -154,6 +160,7 @@ export const WATCH_DEFAULTS = Object.freeze({
 export const Config: z<Config> = z.object({
   timezone: z.string().required(),
   modelSelection: z.union([ConfiguredModelSelectionSchema, z.const(undefined)]),
+  earlyModelSelection: z.union([ConfiguredModelSelectionSchema, z.const(undefined)]),
   deliverChannelId: z.string(),
   workspacePath: z.string(),
   policy: z.object({
@@ -211,6 +218,8 @@ export interface ResolvedPolicy {
 export interface ResolvedConfig {
   readonly timezone: string
   readonly modelSelection?: ConfiguredModelSelection
+  /** First-frame route; absent means first-frame checks share `modelSelection`'s route and failure state. */
+  readonly earlyModelSelection?: ConfiguredModelSelection
   readonly deliverChannelId?: string
   readonly workspacePath?: string
   readonly policy: ResolvedPolicy
@@ -258,7 +267,8 @@ function sceneMap(devices: readonly DeviceConfig[]): Map<string, string> {
 /**
  * Apply defaults and reject what the schema cannot: an unknown time zone, a malformed or empty night
  * window, an empty vehicle activity list, an unparseable delivery target, a relative workspace path,
- * a device listed twice in `devices`, and an empty or overlong scene. Device references are checked
+ * a device listed twice in `devices`, an empty or overlong scene, and `earlyModelSelection` while
+ * `earlyMotionNotice` is off. Device references are checked
  * against the camera provider when the watch starts.
  * @param config - schema-resolved configuration.
  * @returns complete watch settings.
@@ -274,6 +284,10 @@ export function resolveConfig(config: Config): ResolvedConfig {
   if (config.workspacePath !== undefined && !isAbsolute(config.workspacePath)) {
     throw new Error('camera-watch: workspacePath must be absolute')
   }
+  const earlyMotionNotice = config.earlyMotionNotice ?? WATCH_DEFAULTS.earlyMotionNotice
+  if (config.earlyModelSelection !== undefined && !earlyMotionNotice) {
+    throw new Error('camera-watch: earlyModelSelection needs earlyMotionNotice, which is off')
+  }
   const policy = config.policy ?? {}
   const nightStartMinute = minuteOf(policy.nightStart ?? WATCH_DEFAULTS.nightStart, 'nightStart')
   const nightEndMinute = minuteOf(policy.nightEnd ?? WATCH_DEFAULTS.nightEnd, 'nightEnd')
@@ -283,6 +297,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
   return {
     timezone: config.timezone,
     ...config.modelSelection === undefined ? {} : { modelSelection: config.modelSelection },
+    ...config.earlyModelSelection === undefined ? {} : { earlyModelSelection: config.earlyModelSelection },
     ...config.deliverChannelId === undefined ? {} : { deliverChannelId: config.deliverChannelId },
     ...config.workspacePath === undefined ? {} : { workspacePath: config.workspacePath },
     policy: {
@@ -300,7 +315,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
     },
     scenes: sceneMap(config.devices ?? []),
     immediateDingNotice: config.immediateDingNotice ?? WATCH_DEFAULTS.immediateDingNotice,
-    earlyMotionNotice: config.earlyMotionNotice ?? WATCH_DEFAULTS.earlyMotionNotice,
+    earlyMotionNotice,
     maxOutputTokens: config.maxOutputTokens ?? WATCH_DEFAULTS.maxOutputTokens,
     turnTimeoutMs: config.turnTimeoutMs ?? WATCH_DEFAULTS.turnTimeoutMs,
     maxConcurrent: config.maxConcurrent ?? WATCH_DEFAULTS.maxConcurrent,

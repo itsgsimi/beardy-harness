@@ -215,6 +215,24 @@ describe('parseVerdict', () => {
     expect(parseVerdict('{"labels":[],"counts":{},"description":7}', 1, []).verdict?.description).toBe('Nothing identified.')
   })
 
+  it('reads an object that states nothing, such as the echoed template, as empty', () => {
+    const prompt = classificationPrompt({ kind: 'motion', deviceLabel: 'Porch', localTime: '12:00', offsetsMs: [0, 10_000, 20_000], questions: QUESTIONS })
+    const template = prompt.split('\n').find(line => line.startsWith('{'))!
+    expect(parseVerdict(template, 3, QUESTIONS)).toEqual({ status: 'empty' })
+    expect(parseVerdict('```json\n{"description":"  ","labels":[],"counts":{},"person_staying":{"answer":false,"frames":[1]}}\n```', 3, QUESTIONS))
+      .toEqual({ status: 'empty' })
+    expect(parseVerdict('{}', 1, QUESTIONS)).toEqual({ status: 'empty' })
+    for (const text of [
+      '{"description":"Quiet street.","labels":[],"counts":{}}',
+      '{"description":"","labels":["car"],"counts":{}}',
+      '{"description":"","labels":[],"counts":{"person":0}}',
+      '{"description":"","labels":[],"counts":{},"person_staying":{"answer":true,"frames":[]}}',
+      '{"labels":[],"counts":null}',
+      '{"labels":{},"counts":{}}',
+      '{"description":7}',
+    ]) expect(parseVerdict(text, 1, QUESTIONS).status).toBe('partial')
+  })
+
   it('reports malformed output as unparsed with a bounded one-line account', () => {
     expect(parseVerdict('I see a person\nat the door.', 3, QUESTIONS)).toEqual({ status: 'unparsed', text: 'I see a person at the door.' })
     expect(parseVerdict('[1, 2] {"unterminated": ', 3, QUESTIONS)).toEqual({ status: 'unparsed', text: '[1, 2] {"unterminated":' })

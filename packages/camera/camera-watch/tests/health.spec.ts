@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { ClassificationHealth, shortCause, TURN_FAILURE_CODES } from '../src/health.ts'
-import { RECOVERY_NOTICE_TEXT, renderFailureNotice } from '../src/notice.ts'
+import { FIRST_FRAME_RECOVERY_NOTICE_TEXT, RECOVERY_NOTICE_TEXT, renderFailureNotice } from '../src/notice.ts'
 import { cameraWatchDomainSpec } from '../src/history.ts'
 import { NOON, until, verdictText, VisionAdapter, watchHarness } from './support.ts'
 import type { WatchHarness } from './support.ts'
@@ -44,34 +44,42 @@ function logged(harness: WatchHarness, type: string, prefix: string): string[] {
 
 describe('ClassificationHealth', () => {
   it('raises a route failure at once and at most once per interval, in epoch-aligned windows', () => {
-    const health = new ClassificationHealth({ threshold: 3, intervalMs: INTERVAL })
-    expect(health.routeFailed('MODEL_UNAVAILABLE', 'no adapter', NOON)).toEqual({ kind: 'failing', id: windowId(NOON), code: 'MODEL_UNAVAILABLE', cause: 'no adapter' })
+    const health = new ClassificationHealth({ threshold: 3, intervalMs: INTERVAL, stage: 'full' })
+    expect(health.routeFailed('MODEL_UNAVAILABLE', 'no adapter', NOON)).toEqual({ kind: 'failing', stage: 'full', id: windowId(NOON), code: 'MODEL_UNAVAILABLE', cause: 'no adapter' })
     expect(health.routeFailed('MODEL_NOT_VISION', 'no image input', NOON + INTERVAL - 1)).toBeUndefined()
     expect(health.routeFailed('MODEL_NOT_VISION', 'no image input', NOON + INTERVAL)).toMatchObject({ id: windowId(NOON + INTERVAL), code: 'MODEL_NOT_VISION' })
     expect(windowId(NOON + INTERVAL)).not.toBe(windowId(NOON))
   })
 
   it('raises turn failures only at the threshold in a row, ignores other codes, and restarts the run after an answer', () => {
-    const health = new ClassificationHealth({ threshold: 3, intervalMs: INTERVAL })
-    expect(TURN_FAILURE_CODES).toEqual(['TIMEOUT', 'TURN_FAILED', 'NO_ANSWER', 'SESSION_FAILED'])
+    const health = new ClassificationHealth({ threshold: 3, intervalMs: INTERVAL, stage: 'full' })
+    expect(TURN_FAILURE_CODES).toEqual(['TIMEOUT', 'TURN_FAILED', 'NO_ANSWER', 'EMPTY_ANSWER', 'SESSION_FAILED'])
     expect(health.turnFailed('TIMEOUT', NOON)).toBeUndefined()
     expect(health.turnFailed('NOT_PERSISTED', NOON)).toBeUndefined()
     expect(health.turnFailed('SESSION_FAILED', NOON)).toBeUndefined()
     expect(health.answered()).toBeUndefined()
     expect(health.turnFailed('TIMEOUT', NOON)).toBeUndefined()
     expect(health.turnFailed('TURN_FAILED', NOON)).toBeUndefined()
-    expect(health.turnFailed('NO_ANSWER', NOON)).toEqual({ kind: 'failing', id: windowId(NOON), code: 'NO_ANSWER', cause: '3 classifications in a row' })
+    expect(health.turnFailed('EMPTY_ANSWER', NOON)).toEqual({ kind: 'failing', stage: 'full', id: windowId(NOON), code: 'EMPTY_ANSWER', cause: '3 classifications in a row' })
     expect(health.turnFailed('NO_ANSWER', NOON + HOUR)).toBeUndefined()
   })
 
   it('follows a failure notice with one recovery line', () => {
-    const health = new ClassificationHealth({ threshold: 1, intervalMs: INTERVAL })
+    const health = new ClassificationHealth({ threshold: 1, intervalMs: INTERVAL, stage: 'full' })
     expect(health.answered()).toBeUndefined()
     health.turnFailed('TIMEOUT', NOON)
-    expect(health.answered()).toEqual({ kind: 'recovered', id: `${windowId(NOON)}:recovered` })
+    expect(health.answered()).toEqual({ kind: 'recovered', stage: 'full', id: `${windowId(NOON)}:recovered` })
     expect(health.answered()).toBeUndefined()
     expect(health.turnFailed('TIMEOUT', NOON + HOUR)).toBeUndefined()
     expect(health.answered()).toBeUndefined()
+  })
+
+  it('names first-frame notices and runs after their own stage', () => {
+    const health = new ClassificationHealth({ threshold: 2, intervalMs: INTERVAL, stage: 'first-frame' })
+    const id = `camera-watch:first-frame-failing:${String(Math.floor(NOON / INTERVAL) * INTERVAL)}`
+    expect(health.turnFailed('EMPTY_ANSWER', NOON)).toBeUndefined()
+    expect(health.turnFailed('TIMEOUT', NOON)).toEqual({ kind: 'failing', stage: 'first-frame', id, code: 'TIMEOUT', cause: '2 first-frame checks in a row' })
+    expect(health.answered()).toEqual({ kind: 'recovered', stage: 'first-frame', id: `${id}:recovered` })
   })
 })
 
@@ -100,6 +108,9 @@ describe('renderFailureNotice', () => {
     expect(renderFailureNotice({ code: 'MODEL_UNAVAILABLE', cause: 'no adapter', dingNotifies: false }))
       .toBe('⚠️ Camera classification is failing (MODEL_UNAVAILABLE: no adapter). Motion alerts are paused.')
     expect(RECOVERY_NOTICE_TEXT).toBe('Camera classification recovered.')
+    expect(renderFailureNotice({ code: 'EMPTY_ANSWER', cause: '3 first-frame checks in a row', dingNotifies: true, firstFrame: true }))
+      .toBe('⚠️ Camera first-frame checks are failing (EMPTY_ANSWER: 3 first-frame checks in a row). Motion alerts wait for the full check.')
+    expect(FIRST_FRAME_RECOVERY_NOTICE_TEXT).toBe('Camera first-frame checks recovered.')
   })
 })
 
@@ -145,6 +156,49 @@ describe('camera watch route check', () => {
       .toBe('camera-watch: model route check failed: provider "late" model "eye" declares no image input')
     expect(harness.notices).toHaveLength(1)
     expect(harness.ctx.tools.get('camera')).toBeDefined()
+  })
+
+  it('waits for both providers and logs the first-frame route beside the full one', async () => {
+    const harness = await start([], { earlyModelSelection: { provider: 'fast', model: 'eye' } })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(logged(harness, 'info', 'camera-watch: classifying with')).toEqual([])
+    harness.ctx.llm.registerAdapter(['fast'], new VisionAdapter([]))
+    await until(() => logged(harness, 'info', 'camera-watch: classifying with').length === 1, 'route check')
+    expect(logged(harness, 'info', 'camera-watch: classifying with')).toEqual(['camera-watch: classifying with mock/vision-model (first frame: fast/eye)'])
+  })
+
+  it('logs one route when the first-frame route names the same model', async () => {
+    const harness = await start([], { earlyModelSelection: { provider: 'mock', model: 'vision-model' } })
+    await until(() => logged(harness, 'info', 'camera-watch: classifying with').length === 1, 'route check')
+    expect(logged(harness, 'info', 'camera-watch: classifying with')).toEqual(['camera-watch: classifying with mock/vision-model'])
+  })
+
+  it('reports a failed first-frame route on its own notice and still logs the full route', async () => {
+    const harness = await start([], { earlyModelSelection: { provider: 'fast', model: 'eye' } }, { deps: { now: () => NOON } })
+    const fast = new VisionAdapter([])
+    fast.inputModalities = ['text']
+    harness.ctx.llm.registerAdapter(['fast'], fast)
+    await until(() => harness.notices.length === 1, 'failure notice')
+    expect(logged(harness, 'error', 'camera-watch: first-frame model route check failed:'))
+      .toEqual(['camera-watch: first-frame model route check failed: provider "fast" model "eye" declares no image input'])
+    expect(logged(harness, 'info', 'camera-watch: classifying with')).toEqual(['camera-watch: classifying with mock/vision-model'])
+    expect(harness.notices).toEqual([{
+      id: `camera-watch:first-frame-failing:${String(Math.floor(NOON / INTERVAL) * INTERVAL)}`, channelId: CHANNEL,
+      text: '⚠️ Camera first-frame checks are failing (MODEL_NOT_VISION: provider "fast" model "eye" declares no image input). Motion alerts wait for the full check.',
+    }])
+    expect(logged(harness, 'warn', 'camera-watch: first-frame checks are failing')).toHaveLength(1)
+  })
+
+  it('logs the first-frame route alone when the full route fails', async () => {
+    const harness = await start([], { modelSelection: { provider: 'late', model: 'x' }, earlyModelSelection: { provider: 'fast', model: 'eye' } })
+    const late = new VisionAdapter([])
+    late.inputModalities = ['text']
+    harness.ctx.llm.registerAdapter(['late'], late)
+    harness.ctx.llm.registerAdapter(['fast'], new VisionAdapter([]))
+    await until(() => logged(harness, 'info', 'camera-watch: first-frame checks classifying with').length === 1, 'route check')
+    expect(logged(harness, 'info', 'camera-watch: first-frame checks classifying with')).toEqual(['camera-watch: first-frame checks classifying with fast/eye'])
+    expect(logged(harness, 'error', 'camera-watch: model route check failed:')).toHaveLength(1)
+    expect(logged(harness, 'info', 'camera-watch: classifying with')).toEqual([])
   })
 
   it('checks nothing once disposal has started', async () => {
@@ -198,6 +252,45 @@ describe('camera watch failure notices', () => {
     ])
     expect(logged(harness, 'warn', 'camera-watch: classification is failing')).toEqual(['camera-watch: classification is failing (NO_ANSWER: 2 classifications in a row)'])
     expect(logged(harness, 'info', 'camera-watch: classification recovered')).toHaveLength(1)
+  })
+
+  it('counts answers that state nothing as failures', async () => {
+    const empty = JSON.stringify({ description: '', labels: [], counts: {}, person_on_property: { answer: false, frames: [] } })
+    const harness = await start([empty, empty], { failureNoticeThreshold: 2 }, { deps: { now: () => NOON } })
+    const ids = recorded(harness)
+    for (const id of ['echo', 'echo-again']) await harness.camera.send(harness.event('motion', await harness.frames(1), { id }))
+    await until(() => ids.size === 2, 'two records')
+    expect(harness.notices).toEqual([
+      { id: windowId(NOON), channelId: CHANNEL, text: `⚠️ Camera classification is failing (EMPTY_ANSWER: 2 classifications in a row). ${PAUSED}` },
+    ])
+    expect(logged(harness, 'warn', 'camera-watch: classification camera-front-door-')).toHaveLength(2)
+    expect(logged(harness, 'warn', 'camera-watch: classification camera-front-door-')[0]).toMatch(/ of echo stated nothing$/u)
+  })
+
+  it('keeps first-frame failures on their own route apart from full classifications', async () => {
+    const person = verdictText({ description: 'A person walks up.', labels: ['person'], counts: { person: 1 } }, { person_on_property: [0] })
+    const empty = JSON.stringify({ description: '', labels: [], counts: {} })
+    const harness = await start([person, person, person], { failureNoticeThreshold: 2, earlyModelSelection: { provider: 'fast', model: 'eye' }, policy: { personDevices: ['front-door'] } }, { deps: { now: () => NOON } })
+    const fast = new VisionAdapter([textResponse(empty), CRASH, textResponse(person)])
+    harness.ctx.llm.registerAdapter(['fast'], fast)
+    const ids = recorded(harness)
+    for (const id of ['one', 'two', 'three']) {
+      const event = harness.event('motion', await harness.frames(2), { id })
+      await harness.camera.preview(event)
+      await harness.camera.send(event)
+      await until(() => ids.has(id), `record ${id}`)
+    }
+    const firstFrameId = `camera-watch:first-frame-failing:${String(Math.floor(NOON / INTERVAL) * INTERVAL)}`
+    expect(harness.notices.map(notice => [notice.id, notice.text.split('\n')[0]])).toEqual([
+      ['camera:one', '**Front door** · 12:00: Person at Front door'],
+      [firstFrameId, '⚠️ Camera first-frame checks are failing (TURN_FAILED: 2 first-frame checks in a row). Motion alerts wait for the full check.'],
+      ['camera:two', '**Front door** · 12:00: Person at Front door'],
+      [`${firstFrameId}:recovered`, 'Camera first-frame checks recovered.'],
+      ['camera:three:early', '**Front door** · 12:00: Person at Front door'],
+    ])
+    expect(fast.requests).toHaveLength(3)
+    expect(harness.adapter.requests).toHaveLength(3)
+    expect(logged(harness, 'info', 'camera-watch: first-frame checks recovered')).toHaveLength(1)
   })
 
   it('only logs failure and recovery without a channel', async () => {

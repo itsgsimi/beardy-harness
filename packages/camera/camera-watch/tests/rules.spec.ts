@@ -66,8 +66,16 @@ describe('resolveConfig', () => {
     [{ timezone: TZ, devices: [{ id: 'garage' }, { id: 'garage', scene: 'x' }] }, /devices lists "garage" twice/],
     [{ timezone: TZ, devices: [{ id: 'garage', scene: '  ' }] }, /devices "garage" scene must be 1 to 1000 characters/],
     [{ timezone: TZ, devices: [{ id: 'garage', scene: 'x'.repeat(1_001) }] }, /scene must be 1 to 1000/],
+    [{ timezone: TZ, earlyMotionNotice: false, earlyModelSelection: { provider: 'mock', model: 'fast' } }, /earlyModelSelection needs earlyMotionNotice/],
   ] as [Config, RegExp][])('rejects %j', (config, message) => {
     expect(() => resolveConfig(config)).toThrow(message)
+  })
+
+  it('keeps a separate first-frame route', () => {
+    const early = { provider: 'mock', model: 'fast', reasoningEffort: 'off' } as const
+    expect(ConfigSchema({ timezone: TZ, earlyModelSelection: early }).earlyModelSelection).toEqual(early)
+    expect(resolveConfig({ timezone: TZ, earlyModelSelection: early }).earlyModelSelection).toEqual(early)
+    expect(resolveConfig({ timezone: TZ })).not.toHaveProperty('earlyModelSelection')
   })
 
   it('accepts Signal and prefixed Discord delivery targets', () => {

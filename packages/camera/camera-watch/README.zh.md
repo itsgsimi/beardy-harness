@@ -31,6 +31,7 @@ kind: "package-reference"
 |---|---|
 | `timezone` | 夜间时段、通知时间和工具结果所用的 IANA 时区 |
 | `modelSelection` | 精确的 `{ provider, model, reasoningEffort? }`；未设置时每个事件使用主机默认模型 |
+| `earlyModelSelection` | 仅用于第一帧检查的精确路由，例如比 `modelSelection` 更快的模型；未设置时使用完整分类的路由；需要开启 `earlyMotionNotice` |
 | `deliverChannelId` | 通知目标：Discord 频道 id、`discord:<id>`、`signal:group:<base64 id>` 或 `signal:number:<E.164>`；未设置时只保留历史 |
 | `workspacePath` | 记录在分类 Session 上的绝对工作目录 |
 | `policy.ding`、`policy.packageDelivered`、`policy.nightPerson` | 通知门铃按下、包裹送达和夜间出现在自家范围内的人（默认全部开启） |
@@ -52,7 +53,7 @@ kind: "package-reference"
 | `failureNoticeThreshold`、`failureNoticeIntervalMs` | 连续多少次分类轮次失败后发送失败通知，默认 3（1 到 100），以及两条失败通知之间的最短间隔，默认六小时（一分钟到七天） |
 | `tool`、`toolMaxEvents` | 是否注册 `camera` 工具，以及单次结果的上限 |
 
-`policy.personDevices`、`policy.doorDevices`、`policy.vehicleDevices` 或 `devices` 中不对应任何提供方设备的条目、在 `devices` 中出现两次的设备、为空或过长的场景，以及空的 `policy.vehicleActivities` 列表都会导致加载失败。模型路由不在加载时检查，因为提供方在监视插件之后注册。路由的提供方注册后，监视插件会解析一次该路由（包括图像输入检查），并记录 `camera-watch: classifying with <provider>/<model>`，或以 `camera-watch: model route check failed:` 开头、附带原因链的错误；检查失败不会中止主机。每个事件仍会解析路由：无法解析的路由使事件以 `MODEL_UNAVAILABLE` 记录，声明不接受图像输入的路由使事件以 `MODEL_NOT_VISION` 记录；门铃按下仍会发送通知。
+`policy.personDevices`、`policy.doorDevices`、`policy.vehicleDevices` 或 `devices` 中不对应任何提供方设备的条目、在 `devices` 中出现两次的设备、为空或过长的场景、空的 `policy.vehicleActivities` 列表，以及在 `earlyMotionNotice` 关闭时设置的 `earlyModelSelection` 都会导致加载失败。模型路由不在加载时检查，因为提供方在监视插件之后注册。所有路由的提供方都注册后，监视插件会各解析一次每条路由（包括图像输入检查），并记录 `camera-watch: classifying with <provider>/<model>`；`earlyModelSelection` 指向另一条路由时其后追加 ` (first frame: <provider>/<model>)`。检查失败时记录以 `camera-watch: model route check failed:` 或 `camera-watch: first-frame model route check failed:` 开头、附带原因链的错误；完整路由失败而第一帧路由可用时记录 `camera-watch: first-frame checks classifying with <provider>/<model>`；检查失败不会中止主机。每个事件仍会解析路由：无法解析的路由使事件以 `MODEL_UNAVAILABLE` 记录，声明不接受图像输入的路由使事件以 `MODEL_NOT_VISION` 记录；门铃按下仍会发送通知。
 
 根据摄像头的真实画面编写场景：门、步道、车道、人行道和街道出现在哪里，通常停着哪些车辆。下面是门铃和车库泛光灯摄像头的两个示例：
 
@@ -69,7 +70,7 @@ devices:
       run across the top, with houses across the street. Pavers and shrubs are on the right.
 ```
 
-路由检查失败、事件以 `MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION` 记录，或者连续 `failureNoticeThreshold` 次分类轮次以 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER` 或 `SESSION_FAILED` 结束时，会向 `deliverChannelId` 发送一条失败通知，每个 `failureNoticeIntervalMs` 内最多一条：`⚠️ Camera classification is failing (<code>: <cause>). Motion alerts are paused; doorbell presses still post.` 路由失败时原因是最内层错误的第一行，轮次失败时原因是连续失败的次数；`policy.ding` 关闭时通知在 `Motion alerts are paused.` 处结束。失败通知之后第一次得到回答的分类会发送 `Camera classification recovered.`。未设置 `deliverChannelId` 时两者只写入日志，分别为 `camera-watch: classification is failing (<code>: <cause>)` 和 `camera-watch: classification recovered`。
+路由检查失败、事件以 `MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION` 记录，或者连续 `failureNoticeThreshold` 次分类轮次以 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`EMPTY_ANSWER` 或 `SESSION_FAILED` 结束时，会向 `deliverChannelId` 发送一条失败通知，每个 `failureNoticeIntervalMs` 内最多一条：`⚠️ Camera classification is failing (<code>: <cause>). Motion alerts are paused; doorbell presses still post.` 路由失败时原因是最内层错误的第一行，轮次失败时原因是连续失败的次数；`policy.ding` 关闭时通知在 `Motion alerts are paused.` 处结束。失败通知之后第一次得到回答的分类会发送 `Camera classification recovered.`。未设置 `deliverChannelId` 时两者只写入日志，分别为 `camera-watch: classification is failing (<code>: <cause>)` 和 `camera-watch: classification recovered`。未设置 `earlyModelSelection` 时，第一帧检查与完整分类一样计入这些通知。设置后，第一帧检查有自己的连续失败计数、间隔和通知，因此失败的快速模型不会暂停移动提醒：`⚠️ Camera first-frame checks are failing (<code>: <cause>). Motion alerts wait for the full check.` 和 `Camera first-frame checks recovered.`，日志分别为 `camera-watch: first-frame checks are failing (<code>: <cause>)` 和 `camera-watch: first-frame checks recovered`。
 
 -----
 
@@ -81,15 +82,15 @@ devices:
 
 事件按 ID 排队；重复的 ID 或未知设备会被忽略。同时最多运行 `maxConcurrent` 个分类；已有 `maxQueued` 个事件在等待时新到的事件不经分类记录为 `QUEUE_FULL`。没有画面的事件跳过分类，记录为 `NO_FRAMES`。
 
-每次分类都会打开一个不带 agent 预设的根 Session，只允许一次模型请求。其 Agent 作用域把分类提示词注册为人设前缀段中的完整系统提示词，因此主机人设和其他所有段都被排除；抑制运行时上下文；通过 `system-prompt/assemble` 监听器去掉所有工具模式，这也覆盖其他插件在创建后注册到该 Agent 自身作用域的工具，例如 schedule 工具；并通过作用域内的工具守卫拒绝所有工具执行。提示词作为该 Session 的系统消息进入日志，请求头不记录任何工具。它唯一的其他输入是一条来源类型为 `camera` 的 `user/message`：提示文本加上作为图像块的画面。已完成的助手文本按每个字段的模式读取：取文本中的第一个 JSON 对象，即使它位于代码围栏或说明文字中；标签接受常见同义词和复数；每个被询问的问题必须是带布尔值 `answer` 和 `frames` 列表的对象，超出画面范围的画面序号会被丢弃。没有有效依据画面的真回答读取为假，没有有效对象的被询问问题不计入回答，未询问问题的字段会被忽略；关于人物、包裹或车辆的真回答会补上对应标签。所有字段有效时读取结果为 `parsed`，部分字段有效时为 `partial`，没有 JSON 对象时为 `unparsed` 并保留第一行文本。模型自己的置信度既不询问也不读取。轮次失败记录为 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`NOT_PERSISTED`、`SESSION_FAILED`、`MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION`。
+每次分类都会打开一个不带 agent 预设的根 Session，只允许一次模型请求。其 Agent 作用域把分类提示词注册为人设前缀段中的完整系统提示词，因此主机人设和其他所有段都被排除；抑制运行时上下文；通过 `system-prompt/assemble` 监听器去掉所有工具模式，这也覆盖其他插件在创建后注册到该 Agent 自身作用域的工具，例如 schedule 工具；并通过作用域内的工具守卫拒绝所有工具执行。提示词作为该 Session 的系统消息进入日志，请求头不记录任何工具。它唯一的其他输入是一条来源类型为 `camera` 的 `user/message`：提示文本加上作为图像块的画面。已完成的助手文本按每个字段的模式读取：取文本中的第一个 JSON 对象，即使它位于代码围栏或说明文字中；标签接受常见同义词和复数；每个被询问的问题必须是带布尔值 `answer` 和 `frames` 列表的对象，超出画面范围的画面序号会被丢弃。没有有效依据画面的真回答读取为假，没有有效对象的被询问问题不计入回答，未询问问题的字段会被忽略；关于人物、包裹或车辆的真回答会补上对应标签。所有字段有效时读取结果为 `parsed`，部分字段有效时为 `partial`，没有 JSON 对象时为 `unparsed` 并保留第一行文本。什么都没说明的对象（没有描述或描述为空白、没有标签、没有计数，且没有被询问的问题回答为真）不算读取结果：原样返回模板的模型就是这样回复的，因此该分类以 `EMPTY_ANSWER` 失败，并记录 `camera-watch: classification <session id> of <event id> stated nothing`，而不是读取为什么都没发生。模型自己的置信度既不询问也不读取。轮次失败记录为 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`EMPTY_ANSWER`、`NOT_PERSISTED`、`SESSION_FAILED`、`MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION`。
 
-第一帧检查与其他分类共用 `maxConcurrent` 个槽位。`earlyMotionNotice` 开启且配置了频道时，新移动事件的 `camera/preview` 会排入一次仅针对该帧的检查，除非所有槽位都忙且已有 `maxQueued` 个事件在等待；排队中的检查先于任何排队中的事件启动，因此事件不会排在自己的检查之前而等待它。该检查是独立的、记录在案的分类 Session，其来源摘要以 `(first frame)` 结尾，指令说明图像只是第一帧；除 `person_staying`、`package_present` 和 `vehicle_leaving` 外，它提出相同的问题。其判定产生原因时，通知 `camera:<事件 ID>:early` 立即附带该帧发送，并以 `From the first picture; an update follows only if the rest shows more.` 结尾。逗留原因需要两帧，因此从不来自此检查，下文的基准比较也只用于完整分类。同一事件的完整分类会等这条通知结束后再进行。早期通知送达后，分类通知 `camera:<事件 ID>` 只在有新增内容时发送：早期通知未说明的原因，或任一标签的数量高于第一帧；此时其标题为 `<时间> (update)`。原因相同且数量持平或更少时不发送任何消息，因为两次回答很少用相同措辞描述同一场景。历史把该检查的 Session 记录为 `earlySessionId`，得到回答时把其原因记录为 `earlyReasons`，把其交接结果记录为 `earlyDelivery`；无需更新时 `delivery` 保持为 `none`。
+第一帧检查与其他分类共用 `maxConcurrent` 个槽位。`earlyMotionNotice` 开启且配置了频道时，新移动事件的 `camera/preview` 会排入一次仅针对该帧的检查，除非所有槽位都忙且已有 `maxQueued` 个事件在等待；排队中的检查先于任何排队中的事件启动，因此事件不会排在自己的检查之前而等待它。该检查是独立的、记录在案的分类 Session，其来源摘要以 `(first frame)` 结尾，指令说明图像只是第一帧；除 `person_staying`、`package_present` 和 `vehicle_leaving` 外，它提出相同的问题，设置了 `earlyModelSelection` 时使用该路由。失败或回答为空的检查不发送早期通知，完整分类仍会运行并自行通知。其判定产生原因时，通知 `camera:<事件 ID>:early` 立即附带该帧发送，并以 `From the first picture; an update follows only if the rest shows more.` 结尾。逗留原因需要两帧，因此从不来自此检查，下文的基准比较也只用于完整分类。同一事件的完整分类会等这条通知结束后再进行。早期通知送达后，分类通知 `camera:<事件 ID>` 只在有新增内容时发送：早期通知未说明的原因，或任一标签的数量高于第一帧；此时其标题为 `<时间> (update)`。原因相同且数量持平或更少时不发送任何消息，因为两次回答很少用相同措辞描述同一场景。历史把该检查的 Session 记录为 `earlySessionId`，得到回答时把其原因记录为 `earlyReasons`，把其交接结果记录为 `earlyDelivery`；无需更新时 `delivery` 保持为 `none`。
 
 每次分类只提出设备已启用规则会读取的问题：`person_on_property` 用于夜间规则、`personDevices` 和逗留规则；在 `doorDevices` 摄像头上以及任何门铃按下时再加上 `person_at_door`；有两帧或更多画面时询问 `person_staying`；`packageDelivered` 开启时询问 `package_being_delivered`，`arrivalBaselineMs` 不为 0 时还询问 `package_present`；在 `vehicleDevices` 摄像头上，按 `vehicleActivities` 所列的每种动向询问 `vehicle_arriving` 和 `vehicle_leaving`。策略在代码中执行。门铃按下总会产生 `ding`。其他原因都需要 `parsed` 或 `partial` 判定。`person_on_property` 或 `person_at_door` 为真时算作看到人，因此人行道或街道上的路人不会触发任何通知。`night-person` 需要夜间时段内看到人，`person` 需要在任何时段于 `personDevices` 摄像头上看到人。`package` 需要 `package_being_delivered`，或者在下文基准对 `package_present` 回答为假时需要 `package_present`，因此两次事件之间留下的包裹只通知一次，一直放着的包裹不会再次通知。`vehicle` 需要 `vehicleDevices` 摄像头，并取车辆数量变化、为真的 `vehicle_arriving` 和为真的 `vehicle_leaving` 中第一个列在 `vehicleActivities` 里的动向；停下后车门打开或有人下车的车辆回答 `vehicle_arriving`，停放的车辆两者都不回答为真。`lingering` 需要为真的 `person_staying`，并且人物依据画面按记录的偏移跨越至少 `lingerSeconds`。基准是同一设备在 `arrivalBaselineMs` 内带有判定的最近一条更早记录，在设备是 `vehicleDevices` 摄像头或事件回答了 `package_present` 时比较：车辆多于基准视为 `arriving`，少于基准视为 `leaving`，该动向决定标题，例如 `Vehicle arriving`。历史保留判定，数量不同时追加 `vehicleChange`，比较过基准时追加 `baselineEventId`。`person` 通知的标题为 `Person at <设备标签>`；同时适用 `night-person` 时，历史记录和 `camera` 工具保留两个原因，通知只显示 `Person at night`。
 
 当 `immediateDingNotice` 和 `policy.ding` 开启且配置了频道时，新门铃按下的 `camera/preview` 会立即把 ID 为 `camera:<事件 ID>:ding`、文本为 `Someone rang the doorbell`、带第一帧的通知交给 `camera/notice`。同一事件分类后的通知会等这次交接结束后再发送，因此排在第二条。历史记录在分类通知投递之前写入。分类后的通知包含设备标签、本地时间、原因、描述或缺少描述的原因，以及数量；展示的画面是第一张人物依据画面，否则是第一张画面，若已送达的即时通知已展示过该画面则不再附带。`camera/notice` 是串行事件，由目标传输方式的所属方认领：Discord 网关把 Discord 目标接入发件箱，发件箱上传经校验的已存储画面及文本；signal-notices 把 Signal 目标排入 Signal 发件箱。无监听器接收时监视插件会重试交接，把分类通知的投递结果记录为 `delivered`、`undelivered`、`no-channel` 或 `none`，并在尝试过即时通知时把其结果记录为 `earlyDelivery`（`delivered` 或 `undelivered`）。首次发布之后新增的历史字段都是可选的或带默认值，因此早期记录仍能解析：规则问题出现之前存储的判定读取为空回答，并保留其自身的活动、车辆活动、置信度和人物画面，任何规则都不读取它们。保留清理在启动时运行，此后每次在上一次清理结束 `sweepIntervalMs` 后再次运行。它删除每条超过 `retentionDays` 或超出 `maxHistory` 的记录，并通过 `ctx.attachments.deleteImage` 删除既不被保留记录引用、也不被未完成事件引用的画面。记录的某张画面删除失败时，该记录会保留，由下一次清理重试；已经不存在的画面视为已删除。删除了内容的清理会以 info 级别记录事件数和画面数。画面被删除时仍在 Discord 发件箱中等待的通知只发送文本。
 
-路由的提供方在启动时已注册则立即检查路由，此后在每次该提供方刚出现的 `llm/adapters-updated` 时检查：提供方是 `modelSelection` 的提供方，未设置时是当时主机默认模型的提供方。只有提供方离开注册表后再次出现，才会再次检查。失败状态只保存在进程内。任何得到回答的分类都会结束连续的轮次失败；`NOT_PERSISTED`、`NO_FRAMES`、`QUEUE_FULL` 和路由失败既不延续也不结束它。失败通知的 ID 为 `camera-watch:classification-failing:<窗口起点>`，窗口是包含该通知、按 Unix 纪元对齐的 `failureNoticeIntervalMs` 时段，恢复消息在其后追加 `:recovered`；Discord 发件箱会忽略已持有的 ID，因此在同一窗口内重启不会重复发送该通知。失败和恢复通知不带画面，沿用事件通知的交接重试，也不写入历史。历史是唯一的持久状态，所有写入都经过存储域，进程内的失败状态也没有可与之分歧的独立观测，因此不发布不变量组件。
+所有路由的提供方在启动时都已注册则立即检查路由，此后在每次使它们全部注册的 `llm/adapters-updated` 时检查：提供方是 `modelSelection` 的提供方，未设置时是当时主机默认模型的提供方，以及设置了 `earlyModelSelection` 时它的提供方。只有某个提供方离开注册表后再次出现，才会再次检查。失败状态只保存在进程内，完整分类一份；设置了 `earlyModelSelection` 时，第一帧检查另有一份。每次得到回答的分类都会结束其所属状态中连续的轮次失败；`NOT_PERSISTED`、`NO_FRAMES`、`QUEUE_FULL` 和路由失败既不延续也不结束它。失败通知的 ID 为 `camera-watch:classification-failing:<窗口起点>`，使用自己路由的第一帧检查则为 `camera-watch:first-frame-failing:<窗口起点>`，窗口是包含该通知、按 Unix 纪元对齐的 `failureNoticeIntervalMs` 时段，恢复消息在其后追加 `:recovered`；Discord 发件箱会忽略已持有的 ID，因此在同一窗口内重启不会重复发送该通知。失败和恢复通知不带画面，沿用事件通知的交接重试，也不写入历史。历史是唯一的持久状态，所有写入都经过存储域，进程内的失败状态也没有可与之分歧的独立观测，因此不发布不变量组件。
 
 </details>
 
@@ -144,7 +145,7 @@ Reply with only this JSON object, filled in, and no other text:
 
 #### Token 影响
 
-每个事件发出一次请求：约 60 个系统提示词 token、约 250 到 450 个指令 token（取决于场景和被询问的问题），以及每帧一张图像（默认三帧），输出受 `maxOutputTokens` 限制。第一帧检查再增加一次请求，提示词相同，只带一张图像。
+每个事件发出一次请求：约 60 个系统提示词 token、约 250 到 450 个指令 token（取决于场景和被询问的问题），以及每帧一张图像（默认三帧），输出受 `maxOutputTokens` 限制。第一帧检查再增加一次请求，提示词相同，只带一张图像；设置了 `earlyModelSelection` 时使用该路由。
 
 #### KV Cache 影响
 
@@ -175,12 +176,13 @@ Reply with only this JSON object, filled in, and no other text:
 - **到达判断需要基准** — 车辆摄像头上 `arrivalBaselineMs` 内的第一个事件（按默认 12 小时，例如每天早上的第一个）没有可比较的对象，模型在任一事件中数错的车辆都会被视为到达或离开。同一设备的两个事件同时分类时，都与两者之前写入的记录比较。
 - **第一帧通知只凭一张画面** — 早期通知可能提到事件其余画面并未证实的人或车辆；更新只补充新原因和更高的数量，从不撤回早期通知。
 - **回答靠提示词约束，而非模式强制** — 分类请求不携带响应模式，也不带 token 对数概率，因此小模型仍可能跳过问题或偏离模板作答；这样的回答读取为 `partial`，其缺失的问题不会触发任何通知。因此规则读取依据画面，而不是置信度（[决策](../../../.agents/notes/implemented/feature/2026-09-28-camera-rule-questions.zh.md)）。
+- **空回答检查只识别空对象** — 原样返回模板但写了描述或抄了标签的模型，会被读取为所有问题都为假的真实回答。在 32 个已存储事件上重放时，Qwen3.5 4B 在两个多帧事件上原样返回了模板，Flash Next 从未如此，所以第一帧检查可以用小模型，而完整分类需要较大的模型（[决策](../../../.agents/notes/implemented/feature/2026-09-28-camera-rule-questions.zh.md)）。
 - **人行道的判断依赖场景** — 没有 `scene` 时，模型只能从画面本身推断自家范围的边界。
 - **不识别身份** — 判定只泛指人物；识别熟人需要另外的、需主动开启的人脸库。
 - **历史只读文本** — `camera` 工具返回描述，不返回已存储的画面。
 - **关机时的写入** — 与整个主机关机同时发生的历史写入可能在存储设施先关闭时丢失；插件重载会等待写入完成。
 - **重启会遗忘失败状态** — 通知间隔、连续轮次失败和待发送的恢复消息都保存在内存中，因此跨越通知窗口边界的重启可能重复一条失败通知，重启前已通知的失败也不会有恢复消息。
-- **从不注册的提供方不会被检查** — 路由检查要等提供方注册；在此之前只有事件会报告不可用的路由。
+- **从不注册的提供方不会被检查** — 路由检查要等所有路由的提供方都注册，因此缺席的第一帧提供方也会推迟完整路由的检查；在此之前只有事件会报告不可用的路由。
 
 <a id="dev-note"></a>
 ### 开发备注

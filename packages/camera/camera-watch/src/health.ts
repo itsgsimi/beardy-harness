@@ -1,9 +1,10 @@
 /**
  * Classification failure tracking: which failed classifications call for a failure notice, at most
  * one such notice per interval, and one recovery line after the first answered classification that
- * follows it. State is process-local. Notice ids name the fixed interval window, aligned to the Unix
- * epoch, in which the failure notice was raised, so a restart inside that window hands the delivery
- * owner an id it already holds.
+ * follows it. State is process-local, one tracker per classification route: full classifications,
+ * and first-frame checks when they have a route of their own. Notice ids name the tracked stage and
+ * the fixed interval window, aligned to the Unix epoch, in which the failure notice was raised, so a
+ * restart inside that window hands the delivery owner an id it already holds.
  * @module @deepseek-ai/dsh-camera-watch/health
  */
 
@@ -11,7 +12,10 @@
 export type RouteFailureCode = 'MODEL_UNAVAILABLE' | 'MODEL_NOT_VISION'
 
 /** Turn failure codes that raise a failure notice once `failureNoticeThreshold` occur in a row. */
-export const TURN_FAILURE_CODES: readonly string[] = Object.freeze(['TIMEOUT', 'TURN_FAILED', 'NO_ANSWER', 'SESSION_FAILED'])
+export const TURN_FAILURE_CODES: readonly string[] = Object.freeze(['TIMEOUT', 'TURN_FAILED', 'NO_ANSWER', 'EMPTY_ANSWER', 'SESSION_FAILED'])
+
+/** Classifications one tracker covers: full classifications, or first-frame checks on their own route. */
+export type HealthStage = 'full' | 'first-frame'
 
 /** Longest cause a failure notice quotes, in characters. */
 const CAUSE_MAX_CHARS = 200
@@ -40,7 +44,11 @@ export function shortCause(error: unknown): string {
 export type HealthNotice =
   | {
     readonly kind: 'failing'
-    /** `camera-watch:classification-failing:<window start in epoch ms>`. */
+    readonly stage: HealthStage
+    /**
+     * `camera-watch:classification-failing:<window start in epoch ms>`, or
+     * `camera-watch:first-frame-failing:<window start>` for the first-frame stage.
+     */
     readonly id: string
     readonly code: string
     /** Bounded one-line cause. */
@@ -48,6 +56,7 @@ export type HealthNotice =
   }
   | {
     readonly kind: 'recovered'
+    readonly stage: HealthStage
     /** The failure notice id followed by `:recovered`. */
     readonly id: string
   }
@@ -58,6 +67,8 @@ export interface HealthSettings {
   readonly threshold: number
   /** Least milliseconds between two failure notices; also the id window length. */
   readonly intervalMs: number
+  /** Classifications this tracker covers. */
+  readonly stage: HealthStage
 }
 
 /** Process-local failure state of one camera watch. */
@@ -80,7 +91,7 @@ export class ClassificationHealth {
     const failing = this.unrecovered
     if (failing === undefined) return undefined
     this.unrecovered = undefined
-    return { kind: 'recovered', id: `${failing}:recovered` }
+    return { kind: 'recovered', stage: this.settings.stage, id: `${failing}:recovered` }
   }
 
   /**
@@ -105,15 +116,17 @@ export class ClassificationHealth {
     if (!TURN_FAILURE_CODES.includes(code)) return undefined
     this.consecutive++
     if (this.consecutive < this.settings.threshold) return undefined
-    return this.failing(code, `${String(this.consecutive)} classifications in a row`, now)
+    const noun = this.settings.stage === 'first-frame' ? 'first-frame checks' : 'classifications'
+    return this.failing(code, `${String(this.consecutive)} ${noun} in a row`, now)
   }
 
   private failing(code: string, cause: string, now: number): HealthNotice | undefined {
     if (this.lastFailingAt !== undefined && now - this.lastFailingAt < this.settings.intervalMs) return undefined
     this.lastFailingAt = now
     const windowStart = Math.floor(now / this.settings.intervalMs) * this.settings.intervalMs
-    const id = `camera-watch:classification-failing:${String(windowStart)}`
+    const prefix = this.settings.stage === 'first-frame' ? 'first-frame' : 'classification'
+    const id = `camera-watch:${prefix}-failing:${String(windowStart)}`
     this.unrecovered = id
-    return { kind: 'failing', id, code, cause }
+    return { kind: 'failing', stage: this.settings.stage, id, code, cause }
   }
 }

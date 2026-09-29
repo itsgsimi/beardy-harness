@@ -579,6 +579,11 @@ export interface Config {
   /** Exact image-capable model route; absent uses the host default model at each event. */
   readonly modelSelection?: ConfiguredModelSelection | undefined
   /**
+   * Exact image-capable model route for first-frame checks only, such as a faster model than
+   * `modelSelection`; absent uses the full classification's route. Requires `earlyMotionNotice`.
+   */
+  readonly earlyModelSelection?: ConfiguredModelSelection | undefined
+  /**
    * Delivery target for notices: a Discord channel id, `discord:<id>`, `signal:group:<base64 id>`, or
    * `signal:number:<E.164>`; absent keeps history only.
    */
@@ -620,8 +625,9 @@ export interface Config {
   /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
   readonly deliveryRetryMs?: number
   /**
-   * Classification turns in a row that time out, fail, give no answer, or cannot start before a
-   * failure notice, from 1 to 100; defaults to 3.
+   * Classification turns in a row that time out, fail, give no or an empty answer, or cannot start
+   * before a failure notice, from 1 to 100; defaults to 3. With `earlyModelSelection`, first-frame
+   * checks count their own run and raise their own notice.
    */
   readonly failureNoticeThreshold?: number
   /** Least milliseconds between two classification failure notices, from 60000 to 604800000; defaults to 21600000. */

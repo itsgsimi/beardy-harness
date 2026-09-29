@@ -119,18 +119,27 @@ export interface FailureNoticeFacts {
   readonly cause: string
   /** Whether doorbell presses still notify without a verdict, which `policy.ding` decides. */
   readonly dingNotifies: boolean
+  /** A first-frame check on its own route is failing; full classifications are unaffected. */
+  readonly firstFrame?: boolean
 }
 
 /**
  * Compose the notice that classification is failing: the code and cause, that motion alerts no
- * longer notify, and, while `policy.ding` is on, that doorbell presses still do.
- * @param facts - failure code, cause, and doorbell rule.
+ * longer notify, and, while `policy.ding` is on, that doorbell presses still do. For first-frame
+ * checks on their own route it states instead that motion alerts wait for the full check.
+ * @param facts - failure code, cause, doorbell rule, and stage.
  * @returns notice text.
  */
 export function renderFailureNotice(facts: FailureNoticeFacts): string {
+  if (facts.firstFrame === true) {
+    return `⚠️ Camera first-frame checks are failing (${facts.code}: ${facts.cause}). Motion alerts wait for the full check.`
+  }
   const effect = facts.dingNotifies ? 'Motion alerts are paused; doorbell presses still post.' : 'Motion alerts are paused.'
   return `⚠️ Camera classification is failing (${facts.code}: ${facts.cause}). ${effect}`
 }
 
 /** The line posted after the first answered classification that follows a failure notice. */
 export const RECOVERY_NOTICE_TEXT = 'Camera classification recovered.'
+
+/** The line posted after the first answered first-frame check that follows a first-frame failure notice. */
+export const FIRST_FRAME_RECOVERY_NOTICE_TEXT = 'Camera first-frame checks recovered.'

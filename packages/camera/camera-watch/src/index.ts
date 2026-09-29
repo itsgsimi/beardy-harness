@@ -3,7 +3,7 @@
  * notification policy, hands notices with a frame to the delivery owner through `camera/notice`
  * (a doorbell press, and a motion event whose first frame already notifies, first as soon as that
  * frame is stored), keeps a bounded event history, and exposes it through the read-only `camera` tool.
- * It resolves the model route when the route's provider registers and raises a rate-limited failure
+ * It resolves the model routes when their providers register and raises a rate-limited failure
  * notice when classification keeps failing.
  * @module @deepseek-ai/dsh-camera-watch
  */
@@ -28,7 +28,7 @@ import { ClassificationHealth, shortCause } from './health.ts'
 import type { HealthNotice, RouteFailureCode } from './health.ts'
 import { cameraWatchDomainSpec, deviceBaseline, frameAttachment, partitionHistory, storedVerdict } from './history.ts'
 import type { HistoryRecord } from './history.ts'
-import { RECOVERY_NOTICE_TEXT, renderDingNotice, renderFailureNotice, renderNotice } from './notice.ts'
+import { FIRST_FRAME_RECOVERY_NOTICE_TEXT, RECOVERY_NOTICE_TEXT, renderDingNotice, renderFailureNotice, renderNotice } from './notice.ts'
 import { addsToEarlyNotice, lingeringMs, noticeReasons, personFrames, vehicleChange } from './policy.ts'
 import type { BaselineFacts, EarlyStatement } from './policy.ts'
 import { classificationRequest } from './prompt.ts'
@@ -172,10 +172,13 @@ export class CameraWatch {
   private readonly devices: ReadonlyMap<string, CameraDevice>
   private readonly now: () => number
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>
+  /** Failure state of full classifications, and of first-frame checks without a route of their own. */
   private readonly health: ClassificationHealth
+  /** Failure state of first-frame checks: {@link health} unless `earlyModelSelection` sets their own route. */
+  private readonly earlyHealth: ClassificationHealth
   private running = 0
   private sweepTimer: ReturnType<typeof setTimeout> | undefined
-  /** Whether the route's provider was registered at the latest check. */
+  /** Whether every route's provider was registered at the latest check. */
   private routeRegistered = false
 
   /**
@@ -201,7 +204,9 @@ export class CameraWatch {
     }
     this.now = deps.now ?? Date.now
     this.sleep = deps.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }) })
-    this.health = new ClassificationHealth({ threshold: config.failureNoticeThreshold, intervalMs: config.failureNoticeIntervalMs })
+    const bounds = { threshold: config.failureNoticeThreshold, intervalMs: config.failureNoticeIntervalMs }
+    this.health = new ClassificationHealth({ ...bounds, stage: 'full' })
+    this.earlyHealth = config.earlyModelSelection === undefined ? this.health : new ClassificationHealth({ ...bounds, stage: 'first-frame' })
   }
 
   /**
@@ -219,27 +224,45 @@ export class CameraWatch {
   }
 
   /**
-   * Resolve the classification route, with the image-input check, when its provider has become
-   * registered since the previous call: `modelSelection` or, without it, the host default model's
-   * provider at this call. Logs the route on success; a failure is logged and raises the failure
-   * notice. Never throws, so a broken route leaves the host running.
+   * Resolve the classification routes, with the image-input check, once every route's provider has
+   * become registered since the previous call: `modelSelection` or, without it, the host default
+   * model's provider at this call, and `earlyModelSelection` when set. Logs the routes on success; a
+   * failure is logged and raises its stage's failure notice. Never throws, so a broken route leaves
+   * the host running.
    */
   checkRoute(): void {
-    const { provider } = this.config.modelSelection ?? this.ctx.agentDefaultModel.currentSelection()
-    const registered = this.ctx.llm.listProviders().some(info => info.id === provider)
+    const providers = [(this.config.modelSelection ?? this.ctx.agentDefaultModel.currentSelection()).provider]
+    if (this.config.earlyModelSelection !== undefined) providers.push(this.config.earlyModelSelection.provider)
+    const listed = new Set(this.ctx.llm.listProviders().map(info => info.id))
+    const registered = providers.every(provider => listed.has(provider))
     const appeared = registered && !this.routeRegistered
     this.routeRegistered = registered
-    if (appeared) this.track(this.resolveRoute())
+    if (appeared) this.track(this.resolveRoutes())
   }
 
-  private async resolveRoute(): Promise<void> {
+  private async resolveRoutes(): Promise<void> {
+    const full = await this.checkedRoute(false)
+    const early = this.config.earlyModelSelection === undefined ? full : await this.checkedRoute(true)
+    if (full !== undefined) {
+      const suffix = early === undefined || early === full ? '' : ` (first frame: ${early})`
+      this.ctx.logger.info(`camera-watch: classifying with ${full}${suffix}`)
+    } else if (early !== undefined) this.ctx.logger.info(`camera-watch: first-frame checks classifying with ${early}`)
+  }
+
+  /**
+   * Resolve one stage's route, logging and reporting a failure.
+   * @returns `provider/model`, or undefined when the route failed.
+   */
+  private async checkedRoute(firstFrame: boolean): Promise<string | undefined> {
     try {
-      const { provider, model } = await this.selection()
-      this.ctx.logger.info(`camera-watch: classifying with ${provider}/${model}`)
+      const { provider, model } = await this.selection(firstFrame)
+      return `${provider}/${model}`
     } catch (error: unknown) {
       const failure = routeFailure(error)
-      this.ctx.logger.error(`camera-watch: model route check failed: ${failure.chain}`)
-      this.report(this.health.routeFailed(failure.code, failure.cause, this.now()))
+      const stage = firstFrame ? 'first-frame model route' : 'model route'
+      this.ctx.logger.error(`camera-watch: ${stage} check failed: ${failure.chain}`)
+      this.report((firstFrame ? this.earlyHealth : this.health).routeFailed(failure.code, failure.cause, this.now()))
+      return undefined
     }
   }
 
@@ -250,12 +273,14 @@ export class CameraWatch {
   private report(notice: HealthNotice | undefined): void {
     if (notice === undefined || this.controller.signal.aborted) return
     let text: string
+    const firstFrame = notice.stage === 'first-frame'
+    const subject = firstFrame ? 'first-frame checks are' : 'classification is'
     if (notice.kind === 'failing') {
-      this.ctx.logger.warn(`camera-watch: classification is failing (${notice.code}: ${notice.cause})`)
-      text = renderFailureNotice({ code: notice.code, cause: notice.cause, dingNotifies: this.config.policy.ding })
+      this.ctx.logger.warn(`camera-watch: ${subject} failing (${notice.code}: ${notice.cause})`)
+      text = renderFailureNotice({ code: notice.code, cause: notice.cause, dingNotifies: this.config.policy.ding, firstFrame })
     } else {
-      this.ctx.logger.info('camera-watch: classification recovered')
-      text = RECOVERY_NOTICE_TEXT
+      this.ctx.logger.info(`camera-watch: ${firstFrame ? 'first-frame checks' : 'classification'} recovered`)
+      text = firstFrame ? FIRST_FRAME_RECOVERY_NOTICE_TEXT : RECOVERY_NOTICE_TEXT
     }
     const channelId = this.config.deliverChannelId
     if (channelId === undefined) return
@@ -447,10 +472,12 @@ export class CameraWatch {
     await this.finish(event, classification)
   }
 
-  private async selection(): Promise<ModelSelection> {
-    const choice = this.config.modelSelection
+  /** Resolve the route of full classifications or of first-frame checks, with the image-input check. */
+  private async selection(firstFrame: boolean): Promise<ModelSelection> {
+    const early = firstFrame ? this.config.earlyModelSelection : undefined
+    const choice = early ?? this.config.modelSelection
     const selection = choice === undefined ? this.ctx.agentDefaultModel.currentSelection()
-      : await validateModelSelection(this.ctx, choice, 'camera-watch: modelSelection')
+      : await validateModelSelection(this.ctx, choice, early === undefined ? 'camera-watch: modelSelection' : 'camera-watch: earlyModelSelection')
     const info = await this.ctx.llm.resolveModelInfo(selection.provider, selection.model)
     if (info.inputModalities !== undefined && !info.inputModalities.includes('image')) {
       throw new VisionRouteError(`provider "${selection.provider}" model "${selection.model}" declares no image input`)
@@ -459,17 +486,19 @@ export class CameraWatch {
   }
 
   /**
-   * Run one logged classification of the event's frames, or of its first frame alone.
+   * Run one logged classification of the event's frames, or of its first frame alone on the
+   * first-frame route. An answer that states nothing fails as `EMPTY_ANSWER`.
    * @returns the reading, or a failure code.
    */
   private async classify(event: CameraEvent, firstFrame = false): Promise<Classification> {
+    const health = firstFrame ? this.earlyHealth : this.health
     let selection: ModelSelection
     try {
-      selection = await this.selection()
+      selection = await this.selection(firstFrame)
     } catch (error: unknown) {
       const failure = routeFailure(error)
       this.ctx.logger.error(failure.code === 'MODEL_NOT_VISION' ? `camera-watch: ${failure.chain}` : `camera-watch: model route unavailable: ${failure.chain}`)
-      this.report(this.health.routeFailed(failure.code, failure.cause, this.now()))
+      this.report(health.routeFailed(failure.code, failure.cause, this.now()))
       return { status: 'failed', failure: failure.code }
     }
     const device = this.devices.get(event.deviceId) as CameraDevice
@@ -495,15 +524,20 @@ export class CameraWatch {
       })
     } catch (error: unknown) {
       this.ctx.logger.warn(`camera-watch: classification Session for ${event.id} could not start: ${errorChain(error)}`)
-      this.report(this.health.turnFailed('SESSION_FAILED', this.now()))
+      this.report(health.turnFailed('SESSION_FAILED', this.now()))
       return { status: 'failed', failure: 'SESSION_FAILED' }
     }
     if (outcome.kind === 'failed') {
-      this.report(this.health.turnFailed(outcome.code, this.now()))
+      this.report(health.turnFailed(outcome.code, this.now()))
       return { status: 'failed', sessionId, failure: outcome.code }
     }
-    this.report(this.health.answered())
     const reading = parseVerdict(outcome.text, event.frames.length, request.questions)
+    if (reading.status === 'empty') {
+      this.ctx.logger.warn(`camera-watch: classification ${sessionId} of ${event.id} stated nothing`)
+      this.report(health.turnFailed('EMPTY_ANSWER', this.now()))
+      return { status: 'failed', sessionId, failure: 'EMPTY_ANSWER' }
+    }
+    this.report(health.answered())
     return { status: reading.status, verdict: reading.verdict, text: reading.text, sessionId }
   }
 

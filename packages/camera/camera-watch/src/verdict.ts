@@ -2,7 +2,8 @@
  * The classification system prompt and instruction, and a reader for the model's answer: a fixed
  * JSON object with a description, labels, counts, and one yes-or-no answer with evidence frames per
  * asked question. The reader takes the first JSON object even inside fences or prose, checks each
- * field against its schema separately, and reports how complete the answer was.
+ * field against its schema separately, and reports how complete the answer was, or that the answer
+ * is empty.
  * @module @deepseek-ai/dsh-camera-watch/verdict
  */
 
@@ -94,9 +95,13 @@ export function classificationPrompt(facts: PromptFacts): string {
   return lines.join('\n')
 }
 
-/** A read verdict and how complete it was. */
+/**
+ * A read verdict and how complete it was. `empty` means the object states nothing, which is how a
+ * model that echoes the instruction's template replies; the watch records it as a failed
+ * classification.
+ */
 export interface VerdictReading {
-  readonly status: Exclude<VerdictStatus, 'failed' | 'skipped'>
+  readonly status: Exclude<VerdictStatus, 'failed' | 'skipped'> | 'empty'
   /** Present for `parsed` and `partial` readings. */
   readonly verdict?: CameraVerdict
   /** One-line account for an `unparsed` reading: the model's first line of text. */
@@ -159,6 +164,19 @@ function firstObject(text: string): Record<string, unknown> | undefined {
   return undefined
 }
 
+/**
+ * Whether an answer object states nothing: no description or a blank one, no labels or an empty
+ * list, no counts or an empty object, and no asked question answered `true`. A verbatim copy of the
+ * instruction's template is one such object.
+ */
+function statesNothing(object: Record<string, unknown>, questions: readonly CameraQuestion[]): boolean {
+  const { description, labels, counts } = object
+  return (description === undefined || (typeof description === 'string' && description.trim() === ''))
+    && (labels === undefined || (Array.isArray(labels) && labels.length === 0))
+    && (counts === undefined || (countsSchema.safeParse(counts).success && Object.keys(counts as object).length === 0))
+    && questions.every(question => answerSchema.safeParse(object[question]).data?.answer !== true)
+}
+
 /** Completeness flag shared by the field readers of one answer. */
 interface Completeness { complete: boolean }
 
@@ -180,7 +198,8 @@ function readAnswer(value: unknown, frameCount: number, state: Completeness): Ca
 }
 
 /**
- * Read the model's answer. Missing or invalid fields make the reading `partial`: labels and counts
+ * Read the model's answer. An object that states nothing (no description, labels, or counts, and no
+ * asked question answered true) reads as `empty` without a verdict. Missing or invalid fields make the reading `partial`: labels and counts
  * keep their valid members, a missing description is replaced by the visible labels, an asked
  * question without a valid `{ answer, frames }` object is left out of `answers`, and evidence frames
  * outside the frame set are dropped. A true answer whose evidence frames are all missing or invalid
@@ -194,6 +213,7 @@ function readAnswer(value: unknown, frameCount: number, state: Completeness): Ca
 export function parseVerdict(text: string, frameCount: number, questions: readonly CameraQuestion[]): VerdictReading {
   const object = firstObject(text)
   if (object === undefined) return { status: 'unparsed', text: oneLine(text) }
+  if (statesNothing(object, questions)) return { status: 'empty' }
   const state: Completeness = { complete: true }
   const labels = new Set<CameraLabel>()
   const rawLabels = listSchema.safeParse(object['labels'])
