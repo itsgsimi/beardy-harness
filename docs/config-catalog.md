@@ -1154,7 +1154,7 @@ export interface Config {
 
 - `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/discord/discord-gateway/src/index.ts:99`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:102`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -1211,6 +1211,11 @@ export interface Config {
   readonly maxInputChars?: number
   /** Longest wait for one answer. Defaults to 600000. */
   readonly turnTimeoutMs?: number
+  /**
+   * Running time after which an unsettled inbound turn posts one "still working" notice; `0` disables it.
+   * Must be shorter than `turnTimeoutMs`. Defaults to 180000.
+   */
+  readonly turnProgressNoticeMs?: number
   /** First reconnect delay in milliseconds. Defaults to 1000. */
   readonly reconnectDelayMs?: number
   /** Cap on the doubled reconnect delay. Defaults to 30000. */

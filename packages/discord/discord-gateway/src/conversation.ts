@@ -51,6 +51,9 @@ import type { ConversationLane, DiscordCommandActor, DiscordInboundMessage, Disc
 /** Repeat interval for the typing indicator, fixed against Discord's own ~10-second expiry. */
 const TYPING_INTERVAL_MS = 8_000
 
+/** Text of the one notice an inbound turn posts after `turnProgressNoticeMs` without settling. */
+export const TURN_PROGRESS_NOTICE = 'Still working on this — it is a bigger job. I will post the answer here when it is done.'
+
 /** Who the listener answers and how guild channels are gated. Both lists hold validated snowflakes. */
 export interface RoutingPolicy {
   /** User ids allowed to start or continue a conversation. */
@@ -124,6 +127,8 @@ interface LiveConversation {
   inboundActive: boolean
   /** Cancels the pending idle-release timer for this conversation. */
   cancelRelease: () => void
+  /** Cancels the running inbound turn's pending progress notice; a no-op when none is armed. */
+  cancelProgress: () => void
 }
 
 /** A channel's queued messages inside one debounce window. */
@@ -456,6 +461,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     if (live !== undefined) {
       conversations.delete(channelId)
       live.cancelRelease()
+      live.cancelProgress()
       try {
         await live.handle.dispose()
       } catch (error: unknown) {
@@ -593,6 +599,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       seqFloor: handle.agent.session.seq,
       inboundActive: false,
       cancelRelease: () => {},
+      cancelProgress: () => {},
     }
   }
 
@@ -882,6 +889,26 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     return controller
   }
 
+  /**
+   * Arm the one progress notice of an inbound turn. `runTurn` owns the timer and cancels it when the
+   * turn settles or times out; `/stop`, `/new`, release, and router disposal cancel it too. The tail
+   * chain runs one inbound turn per channel at a time, so later messages wait and arm their own
+   * notice only when their turn starts.
+   */
+  function armProgressNotice(conversation: LiveConversation, inputSignal: AbortSignal): void {
+    if (settings.turnProgressNoticeMs === 0) return
+    const controller = new AbortController()
+    conversation.cancelProgress = () => { controller.abort() }
+    const armed = AbortSignal.any([signal, inputSignal, controller.signal])
+    wait(settings.turnProgressNoticeMs, armed).then(() => {
+      // A delay seam that resolves after cancellation posts nothing; release and disposal abort `armed`.
+      if (armed.aborted) return
+      track(notice(conversation.channelId, TURN_PROGRESS_NOTICE, 'Still working'))
+    }, () => {
+      // The turn settled, timed out, or was cancelled first; the notice is no longer due.
+    })
+  }
+
   /** Hand one message to the Session, wait for the answer, and post it to the channel. */
   async function runTurn(conversation: LiveConversation, message: DiscordInboundMessage, inputSignal: AbortSignal): Promise<void> {
     const agent = conversation.handle.agent
@@ -902,6 +929,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           summary: boundContextSummary(`Discord message from ${message.authorId}`),
         },
       }))
+      armProgressNotice(conversation, inputSignal)
       const settled = await awaitTurn(agent, { timeoutMs: settings.turnTimeoutMs, wait, signal })
       if (inputSignal.aborted) return
       if (settled !== 'idle') {
@@ -923,6 +951,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         if (reply !== '') await postReply(message.channelId, reply)
       }
     } finally {
+      conversation.cancelProgress()
+      conversation.cancelProgress = () => {}
       typing?.abort()
       conversation.inboundActive = false
     }
@@ -1317,6 +1347,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       batches.clear()
       for (const conversation of live) {
         conversation.cancelRelease()
+        conversation.cancelProgress()
         try {
           await conversation.handle.dispose()
         } catch (error: unknown) {

@@ -78,6 +78,7 @@ export const SETTINGS: GatewaySettings = {
   titlePrefix: 'Discord',
   maxInputChars: 400,
   turnTimeoutMs: 1_000,
+  turnProgressNoticeMs: 0,
   idleReleaseMs: 60_000,
   conversationMaxAgeMs: 3_600_000,
   inboundDebounceMs: 0,
@@ -130,6 +131,7 @@ export interface HarnessOptions {
   readonly outboxStorage?: KvTable<string, OutboxRecord>
   readonly storedEvents?: SessionEvent[]
   readonly turnTimeoutMs?: number
+  readonly turnProgressNoticeMs?: number
   readonly idleReleaseMs?: number
   readonly conversationMaxAgeMs?: number
   readonly inboundDebounceMs?: number
@@ -390,6 +392,7 @@ export function harness(options: HarnessOptions = {}) {
       richMessages: options.richMessages ?? false,
       reactionStatus: options.reactionStatus ?? false,
       ...(options.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: options.turnTimeoutMs }),
+      ...(options.turnProgressNoticeMs === undefined ? {} : { turnProgressNoticeMs: options.turnProgressNoticeMs }),
       ...(options.idleReleaseMs === undefined ? {} : { idleReleaseMs: options.idleReleaseMs }),
       ...(options.conversationMaxAgeMs === undefined ? {} : { conversationMaxAgeMs: options.conversationMaxAgeMs }),
       ...(options.inboundDebounceMs === undefined ? {} : { inboundDebounceMs: options.inboundDebounceMs }),

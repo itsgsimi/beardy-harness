@@ -447,6 +447,7 @@ describe('discord-gateway real Loader composition', () => {
       titlePrefix: 'Discord',
       maxInputChars: 8_000,
       turnTimeoutMs: 600_000,
+      turnProgressNoticeMs: 180_000,
       reconnectDelayMs: 1_000,
       maxReconnectDelayMs: 30_000,
       idleReleaseMs: 900_000,
