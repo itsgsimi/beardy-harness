@@ -257,6 +257,36 @@ export function redact(text: string, secrets: readonly string[]): string {
   return result.length > 300 ? `${result.slice(0, 299)}…` : result
 }
 
+/** A JSON Web Token, such as a live-stream signalling `session_id`. */
+const JWT_PATTERN = /eyJ[\w-]*(?:\.[\w-]+)*/gu
+
+/** A `session_id` field in an inspected object or JSON text, with its value. */
+const SESSION_ID_PATTERN = /(session_id['"]?\s*[:=]\s*)(['"]?)[^'",\s}]+\2/gu
+
+/**
+ * Redact one `ring-client-api` diagnostic line: the refresh token secrets, then every `session_id`
+ * value and every JWT-looking value, become `[redacted]`, and the line is bounded as {@link redact} does.
+ * @param text - library text.
+ * @param secrets - strings that must not appear.
+ * @returns redacted text of at most 300 characters.
+ */
+export function redactVendorLine(text: string, secrets: readonly string[]): string {
+  let result = text
+  for (const secret of secrets) result = result.split(secret).join('[redacted]')
+  return redact(result.replace(SESSION_ID_PATTERN, '$1$2[redacted]$2').replace(JWT_PATTERN, '[redacted]'), [])
+}
+
+/**
+ * Whether a library error line is WebRTC signalling chatter rather than a failure: the library's
+ * `UNKNOWN MESSAGE` line for a signalling message it does not recognize, or an inspected signalling
+ * message (an object carrying `doorbot_id`) it dumps next to such lines.
+ * @param text - library error text.
+ * @returns true for chatter, which is logged as library detail instead of a warning.
+ */
+export function isSignallingChatter(text: string): boolean {
+  return text === 'UNKNOWN MESSAGE' || (text.startsWith('{') && text.includes('doorbot_id'))
+}
+
 const SNAPSHOT_MISS_TEXT = { stale: 'repeated the previous snapshot', refused: 'was refused', timeout: 'timed out' } as const
 
 /**
@@ -352,13 +382,17 @@ export class RingCameraService extends CameraService {
         throw new Error(`camera-ring: ffmpegPath ${this.spec.ffmpegPath} is not an executable file`)
       }
     }
+    const detail = (message: string): void => {
+      const line = `camera-ring: ring-client-api: ${redactVendorLine(message, this.secrets)}`
+      if (this.spec.vendorDebug) this.ctx.logger.info(line)
+      else this.ctx.logger.debug(line)
+    }
     this.ctx.effect(() => this.logging.install({
-      error: (message) => { this.ctx.logger.warn(`camera-ring: ring-client-api: ${this.redact(message)}`) },
-      info: (message) => {
-        const line = `camera-ring: ring-client-api: ${this.redact(message)}`
-        if (this.spec.vendorDebug) this.ctx.logger.info(line)
-        else this.ctx.logger.debug(line)
+      error: (message) => {
+        if (isSignallingChatter(message)) detail(message)
+        else this.ctx.logger.warn(`camera-ring: ring-client-api: ${redactVendorLine(message, this.secrets)}`)
       },
+      info: detail,
     }), 'camera-ring vendor logger')
     if (this.spec.vendorDebug) this.logging.enableDebug()
     this.ctx.effect(() => {

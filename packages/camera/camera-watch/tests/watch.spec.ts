@@ -405,11 +405,10 @@ describe('camera watch admission and delivery', () => {
     expect(harness.notices[1]?.image).toEqual(event.frames[0]!.attachment)
   })
 
-  it('ignores previews of motion, of repeated or recorded events, of unknown devices, and when disabled or without a channel', async () => {
+  it('ignores doorbell previews of repeated or recorded events, of unknown devices, and when disabled or without a channel', async () => {
     const harness = await start([verdictText({}), verdictText({})])
     mirror(harness)
     const frames = await harness.frames(1)
-    await harness.camera.preview(harness.event('motion', frames, { id: 'moving' }))
     await harness.camera.preview(harness.event('ding', frames, { id: 'stray', device: 'porch' }))
     const twice = harness.event('ding', frames, { id: 'twice' })
     await harness.camera.preview(twice)
@@ -446,6 +445,177 @@ describe('camera watch admission and delivery', () => {
     await until(() => harness.logs.some(log => log.text.includes('no delivery owner accepted camera:waiting')), 'first attempt')
     await harness.dispose()
     await harness.camera.send(harness.event('ding', [], { id: 'after' }))
+  })
+})
+
+describe('camera watch early motion notice', () => {
+  const doorPerson = (fields: Record<string, unknown> = {}): string => verdictText({ labels: ['person'], counts: { person: 1 }, activity: 'passing',
+    description: 'A person walks up the path.', personFrames: [0], ...fields })
+
+  it('posts a notice from the first frame at once and no update when the full check adds nothing, logging both Sessions', async () => {
+    const harness = await start([doorPerson(), doorPerson({ description: 'Someone in a cap walks to the door.' })],
+      { policy: { personDevices: ['front-door'] } })
+    mirror(harness)
+    const frames = await harness.frames(3, [300, 10_000, 20_000])
+    const event = harness.event('motion', frames, { id: 'walk-up' })
+    await harness.camera.preview(event)
+    await until(() => harness.notices.length === 1, 'early notice')
+    expect(harness.notices[0]).toEqual({ id: 'camera:walk-up:early', channelId: '123456789012345678',
+      text: '**Front door** · 12:00: Person at Front door\nA person walks up the path.\nSeen: person 1 · confidence 90%\n'
+        + 'From the first picture; an update follows only if the rest shows more.',
+      image: frames[0]!.attachment })
+    expect(userText(harness.adapter.requests[0]!)).toContain('The image is only the first frame, taken 0 s after the alert;')
+    expect(userText(harness.adapter.requests[0]!).endsWith('|[image]')).toBe(true)
+    await harness.camera.send(event)
+    await until(() => recordOf(harness, 'walk-up') !== undefined, 'record')
+    const record = recordOf(harness, 'walk-up')!
+    expect(record).toMatchObject({ status: 'parsed', reasons: ['person'], delivery: 'none', earlyDelivery: 'delivered', earlyReasons: ['person'] })
+    expect(record.earlySessionId).toMatch(/^camera-front-door-/u)
+    expect(record.earlySessionId).not.toBe(record.sessionId)
+    expect(harness.notices).toHaveLength(1)
+    const log = await harness.sessionLog()
+    const sources = log.filter(entry => entry.type === 'user/message').map(entry => (entry.data as { source: { summary: string } }).source.summary)
+    expect(sources.sort()).toEqual(['Front door motion', 'Front door motion (first frame)'])
+  })
+
+  it('posts an update when the full check adds a reason or counts more, without attaching the frame already shown', async () => {
+    const harness = await start([
+      doorPerson(), doorPerson({ personFrames: [0, 2] }),
+      doorPerson(), doorPerson({ counts: { person: 2 }, description: 'Two people wait at the door.', personFrames: [1] }),
+    ], { policy: { personDevices: ['front-door'] } })
+    mirror(harness)
+    const lingering = harness.event('motion', await harness.frames(3, [0, 11_000, 22_000]), { id: 'stays' })
+    await harness.camera.preview(lingering)
+    await harness.camera.send(lingering)
+    await until(() => recordOf(harness, 'stays')?.delivery === 'delivered', 'lingering update')
+    const frames = await harness.frames(2)
+    const pair = harness.event('motion', frames, { id: 'pair' })
+    await harness.camera.preview(pair)
+    await harness.camera.send(pair)
+    await until(() => recordOf(harness, 'pair')?.delivery === 'delivered', 'count update')
+    expect(harness.notices.map(notice => [notice.id, notice.text.split('\n')[0], notice.image?.attachmentId])).toEqual([
+      ['camera:stays:early', '**Front door** · 12:00: Person at Front door', lingering.frames[0]!.attachment.attachmentId],
+      ['camera:stays', '**Front door** · 12:00 (update): Person at Front door; Someone lingering (22 s)', undefined],
+      ['camera:pair:early', '**Front door** · 12:00: Person at Front door', frames[0]!.attachment.attachmentId],
+      ['camera:pair', '**Front door** · 12:00 (update): Person at Front door', frames[1]!.attachment.attachmentId],
+    ])
+    expect(recordOf(harness, 'stays')).toMatchObject({ reasons: ['person', 'lingering'], earlyReasons: ['person'], earlyDelivery: 'delivered' })
+  })
+
+  it('posts only the full notice when the first frame does not notify, its check fails, or its notice is refused', async () => {
+    const harness = await start([
+      verdictText({ description: 'An empty path.' }), doorPerson(),
+      [{ type: 'finish', reason: { kind: 'error', failure: { code: 'UPSTREAM', message: 'down' } } }], doorPerson(),
+      doorPerson(), doorPerson(),
+    ], { policy: { personDevices: ['front-door'] }, deliveryAttempts: 1 })
+    mirror(harness)
+    const empty = harness.event('motion', await harness.frames(2), { id: 'empty-first' })
+    await harness.camera.preview(empty)
+    await harness.camera.send(empty)
+    await until(() => recordOf(harness, 'empty-first')?.delivery === 'delivered', 'full notice')
+    const failed = harness.event('motion', await harness.frames(2), { id: 'failed-first' })
+    await harness.camera.preview(failed)
+    await harness.camera.send(failed)
+    await until(() => recordOf(harness, 'failed-first')?.delivery === 'delivered', 'full notice after failure')
+    const refused = harness.event('motion', await harness.frames(2), { id: 'refused-first' })
+    harness.noticeReplies.push('refuse')
+    await harness.camera.preview(refused)
+    await harness.camera.send(refused)
+    await until(() => recordOf(harness, 'refused-first')?.delivery === 'delivered', 'full notice after refusal')
+    expect(harness.notices.map(notice => [notice.id, notice.text.split('\n')[0], notice.image?.attachmentId])).toEqual([
+      ['camera:empty-first', '**Front door** · 12:00: Person at Front door', empty.frames[0]!.attachment.attachmentId],
+      ['camera:failed-first', '**Front door** · 12:00: Person at Front door', failed.frames[0]!.attachment.attachmentId],
+      ['camera:refused-first:early', '**Front door** · 12:00: Person at Front door', refused.frames[0]!.attachment.attachmentId],
+      ['camera:refused-first', '**Front door** · 12:00: Person at Front door', refused.frames[0]!.attachment.attachmentId],
+    ])
+    expect(recordOf(harness, 'empty-first')).toMatchObject({ earlyReasons: [], delivery: 'delivered' })
+    expect(recordOf(harness, 'empty-first')).not.toHaveProperty('earlyDelivery')
+    expect(recordOf(harness, 'failed-first')?.earlySessionId).toMatch(/^camera-front-door-/u)
+    expect(recordOf(harness, 'failed-first')).not.toHaveProperty('earlyReasons')
+    expect(recordOf(harness, 'refused-first')).toMatchObject({ earlyReasons: ['person'], earlyDelivery: 'undelivered', delivery: 'delivered' })
+  })
+
+  it('runs a queued first-frame check before queued events once a slot frees', async () => {
+    const harness = await start(['hang', doorPerson(), verdictText({ description: 'later' }), doorPerson()],
+      { policy: { personDevices: ['front-door'] }, turnTimeoutMs: 1_000 })
+    mirror(harness)
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'slow' }))
+    await until(() => harness.adapter.requests.length === 1, 'first classification')
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'waiting' }))
+    const jump = harness.event('motion', await harness.frames(1), { id: 'jump' })
+    await harness.camera.preview(jump)
+    expect(harness.adapter.requests).toHaveLength(1)
+    await until(() => harness.notices.some(notice => notice.id === 'camera:jump:early'), 'early notice')
+    expect(userText(harness.adapter.requests[1]!)).toContain('only the first frame')
+    await harness.camera.send(jump)
+    await until(() => recordOf(harness, 'jump') !== undefined && recordOf(harness, 'waiting') !== undefined, 'records')
+    expect(recordOf(harness, 'waiting')?.verdict?.description).toBe('later')
+  })
+
+  it('skips the first-frame check when disabled, without a channel, or when the event queue is full, and drops a queued one at disposal', async () => {
+    const frames = await (await start([])).frames(1)
+    for (const [config, options] of [[{ earlyMotionNotice: false }, {}], [{}, { channel: false as const }]] as const) {
+      const quiet = await start([], config, options)
+      await quiet.camera.preview(quiet.event('motion', frames, { id: 'off' }))
+      expect(quiet.adapter.requests).toEqual([])
+    }
+    const full = await start(['hang'], { maxQueued: 0, turnTimeoutMs: 60_000 })
+    await full.camera.send(full.event('motion', frames, { id: 'busy' }))
+    await until(() => full.adapter.requests.length === 1, 'busy classification')
+    await full.camera.preview(full.event('motion', frames, { id: 'crowded' }))
+    const queued = await start(['hang'], { turnTimeoutMs: 60_000 })
+    await queued.camera.send(queued.event('motion', frames, { id: 'busy' }))
+    await until(() => queued.adapter.requests.length === 1, 'busy classification')
+    await queued.camera.preview(queued.event('motion', frames, { id: 'pending' }))
+    await full.dispose()
+    await queued.dispose()
+    expect([full.adapter.requests.length, queued.adapter.requests.length]).toEqual([1, 1])
+  })
+})
+
+describe('camera watch arrival detection', () => {
+  const HOUR = 3_600_000
+  const cars = (vehicle: number, fields: Record<string, unknown> = {}): string => verdictText({ labels: vehicle === 0 ? [] : ['vehicle'],
+    counts: { vehicle }, vehicleActivity: vehicle === 0 ? 'none' : 'parked', description: `${String(vehicle)} vehicles stand in the driveway.`, ...fields })
+
+  it('reads a higher vehicle count than the previous garage event as arriving and a lower one as leaving', async () => {
+    const harness = await start([cars(2), cars(3), cars(3, { confidence: 0.3 }), cars(1), cars(1)],
+      { earlyMotionNotice: false, policy: { vehicleDevices: ['garage'] } })
+    mirror(harness)
+    const send = async (id: string, at: number, device = 'garage'): Promise<void> => {
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id, at, device }))
+      await until(() => recordOf(harness, id) !== undefined && recordOf(harness, id)?.delivery !== 'undelivered', id)
+    }
+    await send('evening', NOON - 2 * HOUR)
+    await send('arrival', NOON)
+    await send('doubtful', NOON + 60_000)
+    await send('departure', NOON + 2 * 60_000)
+    await send('front', NOON + 3 * 60_000, 'front-door')
+    expect(recordOf(harness, 'evening')).toMatchObject({ reasons: [], delivery: 'none' })
+    expect(recordOf(harness, 'evening')).not.toHaveProperty('vehicleChange')
+    expect(recordOf(harness, 'arrival')).toMatchObject({ reasons: ['vehicle'], vehicleChange: 'arriving', baselineEventId: 'evening',
+      verdict: { vehicleActivity: 'parked', counts: { vehicle: 3 } } })
+    expect(recordOf(harness, 'doubtful')).toMatchObject({ reasons: [] })
+    expect(recordOf(harness, 'doubtful')).not.toHaveProperty('vehicleChange')
+    expect(recordOf(harness, 'departure')).toMatchObject({ reasons: ['vehicle'], vehicleChange: 'leaving', baselineEventId: 'arrival' })
+    expect(recordOf(harness, 'front')).not.toHaveProperty('vehicleChange')
+    expect(harness.notices.map(notice => notice.text)).toEqual([
+      '**Garage** · 12:00: Vehicle arriving\n3 vehicles stand in the driveway.\nSeen: vehicle 3 · confidence 90%',
+      '**Garage** · 12:02: Vehicle leaving\n1 vehicles stand in the driveway.\nSeen: vehicle 1 · confidence 90%',
+    ])
+  })
+
+  it('compares nothing when the window is off or the previous event is older than the window', async () => {
+    for (const [policy, gap] of [[{ arrivalBaselineMs: 0 }, HOUR], [{ arrivalBaselineMs: HOUR }, HOUR + 1]] as const) {
+      const harness = await start([cars(2), cars(3)], { earlyMotionNotice: false, policy: { vehicleDevices: ['garage'], ...policy } })
+      mirror(harness)
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'before', at: NOON - gap, device: 'garage' }))
+      await until(() => recordOf(harness, 'before') !== undefined, 'before')
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'after', at: NOON, device: 'garage' }))
+      await until(() => recordOf(harness, 'after') !== undefined, 'after')
+      expect(recordOf(harness, 'after')).toMatchObject({ reasons: [], delivery: 'none' })
+      expect(recordOf(harness, 'after')).not.toHaveProperty('vehicleChange')
+    }
   })
 })
 

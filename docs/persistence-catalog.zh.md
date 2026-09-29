@@ -6776,7 +6776,7 @@ SHA-256: `023a355b2be0d688fb6e4df8388dadb942761d46cfe96d0f499aae9631a159d4`
 
 SHA-256: `3153858282399533d44c0ec40868cec650018de754c2de8b3a4b06d858e360b8`
 
-来源：[`packages/camera/camera-watch/src/index.ts:64`](../packages/camera/camera-watch/src/index.ts)
+来源：[`packages/camera/camera-watch/src/index.ts:66`](../packages/camera/camera-watch/src/index.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

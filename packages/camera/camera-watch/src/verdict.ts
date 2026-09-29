@@ -27,6 +27,8 @@ export interface PromptFacts {
   readonly localTime: string
   /** Frame offsets after the alert, in milliseconds. */
   readonly offsetsMs: readonly number[]
+  /** The one frame is the alert's first, classified before the rest are captured. */
+  readonly firstFrame?: boolean
 }
 
 /**
@@ -38,9 +40,11 @@ export function classificationPrompt(facts: PromptFacts): string {
   const alert = facts.kind === 'ding' ? 'doorbell press' : 'motion alert'
   const offsets = facts.offsetsMs.map(ms => `${String(Math.round(ms / 1_000))} s`).join(', ')
   const count = facts.offsetsMs.length
+  const scope = facts.firstFrame === true
+    ? `The image is only the first frame, taken ${offsets} after the alert; later frames are checked separately, so describe only what this frame shows.`
+    : `The ${String(count)} image${count === 1 ? ' is a frame' : 's are frames'} in capture order, taken ${offsets} after the alert.`
   return [
-    `Classify this ${alert} from the ${facts.deviceLabel} camera at ${facts.localTime}. `
-      + `The ${String(count)} image${count === 1 ? ' is a frame' : 's are frames'} in capture order, taken ${offsets} after the alert.`,
+    `Classify this ${alert} from the ${facts.deviceLabel} camera at ${facts.localTime}. ${scope}`,
     '',
     'Reply with only one JSON object and no other text:',
     '{"labels":[],"counts":{},"activity":"none","vehicleActivity":"none","confidence":0,"description":"","personFrames":[]}',
@@ -48,8 +52,10 @@ export function classificationPrompt(facts: PromptFacts): string {
     '- labels: each of "person", "vehicle", "package", "animal" visible in any frame.',
     '- counts: the most of each label visible at once, for example {"person":1}.',
     '- activity: one of "delivering", "lingering", "passing", "ringing", "none".',
-    '- vehicleActivity: "arriving" or "leaving" when a vehicle drives into or out of the driveway or a parking spot across the frames, '
-      + '"passing" when one drives by without stopping, "parked" when every vehicle stays still (lights or a running engine do not count as moving), '
+    '- vehicleActivity: "arriving" when a vehicle drives into the driveway or a parking spot, or is stopped there with a door open, '
+      + 'its lights on, or a person getting in or out, or is present in later frames but not in earlier ones; '
+      + '"leaving" when a vehicle pulls out or is gone from later frames; "passing" when one drives by without stopping; '
+      + '"parked" only when every vehicle stays still with its doors closed, its lights off, and nobody getting in or out; '
       + '"none" when no vehicle is visible.',
     '- confidence: how sure you are, from 0 to 1.',
     '- description: one sentence of at most 25 words about what is happening. Do not guess who anyone is.',

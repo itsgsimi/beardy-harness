@@ -412,12 +412,36 @@ describe('RingCameraService vendor logger', () => {
     expect(value.logging.uninstalls).toBe(1)
   })
 
+  it('logs signalling chatter as detail and redacts signalling session ids and JWTs in every line', async () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzZXNzaW9uIjoiMTIzIn0.c2lnbmF0dXJl'
+    const dump = `{ method: 'notification', body: { doorbot_id: 684234, session_id: '${jwt}', text: 'PeerConnectionState::kDisconnected' } }`
+    const value = await started()
+    value.logging.sink?.error('UNKNOWN MESSAGE')
+    value.logging.sink?.error(dump)
+    value.logging.sink?.error(`{ body: { doorbot_id: 684234, session_id: '${jwt}' } }`)
+    value.logging.sink?.error('Video stream closed')
+    value.logging.sink?.error(`WebSocket failed for session ${jwt}`)
+    value.logging.sink?.info('{"session_id":"abc123","doorbot_id":1}')
+    expect(value.logs.filter(log => log.text.startsWith('camera-ring: ring-client-api:'))).toEqual([
+      { type: 'debug', text: 'camera-ring: ring-client-api: UNKNOWN MESSAGE' },
+      { type: 'debug', text: "camera-ring: ring-client-api: { method: 'notification', body: { doorbot_id: 684234, session_id: '[redacted]', text: 'PeerConnectionState::kDisconnected' } }" },
+      { type: 'debug', text: "camera-ring: ring-client-api: { body: { doorbot_id: 684234, session_id: '[redacted]' } }" },
+      { type: 'warn', text: 'camera-ring: ring-client-api: Video stream closed' },
+      { type: 'warn', text: 'camera-ring: ring-client-api: WebSocket failed for session [redacted]' },
+      { type: 'debug', text: 'camera-ring: ring-client-api: {"session_id":"[redacted]","doorbot_id":1}' },
+    ])
+    expect(value.logs.some(log => log.text.includes('eyJ'))).toBe(false)
+  })
+
   it('turns on library debug and logs its lines at info when vendorDebug is set', async () => {
     const value = await started({ vendorDebug: true })
     expect(value.logging.debugEnabled).toBe(true)
     value.logging.sink?.info('From Ring (Front Door): frame=    1 fps=0.1')
-    expect(value.logs.find(log => log.text.startsWith('camera-ring: ring-client-api:')))
-      .toEqual({ type: 'info', text: 'camera-ring: ring-client-api: From Ring (Front Door): frame=    1 fps=0.1' })
+    value.logging.sink?.error('UNKNOWN MESSAGE')
+    expect(value.logs.filter(log => log.text.startsWith('camera-ring: ring-client-api:'))).toEqual([
+      { type: 'info', text: 'camera-ring: ring-client-api: From Ring (Front Door): frame=    1 fps=0.1' },
+      { type: 'info', text: 'camera-ring: ring-client-api: UNKNOWN MESSAGE' },
+    ])
   })
 })
 

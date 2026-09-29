@@ -6774,7 +6774,7 @@ Sources: [`packages/core/session/src/types.ts:206`](../packages/core/session/src
 
 SHA-256: `3153858282399533d44c0ec40868cec650018de754c2de8b3a4b06d858e360b8`
 
-Sources: [`packages/camera/camera-watch/src/index.ts:64`](../packages/camera/camera-watch/src/index.ts)
+Sources: [`packages/camera/camera-watch/src/index.ts:66`](../packages/camera/camera-watch/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { CameraVerdict } from '@deepseek-ai/dsh-camera'
 import { Config as ConfigSchema, resolveConfig, WATCH_DEFAULTS } from '../src/config.ts'
 import type { Config, ResolvedPolicy } from '../src/config.ts'
-import { frameAttachment, historyRecord, partitionHistory } from '../src/history.ts'
+import { frameAttachment, historyRecord, partitionHistory, vehicleBaseline } from '../src/history.ts'
 import type { HistoryFrame, HistoryRecord } from '../src/history.ts'
-import { localDateTime, renderDingNotice, renderNotice } from '../src/notice.ts'
-import { insideWindow, lingeringMs, localMinute, noticeReasons } from '../src/policy.ts'
+import { FIRST_FRAME_LINE, localDateTime, renderDingNotice, renderNotice } from '../src/notice.ts'
+import { addsToEarlyNotice, insideWindow, lingeringMs, localMinute, noticeReasons, vehicleChange } from '../src/policy.ts'
 import type { PolicyEvent } from '../src/policy.ts'
 import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from '../src/verdict.ts'
 import { NIGHT, NOON } from './support.ts'
@@ -18,8 +18,9 @@ describe('resolveConfig', () => {
     expect(resolved).toEqual({
       timezone: TZ,
       policy: { ding: true, packageDelivered: true, nightPerson: true, nightStartMinute: 21 * 60, nightEndMinute: 6 * 60,
-        personDevices: [], vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5 },
-      immediateDingNotice: true, maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
+        personDevices: [], vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5,
+        arrivalBaselineMs: 43_200_000 },
+      immediateDingNotice: true, earlyMotionNotice: true, maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
       retentionMs: 30 * 86_400_000,
       maxHistory: 5_000, sweepIntervalMs: 3_600_000, deliveryAttempts: 3, deliveryRetryMs: 30_000,
       failureNoticeThreshold: 3, failureNoticeIntervalMs: 21_600_000, tool: true, toolMaxEvents: 50,
@@ -32,8 +33,8 @@ describe('resolveConfig', () => {
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
       workspacePath: '/srv/beardy',
       policy: { ding: false, packageDelivered: false, nightPerson: false, nightStart: '22:15', nightEnd: '05:45', personDevices: ['front-door', 'front-door'], vehicleDevices: ['garage', 'garage'],
-        vehicleActivities: ['passing', 'parked', 'passing'], lingerSeconds: 30, minConfidence: 0.7 },
-      immediateDingNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
+        vehicleActivities: ['passing', 'parked', 'passing'], lingerSeconds: 30, minConfidence: 0.7, arrivalBaselineMs: 0 },
+      immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionDays: 2, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
       tool: false, toolMaxEvents: 7,
@@ -42,8 +43,9 @@ describe('resolveConfig', () => {
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
       workspacePath: '/srv/beardy',
       policy: { ding: false, packageDelivered: false, nightPerson: false, nightStartMinute: 22 * 60 + 15, nightEndMinute: 5 * 60 + 45,
-        personDevices: ['front-door'], vehicleDevices: ['garage'], vehicleActivities: ['passing', 'parked'], lingerMs: 30_000, minConfidence: 0.7 },
-      immediateDingNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
+        personDevices: ['front-door'], vehicleDevices: ['garage'], vehicleActivities: ['passing', 'parked'], lingerMs: 30_000, minConfidence: 0.7,
+        arrivalBaselineMs: 0 },
+      immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionMs: 2 * 86_400_000, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
       tool: false, toolMaxEvents: 7,
@@ -86,6 +88,14 @@ describe('resolveConfig', () => {
     }
   })
 
+  it('bounds the arrival baseline window from off to one week', () => {
+    expect(ConfigSchema({ timezone: TZ, policy: { arrivalBaselineMs: 0 } }).policy?.arrivalBaselineMs).toBe(0)
+    expect(ConfigSchema({ timezone: TZ }).policy?.arrivalBaselineMs).toBe(43_200_000)
+    expect(ConfigSchema({ timezone: TZ }).earlyMotionNotice).toBe(true)
+    expect(() => ConfigSchema({ timezone: TZ, policy: { arrivalBaselineMs: -1 } })).toThrow()
+    expect(() => ConfigSchema({ timezone: TZ, policy: { arrivalBaselineMs: 604_800_001 } })).toThrow()
+  })
+
   it('accepts only vehicle activities that describe a vehicle', () => {
     expect(ConfigSchema({ timezone: TZ }).policy?.vehicleActivities).toEqual(['arriving', 'leaving'])
     expect(() => ConfigSchema({ timezone: TZ, policy: { vehicleActivities: ['none'] } } as never)).toThrow()
@@ -111,6 +121,41 @@ describe('historyRecord', () => {
     expect(historyRecord.parse(stored).reasons).toEqual(['night-person', 'lingering'])
     expect(historyRecord.parse({ ...stored, reasons: ['night-person', 'person'] }).reasons).toEqual(['night-person', 'person'])
     expect(historyRecord.safeParse({ ...stored, reasons: ['stranger'] }).success).toBe(false)
+  })
+
+  it('reads records without and with the early check and vehicle movement fields', () => {
+    const stored = { eventId: 'e', deviceId: 'garage', kind: 'motion', occurredAt: NOON, frames: [], status: 'parsed', reasons: ['vehicle'], delivery: 'none' }
+    expect(historyRecord.parse(stored)).not.toHaveProperty('earlyReasons')
+    const extended = { ...stored, earlyDelivery: 'delivered', earlySessionId: 'camera-garage-1', earlyReasons: ['vehicle'],
+      vehicleChange: 'arriving', baselineEventId: 'before' }
+    expect(historyRecord.parse(extended)).toMatchObject(extended)
+    expect(historyRecord.safeParse({ ...extended, vehicleChange: 'parked' }).success).toBe(false)
+  })
+})
+
+describe('vehicleBaseline', () => {
+  const HOUR = 3_600_000
+  const parked = { labels: ['vehicle' as const], counts: { vehicle: 2 }, activity: 'none' as const, vehicleActivity: 'parked' as const,
+    confidence: 0.9, description: 'x', personFrames: [] }
+  const record = (eventId: string, fields: Partial<HistoryRecord>): [string, HistoryRecord] => [eventId, {
+    eventId, deviceId: 'garage', kind: 'motion', occurredAt: NOON - HOUR, frames: [], status: 'parsed', reasons: [], delivery: 'none',
+    verdict: parked, ...fields,
+  }]
+
+  it('picks the latest earlier trusted verdict of the same device inside the window', () => {
+    const entries = [
+      record('older', { occurredAt: NOON - 3 * HOUR }),
+      record('latest', {}),
+      record('doubtful', { occurredAt: NOON - 30 * 60_000, verdict: { ...parked, confidence: 0.2 } }),
+      record('failed', { occurredAt: NOON - 20 * 60_000, status: 'failed', verdict: undefined }),
+      record('front', { occurredAt: NOON - 10 * 60_000, deviceId: 'front-door' }),
+      record('same-time', { occurredAt: NOON }),
+      record('later', { occurredAt: NOON + HOUR }),
+    ]
+    expect(vehicleBaseline(entries, 'garage', NOON, 12 * HOUR, 0.5)).toEqual({ eventId: 'latest', occurredAt: NOON - HOUR, verdict: parked })
+    expect(vehicleBaseline([...entries].reverse(), 'garage', NOON, 12 * HOUR, 0.5)?.eventId).toBe('latest')
+    expect(vehicleBaseline(entries, 'garage', NOON, HOUR - 1, 0.5)).toBeUndefined()
+    expect(vehicleBaseline(entries, 'garage', NOON, 12 * HOUR, 0.1)?.eventId).toBe('doubtful')
   })
 })
 
@@ -154,8 +199,10 @@ describe('classificationPrompt', () => {
       '- labels: each of "person", "vehicle", "package", "animal" visible in any frame.',
       '- counts: the most of each label visible at once, for example {"person":1}.',
       '- activity: one of "delivering", "lingering", "passing", "ringing", "none".',
-      '- vehicleActivity: "arriving" or "leaving" when a vehicle drives into or out of the driveway or a parking spot across the frames, '
-        + '"passing" when one drives by without stopping, "parked" when every vehicle stays still (lights or a running engine do not count as moving), '
+      '- vehicleActivity: "arriving" when a vehicle drives into the driveway or a parking spot, or is stopped there with a door open, '
+        + 'its lights on, or a person getting in or out, or is present in later frames but not in earlier ones; '
+        + '"leaving" when a vehicle pulls out or is gone from later frames; "passing" when one drives by without stopping; '
+        + '"parked" only when every vehicle stays still with its doors closed, its lights off, and nobody getting in or out; '
         + '"none" when no vehicle is visible.',
       '- confidence: how sure you are, from 0 to 1.',
       '- description: one sentence of at most 25 words about what is happening. Do not guess who anyone is.',
@@ -163,6 +210,9 @@ describe('classificationPrompt', () => {
     ].join('\n'))
     expect(classificationPrompt({ kind: 'motion', deviceLabel: 'Garage', localTime: 't', offsetsMs: [0] }))
       .toContain('Classify this motion alert from the Garage camera at t. The 1 image is a frame in capture order, taken 0 s after the alert.')
+    expect(classificationPrompt({ kind: 'motion', deviceLabel: 'Garage', localTime: 't', offsetsMs: [300], firstFrame: true }))
+      .toContain('Classify this motion alert from the Garage camera at t. The image is only the first frame, taken 0 s after the alert; '
+        + 'later frames are checked separately, so describe only what this frame shows.')
   })
 
   it('pairs with a short classification-only system prompt', () => {
@@ -236,6 +286,7 @@ describe('parseVerdict', () => {
 const policy: ResolvedPolicy = {
   ding: true, packageDelivered: true, nightPerson: true, nightStartMinute: 21 * 60, nightEndMinute: 6 * 60,
   personDevices: [], vehicleDevices: ['garage'], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5,
+  arrivalBaselineMs: 43_200_000,
 }
 
 function verdict(fields: Partial<CameraVerdict>): CameraVerdict {
@@ -245,6 +296,32 @@ function verdict(fields: Partial<CameraVerdict>): CameraVerdict {
 function event(fields: Partial<PolicyEvent> = {}): PolicyEvent {
   return { kind: 'motion', deviceId: 'front-door', occurredAt: NOON, offsetsMs: [0, 10_000, 21_000], ...fields }
 }
+
+describe('vehicleChange', () => {
+  it('reads more vehicles as arriving, fewer as leaving, and equal counts as no movement', () => {
+    expect(vehicleChange(verdict({ counts: { vehicle: 3 } }), verdict({ counts: { vehicle: 2 } }))).toBe('arriving')
+    expect(vehicleChange(verdict({ counts: {} }), verdict({ counts: { vehicle: 1 } }))).toBe('leaving')
+    expect(vehicleChange(verdict({ counts: { vehicle: 2 } }), verdict({ counts: { vehicle: 2 } }))).toBeUndefined()
+    expect(vehicleChange(verdict({ counts: { vehicle: 1 } }), verdict({ counts: {} }))).toBe('arriving')
+  })
+})
+
+describe('addsToEarlyNotice', () => {
+  const early = { reasons: ['person' as const], verdict: verdict({ labels: ['person'], counts: { person: 1 } }) }
+
+  it('adds a reason the early notice did not state or a higher count of any label', () => {
+    expect(addsToEarlyNotice(early, ['person', 'lingering'], verdict({ counts: { person: 1 } }))).toBe(true)
+    expect(addsToEarlyNotice(early, ['person'], verdict({ counts: { person: 2 } }))).toBe(true)
+    expect(addsToEarlyNotice(early, ['person'], verdict({ counts: { person: 1, package: 1 } }))).toBe(true)
+  })
+
+  it('adds nothing for the same reasons and counts, fewer reasons, or no verdict', () => {
+    expect(addsToEarlyNotice(early, ['person'], verdict({ counts: { person: 1 }, description: 'Worded differently.' }))).toBe(false)
+    expect(addsToEarlyNotice(early, [], verdict({ counts: { person: 3 } }))).toBe(false)
+    expect(addsToEarlyNotice(early, ['person'], undefined)).toBe(false)
+    expect(addsToEarlyNotice(early, ['person'], verdict({ counts: { person: 0 } }))).toBe(false)
+  })
+})
 
 describe('noticeReasons', () => {
   it('notifies every doorbell press, with or without a verdict', () => {
@@ -290,6 +367,9 @@ describe('noticeReasons', () => {
     }
     expect(noticeReasons(event({ deviceId: 'garage' }), car('passing'), 'parsed', { ...policy, vehicleActivities: ['passing'] }, TZ)).toEqual(['vehicle'])
     expect(noticeReasons(event({ deviceId: 'garage' }), verdict({ labels: ['person'] }), 'parsed', policy, TZ)).toEqual([])
+    expect(noticeReasons(event({ deviceId: 'garage' }), car('parked'), 'parsed', policy, TZ, 'arriving')).toEqual(['vehicle'])
+    expect(noticeReasons(event({ deviceId: 'garage' }), car('arriving'), 'parsed', { ...policy, vehicleActivities: ['arriving'] }, TZ, 'leaving')).toEqual([])
+    expect(noticeReasons(event(), car('parked'), 'parsed', policy, TZ, 'arriving')).toEqual([])
   })
 
   it('notifies lingering from person frames spanning the threshold, not from the model activity', () => {
@@ -339,6 +419,14 @@ describe('renderNotice', () => {
     expect(renderNotice({ ...facts, occurredAt: NOON, reasons: ['person'] }).split('\n')[0]).toBe('**Front door** · 12:00: Person at Front door')
     expect(renderNotice({ ...facts, reasons: ['night-person', 'person', 'lingering'], lingerSeconds: 25 }).split('\n')[0])
       .toBe('**Front door** · 23:30: Person at night; Someone lingering (25 s)')
+  })
+
+  it('names a vehicle count movement in the headline and marks early and update notices', () => {
+    const car = verdict({ description: 'A dark SUV stands with its door open.', counts: { vehicle: 3 }, vehicleActivity: 'parked' })
+    expect(renderNotice({ ...base, deviceLabel: 'Garage', reasons: ['vehicle'], status: 'parsed', verdict: car, vehicleChange: 'arriving', stage: 'update' }))
+      .toBe('**Garage** · 23:30 (update): Vehicle arriving\nA dark SUV stands with its door open.\nSeen: vehicle 3 · confidence 90%')
+    expect(renderNotice({ ...base, reasons: ['person'], status: 'parsed', verdict: verdict({ description: 'A visitor.', counts: { person: 1 } }), stage: 'first-frame' }))
+      .toBe(`**Front door** · 23:30: Person at Front door\nA visitor.\nSeen: person 1 · confidence 90%\n${FIRST_FRAME_LINE}`)
   })
 
   it('announces a doorbell press before classification', () => {
