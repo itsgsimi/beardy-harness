@@ -57,6 +57,9 @@ export const inject = [
 /** Default per-turn bound: an answer that has not settled by then is not posted. */
 export const DEFAULT_DISCORD_TURN_TIMEOUT_MS = 600_000
 
+/** Default running time before an unsettled inbound turn posts its one "still working" notice. */
+export const DEFAULT_DISCORD_TURN_PROGRESS_NOTICE_MS = 180_000
+
 /** Default ceiling on inbound text handed to the agent. */
 export const DEFAULT_DISCORD_MAX_INPUT_CHARS = 8_000
 
@@ -149,6 +152,11 @@ export interface Config {
   readonly maxInputChars?: number
   /** Longest wait for one answer. Defaults to 600000. */
   readonly turnTimeoutMs?: number
+  /**
+   * Running time after which an unsettled inbound turn posts one "still working" notice; `0` disables it.
+   * Must be shorter than `turnTimeoutMs`. Defaults to 180000.
+   */
+  readonly turnProgressNoticeMs?: number
   /** First reconnect delay in milliseconds. Defaults to 1000. */
   readonly reconnectDelayMs?: number
   /** Cap on the doubled reconnect delay. Defaults to 30000. */
@@ -226,6 +234,7 @@ export const Config: z<Config> = z.object({
   titlePrefix: z.string().default('Discord'),
   maxInputChars: z.number().min(200).default(DEFAULT_DISCORD_MAX_INPUT_CHARS),
   turnTimeoutMs: z.number().min(1_000).default(DEFAULT_DISCORD_TURN_TIMEOUT_MS),
+  turnProgressNoticeMs: z.number().min(0).default(DEFAULT_DISCORD_TURN_PROGRESS_NOTICE_MS),
   reconnectDelayMs: z.number().min(1).default(DEFAULT_DISCORD_RECONNECT_DELAY_MS),
   maxReconnectDelayMs: z.number().min(1).default(DEFAULT_DISCORD_MAX_RECONNECT_DELAY_MS),
   idleReleaseMs: z.number().min(1_000).default(DEFAULT_DISCORD_IDLE_RELEASE_MS),
@@ -287,7 +296,7 @@ export function assertConfig(config: ResolvedConfig): void {
     assertPresetCommands(`userLanes.${userId}.excludedPresetCommands`, lane.excludedPresetCommands)
   }
   for (const [field, value] of Object.entries(config)) {
-    if (['inboundDebounceMs', 'replyMaxRetries', 'replyMaxRetryWaitMs', 'accentColor'].includes(field)) {
+    if (['inboundDebounceMs', 'turnProgressNoticeMs', 'replyMaxRetries', 'replyMaxRetryWaitMs', 'accentColor'].includes(field)) {
       if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
         throw new Error(`discord-gateway: ${field} must be a non-negative safe integer`)
       }
@@ -300,6 +309,10 @@ export function assertConfig(config: ResolvedConfig): void {
   if (config.accentColor > 0xffffff) throw new Error('discord-gateway: accentColor must be a 24-bit RGB color')
   if (config.reconnectDelayMs > config.maxReconnectDelayMs) {
     throw new Error('discord-gateway: reconnectDelayMs must not exceed maxReconnectDelayMs')
+  }
+  if (config.turnProgressNoticeMs >= config.turnTimeoutMs) {
+    throw new Error('discord-gateway: turnProgressNoticeMs must be 0 or shorter than turnTimeoutMs, '
+      + 'otherwise the turn times out before its progress notice can post')
   }
   if (config.outboxRetryMs > config.outboxMaxRetryMs) {
     throw new Error('discord-gateway: outboxRetryMs must not exceed outboxMaxRetryMs')
@@ -383,6 +396,7 @@ export function toSettings(
       titlePrefix: config.titlePrefix,
       maxInputChars: config.maxInputChars,
       turnTimeoutMs: config.turnTimeoutMs,
+      turnProgressNoticeMs: config.turnProgressNoticeMs,
       idleReleaseMs: config.idleReleaseMs,
       conversationMaxAgeMs: config.conversationMaxAgeMs,
       inboundDebounceMs: config.inboundDebounceMs,

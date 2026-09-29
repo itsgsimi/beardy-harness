@@ -154,6 +154,8 @@ export interface GatewaySettings extends OutboxSettings {
   readonly maxInputChars: number
   /** Longest wait for one routed turn to settle before its reply is abandoned. */
   readonly turnTimeoutMs: number
+  /** Running time before an unsettled inbound turn posts one "still working" notice; `0` posts none. */
+  readonly turnProgressNoticeMs: number
   /** Silence after which the live Agent handle is released; the durable record stays. */
   readonly idleReleaseMs: number
   /** Silence after which the next message starts a fresh Session and replaces the record. */

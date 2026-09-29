@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-29-discord-turn-progress-notice.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-29-discord-turn-progress-notice.md
+/agent-note-discord-turn-progress-notice:
+  en: 0c155342534c133c
+  zh: 47fba28e3ee0e146
+/agent-note-discord-turn-progress-notice/problem:
+  en: 52f2bbc6252ecc42
+  zh: 4e097f6b293e80ba
+/agent-note-discord-turn-progress-notice/decision:
+  en: 36cd773d71b34258
+  zh: 51d494c72883e511
+/agent-note-discord-turn-progress-notice/alternatives-considered:
+  en: fb8c0f6cf7d7cf99
+  zh: f0f2bbe8a0fb5091
+/agent-note-discord-turn-progress-notice/consequences:
+  en: ec0e959d89acbba5
+  zh: 74e053f0eb2a08e5

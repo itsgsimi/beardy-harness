@@ -69,6 +69,7 @@ function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
     titlePrefix: 'Discord',
     maxInputChars: 8_000,
     turnTimeoutMs: 600_000,
+    turnProgressNoticeMs: 180_000,
     reconnectDelayMs: 1_000,
     maxReconnectDelayMs: 30_000,
     idleReleaseMs: 900_000,
@@ -153,6 +154,21 @@ describe('assertConfig', () => {
     expect(() => { assertConfig(config({ answerers: [] })) }).toThrow(/answerers must name at least one/)
     expect(() => { assertConfig(config({ answerers: ['reaction', 'buttons'] })) })
       .toThrow(/must each be "reaction", "text", or "component", got "buttons"/)
+  })
+
+  it('requires the progress notice to precede the turn timeout unless it is disabled', () => {
+    expect(() => { assertConfig(config({ turnProgressNoticeMs: 600_000 })) })
+      .toThrow('turnProgressNoticeMs must be 0 or shorter than turnTimeoutMs')
+    expect(() => { assertConfig(config({ turnProgressNoticeMs: 900_000 })) })
+      .toThrow('turnProgressNoticeMs must be 0 or shorter than turnTimeoutMs')
+    expect(() => { assertConfig(config({ turnProgressNoticeMs: -1 })) })
+      .toThrow('turnProgressNoticeMs must be a non-negative safe integer')
+    expect(() => { assertConfig(config({ turnProgressNoticeMs: 0 })) }).not.toThrow()
+    expect(() => { assertConfig(config({ turnProgressNoticeMs: 599_999 })) }).not.toThrow()
+    const base = { tokenEnv: 'BOT_TOKEN', allowedUserIds: [USER], workspacePath: '/workspace',
+      agentPreset: 'beardy', permissionPreset: 'danger-full-access' }
+    expect(Config(base).turnProgressNoticeMs).toBe(180_000)
+    expect(toSettings(config({ turnProgressNoticeMs: 0 }), () => 'bot').settings.turnProgressNoticeMs).toBe(0)
   })
 
   it('accepts a zero debounce window, which answers every message at once', () => {
