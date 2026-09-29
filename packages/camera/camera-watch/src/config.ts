@@ -1,42 +1,66 @@
 /** Camera watch configuration and its cross-field validation. @module @deepseek-ai/dsh-camera-watch/config */
 
 import { isAbsolute } from 'node:path'
-import type { CameraVehicleActivity } from '@deepseek-ai/dsh-camera'
 import { assertDeliveryTarget } from '@deepseek-ai/dsh-delivery-target'
 import { ConfiguredModelSelectionSchema, type ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
 import z from '@deepseek-ai/schemastery'
+import { VEHICLE_MOVEMENTS } from './types.ts'
+import type { VehicleMovement } from './types.ts'
 
-/** Vehicle activities a vehicle rule can notify on. */
-export type NotifyingVehicleActivity = Exclude<CameraVehicleActivity, 'none' | 'unknown'>
+/** Longest `devices[].scene` text in characters. */
+export const SCENE_MAX_CHARS = 1_000
 
 /** Which classified events notify; every rule applies independently. */
 export interface PolicyConfig {
   /** Notify every doorbell press, with or without a usable verdict; defaults to true. */
   readonly ding?: boolean
-  /** Notify a verdict showing a package with the `delivering` activity; defaults to true. */
+  /**
+   * Notify a package being delivered, or a package lying on the property that the device's previous
+   * event inside `arrivalBaselineMs` answered as absent; defaults to true.
+   */
   readonly packageDelivered?: boolean
-  /** Notify a person seen inside the night window; defaults to true. */
+  /** Notify a person on the property inside the night window; defaults to true. */
   readonly nightPerson?: boolean
   /** Night window start as local `HH:MM`; defaults to `21:00`. */
   readonly nightStart?: string
   /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
   readonly nightEnd?: string
-  /** Device ids where any person seen notifies, day or night, subject to `minConfidence`; defaults to none. */
+  /** Device ids where a person on the property notifies, day or night; defaults to none. */
   readonly personDevices?: string[]
-  /** Device ids whose vehicle activity notifies; defaults to none. */
-  readonly vehicleDevices?: string[]
-  /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
-  readonly vehicleActivities?: NotifyingVehicleActivity[]
   /**
-   * Oldest earlier event, in milliseconds, whose vehicle count a `vehicleDevices` event is compared
-   * with: more vehicles read as `arriving` and fewer as `leaving`, replacing the model's vehicle
-   * activity. From 0, which turns the comparison off, to 604800000; defaults to 43200000.
+   * Device ids that watch a front door, whose classification also asks whether a person is at the
+   * door; a doorbell press asks it on any device. Defaults to none.
+   */
+  readonly doorDevices?: string[]
+  /** Device ids where a vehicle arriving or leaving notifies; defaults to none. */
+  readonly vehicleDevices?: string[]
+  /** Vehicle movements that notify on `vehicleDevices`, and the vehicle questions asked there; defaults to `arriving` and `leaving`. */
+  readonly vehicleActivities?: VehicleMovement[]
+  /**
+   * Oldest earlier event of the same device, in milliseconds, that serves as its baseline: on a
+   * `vehicleDevices` camera more vehicles than the baseline read as `arriving` and fewer as
+   * `leaving`, and a package the baseline answered as absent reads as newly present. From 0, which
+   * turns both comparisons off, to 604800000; defaults to 43200000.
    */
   readonly arrivalBaselineMs?: number
-  /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
+  /** Seconds between the first and last frame showing a person who stays that count as lingering; defaults to 20. */
   readonly lingerSeconds?: number
-  /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */
+  /**
+   * Deprecated and ignored: rules read the answers' evidence frames, never the model's own
+   * confidence. A configured value logs a warning at load.
+   */
   readonly minConfidence?: number
+}
+
+/** Classification settings for one provider device. */
+export interface DeviceConfig {
+  /** Provider device id, such as `front-door`. */
+  readonly id: string
+  /**
+   * Where things are in this camera's picture, such as where the door, walkway, driveway, sidewalk,
+   * and street appear; inserted verbatim into the classification prompt. 1 to 1000 characters.
+   */
+  readonly scene?: string
 }
 
 /** Camera watch configuration. */
@@ -54,6 +78,8 @@ export interface Config {
   readonly workspacePath?: string
   /** Notification rules. */
   readonly policy?: PolicyConfig
+  /** Per-device classification settings; each id must name a provider device, at most once. */
+  readonly devices?: DeviceConfig[]
   /**
    * Post a doorbell press notice as soon as its first frame is stored, then the classified notice as
    * a follow-up; false posts only the classified notice. Applies while `policy.ding` is on; defaults to true.
@@ -104,9 +130,8 @@ export const WATCH_DEFAULTS = Object.freeze({
   nightPerson: true,
   nightStart: '21:00',
   nightEnd: '06:00',
-  vehicleActivities: Object.freeze(['arriving', 'leaving'] as const) satisfies readonly NotifyingVehicleActivity[],
+  vehicleActivities: VEHICLE_MOVEMENTS,
   lingerSeconds: 20,
-  minConfidence: 0.5,
   arrivalBaselineMs: 43_200_000,
   immediateDingNotice: true,
   earlyMotionNotice: true,
@@ -138,12 +163,17 @@ export const Config: z<Config> = z.object({
     nightStart: z.string().default(WATCH_DEFAULTS.nightStart),
     nightEnd: z.string().default(WATCH_DEFAULTS.nightEnd),
     personDevices: z.array(z.string()).default([]),
+    doorDevices: z.array(z.string()).default([]),
     vehicleDevices: z.array(z.string()).default([]),
-    vehicleActivities: z.array(z.union(['arriving', 'leaving', 'passing', 'parked'])).default([...WATCH_DEFAULTS.vehicleActivities]),
+    vehicleActivities: z.array(z.union([...VEHICLE_MOVEMENTS])).default([...WATCH_DEFAULTS.vehicleActivities]),
     lingerSeconds: z.number().min(1).default(WATCH_DEFAULTS.lingerSeconds),
-    minConfidence: z.number().min(0).max(1).default(WATCH_DEFAULTS.minConfidence),
+    minConfidence: z.number().min(0).max(1),
     arrivalBaselineMs: z.number().step(1).min(0).max(604_800_000).default(WATCH_DEFAULTS.arrivalBaselineMs),
   }).default({}),
+  devices: z.array(z.object({
+    id: z.string().required(),
+    scene: z.string(),
+  })).default([]),
   immediateDingNotice: z.boolean().default(WATCH_DEFAULTS.immediateDingNotice),
   earlyMotionNotice: z.boolean().default(WATCH_DEFAULTS.earlyMotionNotice),
   maxOutputTokens: z.number().step(1).min(64).max(8_192).default(WATCH_DEFAULTS.maxOutputTokens),
@@ -169,11 +199,11 @@ export interface ResolvedPolicy {
   readonly nightStartMinute: number
   readonly nightEndMinute: number
   readonly personDevices: readonly string[]
+  readonly doorDevices: readonly string[]
   readonly vehicleDevices: readonly string[]
-  readonly vehicleActivities: readonly NotifyingVehicleActivity[]
+  readonly vehicleActivities: readonly VehicleMovement[]
   readonly lingerMs: number
-  readonly minConfidence: number
-  /** Zero turns the vehicle count comparison off. */
+  /** Zero turns the vehicle count and package comparisons off. */
   readonly arrivalBaselineMs: number
 }
 
@@ -184,6 +214,8 @@ export interface ResolvedConfig {
   readonly deliverChannelId?: string
   readonly workspacePath?: string
   readonly policy: ResolvedPolicy
+  /** Trimmed scene text by device id, for devices that configure one. */
+  readonly scenes: ReadonlyMap<string, string>
   readonly immediateDingNotice: boolean
   readonly earlyMotionNotice: boolean
   readonly maxOutputTokens: number
@@ -207,10 +239,27 @@ function minuteOf(value: string, field: string): number {
   return Number(match[1]) * 60 + Number(match[2])
 }
 
+function sceneMap(devices: readonly DeviceConfig[]): Map<string, string> {
+  const scenes = new Map<string, string>()
+  const ids = new Set<string>()
+  for (const device of devices) {
+    if (ids.has(device.id)) throw new Error(`camera-watch: devices lists "${device.id}" twice`)
+    ids.add(device.id)
+    if (device.scene === undefined) continue
+    const scene = device.scene.trim()
+    if (scene === '' || scene.length > SCENE_MAX_CHARS) {
+      throw new Error(`camera-watch: devices "${device.id}" scene must be 1 to ${String(SCENE_MAX_CHARS)} characters`)
+    }
+    scenes.set(device.id, scene)
+  }
+  return scenes
+}
+
 /**
  * Apply defaults and reject what the schema cannot: an unknown time zone, a malformed or empty night
- * window, an empty vehicle activity list, an unparseable delivery target, and a relative workspace path.
- * Device references are checked against the camera provider when the watch starts.
+ * window, an empty vehicle activity list, an unparseable delivery target, a relative workspace path,
+ * a device listed twice in `devices`, and an empty or overlong scene. Device references are checked
+ * against the camera provider when the watch starts.
  * @param config - schema-resolved configuration.
  * @returns complete watch settings.
  */
@@ -243,12 +292,13 @@ export function resolveConfig(config: Config): ResolvedConfig {
       nightStartMinute,
       nightEndMinute,
       personDevices: [...new Set(policy.personDevices ?? [])],
+      doorDevices: [...new Set(policy.doorDevices ?? [])],
       vehicleDevices: [...new Set(policy.vehicleDevices ?? [])],
       vehicleActivities,
       lingerMs: (policy.lingerSeconds ?? WATCH_DEFAULTS.lingerSeconds) * 1_000,
-      minConfidence: policy.minConfidence ?? WATCH_DEFAULTS.minConfidence,
       arrivalBaselineMs: policy.arrivalBaselineMs ?? WATCH_DEFAULTS.arrivalBaselineMs,
     },
+    scenes: sceneMap(config.devices ?? []),
     immediateDingNotice: config.immediateDingNotice ?? WATCH_DEFAULTS.immediateDingNotice,
     earlyMotionNotice: config.earlyMotionNotice ?? WATCH_DEFAULTS.earlyMotionNotice,
     maxOutputTokens: config.maxOutputTokens ?? WATCH_DEFAULTS.maxOutputTokens,

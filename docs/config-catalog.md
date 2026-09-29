@@ -568,8 +568,8 @@ export interface DeviceConfig {
 ## `@deepseek-ai/dsh-camera-watch`
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `systemPrompt` · `tools`
-- `refs`: [`CameraVehicleActivity`](../packages/camera/camera/src/index.ts) · [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/camera/camera-watch/src/config.ts:43`](../packages/camera/camera-watch/src/config.ts)
+- `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
+- `source`: [`packages/camera/camera-watch/src/config.ts:67`](../packages/camera/camera-watch/src/config.ts)
 
 ```ts config-catalog
 /** Camera watch configuration. */
@@ -587,6 +587,8 @@ export interface Config {
   readonly workspacePath?: string
   /** Notification rules. */
   readonly policy?: PolicyConfig
+  /** Per-device classification settings; each id must name a provider device, at most once. */
+  readonly devices?: DeviceConfig[]
   /**
    * Post a doorbell press notice as soon as its first frame is stored, then the classified notice as
    * a follow-up; false posts only the classified notice. Applies while `policy.ding` is on; defaults to true.
@@ -634,34 +636,57 @@ export interface Config {
 export interface PolicyConfig {
   /** Notify every doorbell press, with or without a usable verdict; defaults to true. */
   readonly ding?: boolean
-  /** Notify a verdict showing a package with the `delivering` activity; defaults to true. */
+  /**
+   * Notify a package being delivered, or a package lying on the property that the device's previous
+   * event inside `arrivalBaselineMs` answered as absent; defaults to true.
+   */
   readonly packageDelivered?: boolean
-  /** Notify a person seen inside the night window; defaults to true. */
+  /** Notify a person on the property inside the night window; defaults to true. */
   readonly nightPerson?: boolean
   /** Night window start as local `HH:MM`; defaults to `21:00`. */
   readonly nightStart?: string
   /** Night window end as local `HH:MM`, possibly past midnight; defaults to `06:00`. */
   readonly nightEnd?: string
-  /** Device ids where any person seen notifies, day or night, subject to `minConfidence`; defaults to none. */
+  /** Device ids where a person on the property notifies, day or night; defaults to none. */
   readonly personDevices?: string[]
-  /** Device ids whose vehicle activity notifies; defaults to none. */
-  readonly vehicleDevices?: string[]
-  /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
-  readonly vehicleActivities?: NotifyingVehicleActivity[]
   /**
-   * Oldest earlier event, in milliseconds, whose vehicle count a `vehicleDevices` event is compared
-   * with: more vehicles read as `arriving` and fewer as `leaving`, replacing the model's vehicle
-   * activity. From 0, which turns the comparison off, to 604800000; defaults to 43200000.
+   * Device ids that watch a front door, whose classification also asks whether a person is at the
+   * door; a doorbell press asks it on any device. Defaults to none.
+   */
+  readonly doorDevices?: string[]
+  /** Device ids where a vehicle arriving or leaving notifies; defaults to none. */
+  readonly vehicleDevices?: string[]
+  /** Vehicle movements that notify on `vehicleDevices`, and the vehicle questions asked there; defaults to `arriving` and `leaving`. */
+  readonly vehicleActivities?: VehicleMovement[]
+  /**
+   * Oldest earlier event of the same device, in milliseconds, that serves as its baseline: on a
+   * `vehicleDevices` camera more vehicles than the baseline read as `arriving` and fewer as
+   * `leaving`, and a package the baseline answered as absent reads as newly present. From 0, which
+   * turns both comparisons off, to 604800000; defaults to 43200000.
    */
   readonly arrivalBaselineMs?: number
-  /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
+  /** Seconds between the first and last frame showing a person who stays that count as lingering; defaults to 20. */
   readonly lingerSeconds?: number
-  /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */
+  /**
+   * Deprecated and ignored: rules read the answers' evidence frames, never the model's own
+   * confidence. A configured value logs a warning at load.
+   */
   readonly minConfidence?: number
 }
 
-/** Vehicle activities a vehicle rule can notify on. */
-export type NotifyingVehicleActivity = Exclude<CameraVehicleActivity, 'none' | 'unknown'>
+/** Classification settings for one provider device. */
+export interface DeviceConfig {
+  /** Provider device id, such as `front-door`. */
+  readonly id: string
+  /**
+   * Where things are in this camera's picture, such as where the door, walkway, driveway, sidewalk,
+   * and street appear; inserted verbatim into the classification prompt. 1 to 1000 characters.
+   */
+  readonly scene?: string
+}
+
+/** What a vehicle does that can notify: pull in or pull out. */
+export type VehicleMovement = typeof VEHICLE_MOVEMENTS[number]
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-camera-watch -->
 

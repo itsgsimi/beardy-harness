@@ -9,11 +9,18 @@ import { z } from 'zod'
 import { AttachmentId, imageAttachmentRefSchema } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { CameraVerdict } from '@deepseek-ai/dsh-camera'
-import { CAMERA_ACTIVITIES, CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES } from '@deepseek-ai/dsh-camera'
+import { CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_QUESTIONS } from '@deepseek-ai/dsh-camera'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
-import { NOTICE_REASONS } from './types.ts'
+import { NOTICE_REASONS, VEHICLE_MOVEMENTS } from './types.ts'
 
 const labels = z.enum(CAMERA_LABELS)
+const frameIndex = z.number().int().nonnegative()
+
+/** Activities that records written before rule questions stored. */
+export const LEGACY_ACTIVITIES = Object.freeze(['delivering', 'lingering', 'passing', 'ringing', 'none', 'unknown'] as const)
+
+/** Vehicle activities that records written before rule questions stored. */
+export const LEGACY_VEHICLE_ACTIVITIES = Object.freeze(['arriving', 'leaving', 'passing', 'parked', 'none', 'unknown'] as const)
 
 /** One stored frame: its durable image reference plus capture offset and source. */
 export const historyFrame = imageAttachmentRefSchema.extend({
@@ -21,16 +28,23 @@ export const historyFrame = imageAttachmentRefSchema.extend({
   source: z.enum(['snapshot', 'stream']),
 })
 
-/** Stored verdict fields. */
+/** One stored answer with its evidence frames. */
+export const historyAnswer = z.object({ answer: z.boolean(), frames: z.array(frameIndex) })
+
+/**
+ * Stored verdict fields. `answers` is absent from records written before rule questions and reads as
+ * empty; those records keep their own `activity`, `vehicleActivity`, `confidence`, and
+ * `personFrames`, which no rule reads.
+ */
 export const historyVerdict = z.object({
   labels: z.array(labels),
   counts: z.partialRecord(labels, z.number().int().min(0).max(99)),
-  activity: z.enum(CAMERA_ACTIVITIES),
-  /** Absent from records written before vehicle activity existed; those read as `unknown`. */
-  vehicleActivity: z.enum(CAMERA_VEHICLE_ACTIVITIES).default('unknown'),
-  confidence: z.number().min(0).max(1),
   description: z.string().max(200),
-  personFrames: z.array(z.number().int().nonnegative()),
+  answers: z.partialRecord(z.enum(CAMERA_QUESTIONS), historyAnswer).default({}),
+  activity: z.enum(LEGACY_ACTIVITIES).optional(),
+  vehicleActivity: z.enum(LEGACY_VEHICLE_ACTIVITIES).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  personFrames: z.array(frameIndex).optional(),
 })
 
 /** One event's durable history record. */
@@ -65,13 +79,31 @@ export const historyRecord = z.object({
   /** Reasons the first-frame classification found, present when it answered. */
   earlyReasons: z.array(z.enum(NOTICE_REASONS)).optional(),
   /** Vehicle count movement against {@link baselineEventId}, present when the counts differ. */
-  vehicleChange: z.enum(['arriving', 'leaving']).optional(),
-  /** The device's previous event whose vehicle count was compared, present with {@link vehicleChange}. */
+  vehicleChange: z.enum(VEHICLE_MOVEMENTS).optional(),
+  /** The device's earlier event whose vehicle count or package answer was compared, present when one was. */
   baselineEventId: z.string().optional(),
 })
 
 /** Validated history record. */
 export type HistoryRecord = z.infer<typeof historyRecord>
+
+/** Validated stored verdict. */
+export type HistoryVerdict = z.infer<typeof historyVerdict>
+
+/**
+ * Copy a verdict into its stored form.
+ * @param verdict - the classification's verdict.
+ * @returns the stored verdict fields.
+ */
+export function storedVerdict(verdict: CameraVerdict): HistoryVerdict {
+  return {
+    labels: [...verdict.labels],
+    counts: { ...verdict.counts },
+    description: verdict.description,
+    answers: Object.fromEntries(Object.entries(verdict.answers)
+      .map(([question, answer]) => [question, { answer: answer.answer, frames: [...answer.frames] }])),
+  }
+}
 
 /** Validated stored frame. */
 export type HistoryFrame = z.infer<typeof historyFrame>
@@ -129,31 +161,30 @@ export function frameAttachment(frame: HistoryFrame): ImageAttachmentRef {
   }
 }
 
-/** An earlier event whose verdict serves as a vehicle-count baseline. */
-export interface VehicleBaseline {
+/** An earlier event of the same device whose verdict serves as a baseline. */
+export interface DeviceBaseline {
   readonly eventId: string
   readonly occurredAt: number
   readonly verdict: CameraVerdict
 }
 
 /**
- * Find the vehicle-count baseline for an event: the device's latest earlier record, at most
- * `windowMs` older, with a verdict (only `parsed` and `partial` records have one) that reaches `minConfidence`.
+ * Find the baseline for an event: the device's latest earlier record, at most `windowMs` older, with
+ * a verdict (only `parsed` and `partial` records have one).
  * @param entries - keyed history records.
  * @param deviceId - the event's device.
  * @param occurredAt - the event's time; the baseline is strictly earlier.
  * @param windowMs - oldest baseline age.
- * @param minConfidence - lowest trusted baseline confidence.
  * @returns the baseline, or undefined when no record qualifies.
  */
-export function vehicleBaseline(
-  entries: Iterable<[string, HistoryRecord]>, deviceId: string, occurredAt: number, windowMs: number, minConfidence: number,
-): VehicleBaseline | undefined {
-  let latest: VehicleBaseline | undefined
+export function deviceBaseline(
+  entries: Iterable<[string, HistoryRecord]>, deviceId: string, occurredAt: number, windowMs: number,
+): DeviceBaseline | undefined {
+  let latest: DeviceBaseline | undefined
   for (const [, record] of entries) {
     const { verdict } = record
     if (verdict === undefined || record.deviceId !== deviceId || record.occurredAt >= occurredAt
-      || occurredAt - record.occurredAt > windowMs || verdict.confidence < minConfidence) continue
+      || occurredAt - record.occurredAt > windowMs) continue
     if (latest === undefined || record.occurredAt > latest.occurredAt) {
       latest = { eventId: record.eventId, occurredAt: record.occurredAt, verdict }
     }

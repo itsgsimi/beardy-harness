@@ -9,7 +9,7 @@ import type { Fiber } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
-import { CameraDeviceId, CameraEventId, CameraService } from '@deepseek-ai/dsh-camera'
+import { CAMERA_QUESTIONS, CameraDeviceId, CameraEventId, CameraService } from '@deepseek-ai/dsh-camera'
 import type { CameraDevice, CameraEvent, CameraEventKind, CameraFrame } from '@deepseek-ai/dsh-camera'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -181,12 +181,16 @@ export async function watchHarness(replies: readonly Reply[], config: Partial<Co
 }
 
 /**
- * JSON verdict text as a model would answer.
- * @param verdict - fields to serialize.
+ * JSON answer text as a model would reply; a question listed in `yes` is answered true with those
+ * evidence frames, and every other question false.
+ * @param fields - description, labels, and counts to serialize.
+ * @param yes - evidence frames per question answered true.
  * @returns JSON text.
  */
-export function verdictText(verdict: Record<string, unknown>): string {
-  return JSON.stringify({ labels: [], counts: {}, activity: 'none', vehicleActivity: 'none', confidence: 0.9, description: 'Quiet street.', personFrames: [], ...verdict })
+export function verdictText(fields: Record<string, unknown>, yes: Readonly<Record<string, readonly number[]>> = {}): string {
+  const answers = Object.fromEntries(CAMERA_QUESTIONS.map(question => [question,
+    { answer: yes[question] !== undefined, frames: yes[question] ?? [] }]))
+  return JSON.stringify({ description: 'Quiet street.', labels: [], counts: {}, ...answers, ...fields })
 }
 
 /**

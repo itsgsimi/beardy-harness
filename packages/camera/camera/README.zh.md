@@ -35,7 +35,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-抽象服务拥有 `ctx.camera` 键、设备列表，以及受保护的 `publish` 和 `publishPreview`：它们并行运行所有 `camera/event` 或 `camera/preview` 监听器，并逐一记录失败。设备 ID 由部署选定，使用小写字母和连字符；事件 ID 由提供方构造，厂商重复发送同一通知时 ID 也相同。画面是 `ImageAttachmentRef` 值，附带相对事件的截取偏移，以及它来自快照还是直播流。判定类型列出可见标签、各标签数量、主要活动、车辆活动（`arriving`、`leaving`、`passing`、`parked`、`none` 或 `unknown`）、0 到 1 的置信度、一行描述，以及出现人物的画面序号。`CAMERA_LABELS`、`CAMERA_ACTIVITIES`、`CAMERA_VEHICLE_ACTIVITIES` 和 `CAMERA_CAPTURE_FAILURES` 按规范顺序列出各个封闭集合。定义没有自身状态，因此不发布不变量组件。
+抽象服务拥有 `ctx.camera` 键、设备列表，以及受保护的 `publish` 和 `publishPreview`：它们并行运行所有 `camera/event` 或 `camera/preview` 监听器，并逐一记录失败。设备 ID 由部署选定，使用小写字母和连字符；事件 ID 由提供方构造，厂商重复发送同一通知时 ID 也相同。画面是 `ImageAttachmentRef` 值，附带相对事件的截取偏移，以及它来自快照还是直播流。判定类型列出可见标签、各标签数量、一行描述，以及是非问题（`person_on_property`、`person_at_door`、`person_staying`、`package_present`、`package_being_delivered`、`vehicle_arriving`、`vehicle_leaving`）的回答，每个回答附带显示它的画面序号；回答为真时总会引用至少一个画面。`CAMERA_LABELS`、`CAMERA_QUESTIONS` 和 `CAMERA_CAPTURE_FAILURES` 按规范顺序列出各个封闭集合。定义没有自身状态，因此不发布不变量组件。
 
 </details>
 

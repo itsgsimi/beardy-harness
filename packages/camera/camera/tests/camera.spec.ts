@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import CameraService, {
-  CAMERA_ACTIVITIES, CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES, CameraDeviceId, CameraEventId,
+  CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_QUESTIONS, CameraDeviceId, CameraEventId,
 } from '../src/index.ts'
 import type { CameraDevice, CameraEvent, CameraPreview } from '../src/index.ts'
 
@@ -46,10 +46,10 @@ describe('camera identities', () => {
     for (const bad of ['', 'a/b', 'x'.repeat(129)]) expect(() => CameraEventId(bad)).toThrow(/camera event id/)
   })
 
-  it('lists labels, activities, vehicle activities, and capture failures in canonical order', () => {
+  it('lists labels, questions, and capture failures in canonical order', () => {
     expect(CAMERA_LABELS).toEqual(['person', 'vehicle', 'package', 'animal'])
-    expect(CAMERA_ACTIVITIES).toEqual(['delivering', 'lingering', 'passing', 'ringing', 'none', 'unknown'])
-    expect(CAMERA_VEHICLE_ACTIVITIES).toEqual(['arriving', 'leaving', 'passing', 'parked', 'none', 'unknown'])
+    expect(CAMERA_QUESTIONS).toEqual(['person_on_property', 'person_at_door', 'person_staying', 'package_present',
+      'package_being_delivered', 'vehicle_arriving', 'vehicle_leaving'])
     expect(CAMERA_CAPTURE_FAILURES).toEqual(['snapshot-unavailable', 'snapshot-stale', 'stream-failed', 'storage-failed'])
   })
 })

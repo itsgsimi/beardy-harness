@@ -19,14 +19,18 @@ const frame = { attachmentId: 'sha256:a', mediaType: 'image/jpeg' as const, byte
 
 const history = [
   record({ eventId: 'ding', occurredAt: NIGHT, kind: 'ding', frames: [frame], reasons: ['ding'], delivery: 'delivered',
-    verdict: { labels: ['person'], counts: { person: 1 }, activity: 'ringing', vehicleActivity: 'none', confidence: 0.9, description: 'A visitor rings.',
-      personFrames: [0] } }),
+    verdict: { labels: ['person'], counts: { person: 1 }, description: 'A visitor rings.',
+      answers: { person_on_property: { answer: true, frames: [0] }, person_at_door: { answer: true, frames: [0] },
+        package_being_delivered: { answer: false, frames: [] } } } }),
   record({ eventId: 'car', occurredAt: NIGHT - 60_000, deviceId: 'garage', frames: [frame], status: 'unparsed', text: 'A car, I think.' }),
   record({ eventId: 'dark', occurredAt: NIGHT - 120_000, kind: 'ding', status: 'skipped', failure: 'NO_FRAMES', reasons: ['ding'], delivery: 'undelivered' }),
   record({ eventId: 'blind', occurredAt: NIGHT - 180_000, kind: 'ding', frames: [frame], status: 'failed', failure: 'TIMEOUT', reasons: ['ding'],
     delivery: 'undelivered', earlyDelivery: 'delivered' }),
   record({ eventId: 'stray', occurredAt: NIGHT - 240_000, deviceId: 'porch' }),
   record({ eventId: 'old', occurredAt: NOON - 3 * 86_400_000 }),
+  record({ eventId: 'legacy', occurredAt: NIGHT - 300_000, deviceId: 'garage', verdict: { labels: ['vehicle'], counts: { vehicle: 2 }, description: 'Two parked cars.',
+    answers: {}, activity: 'none', vehicleActivity: 'parked', confidence: 0.95, personFrames: [] } }),
+  record({ eventId: 'oldest', occurredAt: NIGHT - 360_000, verdict: { labels: [], counts: {}, description: 'An empty path.', answers: {}, activity: 'none' } }),
 ]
 
 const exec = {} as ToolRunContext
@@ -60,10 +64,11 @@ describe('camera tool', () => {
 
   it('lists events newest first within the default day, with descriptions for every status', async () => {
     const result = await read({})
-    expect(result).toMatchObject({ timezone: 'America/Phoenix', from: '2026-09-26 23:30:01', to: '2026-09-27 23:30:01', total: 5 })
+    expect(result).toMatchObject({ timezone: 'America/Phoenix', from: '2026-09-26 23:30:01', to: '2026-09-27 23:30:01', total: 7 })
     expect(result.events).toEqual([
       { id: 'ding', time: '2026-09-27 23:30:00', camera: 'Front door', kind: 'ding', description: 'A visitor rings.', labels: ['person'],
-        counts: { person: 1 }, activity: 'ringing', vehicleActivity: 'none', confidence: 0.9, checked: 'parsed', notified: true, reasons: ['ding'] },
+        counts: { person: 1 }, answers: { person_on_property: true, person_at_door: true, package_being_delivered: false }, checked: 'parsed',
+        notified: true, reasons: ['ding'] },
       { id: 'car', time: '2026-09-27 23:29:00', camera: 'Garage', kind: 'motion', description: 'A car, I think.', labels: [], counts: {},
         checked: 'unparsed', notified: false, reasons: [] },
       { id: 'dark', time: '2026-09-27 23:28:00', camera: 'Front door', kind: 'ding', description: 'No picture was captured.', labels: [], counts: {},
@@ -72,15 +77,19 @@ describe('camera tool', () => {
         checked: 'failed (TIMEOUT)', notified: true, reasons: ['ding'] },
       { id: 'stray', time: '2026-09-27 23:26:00', camera: 'porch', kind: 'motion', description: 'No picture was captured.', labels: [], counts: {},
         checked: 'parsed', notified: false, reasons: [] },
+      { id: 'legacy', time: '2026-09-27 23:25:00', camera: 'Garage', kind: 'motion', description: 'Two parked cars.', labels: ['vehicle'],
+        counts: { vehicle: 2 }, activity: 'none', vehicleActivity: 'parked', confidence: 0.95, checked: 'parsed', notified: false, reasons: [] },
+      { id: 'oldest', time: '2026-09-27 23:24:00', camera: 'Front door', kind: 'motion', description: 'An empty path.', labels: [], counts: {},
+        activity: 'none', checked: 'parsed', notified: false, reasons: [] },
     ])
   })
 
   it('filters by camera, notification, window, and limit', async () => {
-    expect((await read({ camera: 'garage' })).events.map(event => event.id)).toEqual(['car'])
+    expect((await read({ camera: 'garage' })).events.map(event => event.id)).toEqual(['car', 'legacy'])
     expect((await read({ notified_only: true })).events.map(event => event.id)).toEqual(['ding', 'blind'])
-    expect((await read({ hours: 100 })).total).toBe(6)
+    expect((await read({ hours: 100 })).total).toBe(8)
     const limited = await read({ limit: 2 })
-    expect([limited.total, limited.events.length]).toEqual([5, 2])
+    expect([limited.total, limited.events.length]).toEqual([7, 2])
     expect((await read({ limit: 3 }, 3)).events).toHaveLength(3)
   })
 

@@ -1,12 +1,14 @@
 /**
- * The classification system prompt and instruction, and a tolerant reader for the model's verdict:
- * it accepts fenced or surrounded JSON, common synonyms, and percentages, and reports how complete
- * the answer was.
+ * The classification system prompt and instruction, and a reader for the model's answer: a fixed
+ * JSON object with a description, labels, counts, and one yes-or-no answer with evidence frames per
+ * asked question. The reader takes the first JSON object even inside fences or prose, checks each
+ * field against its schema separately, and reports how complete the answer was.
  * @module @deepseek-ai/dsh-camera-watch/verdict
  */
 
-import { CAMERA_ACTIVITIES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES } from '@deepseek-ai/dsh-camera'
-import type { CameraActivity, CameraEventKind, CameraLabel, CameraVehicleActivity, CameraVerdict } from '@deepseek-ai/dsh-camera'
+import { z } from 'zod'
+import { CAMERA_LABELS, CAMERA_QUESTIONS } from '@deepseek-ai/dsh-camera'
+import type { CameraAnswer, CameraEventKind, CameraLabel, CameraQuestion, CameraVerdict } from '@deepseek-ai/dsh-camera'
 import type { VerdictStatus } from './types.ts'
 
 /** Longest stored verdict description. */
@@ -14,10 +16,26 @@ export const DESCRIPTION_MAX_CHARS = 200
 
 /** Complete system prompt of every classification Session; it replaces the host's prompt sections. */
 export const CLASSIFICATION_SYSTEM_PROMPT = [
-  'You classify still frames from a home security camera.',
+  'You check still frames from a home security camera.',
   'The user message states the alert and shows the frames. Reply with exactly the one JSON object it asks for and nothing else.',
   'You have no tools. Describe people only by what is visible and never guess who anyone is.',
 ].join('\n')
+
+/** One definition line per question, as the instruction states it. */
+export const QUESTION_DEFINITIONS: Readonly<Record<CameraQuestion, string>> = Object.freeze({
+  person_on_property: 'a person is on the porch, walkway, yard, or driveway. A person only on the sidewalk or street is false.',
+  person_at_door: 'a person stands at the front door or within one step of it.',
+  person_staying: 'a person on the property stays in view in two or more frames instead of walking past.',
+  package_present: 'a package, box, or delivery bag lies on the property.',
+  package_being_delivered: 'a person carries a package onto the property or sets one down.',
+  vehicle_arriving: 'a vehicle pulls into the driveway, waits at its entrance with its lights on, '
+    + 'or stands in it with a door open or a person getting out.',
+  vehicle_leaving: 'a vehicle backs or drives out of the driveway toward the street.',
+})
+
+/** Closing tie-breaker, stated when a vehicle question is asked. */
+export const VEHICLE_TIE_BREAKER = 'A vehicle that stays parked with its doors closed and nobody at it is neither arriving nor leaving; '
+  + 'a vehicle driving along the street is neither.'
 
 /** Everything the prompt states about one event. */
 export interface PromptFacts {
@@ -29,38 +47,51 @@ export interface PromptFacts {
   readonly offsetsMs: readonly number[]
   /** The one frame is the alert's first, classified before the rest are captured. */
   readonly firstFrame?: boolean
+  /** The device's configured scene text, inserted verbatim. */
+  readonly scene?: string | undefined
+  /** Questions to ask, in canonical order. */
+  readonly questions: readonly CameraQuestion[]
+}
+
+function framesSentence(facts: PromptFacts): string {
+  const offsets = facts.offsetsMs.map(ms => `${String(Math.round(ms / 1_000))} s`).join(', ')
+  const count = facts.offsetsMs.length
+  if (facts.firstFrame === true) {
+    return `The image is frame 0, only the first frame, taken ${offsets} after the alert; later frames are checked separately, so answer from this frame alone.`
+  }
+  if (count === 1) return `The image is frame 0, taken ${offsets} after the alert.`
+  return `The ${String(count)} images are frames 0 to ${String(count - 1)} in capture order, taken ${offsets} after the alert.`
 }
 
 /**
- * Compose the model-facing classification instruction that precedes the frames.
- * @param facts - event kind, device label, local time, and frame offsets.
+ * Compose the model-facing classification instruction that precedes the frames: the alert, frame
+ * numbering, the scene, the JSON object to fill in, and one definition line per asked question.
+ * @param facts - event kind, device label and scene, local time, frame offsets, and questions.
  * @returns prompt text.
  */
 export function classificationPrompt(facts: PromptFacts): string {
   const alert = facts.kind === 'ding' ? 'doorbell press' : 'motion alert'
-  const offsets = facts.offsetsMs.map(ms => `${String(Math.round(ms / 1_000))} s`).join(', ')
-  const count = facts.offsetsMs.length
-  const scope = facts.firstFrame === true
-    ? `The image is only the first frame, taken ${offsets} after the alert; later frames are checked separately, so describe only what this frame shows.`
-    : `The ${String(count)} image${count === 1 ? ' is a frame' : 's are frames'} in capture order, taken ${offsets} after the alert.`
-  return [
-    `Classify this ${alert} from the ${facts.deviceLabel} camera at ${facts.localTime}. ${scope}`,
+  const template = JSON.stringify({
+    description: '', labels: [], counts: {},
+    ...Object.fromEntries(facts.questions.map(question => [question, { answer: false, frames: [] }])),
+  })
+  const lines = [`Check this ${alert} from the ${facts.deviceLabel} camera at ${facts.localTime}. ${framesSentence(facts)}`, '']
+  if (facts.scene !== undefined) lines.push(`Scene: ${facts.scene}`, '')
+  lines.push(
+    'Reply with only this JSON object, filled in, and no other text:',
+    template,
     '',
-    'Reply with only one JSON object and no other text:',
-    '{"labels":[],"counts":{},"activity":"none","vehicleActivity":"none","confidence":0,"description":"","personFrames":[]}',
-    '',
+    '- description: one sentence of at most 25 words about what happens. Never guess who anyone is.',
     '- labels: each of "person", "vehicle", "package", "animal" visible in any frame.',
     '- counts: the most of each label visible at once, for example {"person":1}.',
-    '- activity: one of "delivering", "lingering", "passing", "ringing", "none".',
-    '- vehicleActivity: "arriving" when a vehicle drives into the driveway or a parking spot, or is stopped there with a door open, '
-      + 'its lights on, or a person getting in or out, or is present in later frames but not in earlier ones; '
-      + '"leaving" when a vehicle pulls out or is gone from later frames; "passing" when one drives by without stopping; '
-      + '"parked" only when every vehicle stays still with its doors closed, its lights off, and nobody getting in or out; '
-      + '"none" when no vehicle is visible.',
-    '- confidence: how sure you are, from 0 to 1.',
-    '- description: one sentence of at most 25 words about what is happening. Do not guess who anyone is.',
-    '- personFrames: zero-based indices of the frames that show a person.',
-  ].join('\n')
+  )
+  if (facts.questions.length > 0) {
+    lines.push('- Each question has "answer" (true or false) and "frames" (the frame numbers that show it). '
+      + 'A true answer must list at least one frame. When no frame clearly shows it, answer false.')
+    for (const question of facts.questions) lines.push(`- ${question}: ${QUESTION_DEFINITIONS[question]}`)
+    if (facts.questions.some(question => question.startsWith('vehicle_'))) lines.push(`- ${VEHICLE_TIE_BREAKER}`)
+  }
+  return lines.join('\n')
 }
 
 /** A read verdict and how complete it was. */
@@ -78,6 +109,18 @@ const SYNONYMS: Readonly<Record<string, CameraLabel>> = {
   package: 'package', parcel: 'package', box: 'package',
   animal: 'animal', dog: 'animal', cat: 'animal', bird: 'animal',
 }
+
+/** Which label a true answer to each question implies. */
+const QUESTION_LABELS: Readonly<Record<CameraQuestion, CameraLabel>> = {
+  person_on_property: 'person', person_at_door: 'person', person_staying: 'person',
+  package_present: 'package', package_being_delivered: 'package',
+  vehicle_arriving: 'vehicle', vehicle_leaving: 'vehicle',
+}
+
+/** One answer object; frame members are checked one by one so a bad index drops only itself. */
+const answerSchema = z.object({ answer: z.boolean(), frames: z.array(z.unknown()) })
+const listSchema = z.array(z.unknown())
+const countsSchema = z.record(z.string(), z.unknown())
 
 function labelOf(value: unknown): CameraLabel | undefined {
   if (typeof value !== 'string') return undefined
@@ -116,86 +159,79 @@ function firstObject(text: string): Record<string, unknown> | undefined {
   return undefined
 }
 
-/** Read one enumerated field case-insensitively; a value outside the choices, or `unknown` itself, reads as `unknown`. */
-function choiceOf<T extends string>(choices: readonly (T | 'unknown')[], value: unknown): T | 'unknown' {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  return choices.find(choice => choice === raw && choice !== 'unknown') ?? 'unknown'
-}
+/** Completeness flag shared by the field readers of one answer. */
+interface Completeness { complete: boolean }
 
-function confidenceOf(value: unknown): number | undefined {
-  const number = typeof value === 'number' ? value
-    : typeof value === 'string' && value.trim() !== '' ? Number(value.trim().replace(/%$/u, '')) : Number.NaN
-  if (!Number.isFinite(number) || number < 0) return undefined
-  if (number <= 1) return number
-  return number <= 100 ? number / 100 : undefined
+function readAnswer(value: unknown, frameCount: number, state: Completeness): CameraAnswer | undefined {
+  const parsed = answerSchema.safeParse(value)
+  if (!parsed.success) {
+    state.complete = false
+    return undefined
+  }
+  const frames = new Set<number>()
+  for (const frame of parsed.data.frames) {
+    if (typeof frame === 'number' && Number.isInteger(frame) && frame >= 0 && frame < frameCount) frames.add(frame)
+    else state.complete = false
+  }
+  // A true answer without an evidence frame reads as false.
+  return parsed.data.answer && frames.size > 0
+    ? { answer: true, frames: [...frames].sort((left, right) => left - right) }
+    : { answer: false, frames: [] }
 }
 
 /**
- * Read the model's verdict. Missing or invalid fields make the reading `partial`: labels and counts
- * keep their valid members, activity and vehicle activity become `unknown`, confidence becomes 0, an
- * empty description is replaced by the visible labels, and person frames outside the frame set are
- * dropped. A person frame adds the `person` label and a vehicle activity other than `none` adds the
- * `vehicle` label.
+ * Read the model's answer. Missing or invalid fields make the reading `partial`: labels and counts
+ * keep their valid members, a missing description is replaced by the visible labels, an asked
+ * question without a valid `{ answer, frames }` object is left out of `answers`, and evidence frames
+ * outside the frame set are dropped. A true answer whose evidence frames are all missing or invalid
+ * reads as false; fields for questions not asked are ignored. A true person, package, or vehicle
+ * answer adds that label.
  * @param text - the classification turn's final assistant text.
  * @param frameCount - frames the model received.
+ * @param questions - questions the instruction asked.
  * @returns the reading and its completeness.
  */
-export function parseVerdict(text: string, frameCount: number): VerdictReading {
+export function parseVerdict(text: string, frameCount: number, questions: readonly CameraQuestion[]): VerdictReading {
   const object = firstObject(text)
   if (object === undefined) return { status: 'unparsed', text: oneLine(text) }
-  let complete = true
+  const state: Completeness = { complete: true }
   const labels = new Set<CameraLabel>()
-  if (Array.isArray(object['labels'])) {
-    for (const value of object['labels']) {
+  const rawLabels = listSchema.safeParse(object['labels'])
+  if (rawLabels.success) {
+    for (const value of rawLabels.data) {
       const label = labelOf(value)
-      if (label === undefined) complete = false
+      if (label === undefined) state.complete = false
       else labels.add(label)
     }
-  } else complete = false
+  } else state.complete = false
   const counts: Partial<Record<CameraLabel, number>> = {}
-  const rawCounts = object['counts']
-  if (typeof rawCounts === 'object' && rawCounts !== null && !Array.isArray(rawCounts)) {
-    for (const [key, value] of Object.entries(rawCounts)) {
+  const rawCounts = countsSchema.safeParse(object['counts'])
+  if (rawCounts.success) {
+    for (const [key, value] of Object.entries(rawCounts.data)) {
       const label = labelOf(key)
       const count = typeof value === 'number' && Number.isInteger(value) && value >= 0 ? Math.min(value, 99) : undefined
       if (label === undefined || count === undefined) {
-        complete = false
+        state.complete = false
         continue
       }
       counts[label] = Math.max(counts[label] ?? 0, count)
       if (count > 0) labels.add(label)
     }
-  } else complete = false
-  const activity: CameraActivity = choiceOf(CAMERA_ACTIVITIES, object['activity'])
-  const vehicleActivity: CameraVehicleActivity = choiceOf(CAMERA_VEHICLE_ACTIVITIES, object['vehicleActivity'])
-  if (activity === 'unknown' || vehicleActivity === 'unknown') complete = false
-  if (vehicleActivity !== 'unknown' && vehicleActivity !== 'none') labels.add('vehicle')
-  const confidence = confidenceOf(object['confidence'])
-  if (confidence === undefined) complete = false
-  const personFrames = new Set<number>()
-  if (Array.isArray(object['personFrames'])) {
-    for (const value of object['personFrames']) {
-      if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < frameCount) personFrames.add(value)
-      else complete = false
-    }
-  } else complete = false
-  if (personFrames.size > 0) labels.add('person')
+  } else state.complete = false
+  const answers: Partial<Record<CameraQuestion, CameraAnswer>> = {}
+  for (const question of CAMERA_QUESTIONS) {
+    if (!questions.includes(question)) continue
+    const answer = readAnswer(object[question], frameCount, state)
+    if (answer === undefined) continue
+    answers[question] = answer
+    if (answer.answer) labels.add(QUESTION_LABELS[question])
+  }
   const ordered = CAMERA_LABELS.filter(label => labels.has(label))
-  let description = typeof object['description'] === 'string' ? oneLine(object['description']) : ''
+  const rawDescription = object['description']
+  let description = typeof rawDescription === 'string' ? oneLine(rawDescription) : ''
   if (description === '') {
-    complete = false
+    state.complete = false
     description = ordered.length === 0 ? 'Nothing identified.' : `Visible: ${ordered.join(', ')}.`
   }
-  return {
-    status: complete ? 'parsed' : 'partial',
-    verdict: {
-      labels: ordered,
-      counts,
-      activity,
-      vehicleActivity,
-      confidence: confidence ?? 0,
-      description,
-      personFrames: [...personFrames].sort((left, right) => left - right),
-    },
-  }
+  return { status: state.complete ? 'parsed' : 'partial', verdict: { labels: ordered, counts, description, answers } }
 }

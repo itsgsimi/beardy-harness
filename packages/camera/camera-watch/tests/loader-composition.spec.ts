@@ -44,8 +44,8 @@ it('mounts the Definition, Ring Provider, watch Consumer, and camera tool throug
   await ctx.plugin(Storage)
   await ctx.plugin(storageJson, { root: join(root, 'storage') })
   await ctx.plugin(storageDomain, { backend: 'json' })
-  const adapter = new VisionAdapter([textResponse(verdictText({ labels: ['person'], counts: { person: 1 }, activity: 'ringing',
-    description: 'A person waits at the door.', personFrames: [0] }))])
+  const adapter = new VisionAdapter([textResponse(verdictText({ labels: ['person'], counts: { person: 1 },
+    description: 'A person waits at the door.' }, { person_at_door: [0] }))])
   ctx.llm.registerAdapter(['mock'], adapter)
   await ctx.plugin(AgentLoop, { agents: [] })
   ctx.provide('agentDefaultModel', { currentSelection: () => ({ provider: 'mock', model: 'vision-model' }) } as never)
@@ -111,7 +111,7 @@ it('mounts the Definition, Ring Provider, watch Consumer, and camera tool throug
   expect(notices[1]).toMatchObject({ id: 'camera:ring-101-5150', channelId: '123456789012345678' })
   const [headline, ...details] = notices[1]?.text.split('\n') ?? []
   expect(headline).toMatch(/^\*\*Front door\*\* · \d\d:\d\d: Doorbell rang(; Person at night)?$/u)
-  expect(details).toEqual(['A person waits at the door.', 'Seen: person 1 · confidence 90%'])
+  expect(details).toEqual(['A person waits at the door.', 'Seen: person 1'])
   expect(notices[1]?.image).toBeUndefined()
   expect(adapter.requests[0]?.tools ?? []).toEqual([])
 

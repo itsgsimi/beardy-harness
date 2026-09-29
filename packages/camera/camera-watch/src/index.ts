@@ -26,14 +26,15 @@ import { Config, resolveConfig } from './config.ts'
 import type { ResolvedConfig } from './config.ts'
 import { ClassificationHealth, shortCause } from './health.ts'
 import type { HealthNotice, RouteFailureCode } from './health.ts'
-import { cameraWatchDomainSpec, frameAttachment, partitionHistory, vehicleBaseline } from './history.ts'
+import { cameraWatchDomainSpec, deviceBaseline, frameAttachment, partitionHistory, storedVerdict } from './history.ts'
 import type { HistoryRecord } from './history.ts'
-import { localDateTime, RECOVERY_NOTICE_TEXT, renderDingNotice, renderFailureNotice, renderNotice } from './notice.ts'
-import { addsToEarlyNotice, lingeringMs, noticeReasons, vehicleChange } from './policy.ts'
-import type { EarlyStatement, VehicleChange } from './policy.ts'
+import { RECOVERY_NOTICE_TEXT, renderDingNotice, renderFailureNotice, renderNotice } from './notice.ts'
+import { addsToEarlyNotice, lingeringMs, noticeReasons, personFrames, vehicleChange } from './policy.ts'
+import type { BaselineFacts, EarlyStatement } from './policy.ts'
+import { classificationRequest } from './prompt.ts'
 import { createCameraTool } from './tool.ts'
 import type { CameraNotice, NoticeReason, VerdictStatus } from './types.ts'
-import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from './verdict.ts'
+import { parseVerdict } from './verdict.ts'
 
 export * from './classify.ts'
 export * from './config.ts'
@@ -41,9 +42,10 @@ export * from './health.ts'
 export * from './history.ts'
 export * from './notice.ts'
 export * from './policy.ts'
+export * from './prompt.ts'
 export * from './tool.ts'
 export * from './verdict.ts'
-export type * from './types.ts'
+export * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
@@ -142,10 +144,10 @@ interface EarlyJob {
   drop(): void
 }
 
-/** Vehicle count movement of one event and the earlier event it was compared with. */
-interface VehicleMovement {
-  readonly change: VehicleChange
-  readonly baselineEventId: string
+/** What the device's baseline event adds to one event, and which event it was. */
+interface BaselineComparison {
+  readonly facts: BaselineFacts
+  readonly baselineEventId?: string | undefined
 }
 
 /** Counts from one retention sweep. */
@@ -189,10 +191,13 @@ export class CameraWatch {
     deps: CameraWatchDeps = {},
   ) {
     this.devices = new Map(ctx.camera.devices().map(device => [String(device.id), device]))
-    for (const field of ['personDevices', 'vehicleDevices'] as const) {
+    for (const field of ['personDevices', 'doorDevices', 'vehicleDevices'] as const) {
       for (const id of config.policy[field]) {
         if (!this.devices.has(id)) throw new Error(`camera-watch: policy.${field} names unknown camera device "${id}"`)
       }
+    }
+    for (const id of config.scenes.keys()) {
+      if (!this.devices.has(id)) throw new Error(`camera-watch: devices names unknown camera device "${id}"`)
     }
     this.now = deps.now ?? Date.now
     this.sleep = deps.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }) })
@@ -334,14 +339,14 @@ export class CameraWatch {
     if (classification.status === 'failed') return session
     const { verdict } = classification
     const policyEvent = { kind: event.kind, deviceId: event.deviceId, occurredAt: event.occurredAt, offsetsMs: [frame.offsetMs] }
-    const reasons = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone)
+    const { reasons, vehicle } = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone)
     if (reasons.length === 0 || verdict === undefined) return { ...session, reasons }
     const delivery = await this.deliver({
       id: `camera:${event.id}:early`,
       channelId,
       text: renderNotice({
         deviceLabel: device.label, occurredAt: event.occurredAt, timezone: this.config.timezone, reasons,
-        status: classification.status, verdict, lingerSeconds: 0, stage: 'first-frame',
+        status: classification.status, verdict, lingerSeconds: 0, vehicle, stage: 'first-frame',
       }),
       image: frame.attachment,
     })
@@ -469,17 +474,14 @@ export class CameraWatch {
     }
     const device = this.devices.get(event.deviceId) as CameraDevice
     const sessionId = SessionId(`camera-${event.deviceId}-${randomUUID()}`)
-    const prompt = classificationPrompt({
-      kind: event.kind,
-      deviceLabel: device.label,
-      localTime: localDateTime(event.occurredAt, this.config.timezone),
-      offsetsMs: event.frames.map(frame => frame.offsetMs),
-      firstFrame,
+    const request = classificationRequest(this.config, {
+      device: { id: event.deviceId, label: device.label }, kind: event.kind, occurredAt: event.occurredAt,
+      offsetsMs: event.frames.map(frame => frame.offsetMs), firstFrame,
     })
     let outcome: Awaited<ReturnType<typeof classifyFrames>>
     try {
       outcome = await classifyFrames(this.ctx, {
-        sessionId, systemPrompt: CLASSIFICATION_SYSTEM_PROMPT, prompt,
+        sessionId, systemPrompt: request.systemPrompt, prompt: request.prompt,
         frames: event.frames.map(frame => frame.attachment),
         source: {
           kind: 'camera', deviceId: event.deviceId, eventId: event.id, form: 'notice',
@@ -501,30 +503,40 @@ export class CameraWatch {
       return { status: 'failed', sessionId, failure: outcome.code }
     }
     this.report(this.health.answered())
-    const reading = parseVerdict(outcome.text, event.frames.length)
+    const reading = parseVerdict(outcome.text, event.frames.length, request.questions)
     return { status: reading.status, verdict: reading.verdict, text: reading.text, sessionId }
   }
 
   /**
-   * Compare a `vehicleDevices` event's vehicle count with the device's latest earlier event inside
-   * `policy.arrivalBaselineMs`; both verdicts must reach `policy.minConfidence`.
-   * @returns the movement, or undefined without a baseline or when the counts are equal.
+   * Compare an event's verdict with the device's latest earlier record inside
+   * `policy.arrivalBaselineMs`: its vehicle count on a `vehicleDevices` camera, and its package
+   * answer when the event answered `package_present`.
+   * @returns the baseline facts and the compared event, empty without a verdict, a needed comparison, or a baseline.
    */
-  private vehicleMovement(event: CameraEvent, verdict: CameraVerdict | undefined): VehicleMovement | undefined {
+  private baseline(event: CameraEvent, verdict: CameraVerdict | undefined): BaselineComparison {
     const { policy } = this.config
-    if (verdict === undefined || policy.arrivalBaselineMs === 0 || !policy.vehicleDevices.includes(event.deviceId)
-      || verdict.confidence < policy.minConfidence) return undefined
-    const baseline = vehicleBaseline(this.table.entries(), event.deviceId, event.occurredAt, policy.arrivalBaselineMs, policy.minConfidence)
-    const change = baseline === undefined ? undefined : vehicleChange(verdict, baseline.verdict)
-    return change === undefined || baseline === undefined ? undefined : { change, baselineEventId: baseline.eventId }
+    const vehicles = policy.vehicleDevices.includes(event.deviceId)
+    if (verdict === undefined || policy.arrivalBaselineMs === 0 || (!vehicles && verdict.answers.package_present === undefined)) {
+      return { facts: {} }
+    }
+    const baseline = deviceBaseline(this.table.entries(), event.deviceId, event.occurredAt, policy.arrivalBaselineMs)
+    if (baseline === undefined) return { facts: {} }
+    return {
+      facts: {
+        vehicleChange: vehicles ? vehicleChange(verdict, baseline.verdict) : undefined,
+        packageAbsent: baseline.verdict.answers.package_present?.answer === false,
+      },
+      baselineEventId: baseline.eventId,
+    }
   }
 
   private async finish(event: CameraEvent, classification: Classification): Promise<void> {
     const offsetsMs = event.frames.map(frame => frame.offsetMs)
     const policyEvent = { kind: event.kind, deviceId: event.deviceId, occurredAt: event.occurredAt, offsetsMs }
     const { verdict } = classification
-    const movement = this.vehicleMovement(event, verdict)
-    const reasons = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone, movement?.change)
+    const comparison = this.baseline(event, verdict)
+    const { reasons, vehicle } = noticeReasons(
+      policyEvent, verdict, classification.status, this.config.policy, this.config.timezone, comparison.facts)
     const channelId = this.config.deliverChannelId
     const early = this.early.get(event.id)
     try {
@@ -547,19 +559,20 @@ export class CameraWatch {
         ...classification.sessionId === undefined ? {} : { sessionId: classification.sessionId },
         status: classification.status,
         ...classification.failure === undefined ? {} : { failure: classification.failure },
-        ...verdict === undefined ? {} : { verdict: { ...verdict, labels: [...verdict.labels], personFrames: [...verdict.personFrames] } },
+        ...verdict === undefined ? {} : { verdict: storedVerdict(verdict) },
         ...classification.text === undefined ? {} : { text: classification.text },
         reasons,
         delivery: !posts ? 'none' : channelId === undefined ? 'no-channel' : 'undelivered',
         ...earlyResult.delivery === undefined ? {} : { earlyDelivery: earlyResult.delivery },
         ...earlyResult.sessionId === undefined ? {} : { earlySessionId: earlyResult.sessionId },
         ...earlyResult.reasons === undefined ? {} : { earlyReasons: [...earlyResult.reasons] },
-        ...movement === undefined ? {} : { vehicleChange: movement.change, baselineEventId: movement.baselineEventId },
+        ...comparison.facts.vehicleChange === undefined ? {} : { vehicleChange: comparison.facts.vehicleChange },
+        ...comparison.baselineEventId === undefined ? {} : { baselineEventId: comparison.baselineEventId },
       }
       await this.table.put(event.id, record)
       if (!posts || channelId === undefined) return
       const device = this.devices.get(event.deviceId) as CameraDevice
-      const shown = event.frames[verdict?.personFrames[0] ?? 0]
+      const shown = event.frames[(verdict === undefined ? undefined : personFrames(verdict)[0]) ?? 0]
       // A frame the delivered early notice already showed is not attached again.
       const image = shown === undefined || String(shown.attachment.attachmentId) === postedFrameId ? undefined : shown.attachment
       const notice: CameraNotice = {
@@ -570,7 +583,7 @@ export class CameraWatch {
           status: classification.status, verdict, text: classification.text,
           failure: classification.failure, captureFailure: event.captureFailure,
           lingerSeconds: verdict === undefined ? 0 : Math.round(lingeringMs(policyEvent, verdict) / 1_000),
-          vehicleChange: movement?.change,
+          vehicle,
           stage: statement === undefined ? undefined : 'update',
         }),
         ...image === undefined ? {} : { image },
@@ -612,6 +625,9 @@ export class CameraWatch {
  */
 export async function mountCameraWatch(ctx: Context, config: Config, deps: CameraWatchDeps = {}): Promise<void> {
   const resolved = resolveConfig(config)
+  if (config.policy?.minConfidence !== undefined) {
+    ctx.logger.warn('camera-watch: policy.minConfidence is deprecated and ignored; rules read the answers\' evidence frames')
+  }
   const domain = await ctx.storageDomain.open(cameraWatchDomainSpec)
   const table = domain.table('events')
   let watch: CameraWatch

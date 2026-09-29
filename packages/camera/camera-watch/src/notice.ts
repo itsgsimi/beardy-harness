@@ -1,8 +1,7 @@
 /** Local time formatting and notice text for one camera event. @module @deepseek-ai/dsh-camera-watch/notice */
 
 import type { CameraCaptureFailure, CameraVerdict } from '@deepseek-ai/dsh-camera'
-import type { VehicleChange } from './policy.ts'
-import type { NoticeReason, VerdictStatus } from './types.ts'
+import type { NoticeReason, VehicleMovement, VerdictStatus } from './types.ts'
 
 /**
  * Format an instant as local `YYYY-MM-DD HH:MM:SS` in one IANA time zone.
@@ -30,8 +29,8 @@ export interface NoticeFacts {
   readonly captureFailure?: CameraCaptureFailure | undefined
   /** Seconds a person stayed in view, for the lingering reason. */
   readonly lingerSeconds: number
-  /** Vehicle count movement against the device's previous event; it names the vehicle headline. */
-  readonly vehicleChange?: VehicleChange | undefined
+  /** The vehicle movement behind the `vehicle` reason; it names the vehicle headline. */
+  readonly vehicle?: VehicleMovement | undefined
   /**
    * `first-frame` for the early motion notice from the first frame alone, `update` for a classified
    * notice that follows a delivered early motion notice; absent for a standalone notice.
@@ -47,8 +46,7 @@ const HEADLINES: Readonly<Record<NoticeReason, (facts: NoticeFacts) => string>> 
   package: () => 'Package delivered',
   'night-person': () => 'Person at night',
   person: facts => `Person at ${facts.deviceLabel}`,
-  // The vehicle reason exists only for a verdict whose vehicle activity, or count movement, matched the policy.
-  vehicle: facts => `Vehicle ${facts.vehicleChange ?? facts.verdict?.vehicleActivity ?? 'seen'}`,
+  vehicle: facts => `Vehicle ${facts.vehicle ?? 'moving'}`,
   lingering: facts => `Someone lingering (${String(facts.lingerSeconds)} s)`,
 }
 
@@ -91,7 +89,7 @@ export function headlineReasons(reasons: readonly NoticeReason[]): NoticeReason[
 
 /**
  * Compose the notice text: device, local time (marked `(update)` for an update), and reasons; the
- * description or why it is missing; the counted objects with confidence; and, for an early motion
+ * description or why it is missing; the counted objects; and, for an early motion
  * notice, {@link FIRST_FRAME_LINE}. The result stays under 2000 characters.
  * @param facts - event, reasons, and classification.
  * @returns notice text.
@@ -102,7 +100,7 @@ export function renderNotice(facts: NoticeFacts): string {
   if (facts.verdict !== undefined) {
     lines.push(facts.verdict.description)
     const counts = Object.entries(facts.verdict.counts).filter(([, count]) => count > 0).map(([label, count]) => `${label} ${String(count)}`)
-    lines.push(`${counts.length === 0 ? 'Nothing counted' : `Seen: ${counts.join(', ')}`} · confidence ${String(Math.round(facts.verdict.confidence * 100))}%`)
+    lines.push(counts.length === 0 ? 'Nothing counted' : `Seen: ${counts.join(', ')}`)
   } else if (facts.status === 'unparsed') {
     lines.push(facts.text ?? '')
   } else {

@@ -54,8 +54,8 @@ function userText(request: GenerateOptions): string {
 
 describe('camera watch classification', () => {
   it('logs one tool-free classification turn with the frames and delivers a doorbell notice with the person frame', async () => {
-    const harness = await start([verdictText({ labels: ['person'], counts: { person: 1 }, activity: 'ringing', confidence: 0.91,
-      description: 'A person in a grey hoodie presses the doorbell.', personFrames: [1] })], { workspacePath: '/srv/beardy' })
+    const harness = await start([verdictText({ labels: ['person'], counts: { person: 1 },
+      description: 'A person in a grey hoodie presses the doorbell.' }, { person_at_door: [1, 2] })], { workspacePath: '/srv/beardy' })
     mirror(harness)
     const frames = await harness.frames(3, [0, 10_000, 20_000])
     await harness.camera.send(harness.event('ding', frames, { id: 'ring-101-900' }))
@@ -65,7 +65,8 @@ describe('camera watch classification', () => {
     expect(request?.model).toBe('vision-model')
     expect(request?.maxTokens).toBe(600)
     const prompt = userText(request!)
-    expect(prompt.startsWith('Classify this doorbell press from the Front door camera at 2026-09-27 12:00:00. ')).toBe(true)
+    expect(prompt.startsWith('Check this doorbell press from the Front door camera at 2026-09-27 12:00:00. ')).toBe(true)
+    expect(prompt).toContain('"person_at_door":{"answer":false,"frames":[]}')
     expect(prompt.endsWith('|[image]|[image]|[image]')).toBe(true)
     const log = await harness.sessionLog()
     const header = log.find(entry => entry.type === 'session')
@@ -78,38 +79,38 @@ describe('camera watch classification', () => {
     expect(recordOf(harness, 'ring-101-900')?.sessionId).toMatch(/^camera-front-door-/u)
     expect(harness.notices).toEqual([{
       id: 'camera:ring-101-900', channelId: '123456789012345678',
-      text: '**Front door** · 12:00: Doorbell rang\nA person in a grey hoodie presses the doorbell.\nSeen: person 1 · confidence 91%',
+      text: '**Front door** · 12:00: Doorbell rang\nA person in a grey hoodie presses the doorbell.\nSeen: person 1',
       image: frames[1]!.attachment,
     }])
     expect(recordOf(harness, 'ring-101-900')).toMatchObject({
       deviceId: 'front-door', kind: 'ding', status: 'parsed', reasons: ['ding'], delivery: 'delivered',
-      verdict: { labels: ['person'], activity: 'ringing', confidence: 0.91, personFrames: [1] },
+      verdict: { labels: ['person'], answers: { person_at_door: { answer: true, frames: [1, 2] }, person_on_property: { answer: false, frames: [] } } },
       frames: [{ offsetMs: 0, source: 'snapshot', mediaType: 'image/jpeg' }, { offsetMs: 10_000 }, { offsetMs: 20_000 }],
     })
   })
 
-  it('stays quiet for an ordinary daytime passer-by and for parked cars on a vehicle camera but records the events', async () => {
+  it('stays quiet for a sidewalk passer-by and for parked cars on a vehicle camera but records the events', async () => {
     const harness = await start([
-      verdictText({ labels: ['person'], activity: 'passing', personFrames: [0] }),
-      verdictText({ labels: ['vehicle'], counts: { vehicle: 3 }, vehicleActivity: 'parked', description: 'Three parked vehicles, one idling with headlights on.' }),
-    ], { policy: { vehicleDevices: ['garage'] } })
+      verdictText({ labels: ['person'], counts: { person: 1 }, description: 'A person walks along the sidewalk.' }),
+      verdictText({ labels: ['vehicle'], counts: { vehicle: 3 }, description: 'Three parked vehicles, one idling with headlights on.' }),
+    ], { policy: { vehicleDevices: ['garage'], personDevices: ['front-door'] } })
     mirror(harness)
-    await harness.camera.send(harness.event('motion', await harness.frames(2), { id: 'quiet' }))
+    await harness.camera.send(harness.event('motion', await harness.frames(2), { id: 'quiet', at: NIGHT }))
     await until(() => recordOf(harness, 'quiet') !== undefined, 'history record')
     expect(recordOf(harness, 'quiet')).toMatchObject({ status: 'parsed', reasons: [], delivery: 'none' })
     await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'parked', device: 'garage' }))
     await until(() => recordOf(harness, 'parked') !== undefined, 'parked record')
     expect(recordOf(harness, 'parked')).toMatchObject({ status: 'parsed', reasons: [], delivery: 'none',
-      verdict: { labels: ['vehicle'], vehicleActivity: 'parked' } })
+      verdict: { labels: ['vehicle'], answers: { vehicle_arriving: { answer: false, frames: [] }, vehicle_leaving: { answer: false, frames: [] } } } })
     expect(harness.notices).toEqual([])
   })
 
-  it('notifies a person at night, a delivered package, a lingering visitor, and a garage vehicle', async () => {
+  it('notifies a person at night, a delivered package, a lingering visitor, and a car arriving with its door open', async () => {
     const harness = await start([
-      verdictText({ labels: ['person'], personFrames: [0], description: 'Someone walks up the path.' }),
-      verdictText({ labels: ['person', 'package'], activity: 'delivering', personFrames: [0] }),
-      verdictText({ labels: ['person'], personFrames: [0, 2] }),
-      verdictText({ labels: ['vehicle'], counts: { vehicle: 2 }, vehicleActivity: 'arriving' }),
+      verdictText({ description: 'Someone walks up the path.' }, { person_on_property: [0] }),
+      verdictText({}, { person_on_property: [0], package_being_delivered: [0, 1] }),
+      verdictText({}, { person_on_property: [0, 2], person_staying: [2] }),
+      verdictText({ labels: ['vehicle'], counts: { vehicle: 2 }, description: 'A dark SUV stands in the driveway with its door open.' }, { vehicle_arriving: [0] }),
     ], { policy: { vehicleDevices: ['garage'] } })
     mirror(harness)
     await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'night', at: NIGHT }))
@@ -153,7 +154,7 @@ describe('camera watch classification', () => {
   })
 
   it('reads malformed and partial answers tolerantly', async () => {
-    const harness = await start(['I think a person is at the door, maybe.', '{"labels":["person"],"confidence":0.8}'])
+    const harness = await start(['I think a person is at the door, maybe.', '{"labels":["person"],"person_on_property":{"answer":true,"frames":[0]}}'])
     mirror(harness)
     await harness.camera.send(harness.event('ding', await harness.frames(1), { id: 'prose' }))
     await until(() => recordOf(harness, 'prose')?.delivery === 'delivered', 'prose ding')
@@ -338,8 +339,34 @@ describe('camera watch admission and delivery', () => {
     }).then(async (harness) => { await harness.dispose() })).resolves.toBeUndefined()
   })
 
-  it('notifies a daytime passer-by on a person device and stays quiet for the same verdict on the garage', async () => {
-    const passerBy = verdictText({ labels: ['person'], activity: 'passing', personFrames: [0], description: 'A neighbour walks past.' })
+  it('refuses door devices and scenes naming an unknown device, and warns about a configured minConfidence', async () => {
+    await expect(watchHarness([], { policy: { doorDevices: ['porch'] } }, {
+      load: async (load) => { await expect(load).rejects.toThrow('policy.doorDevices names unknown camera device "porch"') },
+    }).then(async (harness) => { await harness.dispose() })).resolves.toBeUndefined()
+    await expect(watchHarness([], { devices: [{ id: 'porch', scene: 'A porch.' }] }, {
+      load: async (load) => { await expect(load).rejects.toThrow('devices names unknown camera device "porch"') },
+    }).then(async (harness) => { await harness.dispose() })).resolves.toBeUndefined()
+    const harness = await start([], { policy: { minConfidence: 0.5 } })
+    expect(harness.logs).toContainEqual({ type: 'warn',
+      text: 'camera-watch: policy.minConfidence is deprecated and ignored; rules read the answers\' evidence frames' })
+    expect((await start([])).logs.some(log => log.text.includes('minConfidence'))).toBe(false)
+  })
+
+  it('states the device scene and asks the door question on a door device', async () => {
+    const harness = await start([verdictText({})], {
+      policy: { doorDevices: ['front-door'] }, devices: [{ id: 'front-door', scene: 'The front door is at the right edge.' }, { id: 'garage' }],
+    })
+    mirror(harness)
+    await harness.camera.send(harness.event('motion', await harness.frames(2), { id: 'scene' }))
+    await until(() => recordOf(harness, 'scene') !== undefined, 'scene record')
+    const prompt = userText(harness.adapter.requests[0]!)
+    expect(prompt).toContain('\n\nScene: The front door is at the right edge.\n\n')
+    expect(prompt).toContain('- person_at_door: a person stands at the front door or within one step of it.')
+    expect(recordOf(harness, 'scene')?.verdict?.answers).toHaveProperty('person_at_door')
+  })
+
+  it('notifies a person on the property of a person device and stays quiet for the same verdict on the garage', async () => {
+    const passerBy = verdictText({ labels: ['person'], counts: { person: 1 }, description: 'A neighbour walks up the path.' }, { person_on_property: [0] })
     const harness = await start([passerBy, passerBy], { policy: { personDevices: ['front-door'] } })
     mirror(harness)
     await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'visitor' }))
@@ -363,8 +390,8 @@ describe('camera watch admission and delivery', () => {
   })
 
   it('posts a doorbell notice with the first frame at once, then the classified notice with a better frame as a follow-up', async () => {
-    const harness = await start([verdictText({ labels: ['person'], counts: { person: 1 }, activity: 'ringing', confidence: 0.9,
-      description: 'A courier waits at the door.', personFrames: [1, 2] })])
+    const harness = await start([verdictText({ labels: ['person'], counts: { person: 1 }, description: 'A courier waits at the door.' },
+      { person_at_door: [1, 2] })])
     mirror(harness)
     const frames = await harness.frames(3)
     const event = harness.event('ding', frames, { id: 'rang' })
@@ -449,8 +476,8 @@ describe('camera watch admission and delivery', () => {
 })
 
 describe('camera watch early motion notice', () => {
-  const doorPerson = (fields: Record<string, unknown> = {}): string => verdictText({ labels: ['person'], counts: { person: 1 }, activity: 'passing',
-    description: 'A person walks up the path.', personFrames: [0], ...fields })
+  const doorPerson = (fields: Record<string, unknown> = {}, yes: Record<string, number[]> = { person_on_property: [0] }): string =>
+    verdictText({ labels: ['person'], counts: { person: 1 }, description: 'A person walks up the path.', ...fields }, yes)
 
   it('posts a notice from the first frame at once and no update when the full check adds nothing, logging both Sessions', async () => {
     const harness = await start([doorPerson(), doorPerson({ description: 'Someone in a cap walks to the door.' })],
@@ -461,14 +488,16 @@ describe('camera watch early motion notice', () => {
     await harness.camera.preview(event)
     await until(() => harness.notices.length === 1, 'early notice')
     expect(harness.notices[0]).toEqual({ id: 'camera:walk-up:early', channelId: '123456789012345678',
-      text: '**Front door** · 12:00: Person at Front door\nA person walks up the path.\nSeen: person 1 · confidence 90%\n'
+      text: '**Front door** · 12:00: Person at Front door\nA person walks up the path.\nSeen: person 1\n'
         + 'From the first picture; an update follows only if the rest shows more.',
       image: frames[0]!.attachment })
-    expect(userText(harness.adapter.requests[0]!)).toContain('The image is only the first frame, taken 0 s after the alert;')
+    expect(userText(harness.adapter.requests[0]!)).toContain('The image is frame 0, only the first frame, taken 0 s after the alert;')
+    expect(userText(harness.adapter.requests[0]!)).not.toContain('person_staying')
     expect(userText(harness.adapter.requests[0]!).endsWith('|[image]')).toBe(true)
     await harness.camera.send(event)
     await until(() => recordOf(harness, 'walk-up') !== undefined, 'record')
     const record = recordOf(harness, 'walk-up')!
+    expect(userText(harness.adapter.requests[1]!)).toContain('"person_staying"')
     expect(record).toMatchObject({ status: 'parsed', reasons: ['person'], delivery: 'none', earlyDelivery: 'delivered', earlyReasons: ['person'] })
     expect(record.earlySessionId).toMatch(/^camera-front-door-/u)
     expect(record.earlySessionId).not.toBe(record.sessionId)
@@ -480,8 +509,8 @@ describe('camera watch early motion notice', () => {
 
   it('posts an update when the full check adds a reason or counts more, without attaching the frame already shown', async () => {
     const harness = await start([
-      doorPerson(), doorPerson({ personFrames: [0, 2] }),
-      doorPerson(), doorPerson({ counts: { person: 2 }, description: 'Two people wait at the door.', personFrames: [1] }),
+      doorPerson(), doorPerson({}, { person_on_property: [0, 2], person_staying: [0, 2] }),
+      doorPerson(), doorPerson({ counts: { person: 2 }, description: 'Two people wait at the door.' }, { person_on_property: [1] }),
     ], { policy: { personDevices: ['front-door'] } })
     mirror(harness)
     const lingering = harness.event('motion', await harness.frames(3, [0, 11_000, 22_000]), { id: 'stays' })
@@ -575,11 +604,11 @@ describe('camera watch early motion notice', () => {
 
 describe('camera watch arrival detection', () => {
   const HOUR = 3_600_000
-  const cars = (vehicle: number, fields: Record<string, unknown> = {}): string => verdictText({ labels: vehicle === 0 ? [] : ['vehicle'],
-    counts: { vehicle }, vehicleActivity: vehicle === 0 ? 'none' : 'parked', description: `${String(vehicle)} vehicles stand in the driveway.`, ...fields })
+  const cars = (vehicle: number): string => verdictText({ labels: vehicle === 0 ? [] : ['vehicle'],
+    counts: { vehicle }, description: `${String(vehicle)} vehicles stand in the driveway.` })
 
   it('reads a higher vehicle count than the previous garage event as arriving and a lower one as leaving', async () => {
-    const harness = await start([cars(2), cars(3), cars(3, { confidence: 0.3 }), cars(1), cars(1)],
+    const harness = await start([cars(2), cars(3), cars(3), cars(1), cars(1)],
       { earlyMotionNotice: false, policy: { vehicleDevices: ['garage'] } })
     mirror(harness)
     const send = async (id: string, at: number, device = 'garage'): Promise<void> => {
@@ -588,20 +617,20 @@ describe('camera watch arrival detection', () => {
     }
     await send('evening', NOON - 2 * HOUR)
     await send('arrival', NOON)
-    await send('doubtful', NOON + 60_000)
+    await send('steady', NOON + 60_000)
     await send('departure', NOON + 2 * 60_000)
     await send('front', NOON + 3 * 60_000, 'front-door')
     expect(recordOf(harness, 'evening')).toMatchObject({ reasons: [], delivery: 'none' })
     expect(recordOf(harness, 'evening')).not.toHaveProperty('vehicleChange')
     expect(recordOf(harness, 'arrival')).toMatchObject({ reasons: ['vehicle'], vehicleChange: 'arriving', baselineEventId: 'evening',
-      verdict: { vehicleActivity: 'parked', counts: { vehicle: 3 } } })
-    expect(recordOf(harness, 'doubtful')).toMatchObject({ reasons: [] })
-    expect(recordOf(harness, 'doubtful')).not.toHaveProperty('vehicleChange')
-    expect(recordOf(harness, 'departure')).toMatchObject({ reasons: ['vehicle'], vehicleChange: 'leaving', baselineEventId: 'arrival' })
+      verdict: { answers: { vehicle_arriving: { answer: false, frames: [] } }, counts: { vehicle: 3 } } })
+    expect(recordOf(harness, 'steady')).toMatchObject({ reasons: [], baselineEventId: 'arrival' })
+    expect(recordOf(harness, 'steady')).not.toHaveProperty('vehicleChange')
+    expect(recordOf(harness, 'departure')).toMatchObject({ reasons: ['vehicle'], vehicleChange: 'leaving', baselineEventId: 'steady' })
     expect(recordOf(harness, 'front')).not.toHaveProperty('vehicleChange')
     expect(harness.notices.map(notice => notice.text)).toEqual([
-      '**Garage** · 12:00: Vehicle arriving\n3 vehicles stand in the driveway.\nSeen: vehicle 3 · confidence 90%',
-      '**Garage** · 12:02: Vehicle leaving\n1 vehicles stand in the driveway.\nSeen: vehicle 1 · confidence 90%',
+      '**Garage** · 12:00: Vehicle arriving\n3 vehicles stand in the driveway.\nSeen: vehicle 3',
+      '**Garage** · 12:02: Vehicle leaving\n1 vehicles stand in the driveway.\nSeen: vehicle 1',
     ])
   })
 
@@ -616,6 +645,28 @@ describe('camera watch arrival detection', () => {
       expect(recordOf(harness, 'after')).toMatchObject({ reasons: [], delivery: 'none' })
       expect(recordOf(harness, 'after')).not.toHaveProperty('vehicleChange')
     }
+  })
+})
+
+describe('camera watch package detection', () => {
+  it('notifies a package the previous event of the device answered absent, once', async () => {
+    const box = verdictText({ labels: ['package'], counts: { package: 1 }, description: 'A box lies by the door.' }, { package_present: [0] })
+    const harness = await start([verdictText({ description: 'An empty porch.' }), box, box, box], { earlyMotionNotice: false, policy: { nightPerson: false } })
+    mirror(harness)
+    const send = async (id: string, at: number): Promise<void> => {
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id, at }))
+      await until(() => recordOf(harness, id) !== undefined && recordOf(harness, id)?.delivery !== 'undelivered', id)
+    }
+    await send('empty', NOON - 60_000)
+    await send('dropped', NOON)
+    await send('still-there', NOON + 60_000)
+    await send('next-day', NOON + 2 * 86_400_000)
+    expect(recordOf(harness, 'empty')).toMatchObject({ reasons: [] })
+    expect(recordOf(harness, 'empty')).not.toHaveProperty('baselineEventId')
+    expect(recordOf(harness, 'dropped')).toMatchObject({ reasons: ['package'], baselineEventId: 'empty', delivery: 'delivered' })
+    expect(recordOf(harness, 'still-there')).toMatchObject({ reasons: [], baselineEventId: 'dropped' })
+    expect(recordOf(harness, 'next-day')).toMatchObject({ reasons: [] })
+    expect(harness.notices.map(notice => notice.text)).toEqual(['**Front door** · 12:00: Package delivered\nA box lies by the door.\nSeen: package 1'])
   })
 })
 

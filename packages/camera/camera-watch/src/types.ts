@@ -8,6 +8,12 @@ export const NOTICE_REASONS = ['ding', 'package', 'night-person', 'person', 'veh
 /** Why an event produced a notification. */
 export type NoticeReason = typeof NOTICE_REASONS[number]
 
+/** Vehicle movements a vehicle rule can notify on, in canonical order. */
+export const VEHICLE_MOVEMENTS = Object.freeze(['arriving', 'leaving'] as const)
+
+/** What a vehicle does that can notify: pull in or pull out. */
+export type VehicleMovement = typeof VEHICLE_MOVEMENTS[number]
+
 /**
  * How far the classifier's answer could be used: `parsed` has every verdict field, `partial` came
  * from a JSON object with missing or invalid fields, `unparsed` had no JSON object, `failed` means

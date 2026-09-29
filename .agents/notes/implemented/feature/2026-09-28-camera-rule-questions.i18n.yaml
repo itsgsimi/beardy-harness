@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-camera-rule-questions.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-camera-rule-questions.md
+/agent-note-camera-classification-asks-the-questions-the-notice-rules-need:
+  en: 27cd7c93787d5f51
+  zh: ea87b78a9a82b737
+/agent-note-camera-classification-asks-the-questions-the-notice-rules-need/problem:
+  en: 07789ff2f7d24080
+  zh: 050d6c6ccb48dc7c
+/agent-note-camera-classification-asks-the-questions-the-notice-rules-need/decision:
+  en: 6da2bc72052412a5
+  zh: ce74779a7e5923f3
+/agent-note-camera-classification-asks-the-questions-the-notice-rules-need/alternatives-considered:
+  en: aecb8ffc33e41940
+  zh: 9e9a4e284881a183
+/agent-note-camera-classification-asks-the-questions-the-notice-rules-need/consequences:
+  en: a3faa0ab6e98d20f
+  zh: 77e451577e8c4ee0
