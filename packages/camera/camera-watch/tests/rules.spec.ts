@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { CameraVerdict } from '@deepseek-ai/dsh-camera'
 import { Config as ConfigSchema, resolveConfig, WATCH_DEFAULTS } from '../src/config.ts'
 import type { Config, ResolvedPolicy } from '../src/config.ts'
-import { frameAttachment, historyRecord, partitionHistory, vehicleBaseline } from '../src/history.ts'
+import { deviceBaseline, frameAttachment, historyRecord, partitionHistory, storedVerdict } from '../src/history.ts'
 import type { HistoryFrame, HistoryRecord } from '../src/history.ts'
 import { FIRST_FRAME_LINE, localDateTime, renderDingNotice, renderNotice } from '../src/notice.ts'
-import { addsToEarlyNotice, insideWindow, lingeringMs, localMinute, noticeReasons, vehicleChange } from '../src/policy.ts'
+import { addsToEarlyNotice, insideWindow, lingeringMs, localMinute, noticeReasons, personFrames, vehicleChange } from '../src/policy.ts'
 import type { PolicyEvent } from '../src/policy.ts'
-import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from '../src/verdict.ts'
 import { NIGHT, NOON } from './support.ts'
 
 const TZ = 'America/Phoenix'
@@ -18,8 +17,9 @@ describe('resolveConfig', () => {
     expect(resolved).toEqual({
       timezone: TZ,
       policy: { ding: true, packageDelivered: true, nightPerson: true, nightStartMinute: 21 * 60, nightEndMinute: 6 * 60,
-        personDevices: [], vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5,
+        personDevices: [], doorDevices: [], vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000,
         arrivalBaselineMs: 43_200_000 },
+      scenes: new Map(),
       immediateDingNotice: true, earlyMotionNotice: true, maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
       retentionMs: 30 * 86_400_000,
       maxHistory: 5_000, sweepIntervalMs: 3_600_000, deliveryAttempts: 3, deliveryRetryMs: 30_000,
@@ -32,8 +32,10 @@ describe('resolveConfig', () => {
     const config: Config = {
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
       workspacePath: '/srv/beardy',
-      policy: { ding: false, packageDelivered: false, nightPerson: false, nightStart: '22:15', nightEnd: '05:45', personDevices: ['front-door', 'front-door'], vehicleDevices: ['garage', 'garage'],
-        vehicleActivities: ['passing', 'parked', 'passing'], lingerSeconds: 30, minConfidence: 0.7, arrivalBaselineMs: 0 },
+      policy: { ding: false, packageDelivered: false, nightPerson: false, nightStart: '22:15', nightEnd: '05:45', personDevices: ['front-door', 'front-door'],
+        doorDevices: ['front-door', 'front-door'], vehicleDevices: ['garage', 'garage'],
+        vehicleActivities: ['leaving', 'leaving'], lingerSeconds: 30, minConfidence: 0.7, arrivalBaselineMs: 0 },
+      devices: [{ id: 'front-door', scene: '  Door at the right edge.\n' }, { id: 'garage' }],
       immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionDays: 2, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
@@ -43,8 +45,9 @@ describe('resolveConfig', () => {
       timezone: 'UTC', modelSelection: { provider: 'mock', model: 'vision', reasoningEffort: 'low' }, deliverChannelId: '123456789012345678',
       workspacePath: '/srv/beardy',
       policy: { ding: false, packageDelivered: false, nightPerson: false, nightStartMinute: 22 * 60 + 15, nightEndMinute: 5 * 60 + 45,
-        personDevices: ['front-door'], vehicleDevices: ['garage'], vehicleActivities: ['passing', 'parked'], lingerMs: 30_000, minConfidence: 0.7,
+        personDevices: ['front-door'], doorDevices: ['front-door'], vehicleDevices: ['garage'], vehicleActivities: ['leaving'], lingerMs: 30_000,
         arrivalBaselineMs: 0 },
+      scenes: new Map([['front-door', 'Door at the right edge.']]),
       immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionMs: 2 * 86_400_000, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
@@ -60,8 +63,19 @@ describe('resolveConfig', () => {
     [{ timezone: TZ, policy: { nightEnd: '24:00' } }, /nightEnd must be HH:MM/],
     [{ timezone: TZ, policy: { nightStart: '06:00', nightEnd: '06:00' } }, /must differ/],
     [{ timezone: TZ, policy: { vehicleActivities: [] } }, /vehicleActivities must list at least one/],
+    [{ timezone: TZ, devices: [{ id: 'garage' }, { id: 'garage', scene: 'x' }] }, /devices lists "garage" twice/],
+    [{ timezone: TZ, devices: [{ id: 'garage', scene: '  ' }] }, /devices "garage" scene must be 1 to 1000 characters/],
+    [{ timezone: TZ, devices: [{ id: 'garage', scene: 'x'.repeat(1_001) }] }, /scene must be 1 to 1000/],
+    [{ timezone: TZ, earlyMotionNotice: false, earlyModelSelection: { provider: 'mock', model: 'fast' } }, /earlyModelSelection needs earlyMotionNotice/],
   ] as [Config, RegExp][])('rejects %j', (config, message) => {
     expect(() => resolveConfig(config)).toThrow(message)
+  })
+
+  it('keeps a separate first-frame route', () => {
+    const early = { provider: 'mock', model: 'fast', reasoningEffort: 'off' } as const
+    expect(ConfigSchema({ timezone: TZ, earlyModelSelection: early }).earlyModelSelection).toEqual(early)
+    expect(resolveConfig({ timezone: TZ, earlyModelSelection: early }).earlyModelSelection).toEqual(early)
+    expect(resolveConfig({ timezone: TZ })).not.toHaveProperty('earlyModelSelection')
   })
 
   it('accepts Signal and prefixed Discord delivery targets', () => {
@@ -96,21 +110,43 @@ describe('resolveConfig', () => {
     expect(() => ConfigSchema({ timezone: TZ, policy: { arrivalBaselineMs: 604_800_001 } })).toThrow()
   })
 
-  it('accepts only vehicle activities that describe a vehicle', () => {
+  it('accepts only the arriving and leaving vehicle movements', () => {
     expect(ConfigSchema({ timezone: TZ }).policy?.vehicleActivities).toEqual(['arriving', 'leaving'])
-    expect(() => ConfigSchema({ timezone: TZ, policy: { vehicleActivities: ['none'] } } as never)).toThrow()
+    for (const activity of ['none', 'parked', 'passing']) {
+      expect(() => ConfigSchema({ timezone: TZ, policy: { vehicleActivities: [activity] } } as never)).toThrow()
+    }
+  })
+
+  it('keeps a configured minConfidence out of the schema defaults and the resolved rules', () => {
+    expect(ConfigSchema({ timezone: TZ }).policy).not.toHaveProperty('minConfidence')
+    expect(ConfigSchema({ timezone: TZ, policy: { minConfidence: 0.7 } }).policy?.minConfidence).toBe(0.7)
+    expect(() => ConfigSchema({ timezone: TZ, policy: { minConfidence: 1.5 } })).toThrow()
+    expect(resolveConfig({ timezone: TZ, policy: { minConfidence: 0.7 } }).policy).not.toHaveProperty('minConfidence')
   })
 })
 
 describe('historyRecord', () => {
-  it('reads a verdict stored before vehicle activity existed as unknown and keeps later fields', () => {
+  const legacy = { labels: ['vehicle'], counts: { vehicle: 3 }, activity: 'none', confidence: 0.9, description: 'Three parked cars.', personFrames: [] }
+
+  it('reads verdicts stored before rule questions with empty answers and keeps their own fields', () => {
     const stored = {
-      eventId: 'old', deviceId: 'garage', kind: 'motion', occurredAt: NOON, frames: [], status: 'parsed', reasons: [], delivery: 'none',
-      verdict: { labels: ['vehicle'], counts: { vehicle: 3 }, activity: 'none', confidence: 0.9, description: 'Three parked cars.', personFrames: [] },
+      eventId: 'old', deviceId: 'garage', kind: 'motion', occurredAt: NOON, frames: [], status: 'parsed', reasons: [], delivery: 'none', verdict: legacy,
     }
-    expect(historyRecord.parse(stored).verdict?.vehicleActivity).toBe('unknown')
+    expect(historyRecord.parse(stored).verdict).toEqual({ ...legacy, answers: {} })
+    expect(historyRecord.parse({ ...stored, verdict: { ...legacy, vehicleActivity: 'parked' } }).verdict?.vehicleActivity).toBe('parked')
     expect(historyRecord.parse({ ...stored, captureFailure: 'snapshot-stale', earlyDelivery: 'delivered' }))
       .toMatchObject({ captureFailure: 'snapshot-stale', earlyDelivery: 'delivered' })
+  })
+
+  it('reads verdicts with answers and rejects unknown questions', () => {
+    const answers = { person_on_property: { answer: true, frames: [0, 2] }, vehicle_arriving: { answer: false, frames: [] } }
+    const stored = {
+      eventId: 'new', deviceId: 'garage', kind: 'motion', occurredAt: NOON, frames: [], status: 'parsed', reasons: [], delivery: 'none',
+      verdict: { labels: ['person'], counts: { person: 1 }, description: 'A person walks up the driveway.', answers },
+    }
+    expect(historyRecord.parse(stored).verdict).toEqual(stored.verdict)
+    const unknown = { ...stored.verdict, answers: { person_lurking: { answer: true, frames: [0] } } }
+    expect(historyRecord.safeParse({ ...stored, verdict: unknown }).success).toBe(false)
   })
 
   it('reads records from before the person reason and records that carry it', () => {
@@ -131,31 +167,38 @@ describe('historyRecord', () => {
     expect(historyRecord.parse(extended)).toMatchObject(extended)
     expect(historyRecord.safeParse({ ...extended, vehicleChange: 'parked' }).success).toBe(false)
   })
+
+  it('stores a verdict as a copy', () => {
+    const answers = { package_present: { answer: true, frames: [1] } }
+    const stored = storedVerdict({ labels: ['package'], counts: { package: 1 }, description: 'A box by the door.', answers })
+    expect(stored).toEqual({ labels: ['package'], counts: { package: 1 }, description: 'A box by the door.', answers })
+    expect(stored.answers.package_present?.frames).not.toBe(answers.package_present.frames)
+  })
 })
 
-describe('vehicleBaseline', () => {
+describe('deviceBaseline', () => {
   const HOUR = 3_600_000
-  const parked = { labels: ['vehicle' as const], counts: { vehicle: 2 }, activity: 'none' as const, vehicleActivity: 'parked' as const,
-    confidence: 0.9, description: 'x', personFrames: [] }
+  const parked: HistoryRecord['verdict'] = { labels: ['vehicle'], counts: { vehicle: 2 }, description: 'x', answers: {} }
   const record = (eventId: string, fields: Partial<HistoryRecord>): [string, HistoryRecord] => [eventId, {
     eventId, deviceId: 'garage', kind: 'motion', occurredAt: NOON - HOUR, frames: [], status: 'parsed', reasons: [], delivery: 'none',
     verdict: parked, ...fields,
   }]
 
-  it('picks the latest earlier trusted verdict of the same device inside the window', () => {
+  it('picks the latest earlier verdict of the same device inside the window, stored before rule questions or after', () => {
     const entries = [
       record('older', { occurredAt: NOON - 3 * HOUR }),
       record('latest', {}),
-      record('doubtful', { occurredAt: NOON - 30 * 60_000, verdict: { ...parked, confidence: 0.2 } }),
       record('failed', { occurredAt: NOON - 20 * 60_000, status: 'failed', verdict: undefined }),
       record('front', { occurredAt: NOON - 10 * 60_000, deviceId: 'front-door' }),
       record('same-time', { occurredAt: NOON }),
       record('later', { occurredAt: NOON + HOUR }),
     ]
-    expect(vehicleBaseline(entries, 'garage', NOON, 12 * HOUR, 0.5)).toEqual({ eventId: 'latest', occurredAt: NOON - HOUR, verdict: parked })
-    expect(vehicleBaseline([...entries].reverse(), 'garage', NOON, 12 * HOUR, 0.5)?.eventId).toBe('latest')
-    expect(vehicleBaseline(entries, 'garage', NOON, HOUR - 1, 0.5)).toBeUndefined()
-    expect(vehicleBaseline(entries, 'garage', NOON, 12 * HOUR, 0.1)?.eventId).toBe('doubtful')
+    expect(deviceBaseline(entries, 'garage', NOON, 12 * HOUR)).toEqual({ eventId: 'latest', occurredAt: NOON - HOUR, verdict: parked })
+    expect(deviceBaseline([...entries].reverse(), 'garage', NOON, 12 * HOUR)?.eventId).toBe('latest')
+    expect(deviceBaseline(entries, 'garage', NOON, HOUR - 1)).toBeUndefined()
+    const legacy = historyRecord.parse({ ...record('legacy', {})[1], occurredAt: NOON - 60_000,
+      verdict: { labels: [], counts: {}, activity: 'none', confidence: 0.2, description: 'Empty.', personFrames: [] } })
+    expect(deviceBaseline([...entries, ['legacy', legacy]], 'garage', NOON, 12 * HOUR)?.eventId).toBe('legacy')
   })
 })
 
@@ -188,109 +231,22 @@ describe('frameAttachment', () => {
   })
 })
 
-describe('classificationPrompt', () => {
-  it('states the alert, camera, time, and frame offsets and asks for one JSON object', () => {
-    expect(classificationPrompt({ kind: 'ding', deviceLabel: 'Front door', localTime: '2026-09-27 12:00:00', offsetsMs: [0, 10_400, 21_000] })).toBe([
-      'Classify this doorbell press from the Front door camera at 2026-09-27 12:00:00. The 3 images are frames in capture order, taken 0 s, 10 s, 21 s after the alert.',
-      '',
-      'Reply with only one JSON object and no other text:',
-      '{"labels":[],"counts":{},"activity":"none","vehicleActivity":"none","confidence":0,"description":"","personFrames":[]}',
-      '',
-      '- labels: each of "person", "vehicle", "package", "animal" visible in any frame.',
-      '- counts: the most of each label visible at once, for example {"person":1}.',
-      '- activity: one of "delivering", "lingering", "passing", "ringing", "none".',
-      '- vehicleActivity: "arriving" when a vehicle drives into the driveway or a parking spot, or is stopped there with a door open, '
-        + 'its lights on, or a person getting in or out, or is present in later frames but not in earlier ones; '
-        + '"leaving" when a vehicle pulls out or is gone from later frames; "passing" when one drives by without stopping; '
-        + '"parked" only when every vehicle stays still with its doors closed, its lights off, and nobody getting in or out; '
-        + '"none" when no vehicle is visible.',
-      '- confidence: how sure you are, from 0 to 1.',
-      '- description: one sentence of at most 25 words about what is happening. Do not guess who anyone is.',
-      '- personFrames: zero-based indices of the frames that show a person.',
-    ].join('\n'))
-    expect(classificationPrompt({ kind: 'motion', deviceLabel: 'Garage', localTime: 't', offsetsMs: [0] }))
-      .toContain('Classify this motion alert from the Garage camera at t. The 1 image is a frame in capture order, taken 0 s after the alert.')
-    expect(classificationPrompt({ kind: 'motion', deviceLabel: 'Garage', localTime: 't', offsetsMs: [300], firstFrame: true }))
-      .toContain('Classify this motion alert from the Garage camera at t. The image is only the first frame, taken 0 s after the alert; '
-        + 'later frames are checked separately, so describe only what this frame shows.')
-  })
-
-  it('pairs with a short classification-only system prompt', () => {
-    expect(CLASSIFICATION_SYSTEM_PROMPT).toBe([
-      'You classify still frames from a home security camera.',
-      'The user message states the alert and shows the frames. Reply with exactly the one JSON object it asks for and nothing else.',
-      'You have no tools. Describe people only by what is visible and never guess who anyone is.',
-    ].join('\n'))
-  })
-})
-
-describe('parseVerdict', () => {
-  it('reads a complete verdict', () => {
-    expect(parseVerdict('{"labels":["person","package"],"counts":{"person":1,"package":1},"activity":"delivering","vehicleActivity":"none",'
-      + '"confidence":0.82,"description":"A courier sets a box by the door.","personFrames":[0,1]}', 3)).toEqual({
-      status: 'parsed',
-      verdict: { labels: ['person', 'package'], counts: { person: 1, package: 1 }, activity: 'delivering', vehicleActivity: 'none', confidence: 0.82,
-        description: 'A courier sets a box by the door.', personFrames: [0, 1] },
-    })
-  })
-
-  it('reads the vehicle activity and adds the vehicle label a moving or parked vehicle implies', () => {
-    const answer = (vehicleActivity: unknown): string => JSON.stringify({ labels: [], counts: {}, activity: 'none', vehicleActivity,
-      confidence: 0.9, description: 'x', personFrames: [] })
-    expect(parseVerdict(answer('Arriving'), 1)).toMatchObject({ status: 'parsed', verdict: { labels: ['vehicle'], vehicleActivity: 'arriving' } })
-    expect(parseVerdict(answer('parked'), 1)).toMatchObject({ status: 'parsed', verdict: { labels: ['vehicle'], vehicleActivity: 'parked' } })
-    expect(parseVerdict(answer('none'), 1)).toMatchObject({ status: 'parsed', verdict: { labels: [], vehicleActivity: 'none' } })
-    expect(parseVerdict(answer('unknown'), 1)).toMatchObject({ status: 'partial', verdict: { labels: [], vehicleActivity: 'unknown' } })
-    expect(parseVerdict(answer('reversing'), 1)).toMatchObject({ status: 'partial', verdict: { vehicleActivity: 'unknown' } })
-    expect(parseVerdict(answer(undefined), 1)).toMatchObject({ status: 'partial', verdict: { vehicleActivity: 'unknown' } })
-  })
-
-  it('finds the object inside fences and prose, skipping braces in strings and invalid candidates', () => {
-    const text = 'Sure! {not json} Here it is:\n```json\n{"labels":["People","cars","boxes","Dogs"],"counts":{"people":2,"car":1,"truck":2},'
-      + '"activity":"Passing","vehicleActivity":"parked","confidence":"85%","description":"Two people {walk} past\\n a \\"car\\".","personFrames":[2,0,0]}\n```'
-    expect(parseVerdict(text, 3)).toEqual({
-      status: 'parsed',
-      verdict: { labels: ['person', 'vehicle', 'package', 'animal'], counts: { person: 2, vehicle: 2 }, activity: 'passing', vehicleActivity: 'parked', confidence: 0.85,
-        description: 'Two people {walk} past a "car".', personFrames: [0, 2] },
-    })
-  })
-
-  it('keeps what it can from a partial answer', () => {
-    expect(parseVerdict('{"labels":["person","ghost",3],"counts":{"person":-1,"alien":1,"package":0,"animal":150},"activity":"dancing",'
-      + '"confidence":250,"personFrames":[1,7,"x"]}', 2)).toEqual({
-      status: 'partial',
-      verdict: { labels: ['person', 'animal'], counts: { package: 0, animal: 99 }, activity: 'unknown', vehicleActivity: 'unknown', confidence: 0,
-        description: 'Visible: person, animal.', personFrames: [1] },
-    })
-    expect(parseVerdict('{"labels":"person","counts":[],"confidence":"high","description":"   "}', 1)).toEqual({
-      status: 'partial',
-      verdict: { labels: [], counts: {}, activity: 'unknown', vehicleActivity: 'unknown', confidence: 0, description: 'Nothing identified.', personFrames: [] },
-    })
-    expect(parseVerdict('{"labels":[],"counts":{},"activity":"none","confidence":"","description":"x","personFrames":[]}', 1).verdict?.confidence).toBe(0)
-    expect(parseVerdict('{"labels":[],"counts":{},"activity":"none","confidence":0.5,"description":"x","personFrames":{}}', 1).status).toBe('partial')
-    expect(parseVerdict('{"labels":[],"counts":null,"activity":"none","confidence":0.5,"description":"x","personFrames":[]}', 1).status).toBe('partial')
-    expect(parseVerdict('{"labels":[],"counts":{},"activity":"unknown","confidence":1,"description":"x","personFrames":[]}', 1).status).toBe('partial')
-    expect(parseVerdict('{"labels":[],"counts":{},"activity":7,"confidence":1,"description":"x","personFrames":[]}', 1).verdict?.activity).toBe('unknown')
-  })
-
-  it('reports malformed output as unparsed with a bounded one-line account', () => {
-    expect(parseVerdict('I see a person\nat the door.', 3)).toEqual({ status: 'unparsed', text: 'I see a person at the door.' })
-    expect(parseVerdict('[1, 2] {"unterminated": ', 3)).toEqual({ status: 'unparsed', text: '[1, 2] {"unterminated":' })
-    expect(parseVerdict('["an array"]', 1).status).toBe('unparsed')
-    const long = parseVerdict(`{"labels":[],"counts":{},"activity":"none","confidence":1,"personFrames":[],"description":"${'a'.repeat(300)}"}`, 1)
-    expect(long.verdict?.description).toHaveLength(200)
-    expect(parseVerdict('x'.repeat(500), 1).text).toHaveLength(200)
-  })
-})
-
 const policy: ResolvedPolicy = {
   ding: true, packageDelivered: true, nightPerson: true, nightStartMinute: 21 * 60, nightEndMinute: 6 * 60,
-  personDevices: [], vehicleDevices: ['garage'], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000, minConfidence: 0.5,
+  personDevices: [], doorDevices: [], vehicleDevices: ['garage'], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000,
   arrivalBaselineMs: 43_200_000,
 }
 
+type Answers = CameraVerdict['answers']
+
 function verdict(fields: Partial<CameraVerdict>): CameraVerdict {
-  return { labels: [], counts: {}, activity: 'none', vehicleActivity: 'none', confidence: 0.9, description: 'x', personFrames: [], ...fields }
+  return { labels: [], counts: {}, description: 'x', answers: {}, ...fields }
+}
+
+/** A verdict whose listed questions are answered true with the given evidence frames. */
+function said(answers: Readonly<Record<string, readonly number[]>>, fields: Partial<CameraVerdict> = {}): CameraVerdict {
+  const entries = Object.entries(answers).map(([question, frames]) => [question, { answer: true, frames }])
+  return verdict({ answers: Object.fromEntries(entries) as Answers, ...fields })
 }
 
 function event(fields: Partial<PolicyEvent> = {}): PolicyEvent {
@@ -324,69 +280,83 @@ describe('addsToEarlyNotice', () => {
 })
 
 describe('noticeReasons', () => {
+  const reasons = (...args: Parameters<typeof noticeReasons>): string[] => noticeReasons(...args).reasons
+
   it('notifies every doorbell press, with or without a verdict', () => {
-    expect(noticeReasons(event({ kind: 'ding' }), undefined, 'failed', policy, TZ)).toEqual(['ding'])
-    expect(noticeReasons(event({ kind: 'ding' }), verdict({}), 'parsed', policy, TZ)).toEqual(['ding'])
-    expect(noticeReasons(event({ kind: 'ding' }), undefined, 'skipped', { ...policy, ding: false }, TZ)).toEqual([])
+    expect(noticeReasons(event({ kind: 'ding' }), undefined, 'failed', policy, TZ)).toEqual({ reasons: ['ding'] })
+    expect(reasons(event({ kind: 'ding' }), verdict({}), 'parsed', policy, TZ)).toEqual(['ding'])
+    expect(reasons(event({ kind: 'ding' }), undefined, 'skipped', { ...policy, ding: false }, TZ)).toEqual([])
   })
 
-  it('notifies a delivered package, not a package that is only visible', () => {
-    expect(noticeReasons(event(), verdict({ labels: ['person', 'package'], activity: 'delivering', personFrames: [0] }), 'parsed', policy, TZ)).toEqual(['package'])
-    expect(noticeReasons(event(), verdict({ labels: ['package'], activity: 'none' }), 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event(), verdict({ labels: ['package'], activity: 'delivering' }), 'parsed', { ...policy, packageDelivered: false }, TZ)).toEqual([])
+  it('notifies a package being delivered, or a present package the baseline answered absent', () => {
+    expect(reasons(event(), said({ package_being_delivered: [0] }), 'parsed', policy, TZ)).toEqual(['package'])
+    expect(reasons(event(), said({ package_present: [1] }), 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(event(), said({ package_present: [1] }), 'parsed', policy, TZ, { packageAbsent: false })).toEqual([])
+    expect(reasons(event(), said({ package_present: [1] }), 'parsed', policy, TZ, { packageAbsent: true })).toEqual(['package'])
+    expect(reasons(event(), verdict({ labels: ['package'], counts: { package: 1 } }), 'parsed', policy, TZ, { packageAbsent: true })).toEqual([])
+    expect(reasons(event(), said({ package_being_delivered: [0] }), 'parsed', { ...policy, packageDelivered: false }, TZ)).toEqual([])
   })
 
-  it('notifies a person inside the night window across midnight', () => {
-    const night = verdict({ labels: ['person'], personFrames: [0] })
-    expect(noticeReasons(event({ occurredAt: NIGHT }), night, 'parsed', policy, TZ)).toEqual(['night-person'])
-    expect(noticeReasons(event({ occurredAt: Date.UTC(2026, 8, 28, 12, 59) }), night, 'parsed', policy, TZ)).toEqual(['night-person'])
-    expect(noticeReasons(event({ occurredAt: Date.UTC(2026, 8, 28, 13, 0) }), night, 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event(), night, 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event({ occurredAt: NIGHT }), verdict({ labels: ['animal'] }), 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event({ occurredAt: NIGHT }), night, 'parsed', { ...policy, nightPerson: false }, TZ)).toEqual([])
+  it('notifies a person on the property inside the night window across midnight, not a sidewalk passer-by', () => {
+    const night = said({ person_on_property: [0] }, { labels: ['person'] })
+    expect(reasons(event({ occurredAt: NIGHT }), night, 'parsed', policy, TZ)).toEqual(['night-person'])
+    expect(reasons(event({ occurredAt: Date.UTC(2026, 8, 28, 12, 59) }), night, 'parsed', policy, TZ)).toEqual(['night-person'])
+    expect(reasons(event({ occurredAt: Date.UTC(2026, 8, 28, 13, 0) }), night, 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(event(), night, 'parsed', policy, TZ)).toEqual([])
+    const sidewalk = verdict({ labels: ['person'], counts: { person: 1 }, answers: { person_on_property: { answer: false, frames: [] } } })
+    expect(reasons(event({ occurredAt: NIGHT }), sidewalk, 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(event({ occurredAt: NIGHT }), night, 'parsed', { ...policy, nightPerson: false }, TZ)).toEqual([])
   })
 
-  it('notifies any person on a person device at any hour, keeping night-person beside it', () => {
-    const doorPolicy = { ...policy, personDevices: ['front-door'] }
-    const visitor = verdict({ labels: ['person'], activity: 'passing', personFrames: [0] })
-    expect(noticeReasons(event(), visitor, 'parsed', doorPolicy, TZ)).toEqual(['person'])
-    expect(noticeReasons(event({ deviceId: 'garage' }), visitor, 'parsed', doorPolicy, TZ)).toEqual([])
-    expect(noticeReasons(event(), { ...visitor, confidence: 0.4 }, 'parsed', doorPolicy, TZ)).toEqual([])
-    expect(noticeReasons(event(), verdict({ labels: ['animal'] }), 'parsed', doorPolicy, TZ)).toEqual([])
-    expect(noticeReasons(event({ occurredAt: NIGHT }), visitor, 'parsed', doorPolicy, TZ)).toEqual(['night-person', 'person'])
-    expect(noticeReasons(event({ occurredAt: NIGHT }), visitor, 'parsed', { ...doorPolicy, nightPerson: false }, TZ)).toEqual(['person'])
+  it('notifies a person on the property or at the door of a person device at any hour, keeping night-person beside it', () => {
+    const doorPolicy = { ...policy, personDevices: ['front-door', 'garage'] }
+    const driveway = said({ person_on_property: [0] })
+    expect(reasons(event(), driveway, 'parsed', doorPolicy, TZ)).toEqual(['person'])
+    expect(reasons(event({ deviceId: 'garage' }), driveway, 'parsed', doorPolicy, TZ)).toEqual(['person'])
+    expect(reasons(event({ deviceId: 'garage' }), driveway, 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(event(), said({ person_at_door: [2] }), 'parsed', doorPolicy, TZ)).toEqual(['person'])
+    const passerBy = verdict({ labels: ['person'], counts: { person: 1 }, answers: { person_on_property: { answer: false, frames: [] } } })
+    expect(reasons(event({ deviceId: 'garage' }), passerBy, 'parsed', doorPolicy, TZ)).toEqual([])
+    expect(reasons(event({ occurredAt: NIGHT }), driveway, 'parsed', doorPolicy, TZ)).toEqual(['night-person', 'person'])
+    expect(reasons(event({ occurredAt: NIGHT }), driveway, 'parsed', { ...doorPolicy, nightPerson: false }, TZ)).toEqual(['person'])
   })
 
-  it('notifies an arriving or leaving vehicle only on configured devices, never a parked one', () => {
-    const car = (vehicleActivity: CameraVerdict['vehicleActivity']): CameraVerdict => verdict({ labels: ['vehicle'], counts: { vehicle: 1 }, vehicleActivity })
-    expect(noticeReasons(event({ deviceId: 'garage' }), car('arriving'), 'parsed', policy, TZ)).toEqual(['vehicle'])
-    expect(noticeReasons(event({ deviceId: 'garage' }), car('leaving'), 'partial', policy, TZ)).toEqual(['vehicle'])
-    expect(noticeReasons(event(), car('arriving'), 'parsed', policy, TZ)).toEqual([])
-    for (const quiet of ['parked', 'passing', 'unknown', 'none'] as const) {
-      expect(noticeReasons(event({ deviceId: 'garage' }), car(quiet), 'parsed', policy, TZ)).toEqual([])
-    }
-    expect(noticeReasons(event({ deviceId: 'garage' }), car('passing'), 'parsed', { ...policy, vehicleActivities: ['passing'] }, TZ)).toEqual(['vehicle'])
-    expect(noticeReasons(event({ deviceId: 'garage' }), verdict({ labels: ['person'] }), 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event({ deviceId: 'garage' }), car('parked'), 'parsed', policy, TZ, 'arriving')).toEqual(['vehicle'])
-    expect(noticeReasons(event({ deviceId: 'garage' }), car('arriving'), 'parsed', { ...policy, vehicleActivities: ['arriving'] }, TZ, 'leaving')).toEqual([])
-    expect(noticeReasons(event(), car('parked'), 'parsed', policy, TZ, 'arriving')).toEqual([])
+  it('notifies an arriving or leaving vehicle only on configured devices, from the answers or the count movement', () => {
+    const garage = event({ deviceId: 'garage' })
+    expect(noticeReasons(garage, said({ vehicle_arriving: [0] }), 'parsed', policy, TZ)).toEqual({ reasons: ['vehicle'], vehicle: 'arriving' })
+    expect(noticeReasons(garage, said({ vehicle_leaving: [1] }), 'partial', policy, TZ)).toEqual({ reasons: ['vehicle'], vehicle: 'leaving' })
+    expect(reasons(event(), said({ vehicle_arriving: [0] }), 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(garage, verdict({ labels: ['vehicle'], counts: { vehicle: 2 } }), 'parsed', policy, TZ)).toEqual([])
+    expect(noticeReasons(garage, verdict({ counts: { vehicle: 2 } }), 'parsed', policy, TZ, { vehicleChange: 'arriving' }))
+      .toEqual({ reasons: ['vehicle'], vehicle: 'arriving' })
+    expect(noticeReasons(garage, said({ vehicle_arriving: [0] }), 'parsed', policy, TZ, { vehicleChange: 'leaving' }))
+      .toEqual({ reasons: ['vehicle'], vehicle: 'leaving' })
+    expect(noticeReasons(garage, said({ vehicle_arriving: [0] }), 'parsed', { ...policy, vehicleActivities: ['arriving'] }, TZ, { vehicleChange: 'leaving' }))
+      .toEqual({ reasons: ['vehicle'], vehicle: 'arriving' })
+    expect(reasons(garage, said({ vehicle_leaving: [0] }), 'parsed', { ...policy, vehicleActivities: ['arriving'] }, TZ)).toEqual([])
+    expect(reasons(event(), verdict({}), 'parsed', policy, TZ, { vehicleChange: 'arriving' })).toEqual([])
   })
 
-  it('notifies lingering from person frames spanning the threshold, not from the model activity', () => {
-    const person = { labels: ['person'] as const }
-    expect(noticeReasons(event(), verdict({ ...person, personFrames: [0, 2] }), 'parsed', policy, TZ)).toEqual(['lingering'])
-    expect(noticeReasons(event(), verdict({ ...person, personFrames: [0, 1], activity: 'lingering' }), 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event(), verdict({ ...person, personFrames: [2] }), 'parsed', policy, TZ)).toEqual([])
-    expect(lingeringMs(event({ offsetsMs: [0, 5_000, 30_000] }), verdict({ personFrames: [0, 1, 2] }))).toBe(30_000)
+  it('notifies lingering from a staying person whose evidence frames span the threshold', () => {
+    expect(reasons(event(), said({ person_staying: [0, 2] }), 'parsed', policy, TZ)).toEqual(['lingering'])
+    expect(reasons(event(), said({ person_on_property: [0, 2] }), 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(event(), said({ person_staying: [0, 1] }), 'parsed', policy, TZ)).toEqual([])
+    expect(reasons(event(), said({ person_staying: [2], person_on_property: [0] }), 'parsed', policy, TZ)).toEqual(['lingering'])
+    expect(lingeringMs(event({ offsetsMs: [0, 5_000, 30_000] }), said({ person_on_property: [0, 1], person_at_door: [2] }))).toBe(30_000)
+    expect(lingeringMs(event({ offsetsMs: [0] }), said({ person_on_property: [0, 3] }))).toBe(0)
   })
 
-  it('stays quiet below the confidence floor or without a usable verdict', () => {
-    const box = verdict({ labels: ['package'], activity: 'delivering', confidence: 0.4 })
-    expect(noticeReasons(event(), box, 'parsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event(), { ...box, confidence: 0.6 }, 'partial', policy, TZ)).toEqual(['package'])
-    expect(noticeReasons(event(), undefined, 'unparsed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event(), { ...box, confidence: 0.9 }, 'failed', policy, TZ)).toEqual([])
-    expect(noticeReasons(event(), verdict({ labels: ['person'], activity: 'passing' }), 'parsed', policy, TZ)).toEqual([])
+  it('stays quiet without a usable verdict', () => {
+    const box = said({ package_being_delivered: [0] })
+    expect(reasons(event(), box, 'partial', policy, TZ)).toEqual(['package'])
+    expect(reasons(event(), undefined, 'unparsed', policy, TZ)).toEqual([])
+    expect(reasons(event(), box, 'failed', policy, TZ)).toEqual([])
+  })
+
+  it('collects person evidence frames in order', () => {
+    const frames = said({ person_on_property: [2, 0], person_at_door: [1], person_staying: [2], package_present: [3] })
+    expect(personFrames(frames)).toEqual([0, 1, 2])
+    expect(personFrames(verdict({}))).toEqual([])
   })
 
   it('reads local minutes and windows in both directions', () => {
@@ -402,16 +372,16 @@ describe('noticeReasons', () => {
 describe('renderNotice', () => {
   const base = { deviceLabel: 'Front door', occurredAt: NIGHT, timezone: TZ, lingerSeconds: 0 }
 
-  it('states device, time, reasons, description, counts, and confidence', () => {
+  it('states device, time, reasons, description, and counts', () => {
     expect(renderNotice({ ...base, reasons: ['ding', 'package', 'night-person', 'vehicle', 'lingering'], status: 'parsed', lingerSeconds: 21,
-      verdict: verdict({ description: 'A courier with a box.', counts: { person: 1, package: 1, animal: 0 }, confidence: 0.834, vehicleActivity: 'leaving' }) })).toBe([
+      verdict: verdict({ description: 'A courier with a box.', counts: { person: 1, package: 1, animal: 0 } }), vehicle: 'leaving' })).toBe([
       '**Front door** · 23:30: Doorbell rang; Package delivered; Person at night; Vehicle leaving; Someone lingering (21 s)',
       'A courier with a box.',
-      'Seen: person 1, package 1 · confidence 83%',
+      'Seen: person 1, package 1',
     ].join('\n'))
-    expect(renderNotice({ ...base, reasons: ['ding'], status: 'partial', verdict: verdict({ description: 'Nothing identified.', confidence: 0 }) }))
-      .toContain('Nothing counted · confidence 0%')
-    expect(renderNotice({ ...base, reasons: ['vehicle'], status: 'failed' }).split('\n')[0]).toBe('**Front door** · 23:30: Vehicle seen')
+    expect(renderNotice({ ...base, reasons: ['ding'], status: 'partial', verdict: verdict({ description: 'Nothing identified.' }) }))
+      .toContain('Nothing counted')
+    expect(renderNotice({ ...base, reasons: ['vehicle'], status: 'failed' }).split('\n')[0]).toBe('**Front door** · 23:30: Vehicle moving')
   })
 
   it('names the camera for a person, and lets the night headline stand for both person reasons', () => {
@@ -421,12 +391,12 @@ describe('renderNotice', () => {
       .toBe('**Front door** · 23:30: Person at night; Someone lingering (25 s)')
   })
 
-  it('names a vehicle count movement in the headline and marks early and update notices', () => {
-    const car = verdict({ description: 'A dark SUV stands with its door open.', counts: { vehicle: 3 }, vehicleActivity: 'parked' })
-    expect(renderNotice({ ...base, deviceLabel: 'Garage', reasons: ['vehicle'], status: 'parsed', verdict: car, vehicleChange: 'arriving', stage: 'update' }))
-      .toBe('**Garage** · 23:30 (update): Vehicle arriving\nA dark SUV stands with its door open.\nSeen: vehicle 3 · confidence 90%')
+  it('names the vehicle movement in the headline and marks early and update notices', () => {
+    const car = verdict({ description: 'A dark SUV stands with its door open.', counts: { vehicle: 3 } })
+    expect(renderNotice({ ...base, deviceLabel: 'Garage', reasons: ['vehicle'], status: 'parsed', verdict: car, vehicle: 'arriving', stage: 'update' }))
+      .toBe('**Garage** · 23:30 (update): Vehicle arriving\nA dark SUV stands with its door open.\nSeen: vehicle 3')
     expect(renderNotice({ ...base, reasons: ['person'], status: 'parsed', verdict: verdict({ description: 'A visitor.', counts: { person: 1 } }), stage: 'first-frame' }))
-      .toBe(`**Front door** · 23:30: Person at Front door\nA visitor.\nSeen: person 1 · confidence 90%\n${FIRST_FRAME_LINE}`)
+      .toBe(`**Front door** · 23:30: Person at Front door\nA visitor.\nSeen: person 1\n${FIRST_FRAME_LINE}`)
   })
 
   it('announces a doorbell press before classification', () => {

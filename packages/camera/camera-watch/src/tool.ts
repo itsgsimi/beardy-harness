@@ -32,8 +32,13 @@ export interface CameraToolEvent {
   readonly description: string
   readonly labels: readonly string[]
   readonly counts: Readonly<Record<string, number>>
+  /** Each answered question and its answer; absent for records classified before rule questions. */
+  readonly answers?: Readonly<Record<string, boolean>>
+  /** Stored only by records classified before rule questions. */
   readonly activity?: string
+  /** Stored only by records classified before rule questions. */
   readonly vehicleActivity?: string
+  /** Stored only by records classified before rule questions. */
   readonly confidence?: number
   readonly checked: string
   readonly notified: boolean
@@ -43,6 +48,15 @@ export interface CameraToolEvent {
 /** Whether any notice for the record reached its delivery owner. */
 function notified(record: HistoryRecord): boolean {
   return record.delivery === 'delivered' || record.earlyDelivery === 'delivered'
+}
+
+/** Answers of a record classified with rule questions, or the stored fields of an earlier record. */
+function verdictFields(verdict: NonNullable<HistoryRecord['verdict']>): Partial<CameraToolEvent> {
+  const { activity, vehicleActivity, confidence } = verdict
+  if (activity !== undefined) {
+    return { activity, ...vehicleActivity === undefined ? {} : { vehicleActivity }, ...confidence === undefined ? {} : { confidence } }
+  }
+  return { answers: Object.fromEntries(Object.entries(verdict.answers).map(([question, answer]) => [question, answer.answer])) }
 }
 
 function modelEvent(record: HistoryRecord, labels: ReadonlyMap<string, string>, timezone: string): CameraToolEvent {
@@ -55,9 +69,7 @@ function modelEvent(record: HistoryRecord, labels: ReadonlyMap<string, string>, 
     description: verdict?.description ?? record.text ?? (record.frames.length === 0 ? 'No picture was captured.' : 'Not described.'),
     labels: verdict?.labels ?? [],
     counts: verdict?.counts ?? {},
-    ...verdict === undefined ? {} : {
-      activity: verdict.activity, vehicleActivity: verdict.vehicleActivity, confidence: verdict.confidence,
-    },
+    ...verdict === undefined ? {} : verdictFields(verdict),
     checked: record.failure === undefined ? record.status : `${record.status} (${record.failure})`,
     notified: notified(record),
     reasons: record.reasons,

@@ -8,8 +8,8 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type {
-  CameraActivity, CameraCaptureFailure, CameraDevice, CameraDeviceId as CameraDeviceIdType, CameraEvent,
-  CameraEventId as CameraEventIdType, CameraLabel, CameraPreview, CameraVehicleActivity,
+  CameraCaptureFailure, CameraDevice, CameraDeviceId as CameraDeviceIdType, CameraEvent,
+  CameraEventId as CameraEventIdType, CameraLabel, CameraPreview, CameraQuestion,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -17,11 +17,11 @@ export type * from './types.ts'
 /** Every object class a verdict can report, in canonical order. */
 export const CAMERA_LABELS = Object.freeze(['person', 'vehicle', 'package', 'animal'] as const) satisfies readonly CameraLabel[]
 
-/** Every activity a verdict can report, in canonical order. */
-export const CAMERA_ACTIVITIES = Object.freeze(['delivering', 'lingering', 'passing', 'ringing', 'none', 'unknown'] as const) satisfies readonly CameraActivity[]
-
-/** Every vehicle activity a verdict can report, in canonical order. */
-export const CAMERA_VEHICLE_ACTIVITIES = Object.freeze(['arriving', 'leaving', 'passing', 'parked', 'none', 'unknown'] as const) satisfies readonly CameraVehicleActivity[]
+/** Every question a verdict can answer, in canonical order. */
+export const CAMERA_QUESTIONS = Object.freeze([
+  'person_on_property', 'person_at_door', 'person_staying', 'package_present', 'package_being_delivered',
+  'vehicle_arriving', 'vehicle_leaving',
+] as const) satisfies readonly CameraQuestion[]
 
 /** Every capture shortfall reason, in canonical order. */
 export const CAMERA_CAPTURE_FAILURES = Object.freeze(['snapshot-unavailable', 'snapshot-stale', 'stream-failed', 'storage-failed'] as const) satisfies readonly CameraCaptureFailure[]

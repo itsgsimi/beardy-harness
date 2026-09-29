@@ -76,19 +76,25 @@ export interface CameraEvent {
 export type CameraLabel = 'person' | 'vehicle' | 'package' | 'animal'
 
 /**
- * Dominant activity a verdict reports. `none` means nothing moving was identified; `unknown`
- * means the classifier gave no usable activity.
+ * Yes-or-no questions a classifier answers about one event's frames. `person_on_property` means a
+ * person on the porch, walkway, yard, or driveway, not only on the sidewalk or street;
+ * `person_at_door` a person at the front door; `person_staying` a person who stays in view instead
+ * of walking past; `package_present` a package lying on the property; `package_being_delivered` a
+ * person carrying a package onto the property or setting one down; `vehicle_arriving` a vehicle
+ * pulling in, waiting at the driveway entrance with its lights on, or standing in the driveway with a
+ * door open or a person getting out; `vehicle_leaving` a vehicle backing or driving out onto the street.
  */
-export type CameraActivity = 'delivering' | 'lingering' | 'passing' | 'ringing' | 'none' | 'unknown'
+export type CameraQuestion =
+  | 'person_on_property' | 'person_at_door' | 'person_staying' | 'package_present' | 'package_being_delivered'
+  | 'vehicle_arriving' | 'vehicle_leaving'
 
-/**
- * What the vehicles in a verdict's frames do. `arriving` means a vehicle enters the driveway or
- * parking spot, or stands there with a door open, lights on, or a person getting in or out;
- * `leaving` means a vehicle exits; `passing` means a vehicle drives by without stopping; `parked`
- * means every visible vehicle stays still with its doors closed and nobody getting in or out; `none`
- * means no vehicle is visible; `unknown` means the classifier gave no usable vehicle activity.
- */
-export type CameraVehicleActivity = 'arriving' | 'leaving' | 'passing' | 'parked' | 'none' | 'unknown'
+/** One answered question: the answer and the zero-based indices of the frames that show it. */
+export interface CameraAnswer {
+  /** True only with at least one evidence frame. */
+  readonly answer: boolean
+  /** Frame indices that show the answer, ascending. */
+  readonly frames: readonly number[]
+}
 
 /** Structured classification of one event's frames. */
 export interface CameraVerdict {
@@ -96,14 +102,8 @@ export interface CameraVerdict {
   readonly labels: readonly CameraLabel[]
   /** Largest simultaneous count per visible class. */
   readonly counts: Readonly<Partial<Record<CameraLabel, number>>>
-  /** Dominant activity across the frames. */
-  readonly activity: CameraActivity
-  /** What the visible vehicles do across the frames. */
-  readonly vehicleActivity: CameraVehicleActivity
-  /** Classifier confidence from 0 through 1. */
-  readonly confidence: number
   /** One-line description of what the frames show. */
   readonly description: string
-  /** Zero-based indices of frames showing at least one person, ascending. */
-  readonly personFrames: readonly number[]
+  /** Answers to the questions the classifier was asked and answered validly. */
+  readonly answers: Readonly<Partial<Record<CameraQuestion, CameraAnswer>>>
 }
