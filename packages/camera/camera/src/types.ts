@@ -82,10 +82,11 @@ export type CameraLabel = 'person' | 'vehicle' | 'package' | 'animal'
 export type CameraActivity = 'delivering' | 'lingering' | 'passing' | 'ringing' | 'none' | 'unknown'
 
 /**
- * What the vehicles in a verdict's frames do. `arriving` and `leaving` mean a vehicle enters or
- * exits the driveway or parking spot; `passing` means a vehicle drives by without stopping;
- * `parked` means every visible vehicle stays still, even with lights or an engine on; `none` means
- * no vehicle is visible; `unknown` means the classifier gave no usable vehicle activity.
+ * What the vehicles in a verdict's frames do. `arriving` means a vehicle enters the driveway or
+ * parking spot, or stands there with a door open, lights on, or a person getting in or out;
+ * `leaving` means a vehicle exits; `passing` means a vehicle drives by without stopping; `parked`
+ * means every visible vehicle stays still with its doors closed and nobody getting in or out; `none`
+ * means no vehicle is visible; `unknown` means the classifier gave no usable vehicle activity.
  */
 export type CameraVehicleActivity = 'arriving' | 'leaving' | 'passing' | 'parked' | 'none' | 'unknown'
 

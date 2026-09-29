@@ -8,6 +8,7 @@
 import { z } from 'zod'
 import { AttachmentId, imageAttachmentRefSchema } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { CameraVerdict } from '@deepseek-ai/dsh-camera'
 import { CAMERA_ACTIVITIES, CAMERA_CAPTURE_FAILURES, CAMERA_LABELS, CAMERA_VEHICLE_ACTIVITIES } from '@deepseek-ai/dsh-camera'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { NOTICE_REASONS } from './types.ts'
@@ -49,10 +50,24 @@ export const historyRecord = z.object({
   /** One-line model text for an `unparsed` status. */
   text: z.string().max(200).optional(),
   reasons: z.array(z.enum(NOTICE_REASONS)),
-  /** Classified notice outcome. */
+  /**
+   * Classified notice outcome: `none` when no classified notice was attempted, because no reason
+   * applied or the delivered early notice already stated everything the full check found.
+   */
   delivery: z.enum(['none', 'delivered', 'undelivered', 'no-channel']),
-  /** Immediate doorbell notice outcome, present when one was attempted before classification. */
+  /**
+   * Early notice outcome, present when one was attempted before the full classification: the
+   * doorbell notice, or the notice from the first motion frame.
+   */
   earlyDelivery: z.enum(['delivered', 'undelivered']).optional(),
+  /** First-frame classification Session of a motion event, when one was opened. */
+  earlySessionId: z.string().optional(),
+  /** Reasons the first-frame classification found, present when it answered. */
+  earlyReasons: z.array(z.enum(NOTICE_REASONS)).optional(),
+  /** Vehicle count movement against {@link baselineEventId}, present when the counts differ. */
+  vehicleChange: z.enum(['arriving', 'leaving']).optional(),
+  /** The device's previous event whose vehicle count was compared, present with {@link vehicleChange}. */
+  baselineEventId: z.string().optional(),
 })
 
 /** Validated history record. */
@@ -112,4 +127,36 @@ export function frameAttachment(frame: HistoryFrame): ImageAttachmentRef {
     ...frame.name === undefined ? {} : { name: frame.name },
     ...frame.originalDimensions === undefined ? {} : { originalDimensions: frame.originalDimensions },
   }
+}
+
+/** An earlier event whose verdict serves as a vehicle-count baseline. */
+export interface VehicleBaseline {
+  readonly eventId: string
+  readonly occurredAt: number
+  readonly verdict: CameraVerdict
+}
+
+/**
+ * Find the vehicle-count baseline for an event: the device's latest earlier record, at most
+ * `windowMs` older, with a verdict (only `parsed` and `partial` records have one) that reaches `minConfidence`.
+ * @param entries - keyed history records.
+ * @param deviceId - the event's device.
+ * @param occurredAt - the event's time; the baseline is strictly earlier.
+ * @param windowMs - oldest baseline age.
+ * @param minConfidence - lowest trusted baseline confidence.
+ * @returns the baseline, or undefined when no record qualifies.
+ */
+export function vehicleBaseline(
+  entries: Iterable<[string, HistoryRecord]>, deviceId: string, occurredAt: number, windowMs: number, minConfidence: number,
+): VehicleBaseline | undefined {
+  let latest: VehicleBaseline | undefined
+  for (const [, record] of entries) {
+    const { verdict } = record
+    if (verdict === undefined || record.deviceId !== deviceId || record.occurredAt >= occurredAt
+      || occurredAt - record.occurredAt > windowMs || verdict.confidence < minConfidence) continue
+    if (latest === undefined || record.occurredAt > latest.occurredAt) {
+      latest = { eventId: record.eventId, occurredAt: record.occurredAt, verdict }
+    }
+  }
+  return latest
 }

@@ -569,7 +569,7 @@ export interface DeviceConfig {
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `camera` · `llm` · `sessions` · `storageDomain` · `systemPrompt` · `tools`
 - `refs`: [`CameraVehicleActivity`](../packages/camera/camera/src/index.ts) · [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/camera/camera-watch/src/config.ts:37`](../packages/camera/camera-watch/src/config.ts)
+- `source`: [`packages/camera/camera-watch/src/config.ts:43`](../packages/camera/camera-watch/src/config.ts)
 
 ```ts config-catalog
 /** Camera watch configuration. */
@@ -592,11 +592,18 @@ export interface Config {
    * a follow-up; false posts only the classified notice. Applies while `policy.ding` is on; defaults to true.
    */
   readonly immediateDingNotice?: boolean
+  /**
+   * Classify a motion event's first stored frame on its own and post a notice at once when that
+   * frame already notifies; the full classification then posts an update only when it adds a reason
+   * or counts more of a label. Costs one extra classification per motion event while a channel is
+   * configured; defaults to true.
+   */
+  readonly earlyMotionNotice?: boolean
   /** Output token ceiling for one classification; defaults to 600. */
   readonly maxOutputTokens?: number
   /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
   readonly turnTimeoutMs?: number
-  /** Classifications running at once; defaults to 1. */
+  /** Classifications running at once, first-frame classifications included; defaults to 1. */
   readonly maxConcurrent?: number
   /** Events waiting for classification before new events are recorded unclassified; defaults to 10. */
   readonly maxQueued?: number
@@ -641,6 +648,12 @@ export interface PolicyConfig {
   readonly vehicleDevices?: string[]
   /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
   readonly vehicleActivities?: NotifyingVehicleActivity[]
+  /**
+   * Oldest earlier event, in milliseconds, whose vehicle count a `vehicleDevices` event is compared
+   * with: more vehicles read as `arriving` and fewer as `leaving`, replacing the model's vehicle
+   * activity. From 0, which turns the comparison off, to 604800000; defaults to 43200000.
+   */
+  readonly arrivalBaselineMs?: number
   /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
   readonly lingerSeconds?: number
   /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */

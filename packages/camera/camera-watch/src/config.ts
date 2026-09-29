@@ -27,6 +27,12 @@ export interface PolicyConfig {
   readonly vehicleDevices?: string[]
   /** Vehicle activities that notify on `vehicleDevices`; defaults to `arriving` and `leaving`. */
   readonly vehicleActivities?: NotifyingVehicleActivity[]
+  /**
+   * Oldest earlier event, in milliseconds, whose vehicle count a `vehicleDevices` event is compared
+   * with: more vehicles read as `arriving` and fewer as `leaving`, replacing the model's vehicle
+   * activity. From 0, which turns the comparison off, to 604800000; defaults to 43200000.
+   */
+  readonly arrivalBaselineMs?: number
   /** Seconds between the first and last frame showing a person that count as lingering; defaults to 20. */
   readonly lingerSeconds?: number
   /** Lowest verdict confidence that can notify beyond a doorbell press; defaults to 0.5. */
@@ -53,11 +59,18 @@ export interface Config {
    * a follow-up; false posts only the classified notice. Applies while `policy.ding` is on; defaults to true.
    */
   readonly immediateDingNotice?: boolean
+  /**
+   * Classify a motion event's first stored frame on its own and post a notice at once when that
+   * frame already notifies; the full classification then posts an update only when it adds a reason
+   * or counts more of a label. Costs one extra classification per motion event while a channel is
+   * configured; defaults to true.
+   */
+  readonly earlyMotionNotice?: boolean
   /** Output token ceiling for one classification; defaults to 600. */
   readonly maxOutputTokens?: number
   /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
   readonly turnTimeoutMs?: number
-  /** Classifications running at once; defaults to 1. */
+  /** Classifications running at once, first-frame classifications included; defaults to 1. */
   readonly maxConcurrent?: number
   /** Events waiting for classification before new events are recorded unclassified; defaults to 10. */
   readonly maxQueued?: number
@@ -94,7 +107,9 @@ export const WATCH_DEFAULTS = Object.freeze({
   vehicleActivities: Object.freeze(['arriving', 'leaving'] as const) satisfies readonly NotifyingVehicleActivity[],
   lingerSeconds: 20,
   minConfidence: 0.5,
+  arrivalBaselineMs: 43_200_000,
   immediateDingNotice: true,
+  earlyMotionNotice: true,
   maxOutputTokens: 600,
   turnTimeoutMs: 120_000,
   maxConcurrent: 1,
@@ -127,8 +142,10 @@ export const Config: z<Config> = z.object({
     vehicleActivities: z.array(z.union(['arriving', 'leaving', 'passing', 'parked'])).default([...WATCH_DEFAULTS.vehicleActivities]),
     lingerSeconds: z.number().min(1).default(WATCH_DEFAULTS.lingerSeconds),
     minConfidence: z.number().min(0).max(1).default(WATCH_DEFAULTS.minConfidence),
+    arrivalBaselineMs: z.number().step(1).min(0).max(604_800_000).default(WATCH_DEFAULTS.arrivalBaselineMs),
   }).default({}),
   immediateDingNotice: z.boolean().default(WATCH_DEFAULTS.immediateDingNotice),
+  earlyMotionNotice: z.boolean().default(WATCH_DEFAULTS.earlyMotionNotice),
   maxOutputTokens: z.number().step(1).min(64).max(8_192).default(WATCH_DEFAULTS.maxOutputTokens),
   turnTimeoutMs: z.number().step(1).min(5_000).default(WATCH_DEFAULTS.turnTimeoutMs),
   maxConcurrent: z.number().step(1).min(1).max(8).default(WATCH_DEFAULTS.maxConcurrent),
@@ -156,6 +173,8 @@ export interface ResolvedPolicy {
   readonly vehicleActivities: readonly NotifyingVehicleActivity[]
   readonly lingerMs: number
   readonly minConfidence: number
+  /** Zero turns the vehicle count comparison off. */
+  readonly arrivalBaselineMs: number
 }
 
 /** Complete watch settings after defaults and cross-field validation. */
@@ -166,6 +185,7 @@ export interface ResolvedConfig {
   readonly workspacePath?: string
   readonly policy: ResolvedPolicy
   readonly immediateDingNotice: boolean
+  readonly earlyMotionNotice: boolean
   readonly maxOutputTokens: number
   readonly turnTimeoutMs: number
   readonly maxConcurrent: number
@@ -227,8 +247,10 @@ export function resolveConfig(config: Config): ResolvedConfig {
       vehicleActivities,
       lingerMs: (policy.lingerSeconds ?? WATCH_DEFAULTS.lingerSeconds) * 1_000,
       minConfidence: policy.minConfidence ?? WATCH_DEFAULTS.minConfidence,
+      arrivalBaselineMs: policy.arrivalBaselineMs ?? WATCH_DEFAULTS.arrivalBaselineMs,
     },
     immediateDingNotice: config.immediateDingNotice ?? WATCH_DEFAULTS.immediateDingNotice,
+    earlyMotionNotice: config.earlyMotionNotice ?? WATCH_DEFAULTS.earlyMotionNotice,
     maxOutputTokens: config.maxOutputTokens ?? WATCH_DEFAULTS.maxOutputTokens,
     turnTimeoutMs: config.turnTimeoutMs ?? WATCH_DEFAULTS.turnTimeoutMs,
     maxConcurrent: config.maxConcurrent ?? WATCH_DEFAULTS.maxConcurrent,

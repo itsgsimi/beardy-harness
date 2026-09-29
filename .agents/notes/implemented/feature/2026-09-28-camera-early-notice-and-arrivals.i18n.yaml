@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-camera-early-notice-and-arrivals.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-camera-early-notice-and-arrivals.md
+/agent-note-camera-first-frame-motion-notices-vehicle-count-arrivals-and-ring-signalling-log-noise:
+  en: 2cc7de53db1aaa9f
+  zh: 24d6b6a7261171f0
+/agent-note-camera-first-frame-motion-notices-vehicle-count-arrivals-and-ring-signalling-log-noise/problem:
+  en: cba0b18ec67b6df1
+  zh: 5aa193e1ae7584ab
+/agent-note-camera-first-frame-motion-notices-vehicle-count-arrivals-and-ring-signalling-log-noise/decision:
+  en: ff5194085174a8c1
+  zh: 10028f97313272c5
+/agent-note-camera-first-frame-motion-notices-vehicle-count-arrivals-and-ring-signalling-log-noise/alternatives-considered:
+  en: 552fae74d3d1c8ab
+  zh: 3f738202c020e1ce
+/agent-note-camera-first-frame-motion-notices-vehicle-count-arrivals-and-ring-signalling-log-noise/consequences:
+  en: de7fd5f21cabfbe6
+  zh: ca7bc7eb0bf28a2a

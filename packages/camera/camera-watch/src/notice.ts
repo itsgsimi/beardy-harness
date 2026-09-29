@@ -1,6 +1,7 @@
 /** Local time formatting and notice text for one camera event. @module @deepseek-ai/dsh-camera-watch/notice */
 
 import type { CameraCaptureFailure, CameraVerdict } from '@deepseek-ai/dsh-camera'
+import type { VehicleChange } from './policy.ts'
 import type { NoticeReason, VerdictStatus } from './types.ts'
 
 /**
@@ -29,20 +30,30 @@ export interface NoticeFacts {
   readonly captureFailure?: CameraCaptureFailure | undefined
   /** Seconds a person stayed in view, for the lingering reason. */
   readonly lingerSeconds: number
+  /** Vehicle count movement against the device's previous event; it names the vehicle headline. */
+  readonly vehicleChange?: VehicleChange | undefined
+  /**
+   * `first-frame` for the early motion notice from the first frame alone, `update` for a classified
+   * notice that follows a delivered early motion notice; absent for a standalone notice.
+   */
+  readonly stage?: 'first-frame' | 'update' | undefined
 }
+
+/** Last line of the early motion notice. */
+export const FIRST_FRAME_LINE = 'From the first picture; an update follows only if the rest shows more.'
 
 const HEADLINES: Readonly<Record<NoticeReason, (facts: NoticeFacts) => string>> = {
   ding: () => 'Doorbell rang',
   package: () => 'Package delivered',
   'night-person': () => 'Person at night',
   person: facts => `Person at ${facts.deviceLabel}`,
-  // The vehicle reason exists only for a verdict whose vehicle activity matched the policy.
-  vehicle: facts => `Vehicle ${facts.verdict?.vehicleActivity ?? 'seen'}`,
+  // The vehicle reason exists only for a verdict whose vehicle activity, or count movement, matched the policy.
+  vehicle: facts => `Vehicle ${facts.vehicleChange ?? facts.verdict?.vehicleActivity ?? 'seen'}`,
   lingering: facts => `Someone lingering (${String(facts.lingerSeconds)} s)`,
 }
 
-function heading(deviceLabel: string, occurredAt: number, timezone: string): string {
-  return `**${deviceLabel}** · ${localDateTime(occurredAt, timezone).slice(11, 16)}`
+function heading(deviceLabel: string, occurredAt: number, timezone: string, update = false): string {
+  return `**${deviceLabel}** · ${localDateTime(occurredAt, timezone).slice(11, 16)}${update ? ' (update)' : ''}`
 }
 
 /** Everything the immediate doorbell notice states. */
@@ -79,14 +90,15 @@ export function headlineReasons(reasons: readonly NoticeReason[]): NoticeReason[
 }
 
 /**
- * Compose the notice text: device, local time, and reasons; the description or why it is missing;
- * and the counted objects with confidence. The result stays under 2000 characters.
+ * Compose the notice text: device, local time (marked `(update)` for an update), and reasons; the
+ * description or why it is missing; the counted objects with confidence; and, for an early motion
+ * notice, {@link FIRST_FRAME_LINE}. The result stays under 2000 characters.
  * @param facts - event, reasons, and classification.
  * @returns notice text.
  */
 export function renderNotice(facts: NoticeFacts): string {
   const headlines = headlineReasons(facts.reasons).map(reason => HEADLINES[reason](facts))
-  const lines = [`${heading(facts.deviceLabel, facts.occurredAt, facts.timezone)}: ${headlines.join('; ')}`]
+  const lines = [`${heading(facts.deviceLabel, facts.occurredAt, facts.timezone, facts.stage === 'update')}: ${headlines.join('; ')}`]
   if (facts.verdict !== undefined) {
     lines.push(facts.verdict.description)
     const counts = Object.entries(facts.verdict.counts).filter(([, count]) => count > 0).map(([label, count]) => `${label} ${String(count)}`)
@@ -97,6 +109,7 @@ export function renderNotice(facts: NoticeFacts): string {
     lines.push(missingDescription(facts))
   }
   if (facts.captureFailure !== undefined) lines.push(`Fewer pictures than planned (${facts.captureFailure}).`)
+  if (facts.stage === 'first-frame') lines.push(FIRST_FRAME_LINE)
   return lines.filter(line => line !== '').join('\n')
 }
 

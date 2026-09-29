@@ -1,9 +1,10 @@
 /**
  * Camera watch: classifies each camera event's frames in one logged model turn, applies the
  * notification policy, hands notices with a frame to the delivery owner through `camera/notice`
- * (a doorbell press first as soon as its first frame is stored), keeps a bounded event history, and
- * exposes it through the read-only `camera` tool. It resolves the model route when the route's
- * provider registers and raises a rate-limited failure notice when classification keeps failing.
+ * (a doorbell press, and a motion event whose first frame already notifies, first as soon as that
+ * frame is stored), keeps a bounded event history, and exposes it through the read-only `camera` tool.
+ * It resolves the model route when the route's provider registers and raises a rate-limited failure
+ * notice when classification keeps failing.
  * @module @deepseek-ai/dsh-camera-watch
  */
 
@@ -25,12 +26,13 @@ import { Config, resolveConfig } from './config.ts'
 import type { ResolvedConfig } from './config.ts'
 import { ClassificationHealth, shortCause } from './health.ts'
 import type { HealthNotice, RouteFailureCode } from './health.ts'
-import { cameraWatchDomainSpec, frameAttachment, partitionHistory } from './history.ts'
+import { cameraWatchDomainSpec, frameAttachment, partitionHistory, vehicleBaseline } from './history.ts'
 import type { HistoryRecord } from './history.ts'
 import { localDateTime, RECOVERY_NOTICE_TEXT, renderDingNotice, renderFailureNotice, renderNotice } from './notice.ts'
-import { lingeringMs, noticeReasons } from './policy.ts'
+import { addsToEarlyNotice, lingeringMs, noticeReasons, vehicleChange } from './policy.ts'
+import type { EarlyStatement, VehicleChange } from './policy.ts'
 import { createCameraTool } from './tool.ts'
-import type { CameraNotice, VerdictStatus } from './types.ts'
+import type { CameraNotice, NoticeReason, VerdictStatus } from './types.ts'
 import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from './verdict.ts'
 
 export * from './classify.ts'
@@ -115,11 +117,35 @@ function routeFailure(error: unknown): RouteFailure {
 /** Handoff result of one notice after its attempts. */
 type Handoff = 'delivered' | 'undelivered'
 
-/** An immediate doorbell notice awaiting its event. */
+/** Settled outcome of an event's early notice. */
+interface EarlyResult {
+  /** Handoff of the early notice, when one was attempted. */
+  readonly delivery?: Handoff | undefined
+  /** First-frame classification Session of a motion event, when one was opened. */
+  readonly sessionId?: string | undefined
+  /** Reasons the first-frame classification found, when it answered. */
+  readonly reasons?: readonly NoticeReason[] | undefined
+  /** What an attempted early motion notice stated. */
+  readonly statement?: EarlyStatement | undefined
+}
+
+/** An early notice awaiting its event: a doorbell notice, or a motion event's first-frame check. */
 interface EarlyNotice {
   /** Attachment id of the frame the notice showed. */
   readonly frameId: string
-  readonly delivery: Promise<Handoff>
+  readonly result: Promise<EarlyResult>
+}
+
+/** A queued first-frame classification; `drop` settles its result unclassified when disposal discards it. */
+interface EarlyJob {
+  run(): Promise<void>
+  drop(): void
+}
+
+/** Vehicle count movement of one event and the earlier event it was compared with. */
+interface VehicleMovement {
+  readonly change: VehicleChange
+  readonly baselineEventId: string
 }
 
 /** Counts from one retention sweep. */
@@ -133,6 +159,8 @@ interface SweepTally {
 /** Queue, classification, policy, delivery, and history for accepted camera events. */
 export class CameraWatch {
   private readonly queue: CameraEvent[] = []
+  /** First-frame classifications waiting for a slot; they run before any queued event. */
+  private readonly earlyQueue: EarlyJob[] = []
   /** Accepted events whose handling has not finished, with the attachment ids of their frames. */
   private readonly inFlight = new Map<string, readonly string[]>()
   /** Immediate doorbell notices by event id, until their event is recorded. */
@@ -250,26 +278,74 @@ export class CameraWatch {
   }
 
   /**
-   * Post the immediate notice for a doorbell press whose first frame is stored, when enabled, a
-   * channel is configured, and the event is new. The classified notice for the same event follows
-   * after this handoff settles.
+   * Start the early notice for a new event whose first frame is stored, while a channel is
+   * configured. A doorbell press posts its notice at once (`immediateDingNotice` and `policy.ding`).
+   * A motion event queues a classification of that frame alone ahead of every queued event
+   * (`earlyMotionNotice`), unless no slot is free and the event queue is full, and posts a notice when
+   * the frame already notifies. The event's classified notice waits for this early notice to settle.
    * @param preview - accepted event's identity and first frame.
    */
   preview(preview: CameraPreview): void {
     const channelId = this.config.deliverChannelId
-    if (preview.kind !== 'ding' || !this.config.immediateDingNotice || !this.config.policy.ding || channelId === undefined
-      || this.controller.signal.aborted || this.early.has(preview.id) || this.inFlight.has(preview.id)
+    if (channelId === undefined || this.controller.signal.aborted || this.early.has(preview.id) || this.inFlight.has(preview.id)
       || this.table.get(preview.id) !== undefined) return
     const device = this.devices.get(preview.deviceId)
     if (device === undefined) return
-    const delivery = this.deliver({
-      id: `camera:${preview.id}:ding`,
-      channelId,
-      text: renderDingNotice({ deviceLabel: device.label, occurredAt: preview.occurredAt, timezone: this.config.timezone }),
-      image: preview.frame.attachment,
+    const frameId = String(preview.frame.attachment.attachmentId)
+    if (preview.kind === 'ding') {
+      if (!this.config.immediateDingNotice || !this.config.policy.ding) return
+      const delivery = this.deliver({
+        id: `camera:${preview.id}:ding`,
+        channelId,
+        text: renderDingNotice({ deviceLabel: device.label, occurredAt: preview.occurredAt, timezone: this.config.timezone }),
+        image: preview.frame.attachment,
+      })
+      this.early.set(preview.id, { frameId, result: delivery.then(handoff => ({ delivery: handoff })) })
+      this.track(delivery.then(() => undefined))
+      return
+    }
+    if (!this.config.earlyMotionNotice
+      || (this.running >= this.config.maxConcurrent && this.queue.length >= this.config.maxQueued)) return
+    const { promise: result, resolve: settle } = Promise.withResolvers<EarlyResult>()
+    this.early.set(preview.id, { frameId, result })
+    this.earlyQueue.push({
+      run: async () => {
+        try {
+          settle(await this.earlyMotion(preview, channelId, device))
+        } finally {
+          // A settled result ignores this; after a failure the event goes on without an early notice.
+          settle({})
+        }
+      },
+      drop: () => { settle({}) },
     })
-    this.early.set(preview.id, { frameId: String(preview.frame.attachment.attachmentId), delivery })
-    this.track(delivery.then(() => undefined))
+    this.pump()
+  }
+
+  /**
+   * Classify a motion event's first frame and post the early notice when it yields a reason.
+   * @returns the check's Session, reasons, and notice outcome.
+   */
+  private async earlyMotion(preview: CameraPreview, channelId: string, device: CameraDevice): Promise<EarlyResult> {
+    const { frame, ...identity } = preview
+    const event: CameraEvent = { ...identity, frames: [frame] }
+    const classification = await this.classify(event, true)
+    const session = { sessionId: classification.sessionId }
+    if (classification.status === 'failed') return session
+    const { verdict } = classification
+    const policyEvent = { kind: event.kind, deviceId: event.deviceId, occurredAt: event.occurredAt, offsetsMs: [frame.offsetMs] }
+    const reasons = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone)
+    if (reasons.length === 0 || verdict === undefined) return { ...session, reasons }
+    const delivery = await this.deliver({
+      id: `camera:${event.id}:early`,
+      channelId,
+      text: renderNotice({
+        deviceLabel: device.label, occurredAt: event.occurredAt, timezone: this.config.timezone, reasons,
+        status: classification.status, verdict, lingerSeconds: 0, stage: 'first-frame',
+      }),
+      image: frame.attachment,
+    })
+    return { ...session, reasons, statement: { reasons, verdict }, delivery }
   }
 
   /** Stop accepting events, cancel classifications and delivery waits, and wait for every write. */
@@ -277,6 +353,7 @@ export class CameraWatch {
     this.controller.abort(new Error('camera-watch disposed'))
     clearTimeout(this.sweepTimer)
     this.queue.length = 0
+    for (const job of this.earlyQueue.splice(0)) job.drop()
     while (this.active.size > 0) await Promise.allSettled([...this.active])
     this.early.clear()
   }
@@ -336,12 +413,22 @@ export class CameraWatch {
     this.active.add(tracked)
   }
 
+  /**
+   * Start queued work while slots are free, first-frame classifications first. An event's own
+   * first-frame job therefore always starts before the event, so an event holding a slot while it
+   * waits for its early notice never waits on a job that needs a slot.
+   */
   private pump(): void {
     while (this.running < this.config.maxConcurrent) {
-      const event = this.queue.shift()
-      if (event === undefined) return
+      let work: Promise<void>
+      const job = this.earlyQueue.shift()
+      if (job === undefined) {
+        const event = this.queue.shift()
+        if (event === undefined) return
+        work = this.process(event)
+      } else work = job.run()
       this.running++
-      this.track(this.process(event).finally(() => {
+      this.track(work.finally(() => {
         this.running--
         if (!this.controller.signal.aborted) this.pump()
       }))
@@ -366,7 +453,11 @@ export class CameraWatch {
     return selection
   }
 
-  private async classify(event: CameraEvent): Promise<Classification> {
+  /**
+   * Run one logged classification of the event's frames, or of its first frame alone.
+   * @returns the reading, or a failure code.
+   */
+  private async classify(event: CameraEvent, firstFrame = false): Promise<Classification> {
     let selection: ModelSelection
     try {
       selection = await this.selection()
@@ -383,6 +474,7 @@ export class CameraWatch {
       deviceLabel: device.label,
       localTime: localDateTime(event.occurredAt, this.config.timezone),
       offsetsMs: event.frames.map(frame => frame.offsetMs),
+      firstFrame,
     })
     let outcome: Awaited<ReturnType<typeof classifyFrames>>
     try {
@@ -391,7 +483,7 @@ export class CameraWatch {
         frames: event.frames.map(frame => frame.attachment),
         source: {
           kind: 'camera', deviceId: event.deviceId, eventId: event.id, form: 'notice',
-          summary: boundContextSummary(`${device.label} ${event.kind === 'ding' ? 'doorbell press' : 'motion'}`),
+          summary: boundContextSummary(`${device.label} ${event.kind === 'ding' ? 'doorbell press' : 'motion'}${firstFrame ? ' (first frame)' : ''}`),
         },
         selection,
         maxOutputTokens: this.config.maxOutputTokens,
@@ -413,20 +505,38 @@ export class CameraWatch {
     return { status: reading.status, verdict: reading.verdict, text: reading.text, sessionId }
   }
 
+  /**
+   * Compare a `vehicleDevices` event's vehicle count with the device's latest earlier event inside
+   * `policy.arrivalBaselineMs`; both verdicts must reach `policy.minConfidence`.
+   * @returns the movement, or undefined without a baseline or when the counts are equal.
+   */
+  private vehicleMovement(event: CameraEvent, verdict: CameraVerdict | undefined): VehicleMovement | undefined {
+    const { policy } = this.config
+    if (verdict === undefined || policy.arrivalBaselineMs === 0 || !policy.vehicleDevices.includes(event.deviceId)
+      || verdict.confidence < policy.minConfidence) return undefined
+    const baseline = vehicleBaseline(this.table.entries(), event.deviceId, event.occurredAt, policy.arrivalBaselineMs, policy.minConfidence)
+    const change = baseline === undefined ? undefined : vehicleChange(verdict, baseline.verdict)
+    return change === undefined || baseline === undefined ? undefined : { change, baselineEventId: baseline.eventId }
+  }
+
   private async finish(event: CameraEvent, classification: Classification): Promise<void> {
     const offsetsMs = event.frames.map(frame => frame.offsetMs)
     const policyEvent = { kind: event.kind, deviceId: event.deviceId, occurredAt: event.occurredAt, offsetsMs }
     const { verdict } = classification
-    const reasons = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone)
+    const movement = this.vehicleMovement(event, verdict)
+    const reasons = noticeReasons(policyEvent, verdict, classification.status, this.config.policy, this.config.timezone, movement?.change)
     const channelId = this.config.deliverChannelId
     const early = this.early.get(event.id)
     try {
-      let earlyDelivery: Handoff | undefined
+      let earlyResult: EarlyResult = {}
       let postedFrameId: string | undefined
       if (early !== undefined) {
-        earlyDelivery = await early.delivery
-        if (earlyDelivery === 'delivered') postedFrameId = early.frameId
+        earlyResult = await early.result
+        if (earlyResult.delivery === 'delivered') postedFrameId = early.frameId
       }
+      // A delivered early motion notice makes the classified notice an update, posted only when it adds to it.
+      const statement = earlyResult.delivery === 'delivered' ? earlyResult.statement : undefined
+      const posts = reasons.length > 0 && (statement === undefined || addsToEarlyNotice(statement, reasons, verdict))
       const record: HistoryRecord = {
         eventId: event.id,
         deviceId: event.deviceId,
@@ -440,23 +550,28 @@ export class CameraWatch {
         ...verdict === undefined ? {} : { verdict: { ...verdict, labels: [...verdict.labels], personFrames: [...verdict.personFrames] } },
         ...classification.text === undefined ? {} : { text: classification.text },
         reasons,
-        delivery: reasons.length === 0 ? 'none' : channelId === undefined ? 'no-channel' : 'undelivered',
-        ...earlyDelivery === undefined ? {} : { earlyDelivery },
+        delivery: !posts ? 'none' : channelId === undefined ? 'no-channel' : 'undelivered',
+        ...earlyResult.delivery === undefined ? {} : { earlyDelivery: earlyResult.delivery },
+        ...earlyResult.sessionId === undefined ? {} : { earlySessionId: earlyResult.sessionId },
+        ...earlyResult.reasons === undefined ? {} : { earlyReasons: [...earlyResult.reasons] },
+        ...movement === undefined ? {} : { vehicleChange: movement.change, baselineEventId: movement.baselineEventId },
       }
       await this.table.put(event.id, record)
-      if (reasons.length === 0 || channelId === undefined) return
+      if (!posts || channelId === undefined) return
       const device = this.devices.get(event.deviceId) as CameraDevice
-      const shown = event.frames[classification.verdict?.personFrames[0] ?? 0]
-      // A frame the delivered immediate notice already showed is not attached again.
+      const shown = event.frames[verdict?.personFrames[0] ?? 0]
+      // A frame the delivered early notice already showed is not attached again.
       const image = shown === undefined || String(shown.attachment.attachmentId) === postedFrameId ? undefined : shown.attachment
       const notice: CameraNotice = {
         id: `camera:${event.id}`,
         channelId,
         text: renderNotice({
           deviceLabel: device.label, occurredAt: event.occurredAt, timezone: this.config.timezone, reasons,
-          status: classification.status, verdict: classification.verdict, text: classification.text,
+          status: classification.status, verdict, text: classification.text,
           failure: classification.failure, captureFailure: event.captureFailure,
-          lingerSeconds: classification.verdict === undefined ? 0 : Math.round(lingeringMs(policyEvent, classification.verdict) / 1_000),
+          lingerSeconds: verdict === undefined ? 0 : Math.round(lingeringMs(policyEvent, verdict) / 1_000),
+          vehicleChange: movement?.change,
+          stage: statement === undefined ? undefined : 'update',
         }),
         ...image === undefined ? {} : { image },
       }

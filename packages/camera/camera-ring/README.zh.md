@@ -43,7 +43,7 @@ kind: "package-reference"
 
 账户中不存在的已配置设备会让提供方停止并报错，错误信息列出账户中所有设备的名称和 ID。其他原因导致的连接失败（例如 Ring API 不可达）会以翻倍延迟重试。
 
-要查明事件画面少于 `frameCount` 的原因，请查看提供方日志。`info` 级别的 `camera-ring: snapshot <n> for <event id> …` 指出把截取转到直播流的那张快照，以及它是与上一张重复、被拒绝还是超时。`warn` 级别的 `camera-ring: stream capture for <event id> failed at <stage>: <cause>` 指出 `stream-failed` 截取停在哪一步：`start-refused` 附带 Ring 错误，`start-timeout` 表示 `streamSetupMs` 内没有启动直播流，`ended-short` 表示通话先结束，`run-timeout` 表示截取时限将其停止，后两者附带已写入帧数与请求帧数。`warn` 级别的 `camera-ring: ring-client-api: …` 是该库自身的错误，例如信令套接字失败或 ffmpeg 退出码；短时开启 `vendorDebug` 还能看到 ffmpeg 的输出。如果每次直播流都先报 `camera-ring: ring-client-api: Cannot get schema for 'SubjectPublicKeyInfo' target`，随后以 `ended-short` 结束且写入 0 帧，说明安装中存在两份 `@peculiar/asn1-schema`；根目录 `pnpm-workspace.yaml` 的 override 将其固定为一份，请在该 override 生效时重新安装，并确认 `node_modules/.pnpm` 中只有一个 `@peculiar+asn1-schema` 目录。
+要查明事件画面少于 `frameCount` 的原因，请查看提供方日志。`info` 级别的 `camera-ring: snapshot <n> for <event id> …` 指出把截取转到直播流的那张快照，以及它是与上一张重复、被拒绝还是超时。`warn` 级别的 `camera-ring: stream capture for <event id> failed at <stage>: <cause>` 指出 `stream-failed` 截取停在哪一步：`start-refused` 附带 Ring 错误，`start-timeout` 表示 `streamSetupMs` 内没有启动直播流，`ended-short` 表示通话先结束，`run-timeout` 表示截取时限将其停止，后两者附带已写入帧数与请求帧数。`warn` 级别的 `camera-ring: ring-client-api: …` 是该库自身的错误，例如信令套接字失败或 ffmpeg 退出码；短时开启 `vendorDebug` 还能看到 ffmpeg 的输出。该库针对无法识别的 WebRTC 信令消息报出的 `UNKNOWN MESSAGE` 错误，以及它转储的每条信令消息（带有 `doorbot_id` 的对象文本），属于噪声而非故障，记录为 `debug`（开启 `vendorDebug` 时为 `info`）。如果每次直播流都先报 `camera-ring: ring-client-api: Cannot get schema for 'SubjectPublicKeyInfo' target`，随后以 `ended-short` 结束且写入 0 帧，说明安装中存在两份 `@peculiar/asn1-schema`；根目录 `pnpm-workspace.yaml` 的 override 将其固定为一份，请在该 override 生效时重新安装，并确认 `node_modules/.pnpm` 中只有一个 `@peculiar+asn1-schema` 目录。
 
 -----
 
@@ -53,7 +53,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-加载时检查凭据引用和 ffmpeg 可执行文件，然后在后台连接。第一次请求会刷新令牌；`ring-client-api` 在推送凭据变化时也会重新编码令牌，每个新值都按轮换顺序经 `ctx.credentials.set` 写回。诊断信息（包括提供方加载期间经 `ctx.logger` 转发的库自身日志）会把封装令牌及其内部 Ring 令牌替换为 `[redacted]`。
+加载时检查凭据引用和 ffmpeg 可执行文件，然后在后台连接。第一次请求会刷新令牌；`ring-client-api` 在推送凭据变化时也会重新编码令牌，每个新值都按轮换顺序经 `ctx.credentials.set` 写回。诊断信息（包括提供方加载期间经 `ctx.logger` 转发的库自身日志）会把封装令牌及其内部 Ring 令牌替换为 `[redacted]`；库日志还会遮盖每个 `session_id` 值和每个形似 JWT 的值（以 `eyJ` 开头的文本），例如直播流信令会话令牌。
 
 推送按厂商事件 ID 只接纳一次：只接纳已配置的类型，只在该设备该类型的冷却时间之外接纳；移动事件还要求该设备当前没有在截取画面，门铃按下则排在正在进行的截取之后。每个被接纳的事件最多获得 `frameCount` 帧：收到推送时一张快照，此后每个间隔一张。有线 Ring 摄像头在移动期间可能再次返回缓存的快照，因此字节与上一张相同的快照与被拒绝或超时的快照一样，算作缺失的实时画面。缺少快照且开启 `streamFallback` 时，一次直播通话运行带帧率过滤器的 ffmpeg，把该时段及之后所有时段的画面写入私有临时目录，之后删除该目录。画面经 `ctx.attachments` 以 JPEG 存储；第一帧存储后先以 `camera/preview` 发布，再继续截取，最后一帧之后发布完整事件。数量不足时，回退关闭时事件标注 `snapshot-unavailable` 或 `snapshot-stale`，直播流提前结束时标注 `stream-failed`，存储失败时标注 `storage-failed`。卸载时停止订阅、取消等待、断开连接，并等待截取和令牌写入结束。提供方只保存临时的接纳状态，因此不发布不变量组件。
 
