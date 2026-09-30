@@ -51,13 +51,14 @@ function formatSessionSearch(
   collected: SearchCollection<SessionSearchHit>,
   titles: CompleteTitleMap,
   authorizedParents: ReadonlySet<SessionId>,
+  callerWorkspace: string,
 ): string {
   if (collected.items.length === 0) return formatEmptySessionSearch('search')
   const lines = [`Session search results (${collected.items.length}):`]
   for (const [index, hit] of collected.items.entries()) {
     lines.push(
       '',
-      ...sessionLines(index, hit, titles, authorizedParents),
+      ...sessionLines(index, hit, titles, authorizedParents, callerWorkspace),
       `   Best match: seq ${hit.bestMatch.seq} | ${hit.bestMatch.type} | ${hit.bestMatch.surface} | ${formatTime(hit.bestMatch.time)}`,
       `   Snippet: ${hit.bestMatch.snippet}`,
     )
@@ -72,11 +73,12 @@ function formatRecentSessions(
   collected: SearchCollection<SessionRecord>,
   titles: CompleteTitleMap,
   authorizedParents: ReadonlySet<SessionId>,
+  callerWorkspace: string,
 ): string {
   if (collected.items.length === 0) return formatEmptySessionSearch('recent')
   const lines = [`Recent sessions, newest first (${collected.items.length}):`]
   for (const [index, record] of collected.items.entries()) {
-    lines.push('', ...sessionLines(index, record, titles, authorizedParents))
+    lines.push('', ...sessionLines(index, record, titles, authorizedParents, callerWorkspace))
   }
   if (collected.capped) {
     lines.push('', 'Result cap reached. Set created_at_to before the oldest listed creation time to list older sessions.')
@@ -89,15 +91,19 @@ function sessionLines(
   record: SessionRecord,
   titles: CompleteTitleMap,
   authorizedParents: ReadonlySet<SessionId>,
+  callerWorkspace: string,
 ): string[] {
   const parent = record.header.parentSession === undefined
     ? 'root'
     : authorizedParents.has(record.header.parentSession)
       ? record.header.parentSession
       : '[outside workspace]'
+  // Only an aliased workspace hit differs from the caller workspace; same-workspace hits omit the line.
+  const workspace = record.header.cwd === callerWorkspace ? [] : [`   Workspace: ${record.header.cwd}`]
   return [
     `${index + 1}. Session ${record.header.id} — ${workspaceAccess.titleText(titles.get(record.header.id))}`,
     `   Created: ${formatTime(record.header.createdAt)}`,
+    ...workspace,
     `   Origin: ${sessionRecallOrigin(record.header)}`,
     `   Parent: ${parent}`,
     `   Availability: ${availabilityText(record)}`,

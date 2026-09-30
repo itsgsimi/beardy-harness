@@ -363,7 +363,12 @@ describe('registration and schemas', () => {
 
   it('expresses the complete Node timer range in the Loader config schema', () => {
     expect(new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS }))
-      .toEqual({ maxSearchResults: 100, maxRecentSessions: 20, searchTimeoutMs: MAX_TIMER_DELAY_MS })
+      .toEqual({
+        maxSearchResults: 100,
+        maxRecentSessions: 20,
+        searchTimeoutMs: MAX_TIMER_DELAY_MS,
+        workspaceAliases: {},
+      })
     expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: 1.5 })).toThrow()
     expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS + 1 })).toThrow()
   })
@@ -751,6 +756,83 @@ describe('recent session recall', () => {
     const result = await mounted.call('session_search', { view: 'recent' })
     expect(errorCode(result)).toBe('SESSION_QUERY_PERSISTENCE_FAILED')
     expect(text(result)).not.toContain('private listing detail')
+  })
+})
+
+describe('workspace aliases', () => {
+  function cwdFilters(): unknown[] {
+    return FakeQuery.sessionRequests.map(request =>
+      request.sessionFilters?.find(filter => filter.kind === 'cwd'))
+  }
+
+  it('keeps the caller workspace as the only scope by default', async () => {
+    const mounted = await mount()
+    createSession(mounted.ctx, 'old', '/old')
+    await mounted.call('session_search', { query: 'needle' })
+    expect(cwdFilters()).toEqual([{ kind: 'cwd', values: ['/work'] }])
+    expect(errorCode(await mounted.call('session_trace', { session_id: 'old' })))
+      .toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
+  })
+
+  it('searches, lists, and reads aliased workspaces and labels their hits', async () => {
+    const mounted = await mount({ workspaceAliases: { '/work/': ['/old/'] } })
+    const old = createSession(mounted.ctx, 'old', '/old', 20)
+    openStep(old)
+    createSession(mounted.ctx, 'same', '/work', 30)
+    FakeQuery.sessionSearch = () => Promise.resolve({ items: [
+      sessionHit('same', '/work'),
+      sessionHit('old', '/old'),
+    ] })
+
+    const found = text(await mounted.call('session_search', { query: 'needle' }))
+    expect(cwdFilters()).toEqual([{ kind: 'cwd', values: ['/work', '/old'] }])
+    expect(found).toContain('Session old')
+    expect(found).toContain('   Workspace: /old')
+    expect(found.match(/Workspace:/g)).toHaveLength(1)
+
+    const recent = text(await mounted.call('session_search', { view: 'recent' }))
+    expect(recent).toContain('Session old')
+    expect(recent).toContain('   Workspace: /old')
+
+    const trace = await mounted.call('session_trace', { session_id: 'old' })
+    expect(trace.isError).toBe(false)
+    expect(text(trace)).toContain('Session old')
+    const read = await mounted.call('session_event_read', { session_id: 'old', seq: 1 })
+    expect(read.isError).toBe(false)
+    expect((await mounted.call('session_event_search', { session_id: 'old', query: 'needle' })).isError)
+      .toBe(false)
+  })
+
+  it('grants aliases in one direction only', async () => {
+    const mounted = await mount({ workspaceAliases: { '/work': ['/old'] } }, '/old')
+    createSession(mounted.ctx, 'new', '/work')
+    await mounted.call('session_search', { query: 'needle' })
+    expect(cwdFilters()).toEqual([{ kind: 'cwd', values: ['/old'] }])
+    expect(errorCode(await mounted.call('session_trace', { session_id: 'new' })))
+      .toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
+  })
+
+  it('does not follow aliases transitively', async () => {
+    const mounted = await mount({ workspaceAliases: { '/work': ['/old'], '/old': ['/older'] } })
+    createSession(mounted.ctx, 'older', '/older')
+    await mounted.call('session_search', { query: 'needle' })
+    expect(cwdFilters()).toEqual([{ kind: 'cwd', values: ['/work', '/old'] }])
+    expect(errorCode(await mounted.call('session_event_read', { session_id: 'older', seq: 0 })))
+      .toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
+  })
+
+  it('fails loud on relative, repeated, and self-referencing aliases', async () => {
+    const mounted = await mount()
+    const invalid: Array<[Record<string, string[]>, string]> = [
+      [{ 'work': ['/old'] }, 'workspaceAliases key must be an absolute path'],
+      [{ '/work': ['old'] }, 'entry must be an absolute path'],
+      [{ '/work': ['/old', '/old/'] }, 'repeats "/old"'],
+      [{ '/work': ['/work/'] }, 'must not alias itself'],
+      [{ '/work': ['/old'], '/work/': ['/older'] }, 'repeats workspace "/work"'],
+    ]
+    for (const [workspaceAliases, message] of invalid) {
+      expect(() => { ToolSessionQuery.apply(mounted.ctx, { workspaceAliases }) }).toThrow(message)
+    }
   })
 })
 

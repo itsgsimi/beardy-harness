@@ -4,6 +4,7 @@
  * @module @deepseek-ai/dsh-tool-session-query/workspace-access
  */
 
+import { isAbsolute, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
@@ -20,9 +21,17 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { serviceBoundary } from './service-boundary.ts'
 
+/**
+ * Normalized workspace aliases: each caller workspace maps to the additional workspaces whose Sessions it may
+ * search and read. Keys and values are absolute, resolved paths without trailing separators.
+ */
+export type WorkspaceAliases = ReadonlyMap<string, readonly string[]>
+
 interface Caller {
   readonly id: SessionIdValue
   readonly header: SessionHeader
+  /** The caller's workspace followed by its aliases; empty when the caller Session has no workspace. */
+  readonly workspaces: readonly string[]
   /** The caller's own-session boundary fold (the `turnBoundary` projection). */
   readonly boundary: TurnBoundaryProjection | undefined
 }
@@ -53,7 +62,47 @@ interface DescendantVisit {
   readonly next: DescendantVisit | undefined
 }
 
-function callerOf(exec: ToolRunContext, ctx: Context): Caller {
+function normalizeWorkspace(path: string, field: string): string {
+  if (!isAbsolute(path)) {
+    throw new TypeError(`tool-session-query: ${field} must be an absolute path, got ${JSON.stringify(path)}`)
+  }
+  return resolve(path)
+}
+
+/**
+ * Validate and normalize configured workspace aliases.
+ *
+ * @param config - Raw `workspaceAliases` config keyed by caller workspace.
+ * @returns Normalized aliases keyed by normalized caller workspace.
+ * @throws {TypeError} When a key or alias is relative, a key or an alias repeats after normalization, or a
+ *   workspace aliases itself.
+ */
+function resolveWorkspaceAliases(config: Readonly<Record<string, readonly string[]>>): WorkspaceAliases {
+  const result = new Map<string, readonly string[]>()
+  for (const [rawWorkspace, rawAliases] of Object.entries(config)) {
+    const workspace = normalizeWorkspace(rawWorkspace, 'workspaceAliases key')
+    if (result.has(workspace)) {
+      throw new TypeError(`tool-session-query: workspaceAliases repeats workspace ${JSON.stringify(workspace)}`)
+    }
+    const aliases: string[] = []
+    for (const rawAlias of rawAliases) {
+      const alias = normalizeWorkspace(rawAlias, `workspaceAliases[${JSON.stringify(workspace)}] entry`)
+      if (alias === workspace) {
+        throw new TypeError(`tool-session-query: workspace ${JSON.stringify(workspace)} must not alias itself`)
+      }
+      if (aliases.includes(alias)) {
+        throw new TypeError(
+          `tool-session-query: workspaceAliases[${JSON.stringify(workspace)}] repeats ${JSON.stringify(alias)}`,
+        )
+      }
+      aliases.push(alias)
+    }
+    result.set(workspace, aliases)
+  }
+  return result
+}
+
+function callerOf(exec: ToolRunContext, ctx: Context, aliases: WorkspaceAliases): Caller {
   const agent = exec.agent
   if (agent === undefined) {
     throw new HarnessError(
@@ -61,9 +110,11 @@ function callerOf(exec: ToolRunContext, ctx: Context): Caller {
       'SESSION_QUERY_TOOL_MISSING_AGENT',
     )
   }
+  const cwd = agent.session.header.cwd
   return {
     id: agent.session.id,
     header: agent.session.header,
+    workspaces: cwd === undefined ? [] : [cwd, ...aliases.get(resolve(cwd)) ?? []],
     boundary: ctx.sessionProjections.stateOf(agent.session, 'turnBoundary'),
   }
 }
@@ -79,12 +130,11 @@ async function authorizeTarget(
   signal: AbortSignal,
 ): Promise<void> {
   if (target === caller.id) return
-  const cwd = caller.header.cwd
-  if (cwd === undefined) throw serviceBoundary.unauthorizedTarget()
+  if (caller.workspaces.length === 0) throw serviceBoundary.unauthorizedTarget()
   const records = await serviceBoundary.call(ctx, signal, 'target authorization', () =>
     ctx.sessionQuery.filterSessions([
       { kind: 'id', values: [target] },
-      { kind: 'cwd', values: [cwd] },
+      { kind: 'cwd', values: [...caller.workspaces] },
     ], signal))
   if (records.length !== 1) throw serviceBoundary.unauthorizedTarget()
 }
@@ -95,7 +145,7 @@ function recordAuthorized(record: SessionRecord, caller: Caller): boolean {
 
 function headerAuthorized(header: SessionHeader, caller: Caller): boolean {
   if (header.id === caller.id) return header.cwd === caller.header.cwd
-  return caller.header.cwd !== undefined && header.cwd === caller.header.cwd
+  return header.cwd !== undefined && caller.workspaces.includes(header.cwd)
 }
 
 function assertObservedTargetAuthorized(
@@ -117,13 +167,12 @@ async function authorizeSessionIds(
   const unique = [...new Set(ids)]
   const authorized = new Set<SessionIdValue>()
   if (unique.includes(caller.id)) authorized.add(caller.id)
-  const cwd = caller.header.cwd
   const other = unique.filter(id => id !== caller.id)
-  if (cwd === undefined || other.length === 0) return authorized
+  if (caller.workspaces.length === 0 || other.length === 0) return authorized
   const records = await serviceBoundary.call(ctx, signal, 'session-id authorization', () =>
     ctx.sessionQuery.filterSessions([
       { kind: 'id', values: other },
-      { kind: 'cwd', values: [cwd] },
+      { kind: 'cwd', values: [...caller.workspaces] },
     ], signal))
   const requested = new Set(other)
   for (const record of records) {
@@ -240,8 +289,9 @@ function titleText(view: TitleView): string {
     : `${view.text} (title unavailable: ${view.unavailableCode})`
 }
 
-/** Workspace-scoped caller authorization, title access, and lineage projection. */
+/** Workspace-scoped caller authorization, alias resolution, title access, and lineage projection. */
 export const workspaceAccess = {
+  resolveWorkspaceAliases,
   callerOf,
   targetId,
   authorizeTarget,
