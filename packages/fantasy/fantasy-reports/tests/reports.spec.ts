@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CronRunFinished, Scheduler } from '@deepseek-ai/dsh-cron'
 import type { ResearchRunView } from '@deepseek-ai/dsh-research/types'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { resolveConfig, type Config } from '../src/config.ts'
 import { apply, handOff, inject, mountReports, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
 import { HANG, WEDNESDAY_WEEK_3, harness, lockedRoster, promptOf, validDraft, yahoo, type Harness, type Reply } from './support.ts'
@@ -73,6 +75,21 @@ describe('scheduled weekly reports', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       `The Googies weekly fantasy report, 2026 week 3 (full) [fantasy-report:googies:2026:3:full:scheduled:${WEDNESDAY_WEEK_3}]`,
     ])
     expect(new Set(runs.map(run => run.callerSessionId))).toEqual(new Set(['fantasy-reports-googies']))
+  })
+
+  it('opens a workspace-specific caller after workspacePath moves and keeps report history across callers', async () => {
+    const { h } = await setup([draft, pass, draft, pass, draft, pass])
+    const moved = { workspacePath: '/tmp/fantasy-reports-moved' }
+    const movedCaller = `fantasy-reports-googies-${createHash('sha256').update(moved.workspacePath).digest('hex').slice(0, 8)}`
+    expect((await fire(h, {}, WEDNESDAY_WEEK_3)).kind).toBe('published')
+    expect((await fire(h, moved, THURSDAY_WEEK_3, 0, 'thursday')).kind).toBe('published')
+    expect(promptOf(h.adapter.requests[2]!)).toContain('--- Earlier week 3 full report ---')
+    expect((await fire(h, moved, SUNDAY_WEEK_3, 0, 'sunday')).kind).toBe('published')
+    const runs = await h.research.list({ owner: { kind: 'profile', namespace: 'beardy' }, limit: 10 })
+    expect(runs.map(run => run.callerSessionId)).toEqual([movedCaller, movedCaller, 'fantasy-reports-googies'])
+    const original = await h.ctx.sessionPersistence.stat(SessionId('fantasy-reports-googies'))
+    expect(original?.header.cwd).toBe(household.workspacePath)
+    expect((await h.ctx.sessionPersistence.stat(SessionId(movedCaller)))?.header.cwd).toBe(moved.workspacePath)
   })
 
   it('keeps a Sunday starter whose game has started in his Yahoo slot and names every locked player', async () => {

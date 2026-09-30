@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-29-discord-resume-after-workspace-move.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-29-discord-resume-after-workspace-move.md
+/agent-note-discord-resume-after-a-workspace-move:
+  en: 9d9dc8b1d8910b8f
+  zh: fcc92a2ba463cc00
+/agent-note-discord-resume-after-a-workspace-move/problem:
+  en: f4b259e0417cc710
+  zh: 56d30ae2cdd74425
+/agent-note-discord-resume-after-a-workspace-move/decision:
+  en: 297a656465448d3c
+  zh: 9a7d1b0a2c51f338
+/agent-note-discord-resume-after-a-workspace-move/alternatives-considered:
+  en: 3876c3db9225beb7
+  zh: 7ffa18528b2a9722
+/agent-note-discord-resume-after-a-workspace-move/consequences:
+  en: 4fd234c0a37ab29c
+  zh: 2e1f524b9e329d40

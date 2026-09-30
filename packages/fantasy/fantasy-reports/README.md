@@ -58,7 +58,7 @@ A completed report is handed to `cron/run-finished` with outcome `answered` and 
 
 ### History
 
-Every run is linked from the team's caller Session `fantasy-reports-<id>`, and its query carries a `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` tag, where the trigger is `scheduled` or `catch-up` and `firedAt` is the fire time in epoch milliseconds that delivery carries. A new report shows the writer up to `historyReports` earlier completed reports of the same team and season as comparison data. Beardy can read the same reports through `deep_research` `list` and `report`.
+Every run is linked from the team's caller Session `fantasy-reports-<id>`; after `workspacePath` changes, the team's caller becomes `fantasy-reports-<id>-<hash>`, where `<hash>` is the first 8 hex digits of the new path's SHA-256, and the earlier caller Session stays unchanged. Each run's query carries a `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` tag, where the trigger is `scheduled` or `catch-up` and `firedAt` is the fire time in epoch milliseconds that delivery carries. A new report shows the writer up to `historyReports` earlier completed reports of the same team and season as comparison data. Beardy can read the same reports through `deep_research` `list` and `report`.
 
 -----
 

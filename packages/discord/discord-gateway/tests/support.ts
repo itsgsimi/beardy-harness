@@ -154,6 +154,10 @@ export interface HarnessOptions {
   readonly failTitle?: boolean
   /** Durable record present before any message arrives. */
   readonly initialRecord?: ConversationRecord
+  /** Header cwd the stored Session reports; absent leaves the stored header without one. */
+  readonly storedCwd?: string
+  /** Default-lane workspace path; defaults to {@link SETTINGS}. */
+  readonly workspacePath?: string
   /** How `agents.resume` fails when a record points at a Session. */
   readonly resumeError?: 'not-found' | 'other'
   /** Fail the typing-indicator seam. */
@@ -266,7 +270,12 @@ export function harness(options: HarnessOptions = {}) {
     } } : name === 'attachments' ? options.attachments : options.eventContext?.[name as keyof Context],
     sessions: { flush: async () => true },
     sessionPersistence: {
-      open: async () => ({ inheritedEventCount: 0, read: async () => ({ events }), close: async () => {} }),
+      open: async () => ({
+        header: { cwd: options.storedCwd },
+        inheritedEventCount: 0,
+        read: async () => ({ events }),
+        close: async () => {},
+      }),
     },
     logger: { info: vi.fn(), warn: (message: string) => { warnings.push(message) }, error: vi.fn(), debug: vi.fn() },
     effect: (fn: () => (() => void | Promise<void>)) => options.eventContext === undefined
@@ -401,6 +410,7 @@ export function harness(options: HarnessOptions = {}) {
       ...(options.questionTimeoutMs === undefined ? {} : { questionTimeoutMs: options.questionTimeoutMs }),
       ...(options.answerers === undefined ? {} : { answerers: options.answerers }),
       ...(options.userLanes === undefined ? {} : { userLanes: options.userLanes }),
+      ...(options.workspacePath === undefined ? {} : { workspacePath: options.workspacePath }),
       ...(options.toolFilter === undefined ? {} : { toolFilter: options.toolFilter }),
       ...(options.modelSelection === undefined ? {} : { modelSelection: options.modelSelection }),
     },

@@ -23,13 +23,13 @@ kind: "package-reference"
 <a id="conversation-behavior"></a>
 ## 对话行为
 
-- **持久化对话。** 频道的会话 id、预设、工作区与所属通道保存在 storage domain 中。重启或空闲释放（`idleReleaseMs`）后，下一条消息或预设命令恢复该会话；静默超过 `conversationMaxAgeMs` 后，两者都会开启新会话。空闲释放只在 agent 已空闲且没有等待回答的请求时发生。
+- **持久化对话。** 频道的会话 id、预设、工作区与所属通道保存在 storage domain 中。重启或空闲释放（`idleReleaseMs`）后，下一条消息或预设命令恢复该会话；静默超过 `conversationMaxAgeMs` 后，两者都会开启新会话。当已记录会话存储的 cwd 解析到与其通道 `workspacePath` 不同的目录时，下一条消息或预设命令不会恢复它，而是在通道的工作区开启新会话，保留先前会话不变，并在回答前发送 "Started a new conversation because my workspace changed; earlier conversations stay searchable."。空闲释放只在 agent 已空闲且没有等待回答的请求时发生。
 - **模型选择。** 可选的 `modelSelection: { provider, model, reasoningEffort? }` 为新网关 Session 选择确切路由和推理力度；省略时读取完整的当前 `agentDefaultModel` 选择。网关在对话开启时依据已注册的适配器检查显式选择；未知路由或不支持的推理力度会使该 Session 报错，并指出对应配置。恢复的对话沿用最后记录的 `request/header` 选择；Web Session 保留自己的选择。
 - **致命网关关闭。** Discord 关闭码 4004 和 4010–4014 会停止监听器，并在错误日志中记录代码和原因。可重连的关闭仍按有界退避重连。
 - **消息合并。** 在 `inboundDebounceMs` 窗口内到达的消息合并成一轮，因此连发多条短消息的人只会得到一次回答；设为 `0` 则每条消息单独回答。
 - **进度与结果。** `typingIndicator` 在入站轮次运行时重复发送正在输入提示。`reactionStatus` 在处理期间添加 👀，并在轮次完成时替换为 ✅，否则替换为 ❌；表情发送失败不会阻断对话。入站轮次运行超过 `turnProgressNoticeMs`（默认 180000；`0` 表示关闭；必须短于 `turnTimeoutMs`）仍未结束时，会在其频道发送一条“仍在处理”通知，因此用户专属通道的通知会发到该用户的私信；该通知不影响轮次本身，轮次结束、超时、`/stop`、`/new`、释放或关闭都会在其发送前取消它。期间发送的消息等待正在运行的轮次，之后的每个轮次各自设置通知。超时与错误会发送带当前对话控件的通知。
 - **服务器频道门槛。** 服务器频道必须出现在 `allowedChannelIds` 中；在 `guildRequireMention: true`（默认）下，只有提及 bot 或回复其消息的消息会被回应。允许用户的私信总是会被回应。
-- **专属通道。** `userLanes` 将允许清单中的用户 id 映射到工作区、agent 预设、权限预设、可选的 `toolFilter` 以及额外的 `excludedPresetCommands`。该用户的私信以这些设置开启和恢复会话；其服务器消息、服务器中的控件操作以及对自身对话之外提示的表情回应都会被忽略。记录写明所属通道，因此恢复与提醒唤醒会保持该通道。每条已准入消息、命令和交互都按发起者当前通道路由。命令执行前会释放属于其他通道的频道记录或存活 agent；预设命令会在发起者当前通道开启 Session。其他通道的待决回答不能结束旧请求。所属通道已被移除的提醒会等到下一条消息。`toolFilter` 也可用于默认通道，它通过 `tools.restrict()` 限制每个对话 agent，因此可以列出预设与 Host 提供的工具；列出不可见的名称会使会话启动失败。
+- **专属通道。** `userLanes` 将允许清单中的用户 id 映射到工作区、agent 预设、权限预设、可选的 `toolFilter` 以及额外的 `excludedPresetCommands`。该用户的私信以这些设置开启和恢复会话；其服务器消息、服务器中的控件操作以及对自身对话之外提示的表情回应都会被忽略。记录写明所属通道，因此恢复与提醒唤醒会保持该通道。每条已准入消息、命令和交互都按发起者当前通道路由。命令执行前会释放属于其他通道的频道记录或存活 agent；预设命令会在发起者当前通道开启 Session。其他通道的待决回答不能结束旧请求。所属通道已被移除、或其会话属于该通道先前工作区的提醒，会等到下一条消息。`toolFilter` 也可用于默认通道，它通过 `tools.restrict()` 限制每个对话 agent，因此可以列出预设与 Host 提供的工具；列出不可见的名称会使会话启动失败。
 - **原生与文本命令。** 全局命令菜单汇集所有已配置通道的命令以及 `/help`、`/new`、`/status`、`/stop`；原生执行与 `/help` 按已准入发起者的通道筛选，即使尚未收到第一条消息也是如此。`/new` 让下一条消息开启新会话；`/status` 显示会话、预设、活动与待投递内容；`/stop` 取消当前工作和待决请求。原生调用会在执行命令前延迟确认，并私密返回结果。斜杠开头的聊天文本走相同的命令执行路径。预设命令会在处理程序运行前恢复所属通道的持久 Session 或开启新 Session；开启本身不会发起模型请求。开启失败会返回命令错误；`excludedPresetCommands` 在开启前拒绝命令，默认排除仅供 Web 使用的 `export` 命令。
 - **健康状态与定时失败。** 挂载 health 插件后，`/status` 还会显示已配置的探测状态及本进程观察到的最近一次 cron 失败，即使对话尚未开启。挂载本地模型控制后，即使没有探针，它也会列出主动卸载的后端及操作者和时间。探测状态转换进入与其他频道通知相同的持久 outbox。失败的 cron 运行在现有结果通知中加入任务名、Session id、失败代码及下一次触发时间；不会再发布并行的健康通知。
 - **通知目标。** 摄像头通知、健康状态转换和 cron 投递只在目标为 Discord 频道 id（裸 id 或 `discord:<id>`）时被认领；`signal:` 目标留给 [signal-notices](../../signal/signal-notices/README.zh.md)，投递到 Signal 的 cron 运行不会得到 Discord 审批提示。

@@ -37,7 +37,7 @@ import type { UnattendedSession } from '@deepseek-ai/dsh-unattended-session'
 import type { DiscordActionRow, DiscordMessageBody } from '@deepseek-ai/dsh-tool-discord'
 import { chunkContent, defangBroadcastMentions, discordRequest, postChannelMessage, postDiscordMessageBody, postTyping, sendDiscordMessage } from '@deepseek-ai/dsh-tool-discord'
 import type {} from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-workspace'
+import { realpathNormalize } from '@deepseek-ai/dsh-workspace'
 import { approvalOutcomeForLine, approvalOutcomeForReaction, buildApprovalPrompt, buildQuestionPrompt, parseQuestionAnswer } from './answerers.ts'
 import type { ConversationRecord, DiscordImageMessage, OutboxRecord } from './domain.ts'
 import { DiscordOutbox } from './outbox.ts'
@@ -53,6 +53,37 @@ const TYPING_INTERVAL_MS = 8_000
 
 /** Text of the one notice an inbound turn posts after `turnProgressNoticeMs` without settling. */
 export const TURN_PROGRESS_NOTICE = 'Still working on this — it is a bigger job. I will post the answer here when it is done.'
+
+/** Text of the notice posted once when a message replaces a conversation whose Session lives in another workspace. */
+export const WORKSPACE_CHANGED_NOTICE = 'Started a new conversation because my workspace changed; earlier conversations stay searchable.'
+
+/**
+ * The recorded Session was created in a different workspace than its lane now uses, so a workspace
+ * cannot adopt it; the next message replaces the record instead of resuming it.
+ */
+class ConversationWorkspaceMovedError extends Error {
+  constructor(sessionId: string, storedCwd: string, workspacePath: string) {
+    super(`Session ${sessionId} belongs to workspace '${storedCwd}', not the lane's workspace '${workspacePath}'`)
+    this.name = 'ConversationWorkspaceMovedError'
+  }
+}
+
+/**
+ * Whether a stored Session header's cwd names a different directory than a lane's workspace, under
+ * the same `realpath` canon the workspace attach check applies. A stored cwd that no longer
+ * resolves counts as different. A lane path that does not resolve rejects, as opening it would.
+ */
+async function workspaceMoved(storedCwd: string, workspacePath: string): Promise<boolean> {
+  const lanePath = await realpathNormalize(workspacePath)
+  let stored: string
+  try {
+    stored = await realpathNormalize(storedCwd)
+  } catch {
+    // A deleted or relative stored cwd can never match the lane's canonical path.
+    return true
+  }
+  return stored !== lanePath
+}
 
 /** Who the listener answers and how guild channels are gated. Both lists hold validated snowflakes. */
 export interface RoutingPolicy {
@@ -412,7 +443,15 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
             + 'its reminder waits until the next message starts a fresh conversation')
           return
         }
-        const live = await resumeConversation(record, lane)
+        let live: LiveConversation
+        try {
+          live = await resumeConversation(record, lane)
+        } catch (error: unknown) {
+          if (!(error instanceof ConversationWorkspaceMovedError)) throw error
+          ctx.logger.warn(`discord-gateway: channel ${record.channelId}: ${error.message}; `
+            + 'its reminder waits until the next message starts a fresh conversation')
+          return
+        }
         /* v8 ignore next -- cancellation after Session publication depends on host scheduling between promise continuations. */
         if (inputAborted()) return
         await dispatchLegacyReminders(ctx, live.handle.agent)
@@ -666,6 +705,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     return await openConversation(record.channelId, lane, async (openingSignal) => {
       wakes?.cancel(record.channelId)
       const persisted = await ctx.sessionPersistence.open(SessionId(record.sessionId), 'read', { signal: openingSignal })
+      const storedCwd = persisted.header.cwd
       let loggedSelection: SessionEvent<'request/header'>['data']['header']['config'] | undefined
       try {
         const { events } = await persisted.read(undefined, undefined, { signal: openingSignal })
@@ -673,6 +713,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         if (lastHeader?.type === 'request/header') loggedSelection = lastHeader.data.header.config
       } finally {
         await persisted.close()
+      }
+      if (storedCwd !== undefined && await workspaceMoved(storedCwd, lane.workspacePath)) {
+        throw new ConversationWorkspaceMovedError(record.sessionId, storedCwd, lane.workspacePath)
       }
       const selection = loggedSelection ?? (settings.modelSelection === undefined
         ? ctx.agentDefaultModel.currentSelection()
@@ -691,7 +734,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
   /**
    * The live conversation for one admitted input, resuming or replacing the durable record. A
-   * record from another lane is replaced, so a Session never continues under a different lane.
+   * record from another lane is replaced, so a Session never continues under a different lane. A
+   * record whose Session was created in another workspace than the lane now uses is replaced too,
+   * leaving that Session unchanged, and the channel gets {@link WORKSPACE_CHANGED_NOTICE}.
    */
   async function ensureConversation(channelId: string, lane: ConversationLane, inputSignal: AbortSignal): Promise<LiveConversation> {
     inputSignal.throwIfAborted()
@@ -707,6 +752,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           return await resumeConversation(record, lane)
         } catch (error: unknown) {
           inputSignal.throwIfAborted()
+          if (error instanceof ConversationWorkspaceMovedError) {
+            ctx.logger.warn(`discord-gateway: channel ${channelId}: ${error.message}; starting a fresh conversation`)
+            await deps.table.delete(channelId)
+            inputSignal.throwIfAborted()
+            const fresh = await createConversation(channelId, lane)
+            await notice(channelId, WORKSPACE_CHANGED_NOTICE)
+            return fresh
+          }
           if (!(error instanceof SessionPersistenceNotFoundError)) throw error
           ctx.logger.warn(`discord-gateway: Session ${record.sessionId} for channel ${channelId} `
             + 'has no durable log anymore; starting a fresh conversation')

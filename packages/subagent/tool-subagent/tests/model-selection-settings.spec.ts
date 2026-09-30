@@ -189,6 +189,27 @@ describe('SubagentModelSelectionConfig', () => {
     await ctx.fiber.dispose()
   })
 
+  it('disposes a standing-preset root Agent without a listener failure after its scope already tore the install down', async () => {
+    const ctx = await boot()
+    try {
+      const warn = vi.spyOn(ctx.logger, 'warn')
+      const preset = modelSelectionPresets.get(ctx)!
+      const handle = await ctx.agents.create({
+        sessionId: SessionId('disposed-root'),
+        setup: (agentCtx) => { bindScopeParent(scopeOf(agentCtx)!, scopeOf(preset.ctx)!) },
+      })
+      expect(ctx.tools.schemas(handle.agent).some(candidate => candidate.name === 'subagent')).toBe(true)
+
+      await handle.dispose()
+
+      expect(ctx.agents.get(SessionId('disposed-root'))).toBeUndefined()
+      expect(warn.mock.calls.map(([message]) => String(message)))
+        .not.toContainEqual(expect.stringContaining('agent/disposed listener'))
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('installs one tool when recording the Session policy triggers a registry refresh', async () => {
     const ctx = await boot()
     try {

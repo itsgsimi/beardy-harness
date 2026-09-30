@@ -58,7 +58,7 @@ kind: "package-reference"
 
 ### 历史
 
-每次运行都从球队的调用方 Session `fantasy-reports-<id>` 链接，其查询带有 `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` 标签，其中 trigger 为 `scheduled` 或 `catch-up`，`firedAt` 是投递所携带的触发时间（epoch 毫秒）。新报告会向撰写阶段展示最多 `historyReports` 份同一球队、同一赛季的已完成报告，作为对比数据。Beardy 可以通过 `deep_research` 的 `list` 和 `report` 读取同样的报告。
+每次运行都从球队的调用方 Session `fantasy-reports-<id>` 链接；`workspacePath` 改变后，球队的调用方改为 `fantasy-reports-<id>-<hash>`，其中 `<hash>` 是新路径 SHA-256 的前 8 位十六进制数字，先前的调用方 Session 保持不变。每次运行的查询带有 `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` 标签，其中 trigger 为 `scheduled` 或 `catch-up`，`firedAt` 是投递所携带的触发时间（epoch 毫秒）。新报告会向撰写阶段展示最多 `historyReports` 份同一球队、同一赛季的已完成报告，作为对比数据。Beardy 可以通过 `deep_research` 的 `list` 和 `report` 读取同样的报告。
 
 -----
 

@@ -685,8 +685,10 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
     const fiber = scopedInstalls.get(candidate)
     if (fiber === undefined) return
     scopedInstalls.delete(candidate)
+    // On `agent/disposed` the Agent's own scope has already disposed this child fiber, and
+    // Cordis's single-shot disposer returns `undefined` on that repeat call despite its type.
     /* v8 ignore next 3 -- Cordis Fiber disposal contains registration cleanup failures; this is the final diagnostic sink. */
-    void fiber.dispose().catch((error: unknown) => {
+    void Promise.resolve(fiber.dispose()).catch((error: unknown) => {
       ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${String(error)}`)
     })
   }
