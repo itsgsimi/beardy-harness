@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-session-query` 可让模型列出或搜索既往会话、检查事件匹配、追踪关系，并读取精确事件数据。它的五个只读工具返回无游标文本；只有目标会话的 `cwd` 与调用方完全匹配时才允许跨会话访问，没有 `cwd` 的调用方只能检查自己。会话列表默认排除调用方会话和研究阶段子 Session；明确指定父会话过滤条件时可纳入它们。搜索结果达到上限时，工具要求模型缩小查询。本包是 opt-in；启用后，每次模型请求都会增加指引与五个工具 schema。
+使用 `dsh-tool-session-query` 可让模型列出或搜索既往会话、检查事件匹配、追踪关系，并读取精确事件数据。它的五个只读工具返回无游标文本；只有目标会话的 `cwd` 与调用方或某个已配置别名完全匹配时才允许跨会话访问，没有 `cwd` 的调用方只能检查自己。会话列表默认排除调用方会话和研究阶段子 Session；明确指定父会话过滤条件时可纳入它们。搜索结果达到上限时，工具要求模型缩小查询。本包是 opt-in；启用后，每次模型请求都会增加指引与五个工具 schema。
 
 ## 目录
 
@@ -38,6 +38,18 @@ kind: "package-reference"
 | `maxSearchResults` | `100` | 一次搜索调用返回的最大已授权命中数 |
 | `maxRecentSessions` | `20` | 一次近期视图调用返回的最大已授权 Session 数 |
 | `searchTimeoutMs` | `30000` | 附加到两个全文搜索工具的协作式截止时间 |
+| `workspaceAliases` | `{}` | 从调用方工作区到其还可搜索和读取其 Session 的其它绝对工作区的映射 |
+
+`workspaceAliases` 让工作区迁移后仍可回忆既往会话。键和条目必须是绝对路径；插件在加载时解析它们并去掉末尾分隔符，遇到相对路径、规范化后重复的工作区或条目、或工作区以自身为别名时直接失败。每项授权都是单向且不可传递的：下例让 `/home/goran/.dsh/people/goran` 中的 Session 搜索并读取记录在 `/home/goran/deepseek-harness` 中的 Session，而旧工作区中的 Session 仍只能看到自己的工作区。
+
+```yaml
+- id: tool-session-query
+  name: '@deepseek-ai/dsh-tool-session-query'
+  config:
+    workspaceAliases:
+      /home/goran/.dsh/people/goran:
+        - /home/goran/deepseek-harness
+```
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-session-query)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
@@ -51,7 +63,7 @@ kind: "package-reference"
 | `session_event_trace` | 一个事件的位置替换与被引用源事件关系 |
 | `session_event_read` | 一个完整未删节事件（JSON），以及可选的相邻事件摘要 |
 
-工作区授权是保守的：跨会话访问要求目标与调用方会话的 `cwd` 严格相等，没有 `cwd` 的调用方只能检查自己。请求的父 id 会在搜索前去重并按权限检查；缺失与跨工作区猜测行为完全相同。`view: recent` 不接受查询或事件过滤器，按创建时间从新到旧列出已授权会话，最多返回 `maxRecentSessions` 个；结果达到上限时提示模型用 `created_at_to` 向前翻页。`origin` 在两种视图中都可选 `interactive`、`cron`、`discord` 或 `all`（默认）：cron 与 Discord 启动器签发 `cron-` 与 `discord-` Session id，subagent 子会话沿用其父会话的来源，其它 Session 都归为 `interactive`。搜索结果无游标：结果达到上限时请模型缩小查询，绝不暴露提供方游标、偏移、分页大小或模型可控上限。工具边界的时间戳是带时区限定的 ISO 8601，并转换为包含端点的 epoch 毫秒过滤器。
+工作区授权是保守的：跨会话访问要求目标会话的 `cwd` 与调用方的 `cwd` 或其某个 `workspaceAliases` 条目严格相等，没有 `cwd` 的调用方只能检查自己。请求的父 id 会在搜索前去重并按权限检查；缺失与跨工作区猜测行为完全相同。`view: recent` 不接受查询或事件过滤器，按创建时间从新到旧列出已授权会话，最多返回 `maxRecentSessions` 个；结果达到上限时提示模型用 `created_at_to` 向前翻页。`origin` 在两种视图中都可选 `interactive`、`cron`、`discord` 或 `all`（默认）：cron 与 Discord 启动器签发 `cron-` 与 `discord-` Session id，subagent 子会话沿用其父会话的来源，其它 Session 都归为 `interactive`。搜索结果无游标：结果达到上限时请模型缩小查询，绝不暴露提供方游标、偏移、分页大小或模型可控上限。工具边界的时间戳是带时区限定的 ISO 8601，并转换为包含端点的 epoch 毫秒过滤器。
 
 ### 失败与恢复
 
@@ -72,7 +84,7 @@ kind: "package-reference"
 本消费方建立在一个分离与三项承诺之上：
 
 - **窄而只读的工具。** 五个带扁平 snake-case schema 的工具，每个都引导一个后续步骤；游标、偏移、分页大小或模型可控上限永远不会到达模型。
-- **授权来自调用方，绝不由模型提供。** 调用方身份来自 `ToolExecution.exec.agent`；工作区是字符串精确 `cwd` 相等，并对照每次结果观察到的 header 重新校验。
+- **授权来自调用方，绝不由模型提供。** 调用方身份来自 `ToolExecution.exec.agent`；工作区是与调用方工作区及其已配置别名的字符串精确 `cwd` 相等，并对照每次结果观察到的 header 重新校验。
 - **一个模型边界净化器。** 每个可信 `ctx.sessionQuery` 调用都经过服务边界，它保留取消，并将诊断与分类失败限制在边界内。
 - **不引入第二种截断格式。** 结果保持完整；通用 spill 策略负责有界内联输出。
 
@@ -151,7 +163,7 @@ Use session_search to find relevant work from prior sessions, or its recent view
 
 #### 模型看到什么
 
-每次成功调用都会发出一个纯文本块。会话列表显示每个会话的标题、创建时间、来源、父会话与可用性；文本搜索还包含最佳匹配事件与摘录。追踪包含全部已授权关系；事件读取包含未经删节的目标 JSON。通用 spill 策略可以用其预览、不透明定位信息与取回指引替换过大的内联文本。
+每次成功调用都会发出一个纯文本块。会话列表显示每个会话的标题、创建时间、来源、父会话与可用性，经工作区别名到达的 Session 还会多一行 `Workspace:`；文本搜索还包含最佳匹配事件与摘录。追踪包含全部已授权关系；事件读取包含未经删节的目标 JSON。通用 spill 策略可以用其预览、不透明定位信息与取回指引替换过大的内联文本。
 
 #### Token 影响
 

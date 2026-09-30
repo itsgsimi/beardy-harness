@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-session-query` to let a model list or search earlier sessions, inspect event matches, trace relationships, and read exact event data. Its five read-only tools return cursor-free text and authorize cross-session access only when the target session's `cwd` exactly matches the caller's; callers without a `cwd` can inspect only themselves. Session listings exclude the caller Session and research stage children by default; an explicit parent filter can include them. A capped search asks the model to narrow its query. The package is opt-in, and enabling it adds guidance plus five tool schemas to every model request.
+Use `dsh-tool-session-query` to let a model list or search earlier sessions, inspect event matches, trace relationships, and read exact event data. Its five read-only tools return cursor-free text and authorize cross-session access only when the target session's `cwd` matches the caller's or a configured alias exactly; callers without a `cwd` can inspect only themselves. Session listings exclude the caller Session and research stage children by default; an explicit parent filter can include them. A capped search asks the model to narrow its query. The package is opt-in, and enabling it adds guidance plus five tool schemas to every model request.
 
 ## Table of Contents
 
@@ -38,6 +38,18 @@ Choose it when a deployment wants model-driven retrieval of prior work — for e
 | `maxSearchResults` | `100` | Maximum authorized hits returned by one search call |
 | `maxRecentSessions` | `20` | Maximum authorized Sessions returned by one recent-view call |
 | `searchTimeoutMs` | `30000` | Cooperative deadline attached to both full-text search tools |
+| `workspaceAliases` | `{}` | Map from a caller workspace to additional absolute workspaces whose Sessions it may also search and read |
+
+`workspaceAliases` keeps recall across a workspace move. Keys and entries must be absolute paths; the plugin resolves them and removes trailing separators at load, and fails loud on a relative path, a workspace or entry repeated after normalization, or a workspace that aliases itself. Each grant is one-directional and not transitive: the example below lets Sessions in `/home/goran/.dsh/people/goran` search and read Sessions recorded in `/home/goran/deepseek-harness`, while Sessions in the old workspace still see only their own workspace.
+
+```yaml
+- id: tool-session-query
+  name: '@deepseek-ai/dsh-tool-session-query'
+  config:
+    workspaceAliases:
+      /home/goran/.dsh/people/goran:
+        - /home/goran/deepseek-harness
+```
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-session-query) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -51,7 +63,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 | `session_event_trace` | One event's positional replacements and cited source-event relationships |
 | `session_event_read` | One full unabridged event as JSON, plus optional neighboring event summaries |
 
-Workspace authority is conservative: cross-session access requires exact `cwd` equality between target and caller session, and a caller without `cwd` can inspect only itself. Requested parent ids are deduplicated and authority-checked before search; missing and cross-workspace guesses behave identically. `view: recent` takes no query or event filters, lists authorized sessions newest first by creation time, and returns at most `maxRecentSessions`; a capped page tells the model to page back with `created_at_to`. `origin` selects `interactive`, `cron`, `discord`, or `all` (the default) in both views: the cron and Discord launchers issue `cron-` and `discord-` Session ids, a subagent child takes its parent's origin, and every other Session is `interactive`. Search results are cursor-free: a capped result asks the model to narrow its query, and never exposes provider cursors, offsets, page sizes, or a model-controlled limit. Timestamps at the tool boundary are timezone-qualified ISO 8601 and become inclusive epoch-millisecond filters.
+Workspace authority is conservative: cross-session access requires the target session's `cwd` to equal the caller's `cwd` or one of its `workspaceAliases` entries exactly, and a caller without `cwd` can inspect only itself. Requested parent ids are deduplicated and authority-checked before search; missing and cross-workspace guesses behave identically. `view: recent` takes no query or event filters, lists authorized sessions newest first by creation time, and returns at most `maxRecentSessions`; a capped page tells the model to page back with `created_at_to`. `origin` selects `interactive`, `cron`, `discord`, or `all` (the default) in both views: the cron and Discord launchers issue `cron-` and `discord-` Session ids, a subagent child takes its parent's origin, and every other Session is `interactive`. Search results are cursor-free: a capped result asks the model to narrow its query, and never exposes provider cursors, offsets, page sizes, or a model-controlled limit. Timestamps at the tool boundary are timezone-qualified ISO 8601 and become inclusive epoch-millisecond filters.
 
 ### Failures and recovery
 
@@ -72,7 +84,7 @@ This section explains the design decisions behind the tools and points at the co
 The consumer is built on one separation and three commitments:
 
 - **Narrow read-only tools.** Five tools with flat snake-case schemas, each teaching one follow-up step; no cursor, offset, page-size, or model-controlled limit ever reaches the model.
-- **Authority derived from the caller, never the model.** Caller identity comes from `ToolExecution.exec.agent`; workspace is exact-string `cwd` equality, re-checked against the header observed with each result.
+- **Authority derived from the caller, never the model.** Caller identity comes from `ToolExecution.exec.agent`; workspace is exact-string `cwd` equality against the caller workspace and its configured aliases, re-checked against the header observed with each result.
 - **One model-boundary sanitizer.** Every trusted `ctx.sessionQuery` call goes through the service boundary, which preserves cancellation and contains diagnostic and classification failures.
 - **No second truncation format.** Results stay complete; the generic spill policy owns bounded inline output.
 
@@ -151,7 +163,7 @@ Prefix-stable while tool visibility and definitions are unchanged.
 
 #### What the model sees
 
-Each successful call emits one plain-text block. Session listings show each session's title, creation time, origin, parent, and availability; text search adds the best-match event and excerpt. Traces include all authorized relationships; event reads include unabridged target JSON. The generic spill policy may replace oversized inline text with its preview, opaque locator, and retrieval hint.
+Each successful call emits one plain-text block. Session listings show each session's title, creation time, origin, parent, and availability, plus a `Workspace:` line for a Session reached through a workspace alias; text search adds the best-match event and excerpt. Traces include all authorized relationships; event reads include unabridged target JSON. The generic spill policy may replace oversized inline text with its preview, opaque locator, and retrieval hint.
 
 #### Token effect
 

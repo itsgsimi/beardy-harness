@@ -11,6 +11,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { toolInput } from './input.ts'
 import { operations } from './operations.ts'
 import { presentation } from './presentation.ts'
+import { workspaceAccess, type WorkspaceAliases } from './workspace-access.ts'
 
 /** Cordis plugin name used by Loader diagnostics. */
 export const name = 'tool-session-query'
@@ -27,7 +28,7 @@ export const DEFAULT_MAX_RECENT_SESSIONS = 20
 /** Default cooperative deadline for either full-text search tool. */
 export const DEFAULT_SEARCH_TIMEOUT_MS = 30_000
 
-/** Deployment-owned search count and timeout bounds. */
+/** Deployment-owned search count, timeout, and workspace-alias configuration. */
 export interface Config {
   /** Maximum authorized hits returned by one search call. Defaults to 100. */
   maxSearchResults?: number
@@ -35,6 +36,11 @@ export interface Config {
   maxRecentSessions?: number
   /** Cooperative full-text search deadline in milliseconds. Defaults to 30000. */
   searchTimeoutMs?: number
+  /**
+   * Additional absolute workspaces whose Sessions a caller workspace may also search and read, keyed by the
+   * caller workspace. Grants are one-directional and not transitive. Defaults to `{}`.
+   */
+  workspaceAliases?: Record<string, string[]>
 }
 
 /** Schemastery config for Loader defaults and generated configuration docs. */
@@ -42,12 +48,14 @@ export const Config: z<Config> = z.object({
   maxSearchResults: z.number().step(1).min(1).default(DEFAULT_MAX_SEARCH_RESULTS),
   maxRecentSessions: z.number().step(1).min(1).default(DEFAULT_MAX_RECENT_SESSIONS),
   searchTimeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_SEARCH_TIMEOUT_MS),
+  workspaceAliases: z.dict(z.array(z.string())).default({}),
 })
 
 interface ResolvedConfig {
   readonly maxSearchResults: number
   readonly maxRecentSessions: number
   readonly searchTimeoutMs: number
+  readonly workspaceAliases: WorkspaceAliases
 }
 
 const TEXT_OUTPUT = {
@@ -87,7 +95,7 @@ export function apply(ctx: Context, config: Config): void {
     parameters: toolInput.eventSearchParameters,
     output: TEXT_OUTPUT,
     timeoutMs: resolved.searchTimeoutMs,
-    execute: (args, exec) => operations.executeEventSearch(ctx, args, exec, resolved.maxSearchResults),
+    execute: (args, exec) => operations.executeEventSearch(ctx, args, exec, resolved.maxSearchResults, resolved.workspaceAliases),
     presentCall: presentation.presentEventSearchCall,
   }))
 
@@ -97,7 +105,7 @@ export function apply(ctx: Context, config: Config): void {
     parameters: toolInput.targetSessionParameter,
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
-    execute: (args, exec) => operations.executeSessionTrace(ctx, args, exec),
+    execute: (args, exec) => operations.executeSessionTrace(ctx, args, exec, resolved.workspaceAliases),
     presentCall: presentation.presentSessionTraceCall,
   }))
 
@@ -110,7 +118,7 @@ export function apply(ctx: Context, config: Config): void {
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
-    execute: (args, exec) => operations.executeEventTrace(ctx, args, exec),
+    execute: (args, exec) => operations.executeEventTrace(ctx, args, exec, resolved.workspaceAliases),
     presentCall: args => presentation.presentEventTargetCall('Trace event', args),
   }))
 
@@ -125,7 +133,7 @@ export function apply(ctx: Context, config: Config): void {
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
-    execute: (args, exec) => operations.executeEventRead(ctx, args, exec),
+    execute: (args, exec) => operations.executeEventRead(ctx, args, exec, resolved.workspaceAliases),
     presentCall: args => presentation.presentEventTargetCall('Read event', args),
   }))
 }
@@ -145,5 +153,6 @@ function resolveConfig(config: Config): ResolvedConfig {
       `tool-session-query: searchTimeoutMs must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`,
     )
   }
-  return { maxSearchResults, maxRecentSessions, searchTimeoutMs }
+  const workspaceAliases = workspaceAccess.resolveWorkspaceAliases(config.workspaceAliases ?? {})
+  return { maxSearchResults, maxRecentSessions, searchTimeoutMs, workspaceAliases }
 }

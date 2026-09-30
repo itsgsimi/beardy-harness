@@ -4794,10 +4794,10 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-session-query`
 
 - `inject`: `tools` · `systemPrompt` · `sessionQuery` · `sessionProjections`
-- `source`: [`packages/session-query/tool-session-query/src/index.ts:31`](../packages/session-query/tool-session-query/src/index.ts)
+- `source`: [`packages/session-query/tool-session-query/src/index.ts:32`](../packages/session-query/tool-session-query/src/index.ts)
 
 ```ts config-catalog
-/** Deployment-owned search count and timeout bounds. */
+/** Deployment-owned search count, timeout, and workspace-alias configuration. */
 export interface Config {
   /** Maximum authorized hits returned by one search call. Defaults to 100. */
   maxSearchResults?: number
@@ -4805,6 +4805,11 @@ export interface Config {
   maxRecentSessions?: number
   /** Cooperative full-text search deadline in milliseconds. Defaults to 30000. */
   searchTimeoutMs?: number
+  /**
+   * Additional absolute workspaces whose Sessions a caller workspace may also search and read, keyed by the
+   * caller workspace. Grants are one-directional and not transitive. Defaults to `{}`.
+   */
+  workspaceAliases?: Record<string, string[]>
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-session-query -->

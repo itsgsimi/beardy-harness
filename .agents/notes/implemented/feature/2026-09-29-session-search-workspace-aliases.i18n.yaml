@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-29-session-search-workspace-aliases.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-29-session-search-workspace-aliases.md
+/agent-note-session-search-workspace-aliases:
+  en: 59a50b10fcce52d4
+  zh: 6d803f38372a4693
+/agent-note-session-search-workspace-aliases/problem:
+  en: c12ca1df2ecf0424
+  zh: da95dfe172e76081
+/agent-note-session-search-workspace-aliases/decision:
+  en: 8503f50e8e8b2ad2
+  zh: ae20a7d023f94a73
+/agent-note-session-search-workspace-aliases/alternatives-considered:
+  en: a20ca327db45889e
+  zh: ed6b6fc4cba8cb31
+/agent-note-session-search-workspace-aliases/consequences:
+  en: 293dacce72c287f8
+  zh: 4385bdec216db190

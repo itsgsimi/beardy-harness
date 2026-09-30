@@ -135,12 +135,12 @@ describe('inspection detail adapters', () => {
 
   it('uses the session-query producer presentation for searches, reads, and traces', () => {
     const session = sessionRecord('s1', true, true)
-    const hit = { ...session, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
+    const hit = { ...session, header: { ...session.header, cwd: '/old' }, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
     const title = { text: 'Session one' }
     const titles = new Map([
       ['s1' as never, title], ['s2' as never, { text: 'Child' }], ['s3' as never, { text: 'Grandchild' }],
     ]) as Parameters<typeof presentation.formatSessionSearch>[1]
-    const sessionSearch = presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set())
+    const sessionSearch = presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set(), '/work')
     expect(details('session_search', sessionSearch)?.items[0]).toMatchObject({ title: 'Session one', subtitle: 's1', description: 'needle' })
     const eventSearch = presentation.formatEventSearch(
       's1' as never, title,

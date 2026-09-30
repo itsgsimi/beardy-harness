@@ -20,7 +20,7 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { toolInput } from './input.ts'
 import { presentation } from './presentation.ts'
 import { serviceBoundary } from './service-boundary.ts'
-import { workspaceAccess } from './workspace-access.ts'
+import { workspaceAccess, type WorkspaceAliases } from './workspace-access.ts'
 
 type SessionSearchArgs = Parameters<typeof toolInput.buildSessionFilters>[0]
 
@@ -53,10 +53,11 @@ interface SearchCollection<T> {
   readonly capped: boolean
 }
 
-/** Deployment-owned output bounds for the two `session_search` views. */
-interface SessionSearchLimits {
+/** Deployment-owned output bounds and workspace aliases for the two `session_search` views. */
+interface SessionSearchOptions {
   readonly maxSearchResults: number
   readonly maxRecentSessions: number
+  readonly workspaceAliases: WorkspaceAliases
 }
 
 type Caller = ReturnType<typeof workspaceAccess.callerOf>
@@ -70,9 +71,9 @@ async function executeSessionSearch(
   ctx: Context,
   args: SessionSearchArgs,
   exec: ToolRunContext,
-  limits: SessionSearchLimits,
+  options: SessionSearchOptions,
 ): Promise<string> {
-  const caller = workspaceAccess.callerOf(exec, ctx)
+  const caller = workspaceAccess.callerOf(exec, ctx, options.workspaceAliases)
   const cwd = caller.header.cwd
   if (cwd === undefined) {
     throw new HarnessError(
@@ -101,7 +102,7 @@ async function executeSessionSearch(
     if (parentValues.length === 0) return presentation.formatEmptySessionSearch(mode.view)
     sessionFilters.push({ kind: 'parent', values: parentValues })
   }
-  sessionFilters.push({ kind: 'cwd', values: [cwd] })
+  sessionFilters.push({ kind: 'cwd', values: [...caller.workspaces] })
   const visible = (record: SessionRecord): boolean => record.header.id !== caller.id
     && (requestedParentIds !== undefined || !isResearchStageSession(record.header))
     && workspaceAccess.recordAuthorized(record, caller)
@@ -110,14 +111,14 @@ async function executeSessionSearch(
     const records = (await serviceBoundary.call(ctx, exec.signal, 'recent session listing', () =>
       ctx.sessionQuery.filterSessions(sessionFilters, exec.signal))).filter(visible)
     const collected = {
-      items: records.slice(0, limits.maxRecentSessions),
-      capped: records.length > limits.maxRecentSessions,
+      items: records.slice(0, options.maxRecentSessions),
+      capped: records.length > options.maxRecentSessions,
     }
     const context = await readListingContext(ctx, caller, collected.items, exec.signal)
-    return presentation.formatRecentSessions(collected, context.titles, context.authorizedParents)
+    return presentation.formatRecentSessions(collected, context.titles, context.authorizedParents, cwd)
   }
   const collected = await collectPages(
-    limits.maxSearchResults,
+    options.maxSearchResults,
     exec.signal,
     cursor => serviceBoundary.call(ctx, exec.signal, 'session search', () =>
       ctx.sessionQuery.searchSessions({
@@ -129,7 +130,7 @@ async function executeSessionSearch(
     visible,
   )
   const context = await readListingContext(ctx, caller, collected.items, exec.signal)
-  return presentation.formatSessionSearch(collected, context.titles, context.authorizedParents)
+  return presentation.formatSessionSearch(collected, context.titles, context.authorizedParents, cwd)
 }
 
 async function readListingContext(
@@ -151,8 +152,9 @@ async function executeEventSearch(
   args: EventSearchArgs,
   exec: ToolRunContext,
   maxResults: number,
+  aliases: WorkspaceAliases,
 ): Promise<string> {
-  const caller = workspaceAccess.callerOf(exec, ctx)
+  const caller = workspaceAccess.callerOf(exec, ctx, aliases)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const query = toolInput.normalizeQuery(args.query)
@@ -204,8 +206,9 @@ async function executeSessionTrace(
   ctx: Context,
   args: SessionTargetArgs,
   exec: ToolRunContext,
+  aliases: WorkspaceAliases,
 ): Promise<string> {
-  const caller = workspaceAccess.callerOf(exec, ctx)
+  const caller = workspaceAccess.callerOf(exec, ctx, aliases)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const trace = await serviceBoundary.call(ctx, exec.signal, 'session lineage trace', () =>
@@ -236,10 +239,11 @@ async function executeEventTrace(
   ctx: Context,
   args: EventTargetArgs,
   exec: ToolRunContext,
+  aliases: WorkspaceAliases,
 ): Promise<string> {
   toolInput.assertNonNegativeSafeInteger('seq', args.seq)
   const seq = SessionSeq(args.seq)
-  const caller = workspaceAccess.callerOf(exec, ctx)
+  const caller = workspaceAccess.callerOf(exec, ctx, aliases)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const trace = await serviceBoundary.call(ctx, exec.signal, 'event trace', () =>
@@ -253,12 +257,13 @@ async function executeEventRead(
   ctx: Context,
   args: EventReadArgs,
   exec: ToolRunContext,
+  aliases: WorkspaceAliases,
 ): Promise<string> {
   toolInput.assertNonNegativeSafeInteger('seq', args.seq)
   const seq = SessionSeq(args.seq)
   if (args.before !== undefined) toolInput.assertNonNegativeSafeInteger('before', args.before)
   if (args.after !== undefined) toolInput.assertNonNegativeSafeInteger('after', args.after)
-  const caller = workspaceAccess.callerOf(exec, ctx)
+  const caller = workspaceAccess.callerOf(exec, ctx, aliases)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const window = await serviceBoundary.call(ctx, exec.signal, 'event read', () =>
