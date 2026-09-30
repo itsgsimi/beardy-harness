@@ -4,6 +4,8 @@
  * @module @deepseek-ai/dsh-fantasy-reports
  */
 
+import { createHash } from 'node:crypto'
+import { resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
@@ -167,10 +169,21 @@ export interface ReportFireOptions {
   readonly catchUp?: { readonly slotAt: number; readonly open: () => boolean }
 }
 
-/** Open the team's durable caller Session, which links every report run of that team. */
+/**
+ * Open the team's durable caller Session, which links every report run of that team. The caller is
+ * `fantasy-reports-<team>` while its stored cwd equals `workspacePath`; after `workspacePath` moves,
+ * the team uses `fantasy-reports-<team>-<first 8 hex of the path's SHA-256>` instead, leaving the
+ * earlier caller Session unchanged. Report history is profile-owned, so it spans both callers.
+ */
 async function openCaller(ctx: Context, config: ResolvedConfig, team: ResolvedTeam): Promise<AgentHandle> {
-  const sessionId = SessionId(`fantasy-reports-${team.id}`)
-  return await ctx.sessionPersistence.stat(sessionId) === undefined
+  const cwd = resolve(config.workspacePath)
+  const original = SessionId(`fantasy-reports-${team.id}`)
+  const stored = await ctx.sessionPersistence.stat(original)
+  const sessionId = stored?.header.cwd === undefined || resolve(stored.header.cwd) === cwd
+    ? original
+    : SessionId(`${original}-${createHash('sha256').update(cwd).digest('hex').slice(0, 8)}`)
+  const existing = sessionId === original ? stored : await ctx.sessionPersistence.stat(sessionId)
+  return existing === undefined
     ? ctx.agents.create({ sessionId, meta: { cwd: config.workspacePath } })
     : ctx.agents.resume({ resumeSessionId: sessionId })
 }

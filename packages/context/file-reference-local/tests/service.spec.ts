@@ -28,14 +28,15 @@ async function harness(): Promise<Context> {
 }
 
 async function stubAgent(
-  ctx: Context,
+  host: Context,
   id = 'file-reference-agent',
   includeCwd = true,
+  ctx: Context = host,
 ): Promise<{ agent: Agent; dispose: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-file-reference-service-'))
   roots.push(root)
   await writeFile(join(root, 'README.md'), 'readme')
-  const session = ctx.sessions.create(SessionId(id), { meta: includeCwd ? { cwd: root } : {} })
+  const session = host.sessions.create(SessionId(id), { meta: includeCwd ? { cwd: root } : {} })
   const agent = {
     id: session.id,
     options: {},
@@ -51,7 +52,7 @@ async function stubAgent(
     cancel() {},
     whenIdle: () => Promise.resolve(),
   } as unknown as Agent
-  return { agent, dispose: await ctx.agents.register(agent) }
+  return { agent, dispose: await host.agents.register(agent) }
 }
 
 describe('LocalFileReferenceService', () => {
@@ -117,6 +118,23 @@ describe('LocalFileReferenceService', () => {
     await dispose()
     expect(close).toHaveBeenCalledOnce()
     ctx.emit('agent/disposed', { agent })
+  })
+
+  it('releases guidance without a listener failure when the Agent scope tore it down first', async () => {
+    const ctx = await harness()
+    await ctx.plugin(LocalFileReferenceService)
+    const warn = vi.spyOn(ctx.logger, 'warn')
+    const agentScope = ctx.plugin({ name: 'agent-scope', apply: () => {} })
+    await agentScope
+    const inject = vi.spyOn(agentScope.ctx, 'inject')
+    const { dispose } = await stubAgent(ctx, 'scoped-agent', true, agentScope.ctx)
+    expect(inject).toHaveBeenCalledOnce()
+
+    await agentScope.dispose()
+    await dispose()
+
+    expect(warn).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
   })
 
   it('installs guidance for agents announced after the service and validates deployment tunables', async () => {
