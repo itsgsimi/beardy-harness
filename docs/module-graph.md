@@ -294,6 +294,7 @@ flowchart TD
   end
   subgraph group_fantasy["packages/fantasy"]
     pkg_fantasy["fantasy"]
+    pkg_fantasy_projections_sleeper["fantasy-projections-sleeper"]
     pkg_fantasy_reports["fantasy-reports"]
     pkg_fantasy_yahoo["fantasy-yahoo"]
     pkg_tool_fantasy["tool-fantasy"]
@@ -592,6 +593,7 @@ flowchart TD
   pkg_hmr --> pkg_app_boot
   pkg_hmr --> pkg_cmdline
   pkg_experimental_speech_to_text --> pkg_settings
+  pkg_fantasy_projections_sleeper --> pkg_fantasy
   pkg_ptc_runtime --> pkg_sandbox
   pkg_sandbox_local --> pkg_llm
   pkg_sandbox_local --> pkg_sandbox
@@ -1743,6 +1745,7 @@ flowchart TD
 | [`session-log-export`](../packages/session-query/session-log-export) | `session-query` | [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence) |
 | [`hmr`](../packages/boot/hmr) | `boot` | [`app-boot`](../packages/boot/app-boot), [`cmdline`](../packages/boot/cmdline) |
 | [`experimental-speech-to-text`](../packages/experimental/speech-to-text) | `experimental` | [`settings`](../packages/settings/settings) |
+| [`fantasy-projections-sleeper`](../packages/fantasy/fantasy-projections-sleeper) | `fantasy` | [`fantasy`](../packages/fantasy/fantasy) |
 | [`ptc-runtime`](../packages/ptc-runtime/ptc-runtime) | `ptc-runtime` | [`sandbox`](../packages/sandbox/sandbox) |
 | [`sandbox-local`](../packages/sandbox/sandbox-local) | `sandbox` | [`llm`](../packages/llm/llm), [`sandbox`](../packages/sandbox/sandbox), [`session`](../packages/core/session) |
 | [`session-persistence-jsonl`](../packages/session/session-persistence-jsonl) | `session` | [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence) |
