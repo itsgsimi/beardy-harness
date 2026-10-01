@@ -1,7 +1,8 @@
 /**
  * The model-facing job management tool: list, create, update, delete, pause, resume, run now, and
  * continuity notes. Guardrails from plugin configuration bound what a model may schedule, and
- * mutating actions can require the approval service before they land.
+ * mutating actions can require the approval service before they land. A live unattended run may
+ * replace its own job's notes without approval, because no approver attends it.
  * @module @deepseek-ai/dsh-cron/tool
  */
 
@@ -10,6 +11,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import { assertCronDeliveryTarget } from './delivery.ts'
+import { cronRunJobName } from './launch.ts'
 import type { CreateJobInput, JobListing, JobRegistry, RegistryJob, UpdateJobPatch } from './registry.ts'
 
 /** Actions the tool exposes. */
@@ -166,7 +168,8 @@ export function createCronManageTool(
       + 'every future run of the job — record what was reported so the next run continues instead of '
       + 'repeating. A job from plugin configuration keeps its definition read-only: change its schedule '
       + 'or prompt by editing that configuration, which takes effect when the host restarts. '
-      + 'With requireApproval, create, update, delete, resume, run_now, and note ask for approval.',
+      + 'With requireApproval, create, update, delete, resume, run_now, and note ask for approval, '
+      + 'except that a job may replace its own notes during its run.',
     parameters: {
       action: { type: 'string', required: true, enum: ['list', 'create', 'update', 'delete', 'pause', 'resume', 'run_now', 'note'], description: 'Operation to perform.' },
       name: { type: 'string', description: 'Required for create, update, delete, pause, resume, run_now, and note; omit only for list.' },
@@ -292,7 +295,8 @@ export function createCronManageTool(
         case 'note': {
           const name = requireName(args, 'note')
           const notes = args.notes as string
-          if (deps.requireApproval) {
+          const selfNote = exec.agent !== undefined && cronRunJobName(exec.agent) === name
+          if (deps.requireApproval && !selfNote) {
             const current = requireJob(registry, name)
             await approvedForWrite(ctx, exec, 'note', name, `"${name}" notes: ${display(current.notes)} → ${display(notes)}`)
             if (describeJob(requireJob(registry, name)) !== describeJob(current)) {
@@ -300,6 +304,7 @@ export function createCronManageTool(
             }
           }
           await registry.setNotes(name, notes)
+          if (selfNote) ctx.logger.info(`dsh-cron: job "${name}" updated its continuity notes (${String(notes.length)} chars)`)
           return { action: 'note', name, message: `Notes for job "${name}" replaced.` }
         }
       }

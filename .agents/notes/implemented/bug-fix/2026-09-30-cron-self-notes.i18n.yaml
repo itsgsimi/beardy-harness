@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-30-cron-self-notes.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-30-cron-self-notes.md
+/agent-note-cron-runs-save-their-own-continuity-notes:
+  en: 19d83a33bc866e76
+  zh: b4d664690a447ade
+/agent-note-cron-runs-save-their-own-continuity-notes/problem:
+  en: 071aa5abe02db7a1
+  zh: d29b2931631a3210
+/agent-note-cron-runs-save-their-own-continuity-notes/decision:
+  en: 4c8ca6b02946a7c0
+  zh: 198add917d1a14d1
+/agent-note-cron-runs-save-their-own-continuity-notes/alternatives-considered:
+  en: d310244df82a3274
+  zh: bf302692969e75aa
+/agent-note-cron-runs-save-their-own-continuity-notes/consequences:
+  en: 589a70a45a158c1a
+  zh: 9322c9ebd6bd0fbb

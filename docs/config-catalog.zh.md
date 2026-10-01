@@ -1065,7 +1065,7 @@ export interface ResolvedConfig {
   readonly notesMaxChars: number
   /** Run outcomes retained per job. */
   readonly keepRunHistory: number
-  /** Create, update, and delete ask the approval service before they land. */
+  /** Gated `cron_manage` writes ask the approval service before they land; a live run replacing its own job's notes is exempt. */
   readonly requireApproval: boolean
   /** Finished runs announce an outcome line when there is no text to deliver. */
   readonly deliverOutcomes: boolean
