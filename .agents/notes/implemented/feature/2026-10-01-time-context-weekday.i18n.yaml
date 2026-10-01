@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-01-time-context-weekday.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-01-time-context-weekday.md
+/agent-note-time-context-weekday:
+  en: ee13e16d54351d50
+  zh: ba2cdc70e74c8e0f
+/agent-note-time-context-weekday/problem:
+  en: d73ae2ece1563846
+  zh: 0f8ab39653031b61
+/agent-note-time-context-weekday/decision:
+  en: b5053c5ca2211734
+  zh: 76a3493335399055
+/agent-note-time-context-weekday/alternatives-considered:
+  en: 0a3fce7b049b0835
+  zh: 2844b112f6f55266
+/agent-note-time-context-weekday/consequences:
+  en: 476c6c03c4aa9820
+  zh: 0847062880102204

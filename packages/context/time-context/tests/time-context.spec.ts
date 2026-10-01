@@ -252,6 +252,25 @@ describe('durable step context', () => {
     )
   })
 
+  it('appends the zone-local weekday only when configured', async () => {
+    vi.setSystemTime(Date.parse('2026-10-01T03:30:00Z'))
+    const { ctx } = await mount({ timeZone: 'America/Phoenix', weekday: true })
+    const session = Session.create(SessionId('weekday'))
+    openMessageTurn(session, 1)
+    await fire(ctx, sessionAgent(session), 1, 1)
+    expect(contextTexts(session)[0]).toMatch(
+      /^Time sampled while preparing turn 1, step 1: 2026-09-30T20:30:00-07:00\[America\/Phoenix\] \(Wednesday\)\n/,
+    )
+
+    const { ctx: plain } = await mount({ timeZone: 'America/Phoenix', weekday: false })
+    const plainSession = Session.create(SessionId('weekday-off'))
+    openMessageTurn(plainSession, 1)
+    await fire(plain, sessionAgent(plainSession), 1, 1)
+    expect(contextTexts(plainSession)[0]).toMatch(
+      /^Time sampled while preparing turn 1, step 1: 2026-09-30T20:30:00-07:00\[America\/Phoenix\]\n/,
+    )
+  })
+
   it('reports an unavailable later-step baseline at the matching turn boundary', async () => {
     const { ctx } = await mount()
     const session = Session.create(SessionId('later-step-boundary'))

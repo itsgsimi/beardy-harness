@@ -1,11 +1,11 @@
 /** ISO-shaped time-context timestamp formatting shared by production and replay validation. */
 
-type TimestampPart = 'day' | 'hour' | 'minute' | 'month' | 'second' | 'timeZoneName' | 'year'
+type TimestampPart = 'day' | 'hour' | 'minute' | 'month' | 'second' | 'timeZoneName' | 'weekday' | 'year'
 
 /**
  * Create the exact formatter used by durable time-context readings.
  * @param timeZone - Explicit display zone, or `undefined` for the process fallback.
- * @returns A formatter with stable numeric local fields and long numeric offset.
+ * @returns A formatter with stable numeric local fields, long English weekday, and long numeric offset.
  */
 export function createTimestampFormatter(timeZone?: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat('en-US', {
@@ -18,6 +18,7 @@ export function createTimestampFormatter(timeZone?: string): Intl.DateTimeFormat
     second: '2-digit',
     hourCycle: 'h23',
     timeZoneName: 'longOffset',
+    weekday: 'long',
   })
 }
 
@@ -26,12 +27,19 @@ export function createTimestampFormatter(timeZone?: string): Intl.DateTimeFormat
  * @param now - Epoch milliseconds to display.
  * @param formatter - Formatter created for `timeZone`.
  * @param timeZone - Canonical zone label carried in brackets.
+ * @param weekday - Whether to append the local English weekday from the same formatted parts, as ` (Wednesday)`.
  * @returns The durable timestamp text.
  */
-export function formatTimestamp(now: number, formatter: Intl.DateTimeFormat, timeZone: string): string {
+export function formatTimestamp(
+  now: number,
+  formatter: Intl.DateTimeFormat,
+  timeZone: string,
+  weekday: boolean,
+): string {
   const parts = Object.fromEntries(
     formatter.formatToParts(now).map(part => [part.type, part.value]),
   ) as Record<TimestampPart, string>
   const offset = parts.timeZoneName.replace(/^GMT$/, 'GMT+00:00').slice(3)
-  return `${parts['year']}-${parts['month']}-${parts['day']}T${parts['hour']}:${parts['minute']}:${parts['second']}${offset}[${timeZone}]`
+  const timestamp = `${parts['year']}-${parts['month']}-${parts['day']}T${parts['hour']}:${parts['minute']}:${parts['second']}${offset}[${timeZone}]`
+  return weekday ? `${timestamp} (${parts['weekday']})` : timestamp
 }

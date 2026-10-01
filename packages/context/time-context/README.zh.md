@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 模型能得到什么
 
-每条注入读数包含三行：带数字偏移与 IANA 时区、形如 ISO 的时间戳，该请求的浏览器时区策略，以及以紧凑整秒单位表示的经过时长。第 1 步从最新一条先前模型可见消息起测量；后续步骤从同一轮次中前一个 time-context 事件起测量。缺少基线时报告 `unavailable`，挂钟时间倒退时把经过时长钳制为零。
+每条注入读数包含三行：带数字偏移与 IANA 时区、形如 ISO 的时间戳，该请求的浏览器时区策略，以及以紧凑整秒单位表示的经过时长。第 1 步从最新一条先前模型可见消息起测量；后续步骤从同一轮次中前一个 time-context 事件起测量。缺少基线时报告 `unavailable`，挂钟时间倒退时把经过时长钳制为零。设置 `weekday: true` 时，时间戳后会附上其本地日期的英文星期名，例如 `2026-09-30T20:30:00-07:00[America/Phoenix] (Wednesday)`。
 
 ### 配置
 
@@ -45,6 +45,7 @@ kind: "package-reference"
 |---|---|---|
 | `timeZone` | 进程时区 | 当前开放轮次没有唯一浏览器时区时的显示回退时区 |
 | `refreshIntervalMs` | `600000`（10 分钟） | 同一会话中两次持久注入之间的最小毫秒数 |
+| `weekday` | `false` | 在时间戳后附加本地英文星期名 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-time-context)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
@@ -64,7 +65,7 @@ kind: "package-reference"
 
 ### 设计理念
 
-插件前置注册一个 `agent/pre-step` 监听器，先委托下游，需要注入且下游决策进入步骤时追加一条带来源的 `UserMessage`。每个读数都使用确切的快照来源 `{ kind: 'plugin', plugin: 'time-context', form: 'snapshot', sections: [{ name: 'time-context', text }] }`，不变式配套模块会校验该形状，根据原始 `user-rpc` 消息重新派生当前轮次的浏览器策略，并检查时间戳时区与经过时长基线。
+插件前置注册一个 `agent/pre-step` 监听器，先委托下游，需要注入且下游决策进入步骤时追加一条带来源的 `UserMessage`。每个读数都使用确切的快照来源 `{ kind: 'plugin', plugin: 'time-context', form: 'snapshot', sections: [{ name: 'time-context', text }] }`，不变式配套模块会校验该形状，根据原始 `user-rpc` 消息重新派生当前轮次的浏览器策略，并检查时间戳时区、星期名（如有）与时间戳本地日期是否一致，以及经过时长基线。不带星期名的读数仍然有效，因此已发布的会话可原样重放。
 
 ### 源码地图
 
@@ -101,7 +102,7 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-每条注入消息包含三行。`<timestamp>` 是带数字偏移和 IANA 时区、形如 ISO 的时间戳；持续时间使用紧凑的整秒单位。
+每条注入消息包含三行。`<timestamp>` 是带数字偏移和 IANA 时区、形如 ISO 的时间戳，启用 `weekday` 时其后附有括号中的本地英文星期名；持续时间使用紧凑的整秒单位。
 
 ##### 第一步
 
