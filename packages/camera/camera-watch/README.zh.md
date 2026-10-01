@@ -46,11 +46,13 @@ kind: "package-reference"
 | `devices` | 各设备设置 `{ id, scene? }`：`scene`（1 到 1000 个字符）说明该摄像头画面中各物的位置，原样插入其提示词 |
 | `immediateDingNotice` | 分类前先发送带第一帧的门铃通知，再以后续消息发送分类后的通知；默认开启 |
 | `earlyMotionNotice` | 单独分类移动事件的第一帧，若已足以触发通知则立即发送；完整分类只在有新增内容时才发送更新；默认开启，配置了频道时每个移动事件多一次分类 |
-| `maxOutputTokens`、`turnTimeoutMs` | 分类输出上限和时限 |
+| `maxOutputTokens`、`turnTimeoutMs` | 每次分类请求的输出上限，以及每个分类轮次（包括纠正轮次）的时限 |
+| `temperature` | 每次分类请求（包括第一帧检查）的采样温度，默认 0.2（0 到 2）；请求头会记录它 |
+| `retryOnBadAnswer` | 回答没有 JSON 对象、什么都没说明或漏掉被询问的问题时，在同一 Session 中再问完整分类一次；默认开启，第一帧检查从不再问 |
 | `maxConcurrent`、`maxQueued` | 同时进行的分类数（含第一帧检查），以及超出后排队等待的事件数 |
 | `retentionDays`、`maxHistory`、`sweepIntervalMs` | 历史记录及其已存储画面的保留天数和条数上限，以及两次保留清理之间的间隔（一分钟到一天） |
 | `deliveryAttempts`、`deliveryRetryMs` | 单条通知的交接尝试次数及间隔 |
-| `failureNoticeThreshold`、`failureNoticeIntervalMs` | 连续多少次分类轮次失败后发送失败通知，默认 3（1 到 100），以及两条失败通知之间的最短间隔，默认六小时（一分钟到七天） |
+| `failureNoticeThreshold`、`failureNoticeIntervalMs` | 连续多少次分类的最终轮次失败后发送失败通知，默认 3（1 到 100），以及两条失败通知之间的最短间隔，默认六小时（一分钟到七天） |
 | `tool`、`toolMaxEvents` | 是否注册 `camera` 工具，以及单次结果的上限 |
 
 `policy.personDevices`、`policy.doorDevices`、`policy.vehicleDevices` 或 `devices` 中不对应任何提供方设备的条目、在 `devices` 中出现两次的设备、为空或过长的场景、空的 `policy.vehicleActivities` 列表，以及在 `earlyMotionNotice` 关闭时设置的 `earlyModelSelection` 都会导致加载失败。模型路由不在加载时检查，因为提供方在监视插件之后注册。所有路由的提供方都注册后，监视插件会各解析一次每条路由（包括图像输入检查），并记录 `camera-watch: classifying with <provider>/<model>`；`earlyModelSelection` 指向另一条路由时其后追加 ` (first frame: <provider>/<model>)`。检查失败时记录以 `camera-watch: model route check failed:` 或 `camera-watch: first-frame model route check failed:` 开头、附带原因链的错误；完整路由失败而第一帧路由可用时记录 `camera-watch: first-frame checks classifying with <provider>/<model>`；检查失败不会中止主机。每个事件仍会解析路由：无法解析的路由使事件以 `MODEL_UNAVAILABLE` 记录，声明不接受图像输入的路由使事件以 `MODEL_NOT_VISION` 记录；门铃按下仍会发送通知。
@@ -70,7 +72,7 @@ devices:
       run across the top, with houses across the street. Pavers and shrubs are on the right.
 ```
 
-路由检查失败、事件以 `MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION` 记录，或者连续 `failureNoticeThreshold` 次分类轮次以 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`EMPTY_ANSWER` 或 `SESSION_FAILED` 结束时，会向 `deliverChannelId` 发送一条失败通知，每个 `failureNoticeIntervalMs` 内最多一条：`⚠️ Camera classification is failing (<code>: <cause>). Motion alerts are paused; doorbell presses still post.` 路由失败时原因是最内层错误的第一行，轮次失败时原因是连续失败的次数；`policy.ding` 关闭时通知在 `Motion alerts are paused.` 处结束。失败通知之后第一次得到回答的分类会发送 `Camera classification recovered.`。未设置 `deliverChannelId` 时两者只写入日志，分别为 `camera-watch: classification is failing (<code>: <cause>)` 和 `camera-watch: classification recovered`。未设置 `earlyModelSelection` 时，第一帧检查与完整分类一样计入这些通知。设置后，第一帧检查有自己的连续失败计数、间隔和通知，因此失败的快速模型不会暂停移动提醒：`⚠️ Camera first-frame checks are failing (<code>: <cause>). Motion alerts wait for the full check.` 和 `Camera first-frame checks recovered.`，日志分别为 `camera-watch: first-frame checks are failing (<code>: <cause>)` 和 `camera-watch: first-frame checks recovered`。
+路由检查失败、事件以 `MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION` 记录，或者连续 `failureNoticeThreshold` 次分类的最终轮次以 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`EMPTY_ANSWER` 或 `SESSION_FAILED` 结束时，会向 `deliverChannelId` 发送一条失败通知，每个 `failureNoticeIntervalMs` 内最多一条：`⚠️ Camera classification is failing (<code>: <cause>). Motion alerts are paused; doorbell presses still post.` 路由失败时原因是最内层错误的第一行，轮次失败时原因是连续失败的次数；`policy.ding` 关闭时通知在 `Motion alerts are paused.` 处结束。失败通知之后第一次得到回答的分类会发送 `Camera classification recovered.`。未设置 `deliverChannelId` 时两者只写入日志，分别为 `camera-watch: classification is failing (<code>: <cause>)` 和 `camera-watch: classification recovered`。未设置 `earlyModelSelection` 时，第一帧检查与完整分类一样计入这些通知。设置后，第一帧检查有自己的连续失败计数、间隔和通知，因此失败的快速模型不会暂停移动提醒：`⚠️ Camera first-frame checks are failing (<code>: <cause>). Motion alerts wait for the full check.` 和 `Camera first-frame checks recovered.`，日志分别为 `camera-watch: first-frame checks are failing (<code>: <cause>)` 和 `camera-watch: first-frame checks recovered`。
 
 -----
 
@@ -82,7 +84,7 @@ devices:
 
 事件按 ID 排队；重复的 ID 或未知设备会被忽略。同时最多运行 `maxConcurrent` 个分类；已有 `maxQueued` 个事件在等待时新到的事件不经分类记录为 `QUEUE_FULL`。没有画面的事件跳过分类，记录为 `NO_FRAMES`。
 
-每次分类都会打开一个不带 agent 预设的根 Session，只允许一次模型请求。其 Agent 作用域把分类提示词注册为人设前缀段中的完整系统提示词，因此主机人设和其他所有段都被排除；抑制运行时上下文；通过 `system-prompt/assemble` 监听器去掉所有工具模式，这也覆盖其他插件在创建后注册到该 Agent 自身作用域的工具，例如 schedule 工具；并通过作用域内的工具守卫拒绝所有工具执行。提示词作为该 Session 的系统消息进入日志，请求头不记录任何工具。它唯一的其他输入是一条来源类型为 `camera` 的 `user/message`：提示文本加上作为图像块的画面。已完成的助手文本按每个字段的模式读取：取文本中的第一个 JSON 对象，即使它位于代码围栏或说明文字中；标签接受常见同义词和复数；每个被询问的问题必须是带布尔值 `answer` 和 `frames` 列表的对象，超出画面范围的画面序号会被丢弃。没有有效依据画面的真回答读取为假，没有有效对象的被询问问题不计入回答，未询问问题的字段会被忽略；关于人物、包裹或车辆的真回答会补上对应标签。所有字段有效时读取结果为 `parsed`，部分字段有效时为 `partial`，没有 JSON 对象时为 `unparsed` 并保留第一行文本。什么都没说明的对象（没有描述或描述为空白、没有标签、没有计数，且没有被询问的问题回答为真）不算读取结果：原样返回模板的模型就是这样回复的，因此该分类以 `EMPTY_ANSWER` 失败，并记录 `camera-watch: classification <session id> of <event id> stated nothing`，而不是读取为什么都没发生。模型自己的置信度既不询问也不读取。轮次失败记录为 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`EMPTY_ANSWER`、`NOT_PERSISTED`、`SESSION_FAILED`、`MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION`。
+每次分类都会打开一个不带 agent 预设的根 Session，每个轮次只允许一次模型请求，最多两个轮次。其 Agent 作用域把分类提示词注册为人设前缀段中的完整系统提示词，因此主机人设和其他所有段都被排除；抑制运行时上下文；通过 `system-prompt/assemble` 监听器去掉所有工具模式，这也覆盖其他插件在创建后注册到该 Agent 自身作用域的工具，例如 schedule 工具；并通过作用域内的工具守卫拒绝所有工具执行。提示词作为该 Session 的系统消息进入日志，请求头不记录任何工具。它唯一的其他输入是一条来源类型为 `camera` 的 `user/message`：提示文本加上作为图像块的画面。已完成的助手文本按每个字段的模式读取：取文本中的第一个 JSON 对象，即使它位于代码围栏或说明文字中；标签接受常见同义词和复数；每个被询问的问题必须是带布尔值 `answer` 和 `frames` 列表的对象，超出画面范围的画面序号会被丢弃。没有有效依据画面的真回答读取为假，没有有效对象的被询问问题不计入回答，未询问问题的字段会被忽略；关于人物、包裹或车辆的真回答会补上对应标签。所有字段有效时读取结果为 `parsed`，部分字段有效时为 `partial`，没有 JSON 对象时为 `unparsed` 并保留第一行文本。什么都没说明的对象（没有描述或描述为空白、没有标签、没有计数，且没有被询问的问题回答为真）不算读取结果：原样返回模板的模型就是这样回复的，因此该分类以 `EMPTY_ANSWER` 失败，并记录 `camera-watch: classification <session id> of <event id> stated nothing`，而不是读取为什么都没发生。开启 `retryOnBadAnswer` 时，如果完整分类的第一个回答为 `unparsed`、什么都没说明，或为漏掉被询问问题的 `partial`，就在同一 Session 中再发送一条 `user/message`：`Your reply was not the JSON object. Reply with only the JSON object from the instructions, filled in.`，并保留两个读取结果中更可用的一个：`parsed` 高于 `partial`，回答了更多被询问问题的 `partial` 高于回答较少的，`partial` 高于 `unparsed`，`unparsed` 高于 `empty`，两者相当时保留纠正后的读取结果。失败的纠正轮次（例如 `TIMEOUT`、`TURN_FAILED` 或 `NO_ANSWER`）回退到第一个 `partial` 读取结果，否则记录它自己的失败代码。监视器记录 `camera-watch: classification <session id> of <event id>`，后接 `kept its corrective answer`、`kept its first answer after a worse retry` 或 `kept its first answer after the corrective turn failed (<code>)`。回答了所有被询问问题的 `partial` 第一个回答不进行纠正轮次，保持不变。失败代码和失败通知计数只读取保留的读取结果。第一帧检查从不再问，因此其提前通知保持原有延迟，完整分类仍会随后进行。每次请求都通过 `agent/request` 监听器带上 `temperature`（默认 0.2），因此请求头会记录它。模型自己的置信度既不询问也不读取。轮次失败记录为 `TIMEOUT`、`TURN_FAILED`、`NO_ANSWER`、`EMPTY_ANSWER`、`NOT_PERSISTED`、`SESSION_FAILED`、`MODEL_UNAVAILABLE` 或 `MODEL_NOT_VISION`。
 
 第一帧检查与其他分类共用 `maxConcurrent` 个槽位。`earlyMotionNotice` 开启且配置了频道时，新移动事件的 `camera/preview` 会排入一次仅针对该帧的检查，除非所有槽位都忙且已有 `maxQueued` 个事件在等待；排队中的检查先于任何排队中的事件启动，因此事件不会排在自己的检查之前而等待它。该检查是独立的、记录在案的分类 Session，其来源摘要以 `(first frame)` 结尾，指令说明图像只是第一帧；除 `person_staying`、`package_present` 和 `vehicle_leaving` 外，它提出相同的问题，设置了 `earlyModelSelection` 时使用该路由。失败或回答为空的检查不发送早期通知，完整分类仍会运行并自行通知。其判定产生原因时，通知 `camera:<事件 ID>:early` 立即附带该帧发送，并以 `From the first picture; an update follows only if the rest shows more.` 结尾。逗留原因需要两帧，因此从不来自此检查，下文的基准比较也只用于完整分类。同一事件的完整分类会等这条通知结束后再进行。早期通知送达后，分类通知 `camera:<事件 ID>` 只在有新增内容时发送：早期通知未说明的原因，或任一标签的数量高于第一帧；此时其标题为 `<时间> (update)`。原因相同且数量持平或更少时不发送任何消息，因为两次回答很少用相同措辞描述同一场景。历史把该检查的 Session 记录为 `earlySessionId`，得到回答时把其原因记录为 `earlyReasons`，把其交接结果记录为 `earlyDelivery`；无需更新时 `delivery` 保持为 `none`。
 
@@ -145,7 +147,7 @@ Reply with only this JSON object, filled in, and no other text:
 
 #### Token 影响
 
-每个事件发出一次请求：约 60 个系统提示词 token、约 250 到 450 个指令 token（取决于场景和被询问的问题），以及每帧一张图像（默认三帧），输出受 `maxOutputTokens` 限制。第一帧检查再增加一次请求，提示词相同，只带一张图像；设置了 `earlyModelSelection` 时使用该路由。
+每个事件发出一次请求，运行纠正轮次时为两次：约 60 个系统提示词 token、约 250 到 450 个指令 token（取决于场景和被询问的问题），以及每帧一张图像（默认三帧），输出受 `maxOutputTokens` 限制。第一帧检查再增加一次请求，提示词相同，只带一张图像；设置了 `earlyModelSelection` 时使用该路由。
 
 #### KV Cache 影响
 

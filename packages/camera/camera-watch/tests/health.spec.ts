@@ -254,9 +254,20 @@ describe('camera watch failure notices', () => {
     expect(logged(harness, 'info', 'camera-watch: classification recovered')).toHaveLength(1)
   })
 
+  it('counts only the final answer after a corrective turn toward the failure run', async () => {
+    const empty = JSON.stringify({ description: '', labels: [], counts: {} })
+    const harness = await start([empty, verdictText({}), empty, verdictText({})], { failureNoticeThreshold: 1 },
+      { deps: { now: () => NOON } })
+    const ids = recorded(harness)
+    for (const id of ['saved', 'saved-again']) await harness.camera.send(harness.event('motion', await harness.frames(1), { id }))
+    await until(() => ids.size === 2, 'two records')
+    expect(harness.notices).toEqual([])
+    expect(logged(harness, 'warn', 'camera-watch: classification camera-front-door-')).toEqual([])
+  })
+
   it('counts answers that state nothing as failures', async () => {
     const empty = JSON.stringify({ description: '', labels: [], counts: {}, person_on_property: { answer: false, frames: [] } })
-    const harness = await start([empty, empty], { failureNoticeThreshold: 2 }, { deps: { now: () => NOON } })
+    const harness = await start([empty, empty, empty, empty], { failureNoticeThreshold: 2 }, { deps: { now: () => NOON } })
     const ids = recorded(harness)
     for (const id of ['echo', 'echo-again']) await harness.camera.send(harness.event('motion', await harness.frames(1), { id }))
     await until(() => ids.size === 2, 'two records')
@@ -265,6 +276,7 @@ describe('camera watch failure notices', () => {
     ])
     expect(logged(harness, 'warn', 'camera-watch: classification camera-front-door-')).toHaveLength(2)
     expect(logged(harness, 'warn', 'camera-watch: classification camera-front-door-')[0]).toMatch(/ of echo stated nothing$/u)
+    expect(harness.adapter.requests).toHaveLength(4)
   })
 
   it('keeps first-frame failures on their own route apart from full classifications', async () => {

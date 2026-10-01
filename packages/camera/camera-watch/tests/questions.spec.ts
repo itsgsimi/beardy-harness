@@ -3,7 +3,7 @@ import { resolveConfig } from '../src/config.ts'
 import type { Config } from '../src/config.ts'
 import { askedQuestions } from '../src/policy.ts'
 import { classificationRequest, renderClassificationRequest } from '../src/prompt.ts'
-import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, parseVerdict } from '../src/verdict.ts'
+import { CLASSIFICATION_SYSTEM_PROMPT, classificationPrompt, needsRetry, parseVerdict, readingRank } from '../src/verdict.ts'
 import { NIGHT } from './support.ts'
 
 const TZ = 'America/Phoenix'
@@ -240,5 +240,25 @@ describe('parseVerdict', () => {
     const long = parseVerdict(`{"labels":[],"counts":{},"description":"${'a'.repeat(300)}"}`, 1, [])
     expect(long.verdict?.description).toHaveLength(200)
     expect(parseVerdict('x'.repeat(500), 1, QUESTIONS).text).toHaveLength(200)
+  })
+})
+
+describe('corrective retry readings', () => {
+  const QUESTIONS = ['person_on_property', 'person_staying', 'vehicle_arriving'] as const
+  const answer = { answer: false, frames: [] }
+  const complete = JSON.stringify({ description: 'Quiet.', labels: [], counts: {}, person_on_property: answer, person_staying: answer, vehicle_arriving: answer })
+  const twoAnswered = JSON.stringify({ description: 'Quiet.', labels: ['ghost'], counts: {}, person_on_property: answer, person_staying: answer })
+  const oneAnswered = JSON.stringify({ description: 'Quiet.', labels: [], counts: {}, person_on_property: answer })
+  const allAnsweredGap = JSON.stringify({ description: 'Quiet.', labels: ['ghost'], counts: {}, person_on_property: answer, person_staying: answer, vehicle_arriving: answer })
+  const read = (text: string): ReturnType<typeof parseVerdict> => parseVerdict(text, 1, QUESTIONS)
+
+  it('asks again for no JSON object, an empty object, or a missing question, and never for a parsed answer or a gap outside the questions', () => {
+    expect(['prose', '{}', oneAnswered, complete, allAnsweredGap].map(text => needsRetry(read(text), QUESTIONS))).toEqual([true, true, true, false, false])
+  })
+
+  it('ranks parsed over partial over unparsed over empty, and a partial answering more questions higher', () => {
+    const ranks = [complete, allAnsweredGap, twoAnswered, oneAnswered, 'prose', '{}'].map(text => readingRank(read(text), QUESTIONS))
+    expect(ranks).toEqual([...ranks].sort((left, right) => right - left))
+    expect(new Set(ranks).size).toBe(ranks.length)
   })
 })

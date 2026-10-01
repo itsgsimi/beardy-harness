@@ -3,11 +3,11 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import type { CameraFrame } from '@deepseek-ai/dsh-camera'
-import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { defineTool, TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-tools'
 import { toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { cameraWatchDomainSpec, historyRecord } from '../src/history.ts'
-import { CLASSIFICATION_SYSTEM_PROMPT } from '../src/verdict.ts'
+import { CLASSIFICATION_SYSTEM_PROMPT, CORRECTIVE_RETRY_MESSAGE } from '../src/verdict.ts'
 import type { HistoryRecord } from '../src/history.ts'
 import { NIGHT, NOON, until, verdictText, watchHarness } from './support.ts'
 import type { WatchHarness } from './support.ts'
@@ -64,6 +64,7 @@ describe('camera watch classification', () => {
     expect(request?.tools ?? []).toEqual([])
     expect(request?.model).toBe('vision-model')
     expect(request?.maxTokens).toBe(600)
+    expect(request?.temperature).toBe(0.2)
     const prompt = userText(request!)
     expect(prompt.startsWith('Check this doorbell press from the Front door camera at 2026-09-27 12:00:00. ')).toBe(true)
     expect(prompt).toContain('"person_at_door":{"answer":false,"frames":[]}')
@@ -154,7 +155,8 @@ describe('camera watch classification', () => {
   })
 
   it('reads malformed and partial answers tolerantly', async () => {
-    const harness = await start(['I think a person is at the door, maybe.', '{"labels":["person"],"person_on_property":{"answer":true,"frames":[0]}}'])
+    const harness = await start(['I think a person is at the door, maybe.', '{"labels":["person"],"person_on_property":{"answer":true,"frames":[0]}}'],
+      { retryOnBadAnswer: false })
     mirror(harness)
     await harness.camera.send(harness.event('ding', await harness.frames(1), { id: 'prose' }))
     await until(() => recordOf(harness, 'prose')?.delivery === 'delivered', 'prose ding')
@@ -163,6 +165,113 @@ describe('camera watch classification', () => {
     await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'partial', at: NIGHT }))
     await until(() => recordOf(harness, 'partial')?.delivery === 'delivered', 'partial night person')
     expect(recordOf(harness, 'partial')).toMatchObject({ status: 'partial', reasons: ['night-person'] })
+    expect(harness.adapter.requests).toHaveLength(2)
+  })
+
+  it('asks once more in the same Session for an answer without the JSON object, an empty answer, or a missing question', async () => {
+    const empty = JSON.stringify({ description: '', labels: [], counts: {} })
+    const missing = '{"description":"A person walks up.","labels":["person"],"counts":{"person":1},"person_on_property":{"answer":true,"frames":[0]}}'
+    const person = verdictText({ description: 'A person walks up.', labels: ['person'], counts: { person: 1 } }, { person_on_property: [0] })
+    const harness = await start([
+      'Based on the three images provided, here is a breakdown.', person,
+      empty, person,
+      missing, person,
+    ], { earlyMotionNotice: false })
+    mirror(harness)
+    for (const id of ['prose', 'echo', 'missing']) {
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id, at: NIGHT }))
+      await until(() => recordOf(harness, id)?.delivery === 'delivered', `${id} notice`)
+      expect(recordOf(harness, id)).toMatchObject({ status: 'parsed', reasons: ['night-person'] })
+    }
+    expect(harness.adapter.requests).toHaveLength(6)
+    const retry = harness.adapter.requests[1]!
+    expect(retry.temperature).toBe(0.2)
+    expect(retry.messages.at(-1)?.content).toEqual([{ type: 'text', text: CORRECTIVE_RETRY_MESSAGE }])
+    expect(retry.messages.at(-2)?.content).toEqual([{ type: 'text', text: 'Based on the three images provided, here is a breakdown.' }])
+    expect(retry.messages.filter(message => message.role === 'user')).toHaveLength(2)
+    expect(harness.logs.filter(log => log.text.endsWith('kept its corrective answer')).map(log => log.text.split(' of ')[1]))
+      .toEqual(['prose kept its corrective answer', 'echo kept its corrective answer', 'missing kept its corrective answer'])
+    const log = await harness.sessionLog()
+    const messages = log.filter(entry => entry.type === 'user/message' && (entry.data as { source: { eventId: string } }).source.eventId === 'prose')
+    expect(messages.map(entry => (entry.data as { content: { type: string; text?: string }[] }).content.at(-1)?.text ?? 'image'))
+      .toEqual(['image', CORRECTIVE_RETRY_MESSAGE])
+  })
+
+  it('keeps a parsed answer or a partial one that answers every question without asking again', async () => {
+    const labelGap = verdictText({ labels: ['person', 'ghost'], counts: { person: 1 }, description: 'A person walks up.' }, { person_on_property: [0] })
+    const harness = await start([verdictText({}), labelGap], { earlyMotionNotice: false })
+    mirror(harness)
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'quiet' }))
+    await until(() => recordOf(harness, 'quiet') !== undefined, 'quiet record')
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'gap', at: NIGHT }))
+    await until(() => recordOf(harness, 'gap') !== undefined, 'gap record')
+    expect([recordOf(harness, 'quiet')?.status, recordOf(harness, 'gap')?.status]).toEqual(['parsed', 'partial'])
+    expect(harness.adapter.requests).toHaveLength(2)
+  })
+
+  it('keeps the better of the two readings, the corrective one on a tie', async () => {
+    const empty = JSON.stringify({ description: '', labels: [], counts: {} })
+    const missing = '{"description":"A person walks up.","labels":["person"],"counts":{"person":1},"person_on_property":{"answer":true,"frames":[0]}}'
+    const harness = await start([
+      missing, empty,
+      'No JSON here.', missing,
+      'No JSON here.', 'Still no JSON.',
+      'No JSON here.', empty,
+      empty, empty,
+    ], { earlyMotionNotice: false })
+    mirror(harness)
+    for (const id of ['partial-then-empty', 'prose-then-partial', 'prose-twice', 'prose-then-empty', 'empty-twice']) {
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id, at: NIGHT }))
+      await until(() => recordOf(harness, id) !== undefined, `${id} record`)
+    }
+    expect(recordOf(harness, 'partial-then-empty')).toMatchObject({ status: 'partial', reasons: ['night-person'] })
+    expect(recordOf(harness, 'prose-then-partial')).toMatchObject({ status: 'partial', reasons: ['night-person'] })
+    expect(recordOf(harness, 'prose-twice')).toMatchObject({ status: 'unparsed', text: 'Still no JSON.' })
+    expect(recordOf(harness, 'prose-then-empty')).toMatchObject({ status: 'unparsed', text: 'No JSON here.' })
+    expect(recordOf(harness, 'empty-twice')).toMatchObject({ status: 'failed', failure: 'EMPTY_ANSWER' })
+    expect(harness.adapter.requests).toHaveLength(10)
+    expect(harness.logs.filter(log => log.text.includes(' kept its ')).map(log => log.text.split(' of ')[1])).toEqual([
+      'partial-then-empty kept its first answer after a worse retry',
+      'prose-then-partial kept its corrective answer',
+      'prose-twice kept its corrective answer',
+      'prose-then-empty kept its first answer after a worse retry',
+      'empty-twice kept its corrective answer',
+    ])
+  })
+
+  it('falls back to a first partial reading when the corrective turn fails', async () => {
+    const missing = '{"description":"A person walks up.","labels":["person"],"counts":{"person":1},"person_on_property":{"answer":true,"frames":[0]}}'
+    const crash: StreamChunk[] = [{ type: 'finish', reason: { kind: 'error', failure: { code: 'UPSTREAM', message: 'down' } } }]
+    const harness = await start([missing, crash, 'No JSON here.', crash], { earlyMotionNotice: false })
+    mirror(harness)
+    for (const id of ['partial-then-crash', 'prose-then-crash']) {
+      await harness.camera.send(harness.event('motion', await harness.frames(1), { id, at: NIGHT }))
+      await until(() => recordOf(harness, id) !== undefined, `${id} record`)
+    }
+    expect(recordOf(harness, 'partial-then-crash')).toMatchObject({ status: 'partial', reasons: ['night-person'] })
+    expect(recordOf(harness, 'prose-then-crash')).toMatchObject({ status: 'failed', failure: 'TURN_FAILED' })
+    expect(harness.logs.filter(log => log.text.includes(' kept its ')).map(log => log.text.split(' of ')[1]))
+      .toEqual(['partial-then-crash kept its first answer after the corrective turn failed (TURN_FAILED)'])
+  })
+
+  it('keeps a first partial reading when the corrective turn times out', async () => {
+    const missing = '{"description":"A person walks up.","labels":["person"],"counts":{"person":1},"person_on_property":{"answer":true,"frames":[0]}}'
+    const harness = await start([missing, 'hang'], { earlyMotionNotice: false, turnTimeoutMs: 5_000 })
+    mirror(harness)
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'partial-then-hang', at: NIGHT }))
+    await until(() => recordOf(harness, 'partial-then-hang') !== undefined, 'partial record')
+    expect(recordOf(harness, 'partial-then-hang')).toMatchObject({ status: 'partial', reasons: ['night-person'] })
+    expect(harness.adapter.requests).toHaveLength(2)
+    expect(harness.logs.some(log => log.text.endsWith('kept its first answer after the corrective turn failed (TIMEOUT)'))).toBe(true)
+  }, 15_000)
+
+  it('records the failure of a corrective turn that times out after an unusable first answer', async () => {
+    const harness = await start(['No JSON here.', 'hang'], { earlyMotionNotice: false, turnTimeoutMs: 5_000 })
+    mirror(harness)
+    await harness.camera.send(harness.event('motion', await harness.frames(1), { id: 'then-hang' }))
+    await until(() => harness.adapter.requests.length === 2, 'corrective request')
+    await harness.fiber.dispose()
+    expect(recordOf(harness, 'then-hang')).toMatchObject({ status: 'failed', failure: 'TIMEOUT' })
   })
 
   it('records classification turns that fail, time out, or give no answer', async () => {
@@ -203,7 +312,7 @@ describe('camera watch classification', () => {
     expect(text).not.toContain('Current runtime fact.')
     const log = await harness.sessionLog()
     expect(log.find(entry => entry.type === 'system/message')).toMatchObject({ data: { message: { content: [{ type: 'text', text: CLASSIFICATION_SYSTEM_PROMPT }] } } })
-    expect(log.find(entry => entry.type === 'request/header')).toMatchObject({ data: { header: { config: { model: 'vision-model' } } } })
+    expect(log.find(entry => entry.type === 'request/header')).toMatchObject({ data: { header: { config: { model: 'vision-model', temperature: 0.2 } } } })
     expect((log.find(entry => entry.type === 'request/header')?.data as { header: { tools?: unknown } }).header.tools).toBeUndefined()
   })
 

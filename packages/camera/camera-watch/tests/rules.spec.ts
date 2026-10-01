@@ -20,7 +20,8 @@ describe('resolveConfig', () => {
         personDevices: [], doorDevices: [], vehicleDevices: [], vehicleActivities: ['arriving', 'leaving'], lingerMs: 20_000,
         arrivalBaselineMs: 43_200_000 },
       scenes: new Map(),
-      immediateDingNotice: true, earlyMotionNotice: true, maxOutputTokens: 600, turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
+      immediateDingNotice: true, earlyMotionNotice: true, maxOutputTokens: 600, temperature: 0.2, retryOnBadAnswer: true,
+      turnTimeoutMs: 120_000, maxConcurrent: 1, maxQueued: 10,
       retentionMs: 30 * 86_400_000,
       maxHistory: 5_000, sweepIntervalMs: 3_600_000, deliveryAttempts: 3, deliveryRetryMs: 30_000,
       failureNoticeThreshold: 3, failureNoticeIntervalMs: 21_600_000, tool: true, toolMaxEvents: 50,
@@ -36,7 +37,8 @@ describe('resolveConfig', () => {
         doorDevices: ['front-door', 'front-door'], vehicleDevices: ['garage', 'garage'],
         vehicleActivities: ['leaving', 'leaving'], lingerSeconds: 30, minConfidence: 0.7, arrivalBaselineMs: 0 },
       devices: [{ id: 'front-door', scene: '  Door at the right edge.\n' }, { id: 'garage' }],
-      immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
+      immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, temperature: 0, retryOnBadAnswer: false,
+      turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionDays: 2, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
       tool: false, toolMaxEvents: 7,
@@ -48,7 +50,8 @@ describe('resolveConfig', () => {
         personDevices: ['front-door'], doorDevices: ['front-door'], vehicleDevices: ['garage'], vehicleActivities: ['leaving'], lingerMs: 30_000,
         arrivalBaselineMs: 0 },
       scenes: new Map([['front-door', 'Door at the right edge.']]),
-      immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
+      immediateDingNotice: false, earlyMotionNotice: false, maxOutputTokens: 100, temperature: 0, retryOnBadAnswer: false,
+      turnTimeoutMs: 9_000, maxConcurrent: 2, maxQueued: 3,
       retentionMs: 2 * 86_400_000, maxHistory: 9,
       sweepIntervalMs: 70_000, deliveryAttempts: 5, deliveryRetryMs: 2_000, failureNoticeThreshold: 1, failureNoticeIntervalMs: 60_000,
       tool: false, toolMaxEvents: 7,
@@ -108,6 +111,14 @@ describe('resolveConfig', () => {
     expect(ConfigSchema({ timezone: TZ }).earlyMotionNotice).toBe(true)
     expect(() => ConfigSchema({ timezone: TZ, policy: { arrivalBaselineMs: -1 } })).toThrow()
     expect(() => ConfigSchema({ timezone: TZ, policy: { arrivalBaselineMs: 604_800_001 } })).toThrow()
+  })
+
+  it('bounds the classification temperature from 0 to 2 and turns the corrective retry on by default', () => {
+    expect(ConfigSchema({ timezone: TZ })).toMatchObject({ temperature: 0.2, retryOnBadAnswer: true })
+    expect(ConfigSchema({ timezone: TZ, temperature: 2, retryOnBadAnswer: false }))
+      .toMatchObject({ temperature: 2, retryOnBadAnswer: false })
+    for (const temperature of [-0.1, 2.1]) expect(() => ConfigSchema({ timezone: TZ, temperature })).toThrow()
+    expect(() => ConfigSchema({ timezone: TZ, retryOnBadAnswer: 'yes' } as never)).toThrow()
   })
 
   it('accepts only the arriving and leaving vehicle movements', () => {

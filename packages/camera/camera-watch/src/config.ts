@@ -97,9 +97,23 @@ export interface Config {
    * configured; defaults to true.
    */
   readonly earlyMotionNotice?: boolean
-  /** Output token ceiling for one classification; defaults to 600. */
+  /** Output token ceiling for one classification request; defaults to 600. */
   readonly maxOutputTokens?: number
-  /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
+  /**
+   * Sampling temperature of every classification request, first-frame checks included, from 0 to 2;
+   * defaults to 0.2. Low values keep the model on the instruction's JSON object.
+   */
+  readonly temperature?: number
+  /**
+   * Ask a full classification once more, in the same Session, when its answer has no JSON object,
+   * states nothing, or leaves out an asked question, and keep the more usable of the two answers.
+   * First-frame checks never ask again. Defaults to true.
+   */
+  readonly retryOnBadAnswer?: boolean
+  /**
+   * Longest classification turn in milliseconds, including Session creation; a corrective turn waits
+   * as long again. Defaults to 120000.
+   */
   readonly turnTimeoutMs?: number
   /** Classifications running at once, first-frame classifications included; defaults to 1. */
   readonly maxConcurrent?: number
@@ -116,9 +130,9 @@ export interface Config {
   /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
   readonly deliveryRetryMs?: number
   /**
-   * Classification turns in a row that time out, fail, give no or an empty answer, or cannot start
-   * before a failure notice, from 1 to 100; defaults to 3. With `earlyModelSelection`, first-frame
-   * checks count their own run and raise their own notice.
+   * Classifications in a row whose final turn times out, fails, gives no or an empty answer, or
+   * cannot start before a failure notice, from 1 to 100; defaults to 3. With `earlyModelSelection`,
+   * first-frame checks count their own run and raise their own notice.
    */
   readonly failureNoticeThreshold?: number
   /** Least milliseconds between two classification failure notices, from 60000 to 604800000; defaults to 21600000. */
@@ -142,6 +156,8 @@ export const WATCH_DEFAULTS = Object.freeze({
   immediateDingNotice: true,
   earlyMotionNotice: true,
   maxOutputTokens: 600,
+  temperature: 0.2,
+  retryOnBadAnswer: true,
   turnTimeoutMs: 120_000,
   maxConcurrent: 1,
   maxQueued: 10,
@@ -184,6 +200,8 @@ export const Config: z<Config> = z.object({
   immediateDingNotice: z.boolean().default(WATCH_DEFAULTS.immediateDingNotice),
   earlyMotionNotice: z.boolean().default(WATCH_DEFAULTS.earlyMotionNotice),
   maxOutputTokens: z.number().step(1).min(64).max(8_192).default(WATCH_DEFAULTS.maxOutputTokens),
+  temperature: z.number().min(0).max(2).default(WATCH_DEFAULTS.temperature),
+  retryOnBadAnswer: z.boolean().default(WATCH_DEFAULTS.retryOnBadAnswer),
   turnTimeoutMs: z.number().step(1).min(5_000).default(WATCH_DEFAULTS.turnTimeoutMs),
   maxConcurrent: z.number().step(1).min(1).max(8).default(WATCH_DEFAULTS.maxConcurrent),
   maxQueued: z.number().step(1).min(0).default(WATCH_DEFAULTS.maxQueued),
@@ -228,6 +246,8 @@ export interface ResolvedConfig {
   readonly immediateDingNotice: boolean
   readonly earlyMotionNotice: boolean
   readonly maxOutputTokens: number
+  readonly temperature: number
+  readonly retryOnBadAnswer: boolean
   readonly turnTimeoutMs: number
   readonly maxConcurrent: number
   readonly maxQueued: number
@@ -317,6 +337,8 @@ export function resolveConfig(config: Config): ResolvedConfig {
     immediateDingNotice: config.immediateDingNotice ?? WATCH_DEFAULTS.immediateDingNotice,
     earlyMotionNotice,
     maxOutputTokens: config.maxOutputTokens ?? WATCH_DEFAULTS.maxOutputTokens,
+    temperature: config.temperature ?? WATCH_DEFAULTS.temperature,
+    retryOnBadAnswer: config.retryOnBadAnswer ?? WATCH_DEFAULTS.retryOnBadAnswer,
     turnTimeoutMs: config.turnTimeoutMs ?? WATCH_DEFAULTS.turnTimeoutMs,
     maxConcurrent: config.maxConcurrent ?? WATCH_DEFAULTS.maxConcurrent,
     maxQueued: config.maxQueued ?? WATCH_DEFAULTS.maxQueued,
