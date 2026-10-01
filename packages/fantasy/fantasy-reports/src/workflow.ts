@@ -153,7 +153,7 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
   const players = new Map((await projected.fill(roster.players, 'the roster')).map((player, index) => [`P${index + 1}`, player]))
   const slots = settings.rosterSlots
   const name = (id: string): string => (players.get(id) as FantasyPlayer).name
-  const matchupTeams = matchups.find(matchup => matchup.teams.some(entry => entry.key === team.teamKey))?.teams
+  const matchupTeams = matchups.find(matchup => matchup.week === week && matchup.teams.some(entry => entry.key === team.teamKey))?.teams
   const ours = matchupTeams?.find(entry => entry.key === team.teamKey)
   const opponent = matchupTeams?.find(entry => entry.key !== team.teamKey)
   const code = optimizeLineup(players, slots, week)
