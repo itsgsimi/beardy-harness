@@ -643,7 +643,7 @@ export class CameraWatch {
         channelId,
         text: renderNotice({
           deviceLabel: device.label, occurredAt: event.occurredAt, timezone: this.config.timezone, reasons,
-          status: classification.status, verdict, text: classification.text,
+          status: classification.status, verdict,
           failure: classification.failure, captureFailure: event.captureFailure,
           lingerSeconds: verdict === undefined ? 0 : Math.round(lingeringMs(policyEvent, verdict) / 1_000),
           vehicle,

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-30-notices-without-model-text.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-30-notices-without-model-text.md
+/agent-note-notices-without-raw-model-text:
+  en: 3ced3942cc261ddf
+  zh: 1cfb3a8e9767c150
+/agent-note-notices-without-raw-model-text/problem:
+  en: 70f5ff1e2eb890f1
+  zh: d0222ced7b33cb0a
+/agent-note-notices-without-raw-model-text/decision:
+  en: d413191457e567ec
+  zh: 96422efe4db7e459
+/agent-note-notices-without-raw-model-text/alternatives-considered:
+  en: 512e7385ba2929ab
+  zh: 31de77d3eccef1ea
+/agent-note-notices-without-raw-model-text/consequences:
+  en: 2759edd7622b9215
+  zh: be6b3de96bc17ff7

@@ -38,7 +38,7 @@ describe('draft parsing', () => {
     }
     const row = (copy: Record<string, unknown>) => (copy.players as Array<Record<string, unknown>>)[0]!
     expect(() => parseDraft('no json')).toThrow('contains no JSON object')
-    expect(() => parseJsonObject('{"a":1} [2] }')).toThrow()
+    expect(() => parseJsonObject('{"a":1} [2] secret prose }')).toThrow(/^the response JSON object does not parse$/u)
     expect(parseJsonObject('[{"a":1}]')).toEqual({ a: 1 })
     expect(() => parseJsonObject('} {')).toThrow('contains no JSON object')
     expect(() => parseDraft(broken((copy) => { copy.players = {} }))).toThrow('players must be an array')

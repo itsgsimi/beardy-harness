@@ -69,7 +69,7 @@ describe('camera tool', () => {
       { id: 'ding', time: '2026-09-27 23:30:00', camera: 'Front door', kind: 'ding', description: 'A visitor rings.', labels: ['person'],
         counts: { person: 1 }, answers: { person_on_property: true, person_at_door: true, package_being_delivered: false }, checked: 'parsed',
         notified: true, reasons: ['ding'] },
-      { id: 'car', time: '2026-09-27 23:29:00', camera: 'Garage', kind: 'motion', description: 'A car, I think.', labels: [], counts: {},
+      { id: 'car', time: '2026-09-27 23:29:00', camera: 'Garage', kind: 'motion', description: 'Not described: the vision answer could not be read.', labels: [], counts: {},
         checked: 'unparsed', notified: false, reasons: [] },
       { id: 'dark', time: '2026-09-27 23:28:00', camera: 'Front door', kind: 'ding', description: 'No picture was captured.', labels: [], counts: {},
         checked: 'skipped (NO_FRAMES)', notified: false, reasons: ['ding'] },

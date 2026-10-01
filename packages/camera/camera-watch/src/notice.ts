@@ -24,7 +24,6 @@ export interface NoticeFacts {
   readonly reasons: readonly NoticeReason[]
   readonly status: VerdictStatus
   readonly verdict?: CameraVerdict | undefined
-  readonly text?: string | undefined
   readonly failure?: string | undefined
   readonly captureFailure?: CameraCaptureFailure | undefined
   /** Seconds a person stayed in view, for the lingering reason. */
@@ -71,7 +70,11 @@ export function renderDingNotice(facts: DingNoticeFacts): string {
   return `${heading(facts.deviceLabel, facts.occurredAt, facts.timezone)}: Someone rang the doorbell`
 }
 
+/** Line a notice states for an `unparsed` reading, whose raw model text never reaches a notice. */
+export const UNPARSED_LINE = 'The camera check could not describe this event.'
+
 function missingDescription(facts: NoticeFacts): string {
+  if (facts.status === 'unparsed') return UNPARSED_LINE
   if (facts.failure === 'NO_FRAMES') return 'No picture could be captured.'
   if (facts.failure === 'QUEUE_FULL') return 'Not checked: earlier events were still being checked.'
   return `The vision check did not answer (${facts.failure ?? 'unknown'}).`
@@ -89,8 +92,9 @@ export function headlineReasons(reasons: readonly NoticeReason[]): NoticeReason[
 
 /**
  * Compose the notice text: device, local time (marked `(update)` for an update), and reasons; the
- * description or why it is missing; the counted objects; and, for an early motion
- * notice, {@link FIRST_FRAME_LINE}. The result stays under 2000 characters.
+ * verdict's description or a fixed line saying why it is missing, such as {@link UNPARSED_LINE}; the
+ * counted objects; and, for an early motion notice, {@link FIRST_FRAME_LINE}. Raw model text never
+ * appears. The result stays under 2000 characters.
  * @param facts - event, reasons, and classification.
  * @returns notice text.
  */
@@ -101,8 +105,6 @@ export function renderNotice(facts: NoticeFacts): string {
     lines.push(facts.verdict.description)
     const counts = Object.entries(facts.verdict.counts).filter(([, count]) => count > 0).map(([label, count]) => `${label} ${String(count)}`)
     lines.push(counts.length === 0 ? 'Nothing counted' : `Seen: ${counts.join(', ')}`)
-  } else if (facts.status === 'unparsed') {
-    lines.push(facts.text ?? '')
   } else {
     lines.push(missingDescription(facts))
   }
