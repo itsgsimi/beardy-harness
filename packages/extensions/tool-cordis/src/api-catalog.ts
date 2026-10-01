@@ -1043,7 +1043,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'abstract matchups(key: TeamKeyType, week?: number, signal?: AbortSignal): Promise<readonly FantasyMatchup[]>',
         description: 'Read matchups involving one team.',
         parameters: [{ name: 'key', description: 'team identity.' }, { name: 'week', description: 'optional scoring week.' }, { name: 'signal', description: 'caller cancellation.' }],
-        returns: 'team matchups.',
+        returns: 'the team\'s matchup in `week` when given, otherwise every scheduled matchup of the season.',
       },
       {
         signature: 'abstract team(key: TeamKeyType, week: number, signal?: AbortSignal): Promise<FantasyRoster>',

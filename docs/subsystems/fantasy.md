@@ -73,7 +73,7 @@ abstract scoreboard(key: LeagueKeyType, week?: number, signal?: AbortSignal): Pr
  * @param key - team identity.
  * @param week - optional scoring week.
  * @param signal - caller cancellation.
- * @returns team matchups.
+ * @returns the team's matchup in `week` when given, otherwise every scheduled matchup of the season.
  */
 abstract matchups(key: TeamKeyType, week?: number, signal?: AbortSignal): Promise<readonly FantasyMatchup[]>
 
