@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { registerCronRunJob } from '../src/launch.ts'
 import { createCronManageTool } from '../src/tool.ts'
 import { CONFIG_JOB, makeRegistry, storedRow } from './support.ts'
 
@@ -8,7 +9,7 @@ function setup(
   options: Parameters<typeof makeRegistry>[1] = {},
   deps: {
     readonly requireApproval?: boolean
-    readonly approvalOutcome?: 'allowed-once' | 'rejected'
+    readonly approvalOutcome?: 'allowed-once' | 'rejected' | 'unavailable'
     readonly armed?: boolean
   } = {},
 ) {
@@ -16,7 +17,8 @@ function setup(
   const approval = deps.approvalOutcome === undefined
     ? undefined
     : { request: vi.fn(async () => deps.approvalOutcome as string) }
-  const ctx = new Context().extend({ get: (service: string) => service === 'approval' ? approval : undefined })
+  const logger = { info: vi.fn() }
+  const ctx = new Context().extend({ get: (service: string) => service === 'approval' ? approval : undefined, logger })
   const exec = {
     agent: { session: { header: { id: 'session-1' } } },
     callId: 'call-1',
@@ -24,7 +26,7 @@ function setup(
   }
   const runNow = vi.fn((): boolean => deps.armed ?? true)
   const tool = createCronManageTool(ctx, registry, { requireApproval: deps.requireApproval ?? false, runNow })
-  return { registry, jobsTable, stateTable, runNow, approval, tool, exec: exec as never }
+  return { registry, jobsTable, stateTable, runNow, approval, logger, tool, exec: exec as never, agent: exec.agent as never }
 }
 
 /** A full create argument set in the model-facing snake_case spelling. */
@@ -234,6 +236,47 @@ describe('cron_manage tool', () => {
     expect(h.stateTable.rows.get('morning-brief')?.notes).toBe('Weather source flaky.')
     await expect(h.tool.execute({ action: 'note', name: CONFIG_JOB.name, notes: 'x'.repeat(401) }, h.exec))
       .rejects.toThrow('above the cap of 400; condense the continuity notes and retry')
+  })
+
+  it('lets a live run replace its own job notes without approval, within the cap', async () => {
+    const h = setup({ state: { [CONFIG_JOB.name]: { notes: 'Old note', lastRuns: [] } } }, { requireApproval: true })
+    const release = registerCronRunJob(h.agent, CONFIG_JOB.name)
+    try {
+      const noted = await h.tool.execute({ action: 'note', name: CONFIG_JOB.name, notes: 'Reported A.' }, h.exec) as { message: string }
+      expect(noted.message).toContain('replaced')
+      expect(h.stateTable.rows.get(CONFIG_JOB.name)?.notes).toBe('Reported A.')
+      expect(h.logger.info).toHaveBeenCalledWith('dsh-cron: job "morning-brief" updated its continuity notes (11 chars)')
+      await expect(h.tool.execute({ action: 'note', name: CONFIG_JOB.name, notes: 'x'.repeat(401) }, h.exec))
+        .rejects.toThrow('above the cap of 400')
+      expect(h.stateTable.rows.get(CONFIG_JOB.name)?.notes).toBe('Reported A.')
+    } finally {
+      release()
+    }
+    await expect(h.tool.execute({ action: 'note', name: CONFIG_JOB.name, notes: 'After the run.' }, h.exec))
+      .rejects.toThrow('no approval service is mounted')
+  })
+
+  it('keeps approval for another job\'s notes and other actions from a live run', async () => {
+    const h = setup({ stored: [storedRow('pr-check')], state: { 'pr-check': { notes: 'Theirs', lastRuns: [] } } }, { requireApproval: true })
+    const release = registerCronRunJob(h.agent, CONFIG_JOB.name)
+    try {
+      await expect(h.tool.execute({ action: 'note', name: 'pr-check', notes: 'Overwritten.' }, h.exec))
+        .rejects.toThrow('cron job note "pr-check" needs approval')
+      await expect(h.tool.execute({ action: 'run_now', name: CONFIG_JOB.name }, h.exec))
+        .rejects.toThrow('cron job run_now "morning-brief" needs approval')
+      expect(h.stateTable.rows.get('pr-check')?.notes).toBe('Theirs')
+      expect(h.logger.info).not.toHaveBeenCalled()
+    } finally {
+      release()
+    }
+    const unavailable = setup({ stored: [storedRow('pr-check')] }, { requireApproval: true, approvalOutcome: 'unavailable' })
+    const releaseOther = registerCronRunJob(unavailable.agent, CONFIG_JOB.name)
+    try {
+      await expect(unavailable.tool.execute({ action: 'note', name: 'pr-check', notes: 'Overwritten.' }, unavailable.exec))
+        .rejects.toThrow('cron job note "pr-check" was not approved (unavailable); nothing changed')
+    } finally {
+      releaseOther()
+    }
   })
 
   it('requires a name for every single-job action and full definitions on create', async () => {

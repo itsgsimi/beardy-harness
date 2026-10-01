@@ -66,7 +66,7 @@ cron 行上的 `modelSelection: { provider, model, reasoningEffort? }` 为每次
 
 #### 模型看到什么
 
-一个带 `action` 枚举的工具：`list`、`create`、`update`、`delete`、`pause`、`resume`、`run_now` 与 `note`。create 必须提供名称、计划、时区、提示词、预设组合与工作区；标题、任务专属超时和投递渠道可选。update 必须提供名称及至少一个修改字段；delete、pause、resume、run_now 必须提供名称；note 必须提供名称和替换笔记。结果是简短的确认行；`list` 额外为每个任务给出一行，标明其来源（`config` 或 `stored`）与armed 状态。
+一个带 `action` 枚举的工具：`list`、`create`、`update`、`delete`、`pause`、`resume`、`run_now` 与 `note`。create 必须提供名称、计划、时区、提示词、预设组合与工作区；标题、任务专属超时和投递渠道可选。update 必须提供名称及至少一个修改字段；delete、pause、resume、run_now 必须提供名称；note 必须提供名称和替换笔记，工具描述告诉模型任务可在自身运行期间替换自己的笔记。结果是简短的确认行；`list` 额外为每个任务给出一行，标明其来源（`config` 或 `stored`）与armed 状态。
 
 #### Token 影响
 
@@ -81,7 +81,7 @@ cron 行上的 `modelSelection: { provider, model, reasoningEffort? }` 为每次
 <a id="known-limitations-and-deferred-work"></a>
 
 - **放开之前创建保持锁定** —— `allowedAgentPresets`、`allowedPermissionPresets` 与 `allowedWorkspaceRoots` 默认为空，因此存储任务的创建会被拒绝，直到操作者在配置中列入允许的预设与根目录。创建和更新时通过 `realpath` 比较工作区与根目录；每次触发都会重新检查存储任务的工作区，若越出根目录就记录失败结果。
-- **受审批的写入需要审批服务** —— `requireApproval` 开启（默认）且没有挂载审批服务时，create、update、delete、resume、run_now 与 note 会直接拒绝，而不是未经批准落地。审批请求显示拟创建的任务或字段变化，工具只应用获批的值。
+- **受审批的写入需要审批服务** —— `requireApproval` 开启（默认）且没有挂载审批服务时，create、update、delete、resume、run_now 与 note 会直接拒绝，而不是未经批准落地。审批请求显示拟创建的任务或字段变化，工具只应用获批的值。为了在无人审批时保持连续性，有一个例外：活动运行自己的 Session 可以替换该任务的笔记，仍受 `notesMaxChars` 约束，宿主会以 info 级别记录。对其他任务的笔记以及其他所有操作仍需审批。
 - **投递需要接受交接的监听器** —— `cron/run-finished` 使用有时限的串行交接。面向渠道的结果会保持待投递，直到监听器持久接受。如果前一次运行的输出未能在任务的超时期限内投递，下一次触发会记录 `skipped` 和 `PREVIOUS_OUTCOME_PENDING`。跳过通知会继续重试，但不会阻止后续运行开始。
 - **停机期间错过的触发不补跑** —— 进程停止期间本应触发的计划会在恢复后被跳过；下一个计划时间照常运行。
 - **每个任务只重叠一次触发** —— 仍在运行的任务会让下一次触发记录为 `skipped` 和 `PREVIOUS_RUN_IN_PROGRESS`，而不是排队。历史记录及可选的 Discord 通知会保留原因。其他任务的 Session 清理不会占用此任务的重叠保护。

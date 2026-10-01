@@ -64,7 +64,7 @@ Every fire starts a new session whose preset composition forms its own initial p
 
 #### What the model sees
 
-One tool with an `action` enum: `list`, `create`, `update`, `delete`, `pause`, `resume`, `run_now`, and `note`. Create requires a name, schedule, timezone, prompt, preset pair, and workspace; a title, per-job timeout, and delivery channel are optional. Update requires a name and at least one patch field; delete, pause, resume, and run_now require a name; note requires a name and replacement notes. Results are short confirmation lines plus, for `list`, one line per job with its origin (`config` or `stored`) and arm state.
+One tool with an `action` enum: `list`, `create`, `update`, `delete`, `pause`, `resume`, `run_now`, and `note`. Create requires a name, schedule, timezone, prompt, preset pair, and workspace; a title, per-job timeout, and delivery channel are optional. Update requires a name and at least one patch field; delete, pause, resume, and run_now require a name; note requires a name and replacement notes, and the description tells the model that a job may replace its own notes during its run. Results are short confirmation lines plus, for `list`, one line per job with its origin (`config` or `stored`) and arm state.
 
 #### Token effect
 
@@ -79,7 +79,7 @@ Registration is static per composition, so the schema does not churn mid-session
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Creation stays locked until opened** — `allowedAgentPresets`, `allowedPermissionPresets`, and `allowedWorkspaceRoots` default to empty, so a stored create is refused until the operator whitelists presets and roots in configuration. Workspace and root paths are compared by `realpath` on create and update; every fire rechecks the stored workspace and records a failed outcome if it escapes the roots.
-- **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, delete, resume, run_now, and note refuse rather than land unapproved. Approval requests show the proposed job or field changes, and the tool applies the approved values.
+- **Gated writes need an approval service** — with `requireApproval` on (the default) and no approval service mounted, create, update, delete, resume, run_now, and note refuse rather than land unapproved. Approval requests show the proposed job or field changes, and the tool applies the approved values. One exception keeps continuity working without an approver: a live run's own Session may replace that job's notes, still within `notesMaxChars`, and the host logs it at info. Notes on any other job, and every other action, stay gated.
 - **Delivery needs an accepting listener** — `cron/run-finished` uses a bounded serial handoff. A channel-bound outcome stays pending until a listener durably accepts it. If the previous run's output cannot be delivered within the job's timeout, the next fire records `skipped` with `PREVIOUS_OUTCOME_PENDING`. Skipped notices retry without blocking later starts.
 - **Fires during downtime are not made up** — a schedule that should have fired while the process was stopped is skipped when it comes back; the next scheduled time runs normally.
 - **One overlapping fire per job** — a still-running job causes the next fire to be recorded as `skipped` with `PREVIOUS_RUN_IN_PROGRESS` rather than queued. The history row and optional Discord notice retain the reason. Session cleanup of other jobs does not hold the overlap guard.

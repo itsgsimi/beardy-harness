@@ -44,6 +44,32 @@ export function cronApprovalRoute(agent: Agent): { channelId?: string } | undefi
   return activeApprovalRoutes.get(agent)
 }
 
+/**
+ * Job identity of each live run's Agent, kept apart from the approval route so the public route seam
+ * cannot grant self-note authority; the package entry does not export its registration.
+ */
+const activeRunJobs = new WeakMap<Agent, string>()
+
+/**
+ * Record which job one live run's Agent belongs to until its turn settles.
+ * @param agent - the active run's Agent.
+ * @param jobName - name of the job that fired the run.
+ * @returns disposer for the association.
+ */
+export function registerCronRunJob(agent: Agent, jobName: string): () => void {
+  activeRunJobs.set(agent, jobName)
+  return () => { activeRunJobs.delete(agent) }
+}
+
+/**
+ * Name the job whose live unattended run owns this Agent.
+ * @param agent - Agent calling a cron tool.
+ * @returns the running job's name, or undefined for any Agent outside a live run, including run subagents.
+ */
+export function cronRunJobName(agent: Agent): string | undefined {
+  return activeRunJobs.get(agent)
+}
+
 /** Everything a run needs from the host and the plugin's configuration. */
 export interface JobRunnerDeps {
   /** Model choice inherited by configured jobs without an override and all stored jobs. */
@@ -155,6 +181,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
     async run(job: ScheduledJobSpec, firedAt: number, sessionId = SessionId(`cron-${job.name}-${randomUUID()}`)): Promise<CronRunResult> {
       let session: UnattendedSession | undefined
       let releaseApprovalRoute: (() => void) | undefined
+      let releaseRunJob: (() => void) | undefined
       const bound = new AbortController()
       const runSignal = AbortSignal.any([signal, bound.signal])
       const timeoutMs = job.turnTimeoutMs ?? deps.turnTimeoutMs
@@ -190,6 +217,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         signal.throwIfAborted()
         const agent = session.handle.agent
         releaseApprovalRoute = registerCronApprovalRoute(agent, job.deliverChannelId)
+        releaseRunJob = registerCronRunJob(agent, job.name)
         const firstSeq = agent.session.seq
         agent.followup(createUserMessage({
           content: [{ type: 'text', text: runPrompt(job) }],
@@ -258,6 +286,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         return { outcome: 'failed', sessionId, text: '', failure: { code: 'UNKNOWN', message: errorChain(error) } }
       } finally {
         releaseApprovalRoute?.()
+        releaseRunJob?.()
         bound.abort(new Error('cron turn settled'))
       }
     },

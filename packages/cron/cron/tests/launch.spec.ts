@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { SessionSeq, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ConfiguredModelSelection } from '@deepseek-ai/dsh-unattended-session'
-import { CONTINUITY_WITHOUT_NOTES, CONTINUITY_WITH_NOTES, createJobRunner, runPrompt, runTitle } from '../src/launch.ts'
+import { CONTINUITY_WITHOUT_NOTES, CONTINUITY_WITH_NOTES, createJobRunner, cronApprovalRoute, cronRunJobName, runPrompt, runTitle } from '../src/launch.ts'
 import type { ScheduledJobSpec } from '../src/types.ts'
 import { makeRegistry, storedRow } from './support.ts'
 
@@ -176,6 +176,19 @@ describe('run prompt', () => {
 })
 
 describe('job runner', () => {
+  it('names the running job for its own Agent only until the turn settles', async () => {
+    const h = harness({ hang: true, replyText: 'Done.' })
+    const agent = h.handle.agent as never
+    expect(cronRunJobName(agent)).toBeUndefined()
+    const running = h.runner.run(JOB, FIRED_AT)
+    await vi.waitFor(() => { expect(cronRunJobName(agent)).toBe('morning-brief') })
+    expect(cronApprovalRoute(agent)).toEqual({})
+    h.releaseIdle()
+    await running
+    expect(cronRunJobName(agent)).toBeUndefined()
+    expect(cronApprovalRoute(agent)).toBeUndefined()
+  })
+
   it('inherits the full default selection when no cron choice is configured', async () => {
     const h = harness()
     await h.runner.run(JOB, FIRED_AT)
