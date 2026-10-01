@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ResearchOwner } from '@deepseek-ai/dsh-research/types'
-import { resolveConfig, type Config } from '../src/config.ts'
-import { weeklyReportWorkflow, type EarlierReport } from '../src/workflow.ts'
-import { FANTASY_STAGE_SYSTEM_PROMPT } from '../src/prompts.ts'
+import type { FantasyRoster, TeamKey } from '@deepseek-ai/dsh-fantasy/types'
 import { RESEARCH_JSON_CORRECTION } from '@deepseek-ai/dsh-research-local/src/prompts.ts'
+import { resolveConfig, type Config } from '../src/config.ts'
+import { FANTASY_STAGE_SYSTEM_PROMPT } from '../src/prompts.ts'
+import { CUT_NOTICE } from '../src/render.ts'
+import { weeklyReportWorkflow, type EarlierReport } from '../src/workflow.ts'
 import {
-  WEDNESDAY_WEEK_3, harness, playerFetch, playerPage, playerSearch, promptOf, validDraft, yahoo,
-  type Harness, type Reply,
+  WEDNESDAY_WEEK_3, harness, lockedRoster, playerFetch, playerPage, playerSearch, promptOf, replies, stageModel, stageOf, synthetic, yahoo,
+  type FantasyData, type Harness, type Reply,
 } from './support.ts'
 
 const harnesses: Harness[] = []
@@ -20,200 +22,209 @@ const base = {
   searchesPerPlayer: 2, pagesPerPlayer: 1, maxConcurrentFetches: 1,
 } satisfies Config
 
-const pass = JSON.stringify({ issues: [] })
-
-/** Reviewer answer shape observed live: prose plus a tool call written as text. */
-const REVIEWER_PSEUDO_TOOL_CALL = 'I need to verify the injury report before auditing.\n<tool_call>\n<function=session_search>\n'
-  + '<parameter=query>Bijan Robinson week 3 practice</parameter>\n</function>\n</tool_call>'
-
-/** Writer answer shape observed live: prose plus a shell command instead of the JSON draft. */
-const WRITER_PROSE_ANSWER = 'Let me pull the latest practice reports first.\n\n```bash\ncurl -s https://www.espn.com/nfl/injuries\n```'
+/** Each case persists a 15-player run with every ledger write flushed to JSONL. */
+const RUN_CASE_TIMEOUT_MS = 90_000
 
 function systemOf(request: Parameters<typeof promptOf>[0]): string {
   return request.messages.filter(message => message.role === 'system')
     .flatMap(message => message.content.map(block => block.type === 'text' ? block.text : '')).join('\n')
 }
 
-/** Each case persists a 15-player run with every ledger write flushed to JSONL. */
-const RUN_CASE_TIMEOUT_MS = 90_000
-
-async function execute(replies: readonly Reply[], overrides: Partial<Config> = {}, options: Parameters<typeof harness>[1] = {},
-  history: readonly EarlierReport[] = []) {
-  const h = await harness(replies, options)
+async function execute(script: readonly Reply[], overrides: Partial<Config> = {}, options: Parameters<typeof harness>[1] & {
+  data?: Partial<FantasyData>
+  history?: readonly EarlierReport[]
+} = {}) {
+  const h = await harness(script, options)
   harnesses.push(h)
+  h.fantasy.data = { ...h.fantasy.data, ...options.data }
   const config = resolveConfig(Object.assign({}, base, overrides))
   const caller = await h.ctx.agents.create({ sessionId: SessionId('fantasy-test-caller') })
   const owner: ResearchOwner = { kind: 'profile', namespace: 'beardy' }
   const view = await h.research.start({ caller: caller.agent.session, owner, query: 'Weekly report',
     workflow: weeklyReportWorkflow(h.ctx, config, { team: config.teams[0]!, settings: yahoo.settings, season: '2026', week: 3,
-      mode: 'full', firedAt: WEDNESDAY_WEEK_3, history }) })
+      mode: 'full', firedAt: WEDNESDAY_WEEK_3, history: options.history ?? [] }) })
   await h.research.whenDone(view.id)
   await caller.dispose()
   const status = await h.research.status(view.id, owner)
   const handle = await h.ctx.sessionPersistence.open(SessionId(view.id), 'read')
   const events = (await handle.read()).events
   await handle.close()
-  return { h, owner, status, events, id: view.id,
-    report: status.phase === 'completed' ? await h.research.report(view.id, owner) : undefined }
+  const report = status.phase === 'completed' ? await h.research.report(view.id, owner) : undefined
+  const evidence = report === undefined ? undefined
+    : JSON.parse(await readEvidence(h, report.evidenceRef)) as Record<string, unknown>
+  return { h, owner, status, events, id: view.id, report, evidence,
+    stages: h.adapter.requests.map(request => stageOf(request).stage) }
 }
 
-describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
-  it('publishes a code-checked, reviewed report with one cited source per player and a full ledger', async () => {
+/** The week 3 roster with Yahoo projections, and the same roster as the opponent's. */
+function projected(): { roster: FantasyRoster; opponent: FantasyRoster } {
+  const roster = { ...yahoo.roster, players: yahoo.roster.players.map((player, index) => index === 14 ? player
+    : { ...player, projectedPoints: 20 - index }) }
+  return { roster, opponent: { ...roster, team: { ...roster.team, key: '470.l.809970.t.3' as TeamKey },
+    players: [...roster.players, synthetic('Unslotted', ['WR'], { projectedPoints: 50 })] } }
+}
+
+describe('weekly report pipeline', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
+  it('runs code facts, batched player calls, close calls, waivers, the reason check, and the summary, then publishes', async () => {
     const earlier: EarlierReport = { runId: 'rp-native-earlier', week: 2, mode: 'sunday', markdown: '# Week 2 Sunday advice\nStart Hall.' }
-    const { h, status, events, report } = await execute([JSON.stringify(validDraft()), pass], {}, {}, [earlier])
+    const { h, status, events, report, evidence, stages } = await execute(replies(), {},
+      { data: { freeAgents: { WR: yahoo.available } }, history: [earlier] })
     expect(status).toMatchObject({ phase: 'completed', sourceCount: 15 })
-    expect(status.stageSessionIds).toHaveLength(2)
-    const writer = promptOf(h.adapter.requests[0]!)
-    expect(writer).toContain('Yahoo context (authoritative league data)')
-    expect(writer).toContain('"id":"P9","name":"Jayden Daniels"')
-    expect(writer).toContain('--- Earlier week 2 sunday report ---\n# Week 2 Sunday advice')
-    expect(writer).toContain(playerPage(0).text)
-    const reviewer = promptOf(h.adapter.requests[1]!)
-    expect(reviewer).toContain('Draft under review')
+    expect(stages).toEqual(['player calls', 'player calls', 'player calls', 'close calls', 'waiver picks', 'reason check', 'summary'])
+    expect(status.stageSessionIds).toHaveLength(7)
+    expect(h.fantasy.freeAgentReads).toEqual(['WR'])
+    const first = promptOf(h.adapter.requests[0]!)
+    expect(first).toMatch(/^Stage: player calls\. This is the midweek full report\./u)
+    expect(first).toContain('Return ONLY this JSON object with exactly these keys (P1, P2, P3, P4, P5)')
+    expect(first).toContain(`"excerpts":[{"source":1,"text":"${playerPage(0).text.replace('Week 3 notes. ', '')}"}]`)
+    expect(first).toContain('"id":"P5","name":"Zay Flowers","nflTeam":"Bal","positions":["WR"],"status":"Q","injury":"Hamstring",'
+      + '"bye":13,"projection":null,"yahooSlot":"WR","slotLocked":false,"codeCall":"START","codeSlot":"WR"')
+    expect(first).toContain('"matchup":{"week":3,"team":"The Googies","opponent":"Team 5","projected":{"team":116.14,"opponent":94.56}}')
+    expect(promptOf(h.adapter.requests[3]!)).toContain('"flagged":"uncertain starter"')
+    expect(promptOf(h.adapter.requests[4]!)).toContain('"positions":[{"position":"WR","reasons":["Zay Flowers is Q"],"projectionGap":null}]')
+    expect(promptOf(h.adapter.requests[6]!)).toContain('--- Earlier week 2 sunday report ---\\n# Week 2 Sunday advice')
     expect(h.adapter.requests.every(request => (request.tools ?? []).length === 0)).toBe(true)
-    expect(report!.markdown).toContain('# The Googies · 2026 week 3 full report')
-    expect(report!.markdown).toContain('- **W/R/T** — Breece Hall')
-    expect(report!.markdown).toContain('[1](<https://news.example/p1>)')
-    expect(report!.markdown).not.toContain('Changes from your Yahoo lineup')
-    const evidence = JSON.parse(await readEvidence(h, report!.evidenceRef)) as Record<string, unknown>
-    expect(evidence).toMatchObject({ workflow: 'fantasy-weekly-report', week: 3, mode: 'full',
-      history: [{ runId: 'rp-native-earlier', week: 2, mode: 'sunday' }], structuralRepairs: 0 })
+    expect(h.adapter.requests.every(request => systemOf(request) === FANTASY_STAGE_SYSTEM_PROMPT)).toBe(true)
+    const markdown = report!.markdown
+    expect(markdown).toContain('# The Googies · 2026 week 3 full report')
+    expect(markdown).toContain('## Summary\nThe Googies keep their Yahoo lineup this week.')
+    expect(markdown).toContain('- **W/R/T** Breece Hall · NYJ · proj n/a\n')
+    expect(markdown).toContain('**Zay Flowers or Jordan Addison** (WR)\nZay Flowers stays ahead of Jordan Addison this week.')
+    expect(markdown).toContain('## Waiver ideas\n- **Olamide Zaccheaus** · WR · Atl — The best available fill-in.')
+    expect(markdown).toContain('**Trevor Lawrence — START** · QB · Jax · bye 7\nTrevor Lawrence keeps the code call. [1](<https://news.example/p1>)')
+    expect(markdown).not.toContain('Changes from your Yahoo lineup')
+    expect(markdown).not.toContain('code reason')
+    expect(evidence).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v6', week: 3, mode: 'full',
+      history: [{ runId: 'rp-native-earlier', week: 2, mode: 'sunday' }], waivers: ['W1'], comparisons: ['C1'], caveats: [] })
+    expect((evidence!.stages as unknown[]).every(stage => (stage as { usable: boolean }).usable)).toBe(true)
     const started = events.find(event => event.type === 'research/started')
-    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v5',
+    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v6',
       budgets: { stageTimeoutMs: 1_200_000, hardRunTimeoutMs: 14_400_000 } })
     expect(events.filter(event => event.type === 'research/search')).toHaveLength(15)
     expect(events.filter(event => event.type === 'research/finding' && event.data.accepted)).toHaveLength(15)
   })
 
-  it('repairs a nonliteral quote structurally before the factual review and records the repair', async () => {
-    const draft = validDraft()
-    const broken = { ...draft, players: draft.players.map(row => row.player === 'P2'
-      ? { ...row, facts: [{ ...row.facts[0]!, quote: 'was officially cleared by doctors' }] } : row) }
-    const patch = JSON.stringify({ players: [draft.players[1]], lineup: [], actions: [], decisions: [], caveats: [] })
-    const { h, status, report } = await execute([JSON.stringify(broken), patch, pass])
+  it('retries invalid or missing players once in a request for just those ids, then keeps the code default', async () => {
+    let calls = 0
+    const model = stageModel({ 'player calls': (data) => {
+      calls++
+      const sheets = data.players!
+      if (calls === 1) {
+        return { P1: { call: 'START', reason: 'Starts.', sources: [] }, P2: { call: 'BENCH', reason: 'Bench.' },
+          P4: { call: 'START', reason: 'Starts.', sources: [99] }, P5: { call: 'START', reason: 'Starts.' } }
+      }
+      if (calls === 2) return { P2: { call: 'START', reason: 'Lead back.', sources: [2] }, P3: 'START' }
+      return Object.fromEntries(sheets.map(sheet => [sheet.id, { call: sheet.codeCall, reason: 'Code call.' }]))
+    } })
+    const { h, status, report, stages } = await execute(replies(model), { playersPerStage: 8, checkReasons: false, maxCloseCalls: 0 })
     expect(status.phase).toBe('completed')
-    const repair = promptOf(h.adapter.requests[1]!)
-    expect(repair).toContain('P2: fact 0 quote is not a 12 to 300 character excerpt of source 2')
-    expect(repair).toContain('"player":"P2"')
-    expect(report!.markdown).not.toContain('cleared by doctors')
+    expect(stages).toEqual(['player calls', 'player calls', 'player calls', 'summary'])
+    const retry = stageOf(h.adapter.requests[1]!).data
+    expect(retry.players!.map(sheet => sheet.id)).toEqual(['P2', 'P3', 'P4', 'P6', 'P7', 'P8'])
+    expect(report!.markdown).toContain('**Jahmyr Gibbs — START** · RB · Det · bye 6\nLead back. [2](<https://news.example/p2>)')
+    expect(report!.markdown).toContain('- Code defaults stand for Omarion Hampton, Parker Washington, Tyler Warren, Breece Hall, '
+      + 'Jordan Addison: no valid model call after one retry (P3: not an object; P4: missing; P6: missing; P7: missing; P8: missing).')
+    expect(report!.markdown).toContain('**Omarion Hampton — START** · RB · LAC · bye 7 · code reason\nStarts at RB; Yahoo shows no projection.')
   })
 
-  it('keys a writer draft that named its players and a structural repair that wrote rationale, as the live stages answered', async () => {
-    const draft = validDraft()
-    const names = new Map(yahoo.roster.players.map((player, index) => [`P${index + 1}`, player.name]))
-    const named = { ...draft, players: draft.players.map(row => ({ ...row, player: names.get(row.player)!,
-      ...(row.player === 'P1' ? { facts: [{ ...row.facts[0]!, quote: 'was officially cleared by doctors' }] } : {}) })) }
-    const { player: _player, reason: _reason, ...rest } = draft.players[0]!
-    const patch = JSON.stringify({ players: [{ player: 'P1', ...rest, confidence: 'High', rationale: 'Lawrence keeps the QB spot.',
-      sources: [1] }], lineup: [], actions: [], decisions: [], caveats: [] })
-    const { h, status, report } = await execute([JSON.stringify(named), patch, pass])
+  it('takes the corrective JSON answer after a pseudo tool call and keeps a stage error from stopping the report', async () => {
+    const pseudo = 'I need to verify the injury report first.\n<tool_call>\n<function=session_search>\n</function>\n</tool_call>'
+    const corrected = stageModel({ 'player calls': (data, request) => promptOf(request) === RESEARCH_JSON_CORRECTION
+      ? Object.fromEntries(data.players!
+        .map(sheet => [sheet.id, { call: sheet.codeCall, reason: 'Corrected answer.', sources: sheet.excerpts.map(item => item.source) }]))
+      : pseudo })
+    const { h, status, report } = await execute([corrected, corrected], { playersPerStage: 15 },
+      { data: { freeAgents: { WR: [synthetic('Free Wide', ['WR'], { rank: 3, percentOwned: 20 })] } } })
     expect(status.phase).toBe('completed')
-    const repair = promptOf(h.adapter.requests[1]!)
-    expect(repair).toContain('- P1: fact 0 quote is not a 12 to 300 character excerpt of source 1')
-    expect(repair).not.toContain('not a roster id')
-    expect(repair).toContain('"player":"P1"')
-    expect(repair).toContain('never a name: {"player":"P1","recommendation":"START|SIT|CONDITIONAL|HOLD","confidence":"high|medium|low","facts":[')
-    expect(report!.markdown).toContain('Lawrence keeps the QB spot.')
+    expect(promptOf(h.adapter.requests[1]!)).toBe(RESEARCH_JSON_CORRECTION)
+    expect(report!.markdown).toContain('**Trevor Lawrence — START** · QB · Jax · bye 7\nCorrected answer. [1](<https://news.example/p1>)')
+    expect(report!.markdown).toContain('- No comparison of Zay Flowers and Jordan Addison: the close-call answer was unusable.')
+    expect(report!.markdown).toContain('- No waiver ideas: the waiver answer was unusable.')
+    expect(report!.markdown).toContain('- The reason check did not run: its answer was unusable.')
+    expect(report!.markdown).toContain('- The summary is written by code: the summary answer was unusable.')
+    expect(report!.markdown).toContain('## Summary\nThe Googies faces Team 5; Yahoo projects 116.1 to 94.6. '
+      + 'The suggested lineup keeps every current Yahoo starter.')
   })
 
-  it('applies an anchored factual finding, discards unanchored ones, and publishes after a clean second review', async () => {
-    const draft = validDraft()
-    const review = JSON.stringify({ issues: [
-      { player: 'P7', kind: 'contradicts_source', claim: 'Row P7: the practice report supports this choice.',
-        evidence: 'Breece Hall practiced fully on Wednesday', problem: 'Overstated.', fix: 'Say he practiced fully.' },
-      { player: 'P7', kind: 'fabricated_or_external_fact', claim: 'Hall had 30 carries last week', evidence: '', problem: 'x', fix: 'Remove.' },
-      { player: 'P1', kind: 'wording_or_precision', claim: 'Row P1: the practice report supports this choice.', evidence: '', problem: 'x', fix: 'Reword.' },
-    ] })
-    const { player: _player, ...row } = draft.players[6]!
-    const patch = JSON.stringify({ players: [{ id: 'P7', ...row, reason: 'Hall practiced fully and keeps the flex.' }],
-      lineup: [], actions: [], decisions: [], caveats: [] })
-    const { h, status, report } = await execute([JSON.stringify(draft), review, patch, pass])
-    expect(status.phase).toBe('completed')
-    expect(promptOf(h.adapter.requests[2]!)).toContain('Reviewer findings')
-    expect(promptOf(h.adapter.requests[2]!)).toContain('the roster id from the draft in "player", never a name: {"player":"P1","recommendation":"START|SIT|CONDITIONAL|HOLD"')
-    expect(report!.markdown).toContain('Hall practiced fully and keeps the flex.')
-    const evidence = JSON.parse(await readEvidence(h, report!.evidenceRef)) as {
-      reviews: Array<{ issues: unknown[]; discarded: unknown[] }>
-    }
-    expect(evidence.reviews[0]!.issues).toHaveLength(1)
-    expect(evidence.reviews[0]!.discarded.map(item => (item as { reason: string }).reason)).toEqual(['claim not in draft', 'wording only'])
+  it('applies legal model swaps, rejects locked and unavailable moves, and drops unusable stage items', async () => {
+    const model = stageModel({
+      'player calls': data => Object.fromEntries(data.players!
+        .map(sheet => [sheet.id, { call: { P4: 'SIT', P5: 'SIT', P8: 'START', P9: 'START' }[sheet.id] ?? sheet.codeCall,
+          reason: `Call for ${sheet.id}.`, sources: sheet.excerpts.map(item => item.source) }])),
+      'waiver picks': () => ({ picks: [{ id: 'W7', reason: 'Unknown.' }, { id: 'W1', reason: 'https://x.example' }] }),
+      'reason check': () => ({ unsupported: ['P8', 'P99'] }),
+    })
+    const { report, evidence } = await execute(replies(model), { playersPerStage: 15 },
+      { data: { roster: lockedRoster([3]), freeAgents: { WR: yahoo.available } } })
+    const markdown = report!.markdown
+    expect(markdown).toContain('Changes from your Yahoo lineup: start Jordan Addison, bench Zay Flowers.')
+    expect(markdown).toContain('- **WR** Parker Washington · Jax · proj n/a · locked')
+    expect(markdown).toContain('**Zay Flowers — SIT** · WR · Bal · bye 13\nCall for P5. [5](<https://news.example/p5>)')
+    expect(markdown).toContain('**Jordan Addison — START** · WR · Min · bye 6 · code reason\nStarts at WR; Yahoo shows no projection.')
+    expect(markdown).toContain('- Code kept the lineup call for Parker Washington: the model call was rejected because '
+      + 'Yahoo has locked his slot because his game has started.')
+    expect(markdown).toContain('- Code kept the lineup call for Jayden Daniels: the model call was rejected because '
+      + 'he cannot start while Yahoo status O.')
+    expect(markdown).toContain('- The reason check found no support for the model reasons of Jordan Addison; plain Yahoo reasons replace them.')
+    expect(markdown).not.toContain('## Waiver ideas')
+    expect(evidence!.waivers).toEqual([])
   })
 
-  it('withholds publication when the last review still finds a wrong team or schedule', async () => {
-    const draft = validDraft()
-    const wrongTeam = JSON.stringify({ issues: [{ player: 'P1', kind: 'wrong_team_or_schedule',
-      claim: 'Row P1: the practice report supports this choice.', evidence: '', problem: 'Wrong opponent.', fix: 'Use the source.' }] })
-    const patch = JSON.stringify({ players: [], lineup: [], actions: ['Keep the lineup.'], decisions: [], caveats: [] })
-    const { status } = await execute([JSON.stringify(draft), wrongTeam, patch, wrongTeam, patch, wrongTeam], { maxReviews: 3 })
-    expect(status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('fantasy report withheld: the last review') as string })
+  it('drops unusable close calls, waiver answers, reason checks, and summaries without withholding', async () => {
+    const model = stageModel({ 'close calls': () => 'Flowers or Addison? Hard to say.', 'waiver picks': () => ({ picks: 'W1' }),
+      'reason check': () => ({ unsupported: 'P1' }), summary: () => ({ summary: 'Short.' }) })
+    const { report, evidence } = await execute(replies(model), {}, { data: { freeAgents: { WR: yahoo.available } } })
+    const markdown = report!.markdown
+    expect(markdown).toContain('- No comparison of Zay Flowers and Jordan Addison: the close-call answer was unusable.')
+    expect(markdown).toContain('- No waiver ideas: the waiver answer was unusable.')
+    expect(markdown).toContain('- The reason check did not run: its answer was unusable.')
+    expect(markdown).toContain('- The summary is written by code: the summary answer was unusable.')
+    expect((evidence!.stages as Array<{ stage: string; usable: boolean; detail?: string }>).filter(stage => !stage.usable)).toEqual([
+      { stage: 'close calls', usable: false, detail: 'Error: the response contains no JSON object' },
+      { stage: 'waivers', usable: false, detail: 'Error: picks must be an array' },
+      { stage: 'reason check', usable: false, detail: 'Error: unsupported must be an array' },
+      { stage: 'summary', usable: false, detail: 'Error: summary must be 40 to 900 characters without URLs' },
+    ])
+    const partial = await execute(replies(stageModel({ 'close calls': () => ({ C1: { text: 'Cites an unshown page.', sources: [1] } }) })),
+      { checkReasons: false })
+    expect(partial.report!.markdown).toContain('- No comparison of Zay Flowers and Jordan Addison: the close-call answer was unusable.')
   })
 
-  it('publishes after the last review with a disclosure when the remaining findings are detail-level', async () => {
-    const draft = validDraft()
-    const detail = JSON.stringify({ issues: [{ player: 'P3', kind: 'contradicts_source',
-      claim: 'Row P3: the practice report supports this choice.', evidence: '', problem: 'Vague.', fix: 'Be specific.' }] })
-    const applied = JSON.stringify({ players: [{ ...draft.players[2]!, reason: 'Hampton practiced fully.' }] })
-    const applies = await execute([JSON.stringify(draft), detail, applied], { maxReviews: 1 })
-    expect(applies.status.phase).toBe('completed')
-    expect(applies.report!.markdown).toContain('Hampton practiced fully.')
-    expect(applies.report!.markdown).toContain('- The last round of reviewer corrections was applied without another review')
-    const illegal = JSON.stringify({ lineup: [{ slot: 'QB', player: 'P9' }] })
-    const keeps = await execute([JSON.stringify(draft), detail, illegal], { maxReviews: 1 })
-    expect(keeps.status.phase).toBe('completed')
-    expect(keeps.report!.markdown).toContain('- The last review raised detail-level notes that could not be applied')
-    const unusable = await execute([JSON.stringify(draft), detail, 'no json', 'still none', 'no json again', 'none again'], { maxReviews: 1 })
-    expect(unusable.report!.markdown).toContain('could not be applied')
-  })
-
-  it('withholds a draft that still fails code checks after the structural repair budget', async () => {
-    const draft = validDraft()
-    const illegal = { ...draft, lineup: [...draft.lineup.filter(item => item.slot !== 'QB'), { slot: 'QB', player: 'P9' }] }
-    const { h, status } = await execute([JSON.stringify(illegal), 'not json', 'still not json', '{"players":[]}'], { maxStructuralRepairs: 2 })
-    expect(status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('the draft still fails code checks') as string })
-    expect(status.reason).toContain('P9 cannot start because Jayden Daniels has Yahoo status O')
-    expect(promptOf(h.adapter.requests[1]!)).toContain('- P9: starts in QB but is recommended SIT')
-    expect(promptOf(h.adapter.requests[2]!)).toBe(RESEARCH_JSON_CORRECTION)
-    expect(h.adapter.requests[2]!.sessionId).toBe(h.adapter.requests[1]!.sessionId)
-    expect(promptOf(h.adapter.requests[3]!)).toContain('- the previous patch was unusable: Error: the response contains no JSON object')
-  })
-
-  it('rewrites an unparseable writer answer and withholds when the reviewer never returns findings JSON', async () => {
-    const rewritten = await execute(['I cannot comply.', 'Still no JSON.', JSON.stringify(validDraft()), pass])
-    expect(rewritten.status.phase).toBe('completed')
-    expect(promptOf(rewritten.h.adapter.requests[1]!)).toBe(RESEARCH_JSON_CORRECTION)
-    expect(promptOf(rewritten.h.adapter.requests[2]!)).toContain('Your previous answer was unusable')
-    const silent = await execute([JSON.stringify(validDraft()), REVIEWER_PSEUDO_TOOL_CALL, 'looks fine', '{"issues":"none"}',
-      'Let me verify first.\n<tool_call><function=web_search><parameter=query>Kyren Williams week 3</parameter></function></tool_call>'])
+  it('withholds the report only when no model stage answers usably', async () => {
+    const prose = await execute(replies('I cannot answer in JSON.'), { checkReasons: false })
+    expect(prose.status).toMatchObject({ phase: 'failed',
+      reason: expect.stringContaining('fantasy report withheld: no model stage returned a usable answer (invalid: P1 (the response contains no JSON object)') as string })
+    const silent = await execute([])
     expect(silent.status).toMatchObject({ phase: 'failed',
-      reason: expect.stringContaining('the reviewer returned no usable findings JSON: Error: issues must be an array') as string })
-    expect(silent.status.stageSessionIds).toHaveLength(3)
-    const never = await execute(['I cannot comply.', 'Still no JSON.', 'No.', 'Nope.'], { maxStructuralRepairs: 1 })
-    expect(never.status).toMatchObject({ phase: 'failed',
-      reason: expect.stringContaining('the draft still fails code checks: the answer is not the required JSON draft: Error: the response contains no JSON object') as string })
+      reason: expect.stringContaining('no model stage returned a usable answer (stage error: Error: research stage had no settled assistant response)') as string })
   })
 
-  it('takes the corrective JSON answer from the same stage Session after a prose or pseudo-tool-call answer', async () => {
-    const { h, status } = await execute([WRITER_PROSE_ANSWER, JSON.stringify(validDraft()), REVIEWER_PSEUDO_TOOL_CALL, pass])
-    expect(status.phase).toBe('completed')
-    expect(status.stageSessionIds).toHaveLength(2)
-    const requests = h.adapter.requests
-    expect(requests).toHaveLength(4)
-    expect(requests.map(request => request.sessionId)).toEqual([requests[0]!.sessionId, requests[0]!.sessionId,
-      requests[2]!.sessionId, requests[2]!.sessionId])
-    expect([1, 3].map(index => promptOf(requests[index]!))).toEqual([RESEARCH_JSON_CORRECTION, RESEARCH_JSON_CORRECTION])
-    for (const request of requests) {
-      expect(systemOf(request)).toBe(FANTASY_STAGE_SYSTEM_PROMPT)
-      expect(request.tools ?? []).toEqual([])
-      expect(request.temperature).toBe(0.2)
-    }
-  })
-
-  it('withholds a factual repair that cannot be applied before the last review', async () => {
-    const draft = validDraft()
-    const detail = JSON.stringify({ issues: [{ player: null, kind: 'wrong_advice_logic',
-      claim: 'Keep the current Yahoo lineup.', evidence: '', problem: 'Ignores the injury.', fix: 'Discuss Flowers.' }] })
-    const { status } = await execute([JSON.stringify(draft), detail, 'nope', '{"players":[{"player":"P99"}]}', 'nope', '{"players":[{"player":"P99"}]}'])
-    expect(status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('the factual repair patch was unusable') as string })
+  it('compares projected slots with the opponent and lists Yahoo read failures as caveats', async () => {
+    const { roster, opponent } = projected()
+    const compared = await execute(replies(), { checkReasons: false },
+      { data: { roster, opponent, freeAgents: { QB: [], RB: yahoo.freeAgentBacks } } })
+    expect(compared.h.fantasy.freeAgentReads).toEqual(['QB', 'RB', 'WR', 'TE', 'K', 'DEF'])
+    expect(compared.report!.markdown).toContain('By slot (yours vs theirs): QB 20.0–20.0 · RB 37.0–37.0 · WR 33.0–33.0 · TE 15.0–15.0 · '
+      + 'W/R/T 14.0–14.0 · K 7.0–7.0 · DEF 0.0–0.0')
+    const failed = await execute(replies(), { checkReasons: false, maxCloseCalls: 0 },
+      { data: { roster, freeAgentFailure: new Error('Yahoo rate limited') } })
+    expect(failed.report!.markdown).toContain('- Yahoo free agents at QB could not be read (Error: Yahoo rate limited).')
+    expect(failed.report!.markdown).toContain('- The opponent\'s Yahoo roster could not be read, so the slot comparison is missing '
+      + '(Error: opponent roster unavailable).')
+    const bare = synthetic('Bare Rookie', ['WR'])
+    const thin = { ...yahoo.roster, players: [...yahoo.roster.players.slice(0, 14).map(player => player.name === 'Zay Flowers'
+      ? { ...player, status: 'O' } : player), bare] }
+    const unmatched = await execute(replies(stageModel({ summary: () => ({ summary: 'Short.' }) })), { waiverPositions: 0 },
+      { data: { matchups: [], roster: thin } })
+    expect(unmatched.h.fantasy.freeAgentReads).toEqual([])
+    expect(promptOf(unmatched.h.adapter.requests[2]!)).toContain('{"id":"P15","name":"Bare Rookie","nflTeam":null,"positions":["WR"],'
+      + '"status":null,"injury":null,"bye":null,"projection":null,"yahooSlot":null,"slotLocked":false,"codeCall":"SIT","codeSlot":"BN"')
+    const markdown = unmatched.report!.markdown
+    expect(markdown).not.toContain('**Matchup:**')
+    expect(markdown).toContain('## Summary\nThe Googies has no Yahoo matchup this week. Suggested lineup changes: start Jordan Addison, '
+      + 'bench Zay Flowers.')
+    expect(markdown).toContain('- **DEF** — empty: no eligible player can play')
+    expect(markdown).toContain('- No eligible player can fill DEF this week.')
   })
 
   it('admits only pages that name the player and records search, fetch, and admission outcomes', async () => {
@@ -244,38 +255,31 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       }
       return playerFetch(url)
     }
-    const draft = validDraft()
-    const renumbered = (source: number): number => source === 3 ? 2 : source >= 7 ? source + 1 : source
-    const noGibbs = { ...draft, decisions: draft.decisions.map(decision => ({ ...decision, sources: decision.sources.map(renumbered) })),
-      players: draft.players.map(row => row.player === 'P2'
-        ? { ...row, facts: [], reason: 'No current source was found; Yahoo shows no injury.' }
-        : row.player === 'P3'
-          ? { ...row, facts: [{ text: 'Had 20 touches.', source: 2, quote: 'Omarion Hampton had 20 touches' }] }
-          : { ...row, facts: row.facts.map(fact => ({ ...fact, source: renumbered(fact.source) })) }) }
-    const { h, status, events, report: done } = await execute([JSON.stringify(noGibbs), pass],
-      { pagesPerPlayer: 2, searchResultsPerQuery: 10 }, { search, fetch })
+    const { h, status, events, report: done } = await execute(replies(),
+      { pagesPerPlayer: 2, searchResultsPerQuery: 10, playersPerStage: 15 }, { search, fetch })
     expect(status.reason).toBeUndefined()
     expect(status.phase).toBe('completed')
     const searches = events.flatMap(event => event.type === 'research/search' ? [event.data] : [])
     const sources = events.flatMap(event => event.type === 'research/source' ? [event.data] : [])
     const findings = events.flatMap(event => event.type === 'research/finding' ? [event.data] : [])
-    expect(searches.find(search => search.status === 'error'))
+    expect(searches.find(item => item.status === 'error'))
       .toMatchObject({ query: expect.stringContaining('Jahmyr Gibbs') as string, reason: 'Error: search offline' })
     expect(sources.filter(source => source.status !== 'fetched').map(source => source.status)).toEqual(['error', 'http_error'])
     expect(findings.filter(finding => !finding.accepted).map(finding => finding.reason)).toEqual([
       'final URL is not an admissible HTTPS host', 'the page does not name Trevor Lawrence', 'the page does not name Trevor Lawrence'])
-    expect(done!.markdown).toContain('No current source was admitted for Jahmyr Gibbs')
+    expect(done!.markdown).toContain('- No current news page was admitted for Jahmyr Gibbs; their calls rest on Yahoo data.')
+    expect(done!.markdown).toContain('- News pages that failed to load: 2.')
     expect(done!.sources.map(source => source.url)).toEqual(['https://news.example/p1', 'https://news.example/p3',
       'https://news.example/p3b', 'https://news.example/p4', 'https://news.example/p5', 'https://news.example/p6',
       'https://news.example/shared', ...[7, 8, 9, 10, 11, 12, 13, 14, 15].map(n => `https://news.example/p${n}`)])
     expect(done!.sources[3]!.title).toBe('https://news.example/p4')
     expect(events.filter(event => event.type === 'research/search' && event.data.query.includes('Omarion Hampton'))).toHaveLength(1)
-    expect(promptOf(h.adapter.requests[0]!)).toContain('"id":7,"title":"TE room","players":["P6","P13"]')
+    expect(promptOf(h.adapter.requests[0]!)).toContain('"id":"P13","name":"Isaiah Likely"')
+    expect(promptOf(h.adapter.requests[0]!))
+      .toContain('"excerpts":[{"source":7,"text":"Tyler Warren and Isaiah Likely split tight end snaps."},{"source":14,')
   })
 
-  it('withholds when no page is admitted and checks Yahoo identity and roster bounds', async () => {
-    const empty = await execute([], {}, { search: async () => ({ sources: [], truncated: false }) })
-    expect(empty.status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('no current player source was admitted') as string })
+  it('withholds on Yahoo identity or roster bound failures and stops when the owner cancels', async () => {
     const h = await harness([])
     harnesses.push(h)
     const config = resolveConfig({ ...base, maxPlayers: 10 })
@@ -291,30 +295,27 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(await start(4)).toMatchObject({ reason: expect.stringContaining('different league, team, or week') as string })
     expect(await start(3)).toMatchObject({ reason: expect.stringContaining('the Yahoo roster has 15 players; reports cover 1 to 10') as string })
     await caller.dispose()
-  })
-
-  it('stops collecting sources when the owner cancels the run', async () => {
     const searching = Promise.withResolvers<undefined>()
-    const h = await harness([], { search: (_query, signal) => new Promise((_resolve, reject) => {
+    const hung = await harness([], { search: (_query, signal) => new Promise((_resolve, reject) => {
       searching.resolve(undefined)
       signal?.addEventListener('abort', () => { reject(new Error('search aborted')) }, { once: true })
     }) })
-    harnesses.push(h)
-    const config = resolveConfig(base)
-    const caller = await h.ctx.agents.create({ sessionId: SessionId('fantasy-cancel-caller') })
-    const owner: ResearchOwner = { kind: 'profile', namespace: 'beardy' }
-    const view = await h.research.start({ caller: caller.agent.session, owner, query: 'Cancelled report',
-      workflow: weeklyReportWorkflow(h.ctx, config, { team: config.teams[0]!, settings: yahoo.settings, season: '2026', week: 3,
-        mode: 'full', firedAt: WEDNESDAY_WEEK_3, history: [] }) })
+    harnesses.push(hung)
+    const other = await hung.ctx.agents.create({ sessionId: SessionId('fantasy-cancel-caller') })
+    const view = await hung.research.start({ caller: other.agent.session, owner, query: 'Cancelled report',
+      workflow: weeklyReportWorkflow(hung.ctx, resolveConfig(base), { team: config.teams[0]!, settings: yahoo.settings, season: '2026',
+        week: 3, mode: 'full', firedAt: WEDNESDAY_WEEK_3, history: [] }) })
     await searching.promise
-    expect(await h.research.cancel(view.id, owner)).toEqual({ requested: true })
-    expect(await h.research.status(view.id, owner)).toMatchObject({ phase: 'cancelled', sourceCount: 0 })
-    await caller.dispose()
+    expect(await hung.research.cancel(view.id, owner)).toEqual({ requested: true })
+    expect(await hung.research.status(view.id, owner)).toMatchObject({ phase: 'cancelled', sourceCount: 0 })
+    await other.dispose()
   })
 
-  it('withholds a report whose rendering exceeds the delivery bound', async () => {
-    const { status } = await execute([JSON.stringify(validDraft()), pass], { maxDeliveryChars: 1000 })
-    expect(status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('the delivery bound is 700') as string })
+  it('cuts a report longer than the delivery bound instead of withholding it', async () => {
+    const { status, report } = await execute(replies(), { maxDeliveryChars: 1000, checkReasons: false })
+    expect(status.phase).toBe('completed')
+    expect(report!.markdown.length).toBeLessThanOrEqual(700)
+    expect(report!.markdown.endsWith(`${CUT_NOTICE}\n`)).toBe(true)
   })
 })
 

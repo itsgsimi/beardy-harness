@@ -1,4 +1,4 @@
-/** Validated per-team report schedules, delivery routes, and research bounds. @module @deepseek-ai/dsh-fantasy-reports/config */
+/** Validated report schedules, delivery routes, and research and model stage bounds. @module @deepseek-ai/dsh-fantasy-reports/config */
 
 import { isAbsolute } from 'node:path'
 import z from '@deepseek-ai/schemastery'
@@ -7,7 +7,7 @@ import type { LeagueKey as LeagueKeyType, TeamKey as TeamKeyType } from '@deepse
 import { assertSchedule } from '@deepseek-ai/dsh-cron'
 import { assertDeliveryTarget } from '@deepseek-ai/dsh-delivery-target'
 
-/** Report timing; each mode has its own schedule and review emphasis. */
+/** Report timing; each mode has its own schedule and stage emphasis. */
 export type ReportMode = 'full' | 'thursday' | 'sunday'
 
 /** Every report mode in schedule order. */
@@ -83,27 +83,35 @@ export interface Config {
   readonly maxConcurrentFetches?: number
   /** Characters rendered from one fetched page before admission. */
   readonly maxPageChars?: number
-  /** Characters of one admitted page shown to a model, kept as passages around roster names. */
+  /** Characters of one admitted page kept as the run's source text, as passages around roster names. */
   readonly sourceExcerptChars?: number
-  /** Characters of all admitted pages shown to the writer; each page's share never drops below 1,200. */
-  readonly promptSourceChars?: number
   /** Hosts whose pages are never fetched; each entry also covers its subdomains. */
   readonly excludedHosts?: string[]
   /** Largest roster a report covers. */
   readonly maxPlayers?: number
-  /** Output ceiling of the writer stage. */
-  readonly writerMaxTokens?: number
-  /** Output ceiling of each reviewer stage. */
-  readonly reviewerMaxTokens?: number
-  /** Output ceiling of each repair stage. */
-  readonly repairMaxTokens?: number
-  /** Factual reviews before the final-round rule applies. */
-  readonly maxReviews?: number
-  /** Structural repairs before publication is withheld. */
-  readonly maxStructuralRepairs?: number
-  /** Earlier completed reports of the same team and season shown as context. */
+  /** Verbatim news excerpts shown with one player's fact sheet, at most one per admitted page. */
+  readonly excerptsPerPlayer?: number
+  /** Characters of one news excerpt. */
+  readonly excerptChars?: number
+  /** Roster players judged in one per-player call stage. */
+  readonly playersPerStage?: number
+  /** Output ceiling of every model stage. */
+  readonly stageMaxTokens?: number
+  /** Yahoo projection difference, in whole points, at or under which a starter and a bench player form a close call. */
+  readonly closeCallMargin?: number
+  /** Close calls compared by the close-call stage; 0 skips the stage. */
+  readonly maxCloseCalls?: number
+  /** Weakest roster positions searched for free agents; 0 skips the waiver shortlist and its stage. */
+  readonly waiverPositions?: number
+  /** Free agents shortlisted per weak position. */
+  readonly waiverCandidates?: number
+  /** Most waiver picks the waiver stage may return. */
+  readonly waiverPicks?: number
+  /** Whether a final stage checks each model reason against its cited excerpts. */
+  readonly checkReasons?: boolean
+  /** Earlier completed reports of the same team and season shown to the summary stage. */
   readonly historyReports?: number
-  /** Characters of earlier reports shown as context, shared by all of them. */
+  /** Characters of earlier reports shown to the summary stage, shared by all of them. */
   readonly historyChars?: number
   /** Deadline of one model stage. */
   readonly stageTimeoutMs?: number
@@ -144,10 +152,11 @@ const BOUNDS = {
   catchUpWindowMs: [43_200_000, 0, 604_800_000], sundayCatchUpWindowMs: [7_200_000, 0, 86_400_000],
   searchesPerPlayer: [2, 1, 2], searchResultsPerQuery: [4, 1, 20], pagesPerPlayer: [2, 1, 6],
   maxConcurrentFetches: [4, 1, 12], maxPageChars: [40_000, 1_000, 200_000], sourceExcerptChars: [5_000, 500, 20_000],
-  promptSourceChars: [120_000, 5_000, 1_000_000],
   maxPlayers: [30, 1, 50],
-  writerMaxTokens: [8_000, 256, 64_000], reviewerMaxTokens: [3_500, 256, 64_000], repairMaxTokens: [6_500, 256, 64_000],
-  maxReviews: [3, 1, 6], maxStructuralRepairs: [2, 0, 6],
+  excerptsPerPlayer: [2, 1, 3], excerptChars: [300, 80, 1_000], playersPerStage: [5, 1, 15],
+  stageMaxTokens: [4_000, 256, 64_000],
+  closeCallMargin: [2, 0, 20], maxCloseCalls: [3, 0, 6],
+  waiverPositions: [2, 0, 6], waiverCandidates: [4, 1, 10], waiverPicks: [2, 0, 5],
   historyReports: [2, 0, 6], historyChars: [6_000, 0, 40_000],
   stageTimeoutMs: [1_200_000, 1_000, 86_400_000], runTimeoutMs: [14_400_000, 1_000, 86_400_000],
   maxDeliveryChars: [19_000, 1_000, 20_000],
@@ -173,6 +182,7 @@ export const Config: z<Config> = z.object({
   shadowChannelId: z.string(),
   commandPresets: z.array(z.string()).default([]),
   excludedHosts: z.array(z.string()).default([...DEFAULT_EXCLUDED_HOSTS]),
+  checkReasons: z.boolean().default(true),
   ...Object.fromEntries(Object.entries(BOUNDS).map(([key, [fallback, min, max]]) =>
     [key, z.number().step(1).min(min).max(max).default(fallback)])) as Record<BoundKey, z<number>>,
 })
@@ -236,6 +246,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
   })
   return {
     timezone: config.timezone, workspacePath: config.workspacePath, teams, excludedHosts, commandPresets, ...bounds,
+    checkReasons: config.checkReasons ?? true,
     ...(config.shadowChannelId === undefined ? {} : { shadowChannelId: config.shadowChannelId }),
   }
 }

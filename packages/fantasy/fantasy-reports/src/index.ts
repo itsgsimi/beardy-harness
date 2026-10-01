@@ -1,6 +1,6 @@
 /**
- * Scheduled weekly Yahoo fantasy reports: live league data, a reviewed research run per report, and
- * delivery through the scheduler's `cron/run-finished` handoff to the Discord outbox.
+ * Scheduled weekly Yahoo fantasy reports: live league data, one research run per report that mixes
+ * code decisions with small logged model stages, and delivery through the scheduler's `cron/run-finished` handoff to the Discord outbox.
  * @module @deepseek-ai/dsh-fantasy-reports
  */
 
@@ -334,8 +334,8 @@ async function startReport(ctx: Context, config: ResolvedConfig, team: ResolvedT
  * none was itself a catch-up, and hands a completed report to delivery again under its original fire,
  * which the listener deduplicates. Manual runs never count toward these slot checks; a manual request
  * always starts, and outside the configured weeks it fails with a notice. A report reaches delivery
- * only after its research run completes, which requires the workflow's code checks and review policy;
- * any other end sends a failure notice instead.
+ * only after its research run completes, which requires usable Yahoo facts and at least one usable
+ * model stage answer; any other end sends a failure notice instead.
  * @param ctx - consumer context.
  * @param config - resolved report policy.
  * @param team - configured team.

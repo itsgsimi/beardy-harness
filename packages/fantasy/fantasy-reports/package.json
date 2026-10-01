@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-fantasy-reports",
-  "description": "Scheduled weekly Yahoo fantasy reports through reviewed research runs and Discord delivery",
+  "description": "Scheduled weekly Yahoo fantasy reports from code-checked facts, small model stages, and Discord delivery",
   "version": "0.1.7-rc.2",
   "publishConfig": { "access": "public" },
   "repository": { "type": "git", "url": "git+https://github.com/deepseek-ai/deepseek-harness.git", "directory": "packages/fantasy/fantasy-reports" },

@@ -9,18 +9,18 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
-import { FantasyService } from '@deepseek-ai/dsh-fantasy'
+import { FantasyService, PlayerKey } from '@deepseek-ai/dsh-fantasy'
 import type {
-  FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyRoster, LeagueKey, TeamKey,
+  FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyPlayer, FantasyRoster, LeagueKey, TeamKey,
 } from '@deepseek-ai/dsh-fantasy/types'
-import { parseGameWeeks, parseLeagueSettings, parseMatchups, parseRoster } from '@deepseek-ai/dsh-fantasy-yahoo'
+import { parseGameWeeks, parseLeagueSettings, parseMatchups, parsePlayers, parseRoster } from '@deepseek-ai/dsh-fantasy-yahoo'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import LocalResearchService, { type Config as ResearchConfig } from '@deepseek-ai/dsh-research-local'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import type { WebFetchResult, WebSearchResult } from '@deepseek-ai/dsh-web'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import type { FantasyDraft } from '../src/draft.ts'
+import { DATA_MARKER } from '../src/prompts.ts'
 
 const fixtureRoot = new URL('../../fantasy-yahoo/tests/fixtures/', import.meta.url)
 
@@ -34,6 +34,10 @@ export const yahoo = {
   roster: parseRoster(fixture('team-roster-week-stats')),
   matchups: parseMatchups(fixture('team-matchups')),
   weeks: parseGameWeeks(fixture('game-weeks')),
+  /** Ten free-agent running backs of the same league. */
+  freeAgentBacks: parsePlayers(fixture('league-fa-rb')),
+  /** Ten available players of mixed positions. */
+  available: parsePlayers(fixture('league-waivers-all')),
 }
 
 /** Short roster ids in roster order. */
@@ -52,6 +56,19 @@ export function lockedRoster(indexes: readonly number[]): FantasyRoster {
   return parseRoster(raw)
 }
 
+/**
+ * A synthetic player whose key derives from its name.
+ * @param name - display name.
+ * @param positions - Yahoo eligible positions.
+ * @param extra - other Yahoo fields.
+ * @returns the player.
+ */
+export function synthetic(name: string, positions: string[], extra: Partial<FantasyPlayer> = {}): FantasyPlayer {
+  const code = Array.from({ length: name.length }, (_, index) => name.charCodeAt(index))
+    .reduce((sum, char) => (sum * 31 + char) % 1_000_003, 7)
+  return { key: PlayerKey(`470.p.${code}`), name, positions, ...extra }
+}
+
 /** Wednesday of week 3, 2:00 PM in Phoenix. */
 export const WEDNESDAY_WEEK_3 = Date.UTC(2026, 8, 23, 21, 0)
 
@@ -62,12 +79,20 @@ export interface FantasyData {
   matchups: readonly FantasyMatchup[]
   weeks: readonly FantasyGameWeek[]
   failure?: Error
+  /** Free agents returned per requested position; a missing position returns none. */
+  freeAgents?: Readonly<Record<string, readonly FantasyPlayer[]>>
+  /** Error thrown by free-agent reads. */
+  freeAgentFailure?: Error
+  /** Roster returned for any other team; reading one throws when absent. */
+  opponent?: FantasyRoster
 }
 
 /** Fixture-backed Fantasy provider answering only the reads a report makes. */
 export class FixtureFantasy extends FantasyService {
   /** Data returned by the next reads. */
-  data: FantasyData = { ...yahoo }
+  data: FantasyData = { settings: yahoo.settings, roster: yahoo.roster, matchups: yahoo.matchups, weeks: yahoo.weeks }
+  /** Positions of every free-agent read, in order. */
+  readonly freeAgentReads: string[] = []
 
   teamFor(): TeamKey { throw new Error('reports never resolve a caller team') }
   async leagues(): Promise<never> { throw new Error('unused') }
@@ -79,8 +104,18 @@ export class FixtureFantasy extends FantasyService {
   async standings(): Promise<never> { throw new Error('unused') }
   async scoreboard(): Promise<never> { throw new Error('unused') }
   async matchups(): Promise<readonly FantasyMatchup[]> { return this.data.matchups }
-  async team(): Promise<FantasyRoster> { return this.data.roster }
-  async players(): Promise<never> { throw new Error('unused') }
+  /** The opponent's roster for the matchup opponent's key; the reported roster for any other key. */
+  async team(key: TeamKey): Promise<FantasyRoster> {
+    const opponent = this.data.matchups[0]?.teams.find(team => team.key !== this.data.roster.team.key)?.key
+    if (key !== opponent) return this.data.roster
+    if (this.data.opponent === undefined) throw new Error('opponent roster unavailable')
+    return this.data.opponent
+  }
+  async players(_league: LeagueKey, query: { position?: string }): Promise<readonly FantasyPlayer[]> {
+    this.freeAgentReads.push(query.position as string)
+    if (this.data.freeAgentFailure !== undefined) throw this.data.freeAgentFailure
+    return this.data.freeAgents?.[query.position as string] ?? []
+  }
   async player(): Promise<never> { throw new Error('unused') }
   async transactions(): Promise<never> { throw new Error('unused') }
   async draft(): Promise<never> { throw new Error('unused') }
@@ -108,20 +143,71 @@ export async function playerFetch(url: string): Promise<WebFetchResult> {
   return { url, statusCode: 200, body: { kind: 'text', content: playerPage(index).text }, truncated: false }
 }
 
-/** A draft that passes every code check against the fixture pages. */
-export function validDraft(): FantasyDraft {
-  const starters: Record<string, string> = { P1: 'QB', P2: 'RB', P3: 'RB', P4: 'WR', P5: 'WR', P6: 'TE', P7: 'W/R/T', P14: 'K', P15: 'DEF' }
-  return {
-    players: rosterIds.map((id, index) => ({
-      player: id, recommendation: starters[id] === undefined ? 'SIT' : 'START', confidence: 'medium',
-      facts: [{ text: 'Practiced fully on Wednesday.', source: index + 1, quote: 'practiced fully on Wednesday' }],
-      reason: `Row ${id}: the practice report supports this choice.`, watch: 'Friday injury report.',
-    })),
-    lineup: Object.entries(starters).map(([player, slot]) => ({ player, slot })),
-    actions: ['Keep the current Yahoo lineup.'],
-    decisions: [{ title: 'Flex choice', text: 'Breece Hall keeps the flex over the bench options this week.', sources: [7] }],
-    caveats: ['Recheck Friday practice reports.'],
+/** Stage names as each stage prompt's first line states them. */
+export type StageName = 'player calls' | 'close calls' | 'waiver picks' | 'summary' | 'reason check'
+
+/** A player's fact sheet as stage data shows it. */
+export interface SheetData {
+  readonly id: string
+  readonly name: string
+  readonly codeCall: string
+  readonly excerpts: ReadonlyArray<{ readonly source: number; readonly text: string }>
+}
+
+/** The parts of a stage data block the test answers read. */
+export interface StageData {
+  readonly players?: readonly SheetData[]
+  readonly pairs?: ReadonlyArray<{ readonly id: string; readonly starter: SheetData; readonly bench: SheetData }>
+  readonly candidates?: ReadonlyArray<{ readonly id: string }>
+}
+
+/**
+ * Name and data block of the stage request: the first user message of its Session, so a corrective
+ * turn still names its stage.
+ * @param request - model request.
+ * @returns stage name and parsed data block.
+ */
+export function stageOf(request: GenerateOptions): { stage: StageName; data: StageData } {
+  const first = request.messages.find(item => item.role === 'user'
+    && item.content.some(block => block.type === 'text' && block.text.startsWith('Stage: ')))
+  const text = first?.content.map(block => block.type === 'text' ? block.text : '').join('') ?? ''
+  const data = JSON.parse(text.slice(text.lastIndexOf(DATA_MARKER) + DATA_MARKER.length)) as StageData
+  return { stage: /^Stage: ([a-z ]+)\./u.exec(text)?.[1] as StageName, data }
+}
+
+/** Valid default answers: every player keeps the code call and cites his first excerpt. */
+const ANSWERS: Readonly<Record<StageName, (data: StageData) => unknown>> = {
+  'player calls': data => Object.fromEntries(data.players!.map(sheet => [sheet.id, {
+    call: sheet.codeCall, reason: `${sheet.name} keeps the code call.`,
+    sources: sheet.excerpts.slice(0, 1).map(item => item.source) }])),
+  'close calls': data => Object.fromEntries(data.pairs!.map(pair => [pair.id, {
+    text: `${pair.starter.name} stays ahead of ${pair.bench.name} this week.`, sources: [] }])),
+  'waiver picks': data => ({ picks: [{ id: data.candidates![0]!.id, reason: 'The best available fill-in.' }] }),
+  'summary': () => ({ summary: 'The Googies keep their Yahoo lineup this week. Recheck the questionable starters on Friday.' }),
+  'reason check': () => ({ unsupported: [] }),
+}
+
+/**
+ * A model that answers each stage from its own prompt data; overrides replace one stage's answer.
+ * @param overrides - answers by stage; a string is sent verbatim.
+ * @returns a reply usable for any number of stage requests.
+ */
+export function stageModel(overrides: Partial<Record<StageName, (data: StageData, request: GenerateOptions) => unknown>> = {}): Reply {
+  return (request) => {
+    const { stage, data } = stageOf(request)
+    const answer = (overrides[stage] ?? ANSWERS[stage])(data, request)
+    return typeof answer === 'string' ? answer : JSON.stringify(answer)
   }
+}
+
+/**
+ * Enough automatic replies for every stage of one or more reports.
+ * @param reply - reply used for every request.
+ * @param count - number of requests answered.
+ * @returns a script for {@link harness}.
+ */
+export function replies(reply: Reply = stageModel(), count = 40): Reply[] {
+  return Array.from({ length: count }, () => reply)
 }
 
 /** Script entry for a stage that never answers until its run is cancelled. */
