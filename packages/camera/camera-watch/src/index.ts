@@ -34,7 +34,7 @@ import type { BaselineFacts, EarlyStatement } from './policy.ts'
 import { classificationRequest } from './prompt.ts'
 import { createCameraTool } from './tool.ts'
 import type { CameraNotice, NoticeReason, VerdictStatus } from './types.ts'
-import { parseVerdict } from './verdict.ts'
+import { CORRECTIVE_RETRY_MESSAGE, needsRetry, parseVerdict, readingRank } from './verdict.ts'
 
 export * from './classify.ts'
 export * from './config.ts'
@@ -487,7 +487,12 @@ export class CameraWatch {
 
   /**
    * Run one logged classification of the event's frames, or of its first frame alone on the
-   * first-frame route. An answer that states nothing fails as `EMPTY_ANSWER`.
+   * first-frame route. With `retryOnBadAnswer`, a full classification whose answer {@link needsRetry}
+   * rejects asks once more in the same Session and keeps the corrective answer unless the first
+   * reading ranks higher by {@link readingRank}; a failed corrective turn falls back to a first
+   * `partial` reading and otherwise fails with its own code. First-frame checks never ask again, so
+   * their notice keeps its latency. Failure codes and the failure-notice run read the kept answer
+   * only, and a kept answer that states nothing fails as `EMPTY_ANSWER`.
    * @returns the reading, or a failure code.
    */
   private async classify(event: CameraEvent, firstFrame = false): Promise<Classification> {
@@ -507,6 +512,7 @@ export class CameraWatch {
       device: { id: event.deviceId, label: device.label }, kind: event.kind, occurredAt: event.occurredAt,
       offsetsMs: event.frames.map(frame => frame.offsetMs), firstFrame,
     })
+    const read = (text: string): ReturnType<typeof parseVerdict> => parseVerdict(text, event.frames.length, request.questions)
     let outcome: Awaited<ReturnType<typeof classifyFrames>>
     try {
       outcome = await classifyFrames(this.ctx, {
@@ -518,7 +524,11 @@ export class CameraWatch {
         },
         selection,
         maxOutputTokens: this.config.maxOutputTokens,
+        temperature: this.config.temperature,
         timeoutMs: this.config.turnTimeoutMs,
+        ...firstFrame || !this.config.retryOnBadAnswer ? {} : {
+          retry: { message: CORRECTIVE_RETRY_MESSAGE, needed: (text: string) => needsRetry(read(text), request.questions) },
+        },
         cwd: this.config.workspacePath,
         signal: this.controller.signal,
       })
@@ -531,7 +541,26 @@ export class CameraWatch {
       this.report(health.turnFailed(outcome.code, this.now()))
       return { status: 'failed', sessionId, failure: outcome.code }
     }
-    const reading = parseVerdict(outcome.text, event.frames.length, request.questions)
+    let reading = read(outcome.text)
+    const { corrective } = outcome
+    if (corrective !== undefined) {
+      const subject = `camera-watch: classification ${sessionId} of ${event.id}`
+      if (corrective.kind === 'failed') {
+        if (reading.status !== 'partial') {
+          this.report(health.turnFailed(corrective.code, this.now()))
+          return { status: 'failed', sessionId, failure: corrective.code }
+        }
+        this.ctx.logger.info(`${subject} kept its first answer after the corrective turn failed (${corrective.code})`)
+      } else {
+        const retried = read(corrective.text)
+        if (readingRank(reading, request.questions) > readingRank(retried, request.questions)) {
+          this.ctx.logger.info(`${subject} kept its first answer after a worse retry`)
+        } else {
+          reading = retried
+          this.ctx.logger.info(`${subject} kept its corrective answer`)
+        }
+      }
+    }
     if (reading.status === 'empty') {
       this.ctx.logger.warn(`camera-watch: classification ${sessionId} of ${event.id} stated nothing`)
       this.report(health.turnFailed('EMPTY_ANSWER', this.now()))

@@ -255,3 +255,35 @@ export function parseVerdict(text: string, frameCount: number, questions: readon
   }
   return { status: state.complete ? 'parsed' : 'partial', verdict: { labels: ordered, counts, description, answers } }
 }
+
+/** Text of the corrective `user/message` a full classification sends after an answer {@link needsRetry} rejects. */
+export const CORRECTIVE_RETRY_MESSAGE = 'Your reply was not the JSON object. Reply with only the JSON object from the instructions, filled in.'
+
+/**
+ * Whether a reading calls for one corrective turn: an `unparsed` or `empty` reading, or a `partial`
+ * reading that leaves out an answer to an asked question. A `partial` reading whose only gaps are in
+ * labels, counts, the description, or evidence frames stands.
+ * @param reading - the first answer's reading.
+ * @param questions - questions the instruction asked.
+ * @returns whether to ask once more for the JSON object.
+ */
+export function needsRetry(reading: VerdictReading, questions: readonly CameraQuestion[]): boolean {
+  if (reading.status === 'partial') return questions.some(question => reading.verdict?.answers[question] === undefined)
+  return reading.status !== 'parsed'
+}
+
+/** Base rank of each reading status; a `partial` reading adds a fraction below the next status. */
+const STATUS_RANKS: Readonly<Record<VerdictReading['status'], number>> = { empty: 0, unparsed: 1, partial: 2, parsed: 3 }
+
+/**
+ * Order readings by use: `parsed` above every `partial`, a `partial` above `unparsed`, and `unparsed`
+ * above `empty`; between two `partial` readings, the one answering more asked questions ranks higher.
+ * @param reading - one answer's reading.
+ * @param questions - questions the instruction asked.
+ * @returns a rank where a higher number is the more usable reading.
+ */
+export function readingRank(reading: VerdictReading, questions: readonly CameraQuestion[]): number {
+  if (reading.status !== 'partial') return STATUS_RANKS[reading.status]
+  const answered = questions.filter(question => reading.verdict?.answers[question] !== undefined).length
+  return STATUS_RANKS.partial + answered / (questions.length + 1)
+}

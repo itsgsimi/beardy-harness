@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-30-camera-classification-retry.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-30-camera-classification-retry.md
+/agent-note-camera-classification-retry:
+  en: c586fd5093f765f1
+  zh: fd92ecf80094d1a8
+/agent-note-camera-classification-retry/problem:
+  en: ecc97d332e997a67
+  zh: fbbd2d62fe6e7f65
+/agent-note-camera-classification-retry/decision:
+  en: 423f8591113b0546
+  zh: e65023a34aed14d5
+/agent-note-camera-classification-retry/alternatives-considered:
+  en: ffad4ac571a7ece9
+  zh: cd668d218b6bd198
+/agent-note-camera-classification-retry/consequences:
+  en: 2802204ba7d14ca9
+  zh: 88861ce7005326c9

@@ -606,9 +606,23 @@ export interface Config {
    * configured; defaults to true.
    */
   readonly earlyMotionNotice?: boolean
-  /** Output token ceiling for one classification; defaults to 600. */
+  /** Output token ceiling for one classification request; defaults to 600. */
   readonly maxOutputTokens?: number
-  /** Longest classification turn in milliseconds, including Session creation; defaults to 120000. */
+  /**
+   * Sampling temperature of every classification request, first-frame checks included, from 0 to 2;
+   * defaults to 0.2. Low values keep the model on the instruction's JSON object.
+   */
+  readonly temperature?: number
+  /**
+   * Ask a full classification once more, in the same Session, when its answer has no JSON object,
+   * states nothing, or leaves out an asked question, and keep the more usable of the two answers.
+   * First-frame checks never ask again. Defaults to true.
+   */
+  readonly retryOnBadAnswer?: boolean
+  /**
+   * Longest classification turn in milliseconds, including Session creation; a corrective turn waits
+   * as long again. Defaults to 120000.
+   */
   readonly turnTimeoutMs?: number
   /** Classifications running at once, first-frame classifications included; defaults to 1. */
   readonly maxConcurrent?: number
@@ -625,9 +639,9 @@ export interface Config {
   /** Delay between delivery handoff attempts in milliseconds; defaults to 30000. */
   readonly deliveryRetryMs?: number
   /**
-   * Classification turns in a row that time out, fail, give no or an empty answer, or cannot start
-   * before a failure notice, from 1 to 100; defaults to 3. With `earlyModelSelection`, first-frame
-   * checks count their own run and raise their own notice.
+   * Classifications in a row whose final turn times out, fails, gives no or an empty answer, or
+   * cannot start before a failure notice, from 1 to 100; defaults to 3. With `earlyModelSelection`,
+   * first-frame checks count their own run and raise their own notice.
    */
   readonly failureNoticeThreshold?: number
   /** Least milliseconds between two classification failure notices, from 60000 to 604800000; defaults to 21600000. */
