@@ -4,6 +4,7 @@
 **Wed, Sep 23, 2:00 PM MST · Yahoo roster and slots, weekly projections**
 
 **Matchup:** The Googies 116.1 vs Team 5 94.6 projected · Yahoo win probability 59%
+By slot (yours vs theirs): QB 17.3–16.9 · RB 30.4–24.7 · WR 20.1–20.0 · TE 8.5–6.7 · W/R/T 11.8–9.2 · K 8.1–7.7 · DEF 8.3–5.9
 
 ## Summary
 The Googies are projected 116.1 to 94.6 against Team 5 and keep their current Yahoo lineup. The main question is Zay Flowers, who was limited Wednesday with a hamstring injury; Jordan Addison starts instead if Flowers is limited again by Friday. Jayden Daniels and Nico Collins are out and stay on the bench. Olamide Zaccheaus is the waiver option if receiver depth runs short.
@@ -75,7 +76,6 @@ Flowers keeps the WR spot if he practices fully by Friday; he was limited Wednes
 - **Olamide Zaccheaus** · WR · Atl — Healthy receiver depth if Flowers cannot play; Addison is the only healthy bench receiver.
 
 ## Caveats
-- The opponent's Yahoo roster could not be read, so the slot comparison is missing (Error: fantasy-yahoo: API unavailable).
 - Recommendations only: check final injury reports and Yahoo lineup locks before changing your lineup.
 
 ## Sources

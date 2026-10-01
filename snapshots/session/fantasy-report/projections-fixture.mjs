@@ -1,4 +1,4 @@
-/** Fixed Sleeper week 3 projection rows behind the real projection provider. */
+/** Fixed Sleeper week 3 projection rows for both matchup rosters, behind the real projection provider. */
 export const name = 'fantasy-report-projections-fixture'
 export const inject = ['loader']
 
@@ -20,6 +20,16 @@ const ROWS = [
   ['Isaiah', 'Likely', 'TE', 'NYG', { rec: 2.5, rec_yd: 26, rec_td: 0.15 }],
   ['Cairo', 'Santos', 'K', 'CHI', { fgm_20_29: 0.4, fgm_30_39: 0.6, fgm_40_49: 0.5, fgm_50p: 0.2, fgmiss_40_49: 0.2, xpm: 2.4, xpmiss: 0.1 }],
   ['Pittsburgh', 'Steelers', 'DEF', 'PIT', { sack: 2.8, int: 0.8, fum_rec: 0.6, def_td: 0.2, safe: 0.05, blk_kick: 0.05, def_pr_td: 0.05, pts_allow: 19.5 }],
+  ['Marcus', 'Hale', 'QB', 'SEA', { pass_yd: 228, pass_td: 1.4, pass_int: 0.9, rush_att: 4, rush_yd: 22, rush_td: 0.2, fum_lost: 0.15 }],
+  ['Dante', 'Ruiz', 'RB', 'CIN', { rush_att: 16, rush_yd: 70, rush_td: 0.6, rec: 2.6, rec_yd: 19, rec_td: 0.1 }],
+  ['Calvin', 'Booker', 'RB', 'ARI', { rush_att: 12, rush_yd: 52, rush_td: 0.4, rec: 2.2, rec_yd: 16 }],
+  ['Theo', 'Lang', 'WR', 'PIT', { rec: 5.2, rec_yd: 66, rec_td: 0.4, rec_tgt: 7.8 }],
+  ['Andre', 'Whitfield', 'WR', 'MIA', { rec: 3.9, rec_yd: 47, rec_td: 0.3, rec_tgt: 6.1 }],
+  ['Grant', 'Ostrowski', 'TE', 'CLE', { rec: 3.4, rec_yd: 35, rec_td: 0.25 }],
+  ['Isaiah', 'Pruitt', 'RB', 'TEN', { rush_att: 11, rush_yd: 46, rush_td: 0.35, rec: 2, rec_yd: 15 }],
+  ['Kendall', 'Moss', 'WR', 'NO', { rec: 3, rec_yd: 36, rec_td: 0.2 }],
+  ['Mateo', 'Alvarez', 'K', 'PHI', { fgm_20_29: 0.5, fgm_30_39: 0.5, fgm_40_49: 0.4, fgm_50p: 0.1, fgmiss_40_49: 0.2, xpm: 2.8 }],
+  ['Seattle', 'Seahawks', 'DEF', 'SEA', { sack: 2.4, int: 0.7, fum_rec: 0.5, def_td: 0.15, safe: 0.04, blk_kick: 0.04, pts_allow: 23.5 }],
 ]
 
 const BODY = JSON.stringify(ROWS.map(([first, last, position, team, stats]) => ({
