@@ -8,6 +8,7 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
+import CommandRuntime from '@deepseek-ai/dsh-commands'
 import { FantasyService } from '@deepseek-ai/dsh-fantasy'
 import type {
   FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyRoster, LeagueKey, TeamKey,
@@ -155,6 +156,7 @@ export async function harness(replies: readonly Reply[], options: {
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(JsonlSessionPersistence, { root: join(root, 'sessions'), compression: 'none' })
   await ctx.plugin(LocalAttachmentStore, { dshHome: root })
+  await ctx.plugin(CommandRuntime)
   await ctx.plugin(WebRuntime, { searchProvider: 'test', fetchProvider: 'test' })
   const search = options.search ?? playerSearch
   const fetch = options.fetch ?? playerFetch

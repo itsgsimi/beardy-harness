@@ -46,11 +46,29 @@ Mount a Fantasy provider such as [fantasy-yahoo](../fantasy-yahoo/README.md), th
 
 ### Schedules and weeks
 
-Each team has three cron expressions in `timezone`. Fires run one at a time, and a research run starts at least `minimumStartGapMs` (90 minutes by default) after the previous start. A fire resolves the Yahoo game week containing its local date; outside `firstWeek` through `lastWeek` it does nothing. A week and mode that already has a run is skipped, so a repeated fire never sends a second report.
+Each team has three cron expressions in `timezone`. Fires run one at a time, and a research run starts at least `minimumStartGapMs` (90 minutes by default) after the previous start. A fire resolves the Yahoo game week containing its local date; outside `firstWeek` through `lastWeek` it does nothing. A week and mode that already has a scheduled or catch-up run is skipped, so a repeated fire never sends a second report.
+
+Each fire logs one line, `fantasy-reports: <team> <mode>[ catch-up| manual] <outcome>[: <reason>]`. A `published` or `redelivered` report logs at info; `skipped`, `withheld`, `failed`, and `undelivered` log at warn with their reason, so a journal that keeps only warnings still shows every fire that sent no report. A fire that is queued or running when the plugin stops logs `<team> <mode> abandoned because the plugin stopped` at warn and makes no further Yahoo, research, or delivery call.
 
 ### Restart catch-up
 
 When the plugin starts, it revisits each team's latest slot at or before that moment once, if less than `catchUpWindowMs` (12 hours by default) has passed since the slot; `0` turns catch-up off. A Sunday slot uses the tighter `sundayCatchUpWindowMs` (2 hours by default), measured from that team's Sunday slot, so a caught-up Sunday report still arrives before kickoff; the window is checked again after start spacing. The research history decides the rest: a slot with no run, or whose only runs were interrupted, gets one catch-up run; a completed report is handed to delivery again under its original fire time, which the listener deduplicates, so a report whose earlier handoff failed still reaches Discord; a slot with a failed, withheld, cancelled, or earlier catch-up run is left alone. Earlier slots of the week are superseded by the latest one and never caught up.
+
+### On-demand reports
+
+Set `commandPresets` to the Agent presets whose humans may run `/fantasy-report <team> [full|thursday|sunday]`; the mode defaults to `full`. The command is human-only, so its input never reaches a model, and the Discord gateway lists it with the preset's other commands. A team's `commandPresets`, when present and non-empty, narrows who may request that team, for example one owner's lane to her own team; each entry must also be in the top-level list. With the default empty list the command is not registered.
+
+```yaml
+commandPresets: [beardy, beardy-mamabear]
+teams:
+  - id: googies
+    # ...
+  - id: lights
+    # ...
+    commandPresets: [beardy]
+```
+
+The request resolves the Yahoo week containing today's date in `timezone` and runs the same workflow as a scheduled report, tagged with trigger `manual`. It answers at once with `Started the full report for The Googies; it will post to the team's report channel when done.`, or names how many reports are ahead of it in the queue, and the report or its failure notice goes where that team's scheduled reports go, including the shadow channel. An unknown team returns an error that lists the team ids the preset may request, and a date outside `firstWeek` through `lastWeek` fails with a notice. A manual run starts even when its week and mode already have runs, and scheduled fires and catch-up never count manual runs. It shares the queue with scheduled fires, so it never overlaps another report, but it neither waits for nor resets `minimumStartGapMs`.
 
 ### Delivery, notices, and shadow mode
 
@@ -58,7 +76,7 @@ A completed report is handed to `cron/run-finished` with outcome `answered` and 
 
 ### History
 
-Every run is linked from the team's caller Session `fantasy-reports-<id>`; after `workspacePath` changes, the team's caller becomes `fantasy-reports-<id>-<hash>`, where `<hash>` is the first 8 hex digits of the new path's SHA-256, and the earlier caller Session stays unchanged. Each run's query carries a `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` tag, where the trigger is `scheduled` or `catch-up` and `firedAt` is the fire time in epoch milliseconds that delivery carries. A new report shows the writer up to `historyReports` earlier completed reports of the same team and season as comparison data. Beardy can read the same reports through `deep_research` `list` and `report`.
+Every run is linked from the team's caller Session `fantasy-reports-<id>`; after `workspacePath` changes, the team's caller becomes `fantasy-reports-<id>-<hash>`, where `<hash>` is the first 8 hex digits of the new path's SHA-256, and the earlier caller Session stays unchanged. Each run's query carries a `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` tag, where the trigger is `scheduled`, `catch-up`, or `manual` and `firedAt` is the fire time in epoch milliseconds that delivery carries. A new report shows the writer up to `historyReports` earlier completed reports of the same team and season as comparison data. Beardy can read the same reports through `deep_research` `list` and `report`.
 
 -----
 
@@ -73,7 +91,7 @@ The plugin starts each report as a [research workflow](../../research/research/R
 1. **Yahoo facts.** The workflow reads the roster, each player's slot lock, and the matchup for the week, and checks the league, team, and week against the request. Roster players get short ids (`P1`, `P2`, ...).
 2. **Sources.** Each player gets up to `searchesPerPlayer` queries and keeps up to `pagesPerPlayer` HTTPS pages outside `excludedHosts`. A page is admitted only when it names the player; a name too short to match admits the page. FantasyPros rank and projection headers are removed, and strength-of-schedule ordinals such as "30th easiest opponent" become plain difficulty words before any model reads the page. Literal passages around roster names bound each page. Every search, fetch failure, and admission decision enters the run, and each admitted page's exact model-visible text becomes a source attachment.
 3. **Draft.** The writer returns JSON: one row per player with 1–2 quoted facts, a lineup, actions, close decisions, and caveats.
-4. **Code checks.** Quotes must be 12–300 character excerpts of a cited page that names the player. The lineup must fill the league's starting slots with eligible players, with no player on bye or listed out, injured reserve, suspended, or not active; every starter must be `START` or `CONDITIONAL`. A player whose slot Yahoo has locked because his game started stays where Yahoo shows him: a locked starter keeps his slot and is exempt from the availability check, and a locked bench player cannot start. Failures go to a structural repair patch, up to `maxStructuralRepairs` times, without spending a factual review.
+4. **Code checks.** Quotes must be 12–300 character excerpts of a cited page that names the player. The lineup must fill the league's starting slots with eligible players, with no player on bye or listed out, injured reserve, suspended, or not active; every starter must be `START` or `CONDITIONAL`. A player whose slot Yahoo has locked because his game started stays where Yahoo shows him: a locked starter keeps his slot and is exempt from the availability check, and a locked bench player cannot start. Failures go to a structural repair patch, up to `maxStructuralRepairs` times, without spending a factual review. Patch rows are keyed by `player` like draft rows; a patch row that names its player with `id` instead is accepted, while a writer draft must use `player`.
 5. **Review.** The reviewer returns findings that quote the draft verbatim and, for contradictions, quote a source or the Yahoo context verbatim. Unanchored, wording-only, no-fix, and repeated findings are discarded and kept in the evidence. A repair patch follows each review with findings. After `maxReviews` reviews, a wrong-team, schedule, or season finding withholds the report; other findings are repaired once more and the report discloses that they were not reviewed again.
 6. **Report.** Code renders the accepted draft: actions, changes from the current Yahoo lineup, the lineup with the players Yahoo has locked, close calls, every player with Yahoo slot and lock, status, bye, and projection, next checks, and cited sources as preview-free links. No model rewrites the accepted advice. The evidence file keeps the Yahoo snapshot, sources, draft, and every review.
 
@@ -81,7 +99,7 @@ No invariant companion is published: timers, queue order, and delivery attempts 
 
 | Source | Responsibility |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Timers, restart catch-up, week resolution, history, notices, and delivery |
+| [`src/index.ts`](src/index.ts) | Timers, restart catch-up, the on-demand command, week resolution, history, notices, and delivery |
 | [`src/workflow.ts`](src/workflow.ts) | Sources, stages, and the publication policy |
 | [`src/draft.ts`](src/draft.ts) | Draft parsing, code checks, patches, and review filtering |
 | [`src/lineup.ts`](src/lineup.ts) | Yahoo slot legality, slot locks, and lineup changes |
@@ -101,6 +119,7 @@ No invariant companion is published: timers, queue order, and delivery attempts 
 - [Research subsystem](../../../docs/subsystems/research.md) — durable runs and consumer workflows.
 - [Weekly report decision](../../../.agents/notes/implemented/feature/2026-09-27-native-fantasy-weekly-reports.md) — why reports are research workflows and which Odysseus safeguards carried over.
 - [Locks and catch-up decision](../../../.agents/notes/implemented/feature/2026-09-27-fantasy-report-locks-and-catch-up.md) — why locked slots are code-checked and how a restart catches up a missed slot without a second send.
+- [Repair and on-demand decision](../../../.agents/notes/implemented/bug-fix/2026-09-30-fantasy-reports-repair-and-on-demand.md) — the `id` patch alias, warn-level fire outcomes, and the `/fantasy-report` command.
 
 -----
 
@@ -129,6 +148,8 @@ Every stage is a fresh single-turn Session, so no stage reuses another's prefix.
 - A slot lock is read when the report runs, so a player whose game starts later is not yet locked; the report still says to check lineup locks before changing Yahoo, and it never executes changes.
 - Catch-up runs only when the plugin starts and only for each team's latest slot. A slot interrupted again during its catch-up, a completed report whose delivery fails after the window closes, and a completed report whose tag has no fire time stay only in research history.
 - Yahoo projections appear only when the provider returns them for roster players.
+- Only player rows of a repair patch accept the `id` alias; repair prompts show the current lineup with `player` keys, so lineup rows keep requiring `player`.
+- `/fantasy-report` always reports the week containing today's date; it takes no week argument.
 
 <a id="dev-note"></a>
 ### Dev Note

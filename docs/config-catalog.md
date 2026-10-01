@@ -1681,8 +1681,8 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-fantasy-reports`
 
-- `inject`: `agents` · `fantasy` · `research` · `sessionPersistence` · `web`
-- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:44`](../packages/fantasy/fantasy-reports/src/config.ts)
+- `inject`: `agents` · `commands` · `fantasy` · `research` · `sessionPersistence` · `web`
+- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:49`](../packages/fantasy/fantasy-reports/src/config.ts)
 
 ```ts config-catalog
 /** Deployment values. Teams, channels, and schedules have no defaults. */
@@ -1699,6 +1699,11 @@ export interface Config {
   readonly lastWeek?: number
   /** When set, every report and notice goes only to this delivery target, labeled with its team; same forms as `channelId`. */
   readonly shadowChannelId?: string
+  /**
+   * Agent presets whose Sessions may run the human `/fantasy-report` command. Empty, the default,
+   * registers no command.
+   */
+  readonly commandPresets?: string[]
   /** Minimum milliseconds between two report starts. */
   readonly minimumStartGapMs?: number
   /**
@@ -1767,6 +1772,11 @@ export interface TeamConfig {
   readonly channelId: string
   /** Cron expressions for the three weekly reports, in the configured timezone. */
   readonly schedule: ReportScheduleConfig
+  /**
+   * Agent presets that may request this team's report on demand; each must also be in the top-level
+   * `commandPresets`. Absent or empty, every preset in `commandPresets` may request it.
+   */
+  readonly commandPresets?: string[]
 }
 
 /** One team's three weekly start times. */

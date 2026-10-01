@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-30-fantasy-reports-repair-and-on-demand.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-30-fantasy-reports-repair-and-on-demand.md
+/agent-note-fantasy-report-repair-keys-fire-visibility-and-on-demand-reports:
+  en: 6d6ca0fc119e70f5
+  zh: 0769ea77b515a501
+/agent-note-fantasy-report-repair-keys-fire-visibility-and-on-demand-reports/problem:
+  en: 907a621056f8861c
+  zh: 3a69c38b7d9a68a3
+/agent-note-fantasy-report-repair-keys-fire-visibility-and-on-demand-reports/decision:
+  en: 6892e07ffbc4d3ab
+  zh: d5da65a836329ae5
+/agent-note-fantasy-report-repair-keys-fire-visibility-and-on-demand-reports/lights-investigation:
+  en: ad06237acbffbe80
+  zh: 3ebe6ec321cdd957
+/agent-note-fantasy-report-repair-keys-fire-visibility-and-on-demand-reports/alternatives-considered:
+  en: f2799f64064d3ae2
+  zh: ecf28f395659ae40
+/agent-note-fantasy-report-repair-keys-fire-visibility-and-on-demand-reports/consequences:
+  en: 0d8cc5187de8fec8
+  zh: 9d1ebf6cd2069c2d
