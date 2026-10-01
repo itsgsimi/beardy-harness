@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/fantasy/fantasy-projections-sleeper/README.md
+/:
+  en: be8a53117ab8f15c
+  zh: e1d7708589358573
+/deepseek-ai-dsh-fantasy-projections-sleeper:
+  en: e6d1d72b7fbc4464
+  zh: a451ea0fa50182ab
+/deepseek-ai-dsh-fantasy-projections-sleeper/summary:
+  en: 391b7b779c7583a5
+  zh: f17412842bca1a66
+/deepseek-ai-dsh-fantasy-projections-sleeper/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-fantasy-projections-sleeper/use-this-package:
+  en: 4ba1e498223d888e
+  zh: 568c0309ac2c2a8a
+/deepseek-ai-dsh-fantasy-projections-sleeper/understand-the-implementation:
+  en: 9d5bd872f56bec0b
+  zh: 2e05acfc16a51ca2
+/deepseek-ai-dsh-fantasy-projections-sleeper/further-exploration:
+  en: d651895fe62dac30
+  zh: 5735f19f79ba16fc
+/deepseek-ai-dsh-fantasy-projections-sleeper/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-fantasy-projections-sleeper/model-experience/sleeper-projection-provider:
+  en: 438a1367e1dc2caa
+  zh: fd8943492d2dab2c
+/deepseek-ai-dsh-fantasy-projections-sleeper/model-experience/sleeper-projection-provider/what-the-model-sees:
+  en: 84e175129d0fa972
+  zh: baee5f8dcc8ca930
+/deepseek-ai-dsh-fantasy-projections-sleeper/model-experience/sleeper-projection-provider/token-effect:
+  en: 0165030645a1f3f1
+  zh: aa8edf623979074b
+/deepseek-ai-dsh-fantasy-projections-sleeper/model-experience/sleeper-projection-provider/kv-cache-effect:
+  en: f8525789da3bbc7d
+  zh: bff79dbe31eed8d1
+/deepseek-ai-dsh-fantasy-projections-sleeper/known-limitations-and-deferred-work:
+  en: 84ffd86129525f75
+  zh: b923f0ede75a99c2
+/deepseek-ai-dsh-fantasy-projections-sleeper/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

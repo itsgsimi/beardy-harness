@@ -16,7 +16,7 @@ describe('model calls against the code lineup', () => {
   it('keeps code defaults with plain reasons when the model gave no valid call', () => {
     const result = reconcileCalls(fixture, slots, 3, code, new Map())
     expect(result.lineup).toEqual(code)
-    expect(result.calls.get('P7')).toEqual({ call: 'FLEX', reason: 'Starts at W/R/T; Yahoo shows no projection.', sources: [],
+    expect(result.calls.get('P7')).toEqual({ call: 'FLEX', reason: 'Starts at W/R/T; no projection.', sources: [],
       origin: 'default' })
     expect(result.calls.get('P9')).toMatchObject({ call: 'HOLD', origin: 'default' })
   })
@@ -36,7 +36,7 @@ describe('model calls against the code lineup', () => {
     expect(result.lineup.find(item => item.player === 'P8')?.slot).toBe('WR')
     expect(result.calls.get('P5')).toMatchObject({ call: 'SIT', origin: 'model' })
     expect(result.calls.get('P4')).toMatchObject({ call: 'START', origin: 'overridden', note: 'no legal lineup swap honors it',
-      reason: 'Starts at WR; Yahoo shows no projection.' })
+      reason: 'Starts at WR; no projection.' })
     const second = reconcileCalls(fixture, slots, 3, code, calls({ P14: 'SIT', P5: 'SIT', P8: 'START' }))
     expect(second.calls.get('P14')).toMatchObject({ call: 'START', origin: 'overridden', note: 'no legal lineup swap honors it' })
     expect(second.calls.get('P5')).toMatchObject({ call: 'SIT', origin: 'model' })

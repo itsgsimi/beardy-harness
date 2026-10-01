@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-01-fantasy-sleeper-projections.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-01-fantasy-sleeper-projections.md
+/agent-note-sleeper-projections-for-fantasy-reports:
+  en: 3d3a088583a452b9
+  zh: d9310b1b1cac851c
+/agent-note-sleeper-projections-for-fantasy-reports/problem:
+  en: 2bf82ef1b6f86995
+  zh: fdd4a33d2e7709bc
+/agent-note-sleeper-projections-for-fantasy-reports/decision:
+  en: 87607c778734d13f
+  zh: 25ef595d59ae1aa3
+/agent-note-sleeper-projections-for-fantasy-reports/alternatives-considered:
+  en: ddd7eb3b41338b5c
+  zh: 4f272fb6690eb423
+/agent-note-sleeper-projections-for-fantasy-reports/consequences:
+  en: 7c4a7da92cb85bc9
+  zh: 13f8801ff98deaa4

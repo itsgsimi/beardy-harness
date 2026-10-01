@@ -49,6 +49,7 @@
     "@deepseek-ai/dsh-cron": "workspace:*",
     "@deepseek-ai/dsh-discord-gateway": "workspace:*",
     "@deepseek-ai/dsh-fantasy": "workspace:*",
+    "@deepseek-ai/dsh-fantasy-projections-sleeper": "workspace:*",
     "@deepseek-ai/dsh-fantasy-reports": "workspace:*",
     "@deepseek-ai/dsh-fantasy-yahoo": "workspace:*",
     "@deepseek-ai/dsh-health": "workspace:*",

@@ -1,11 +1,11 @@
-/** Read-only Fantasy service definition. @module @deepseek-ai/dsh-fantasy */
+/** Read-only Fantasy and projection service definitions. @module @deepseek-ai/dsh-fantasy */
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {
   FantasyDraftPick, FantasyGameWeek, FantasyLeague, FantasyLeagueSettings, FantasyMatchup,
-  FantasyPlayer, FantasyRoster, FantasyTeam, FantasyTransaction, LeagueKey as LeagueKeyType,
+  FantasyPlayer, FantasyRoster, FantasyScoringStat, FantasyTeam, FantasyTransaction, LeagueKey as LeagueKeyType,
   PlayerKey as PlayerKeyType, TeamKey as TeamKeyType,
 } from './types.ts'
 
@@ -39,7 +39,10 @@ export function PlayerKey(value: string): PlayerKeyType {
 }
 
 declare module '@deepseek-ai/cordis' {
-  interface Context { fantasy: FantasyService }
+  interface Context {
+    fantasy: FantasyService
+    fantasyProjections: FantasyProjectionService
+  }
 }
 
 /** Provider-neutral read operations; callers supply explicit league or team identities. */
@@ -135,6 +138,41 @@ export abstract class FantasyService extends Service {
    * @returns game calendar.
    */
   abstract gameWeeks(signal?: AbortSignal): Promise<readonly FantasyGameWeek[]>
+}
+
+/**
+ * Weekly projected stat lines for league players from a source other than the league provider. Lines use
+ * the stat ids of {@link FantasyScoringStat.id} and `FantasyPlayer.stats`, so league scoring applies to
+ * them unchanged through {@link scoreStats}.
+ */
+export abstract class FantasyProjectionService extends Service {
+  constructor(ctx: Context) {
+    if (new.target === FantasyProjectionService) throw new Error('load a fantasy projection provider, not the abstract definition')
+    super(ctx, 'fantasyProjections')
+  }
+
+  /** Project one NFL week's stat lines for the given players.
+   * @param season - NFL season year.
+   * @param week - NFL regular-season week.
+   * @param players - league players to project; the provider matches them by name, NFL team, and position.
+   * @param signal - caller cancellation.
+   * @returns projected stat lines by player key; players the provider cannot match are absent.
+   */
+  abstract project(
+    season: number, week: number, players: readonly FantasyPlayer[], signal?: AbortSignal,
+  ): Promise<ReadonlyMap<PlayerKeyType, Readonly<Record<string, number>>>>
+}
+
+/**
+ * Score a stat line under league scoring: the sum of each stat times its value, over the scoring entries
+ * that carry a value; stats without a scoring entry or value count zero.
+ * @param stats - stat values by stat id.
+ * @param scoring - league scoring entries.
+ * @returns points rounded to hundredths.
+ */
+export function scoreStats(stats: Readonly<Record<string, number>>, scoring: readonly FantasyScoringStat[]): number {
+  const total = scoring.reduce((sum, entry) => sum + (entry.value === undefined ? 0 : (stats[entry.id] ?? 0) * entry.value), 0)
+  return Math.round(total * 100) / 100
 }
 
 export default FantasyService

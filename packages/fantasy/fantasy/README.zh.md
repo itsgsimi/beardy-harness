@@ -1,5 +1,5 @@
 ---
-description: "只读 Fantasy 服务类型及品牌化联盟、球队和球员键。"
+description: "只读 Fantasy 与预测服务类型、数据行计分，以及品牌化联盟、球队和球员键。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `ctx.fantasy` 读取联盟、计分规则、排名、对阵、阵容、球员、交易、选秀结果和比赛周。提供方负责数据；定义在键进入请求路径前验证联盟、球队和球员键。
+使用 `ctx.fantasy` 读取联盟、计分规则、排名、对阵、阵容、球员、交易、选秀结果和比赛周。提供方负责数据；定义在键进入请求路径前验证联盟、球队和球员键。使用 `ctx.fantasyProjections` 为联盟球员预测每周数据行，使用 `scoreStats` 按联盟计分规则为数据行计分。
 
 ## 目录
 
@@ -27,6 +27,8 @@ kind: "package-reference"
 
 使用方调用服务之前需装载 [fantasy-yahoo](../fantasy-yahoo/README.zh.md) 等提供方。活跃调用方 Session 通过 `teamFor` 选取配置的球队；模型参数不能选择调用方身份。
 
+使用方调用 `ctx.fantasyProjections.project(season, week, players)` 之前需装载 [fantasy-projections-sleeper](../fantasy-projections-sleeper/README.zh.md) 等预测提供方。它返回以球员键为键的预测数据行，统计项 id 与 `FantasyScoringStat.id` 和 `FantasyPlayer.stats` 相同；无法匹配的球员不在结果中。`scoreStats(line, scoring)` 对带分值的计分项求统计值与分值之积的和，并四舍五入到百分位。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -35,7 +37,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-抽象服务声明与提供方无关的只读方法和视图类型。联盟、球队和球员键是按 Yahoo 精确格式接纳的品牌化字符串。定义不发布不变量组件，因为它没有可变状态或独立观测值。
+抽象服务声明与提供方无关的只读方法、预测方法和视图类型。联盟、球队和球员键是按 Yahoo 精确格式接纳的品牌化字符串。定义不发布不变量组件，因为它没有可变状态或独立观测值。
 
 </details>
 
@@ -70,7 +72,7 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- 所有读取都需要提供方。
+- 所有读取都需要提供方，所有预测都需要预测提供方。
 
 <a id="dev-note"></a>
 ### 开发备注

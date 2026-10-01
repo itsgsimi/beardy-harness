@@ -140,6 +140,7 @@
     "@deepseek-ai/dsh-signal-cli": "workspace:*",
     "@deepseek-ai/dsh-signal-notices": "workspace:*",
     "@deepseek-ai/dsh-fantasy": "workspace:*",
+    "@deepseek-ai/dsh-fantasy-projections-sleeper": "workspace:*",
     "@deepseek-ai/dsh-fantasy-yahoo": "workspace:*",
     "@deepseek-ai/dsh-fantasy-reports": "workspace:*",
     "@deepseek-ai/dsh-tool-fantasy": "workspace:*",

@@ -93,6 +93,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   camera: 'camera.md',
   signal: 'signal.md',
   fantasy: 'fantasy.md',
+  fantasyProjections: 'fantasy.md',
   research: 'research.md',
   schedule: 'schedule.md',
   inspector: 'extensions.md',

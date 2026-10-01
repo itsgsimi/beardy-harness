@@ -1,4 +1,5 @@
-/** Anonymized Yahoo captures behind the real provider, with a disposable private token store. */
+/** Anonymized Yahoo captures behind the real provider, with a disposable private token store. The opponent's roster
+ * capture lives beside this file; the other captures are the provider's test fixtures. */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -16,6 +17,11 @@ const RESPONSES = {
   '/fantasy/v2/team/470.l.809970.t.7/matchups;week=3': 'team-matchups',
 }
 
+/** Captures stored beside this fixture rather than with the provider's tests. */
+const LOCAL_RESPONSES = {
+  '/fantasy/v2/team/470.l.809970.t.3/roster;week=3/players/stats;type=week;week=3': 'opponent-roster',
+}
+
 export async function apply(ctx) {
   const home = resolveDshHome()
   const tokenFile = join(home, 'fantasy-report', 'oauth2.json')
@@ -28,12 +34,14 @@ export async function apply(ctx) {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input))
-    const fixture = FREE_AGENTS.test(url.pathname) ? 'league-waivers-all' : RESPONSES[url.pathname]
+    const local = LOCAL_RESPONSES[url.pathname]
+    const fixture = local ?? (FREE_AGENTS.test(url.pathname) ? 'league-waivers-all' : RESPONSES[url.pathname])
     if (url.origin !== 'https://fantasysports.yahooapis.com' || fixture === undefined
       || init?.method !== 'GET' || init?.headers?.Authorization !== 'Bearer fixture-access') {
       throw new Error(`unexpected Yahoo fixture request ${url.pathname}`)
     }
-    const body = await readFile(new URL(`../../../packages/fantasy/fantasy-yahoo/tests/fixtures/${fixture}.json`, import.meta.url), 'utf8')
+    const body = await readFile(new URL(local === undefined
+      ? `../../../packages/fantasy/fantasy-yahoo/tests/fixtures/${fixture}.json` : `./${fixture}.json`, import.meta.url), 'utf8')
     return new Response(body, { status: 200 })
   }
   ctx.effect(() => () => { globalThis.fetch = originalFetch }, 'Yahoo fixture transport')

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ResearchOwner } from '@deepseek-ai/dsh-research/types'
 import type { FantasyRoster, TeamKey } from '@deepseek-ai/dsh-fantasy/types'
+import { scoreStats } from '@deepseek-ai/dsh-fantasy'
 import { RESEARCH_JSON_CORRECTION } from '@deepseek-ai/dsh-research-local/src/prompts.ts'
 import { resolveConfig, type Config } from '../src/config.ts'
 import { FANTASY_STAGE_SYSTEM_PROMPT } from '../src/prompts.ts'
@@ -9,7 +10,7 @@ import { CUT_NOTICE } from '../src/render.ts'
 import { weeklyReportWorkflow, type EarlierReport } from '../src/workflow.ts'
 import {
   WEDNESDAY_WEEK_3, harness, lockedRoster, playerFetch, playerPage, playerSearch, promptOf, replies, stageModel, stageOf, synthetic, yahoo,
-  type FantasyData, type Harness, type Reply,
+  type FantasyData, type FixtureProjections, type Harness, type Reply,
 } from './support.ts'
 
 const harnesses: Harness[] = []
@@ -33,10 +34,12 @@ function systemOf(request: Parameters<typeof promptOf>[0]): string {
 async function execute(script: readonly Reply[], overrides: Partial<Config> = {}, options: Parameters<typeof harness>[1] & {
   data?: Partial<FantasyData>
   history?: readonly EarlierReport[]
+  projections?: Partial<Pick<FixtureProjections, 'lines' | 'failure'>>
 } = {}) {
   const h = await harness(script, options)
   harnesses.push(h)
   h.fantasy.data = { ...h.fantasy.data, ...options.data }
+  Object.assign(h.projections, options.projections)
   const config = resolveConfig(Object.assign({}, base, overrides))
   const caller = await h.ctx.agents.create({ sessionId: SessionId('fantasy-test-caller') })
   const owner: ResearchOwner = { kind: 'profile', namespace: 'beardy' }
@@ -124,7 +127,7 @@ describe('weekly report pipeline', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(report!.markdown).toContain('**Jahmyr Gibbs — START** · RB · Det · bye 6\nLead back. [2](<https://news.example/p2>)')
     expect(report!.markdown).toContain('- Code defaults stand for Omarion Hampton, Parker Washington, Tyler Warren, Breece Hall, '
       + 'Jordan Addison: no valid model call after one retry (P3: not an object; P4: missing; P6: missing; P7: missing; P8: missing).')
-    expect(report!.markdown).toContain('**Omarion Hampton — START** · RB · LAC · bye 7 · code reason\nStarts at RB; Yahoo shows no projection.')
+    expect(report!.markdown).toContain('**Omarion Hampton — START** · RB · LAC · bye 7 · code reason\nStarts at RB; no projection.')
   })
 
   it('takes the corrective JSON answer after a pseudo tool call and keeps a stage error from stopping the report', async () => {
@@ -160,12 +163,12 @@ describe('weekly report pipeline', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(markdown).toContain('Changes from your Yahoo lineup: start Jordan Addison, bench Zay Flowers.')
     expect(markdown).toContain('- **WR** Parker Washington · Jax · proj n/a · locked')
     expect(markdown).toContain('**Zay Flowers — SIT** · WR · Bal · bye 13\nCall for P5. [5](<https://news.example/p5>)')
-    expect(markdown).toContain('**Jordan Addison — START** · WR · Min · bye 6 · code reason\nStarts at WR; Yahoo shows no projection.')
+    expect(markdown).toContain('**Jordan Addison — START** · WR · Min · bye 6 · code reason\nStarts at WR; no projection.')
     expect(markdown).toContain('- Code kept the lineup call for Parker Washington: the model call was rejected because '
       + 'Yahoo has locked his slot because his game has started.')
     expect(markdown).toContain('- Code kept the lineup call for Jayden Daniels: the model call was rejected because '
       + 'he cannot start while Yahoo status O.')
-    expect(markdown).toContain('- The reason check found no support for the model reasons of Jordan Addison; plain Yahoo reasons replace them.')
+    expect(markdown).toContain('- The reason check found no support for the model reasons of Jordan Addison; plain code reasons replace them.')
     expect(markdown).not.toContain('## Waiver ideas')
     expect(evidence!.waivers).toEqual([])
   })
@@ -225,6 +228,38 @@ describe('weekly report pipeline', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       + 'bench Zay Flowers.')
     expect(markdown).toContain('- **DEF** — empty: no eligible player can play')
     expect(markdown).toContain('- No eligible player can fill DEF this week.')
+  })
+
+  it('fills only missing projections from projection stat lines under league scoring, one read per player list', async () => {
+    const { roster, opponent } = projected()
+    const lawrence = { 4: 250, 5: 2, 6: 1, 9: 10 }
+    const back = yahoo.freeAgentBacks[0]!
+    const { h, report, evidence } = await execute(replies(), { checkReasons: false }, {
+      data: { roster: { ...roster, players: roster.players.map((player, index) => index === 0
+        ? { ...player, projectedPoints: undefined } : player) }, opponent, freeAgents: { RB: yahoo.freeAgentBacks } },
+      projections: { lines: { 'Trevor Lawrence': lawrence, 'Jahmyr Gibbs': { 9: 500 }, [back.name]: { 9: 300 } } },
+    })
+    const expected = scoreStats(lawrence, yahoo.settings.scoring)
+    expect(expected).toBeGreaterThan(0)
+    expect(h.projections.reads.map(read => [read.season, read.week, read.names.length])).toEqual([
+      [2026, 3, 15], [2026, 3, 0], [2026, 3, 10], [2026, 3, 0], [2026, 3, 0], [2026, 3, 0], [2026, 3, 0], [2026, 3, 16]])
+    expect(report!.markdown).toContain(`- **QB** Trevor Lawrence · Jax · proj ${expected.toFixed(1)}`)
+    expect(report!.markdown).toContain('- **RB** Jahmyr Gibbs · Det · proj 19.0')
+    expect(evidence!.projectedPoints)
+      .toEqual({ [roster.players[0]!.key]: expected, [back.key]: scoreStats({ 9: 300 }, yahoo.settings.scoring) })
+    expect((evidence!.yahoo as { freeAgents: Record<string, Array<{ projectedPoints?: number }>> }).freeAgents.RB![0]!.projectedPoints)
+      .toBe(back.projectedPoints)
+  })
+
+  it('keeps Yahoo projections and adds a caveat when a projection read fails', async () => {
+    const { roster, opponent } = projected()
+    const { status, report } = await execute(replies(), { checkReasons: false, maxCloseCalls: 0 },
+      { data: { roster, opponent, freeAgents: { RB: yahoo.freeAgentBacks } }, projections: { failure: new Error('projections offline') } })
+    expect(status.phase).toBe('completed')
+    expect(report!.markdown).toContain('- Projections for the roster could not be read (Error: projections offline).')
+    expect(report!.markdown).toContain('- Projections for free agents at RB could not be read (Error: projections offline).')
+    expect(report!.markdown).toContain('- Projections for the opponent\'s roster could not be read (Error: projections offline).')
+    expect(report!.markdown).toContain('- **QB** Trevor Lawrence · Jax · proj 20.0')
   })
 
   it('admits only pages that name the player and records search, fetch, and admission outcomes', async () => {

@@ -1,6 +1,6 @@
 /**
- * Weekly report pipeline inside one durable research run: code gathers Yahoo facts, news, the legal
- * lineup, close calls, and the waiver shortlist; small model stages make fixed-choice judgments and
+ * Weekly report pipeline inside one durable research run: code gathers Yahoo facts, projections, news,
+ * the legal lineup, close calls, and the waiver shortlist; small model stages make fixed-choice judgments and
  * write short prose; code validates every answer, degrades bad ones to plain defaults, and renders.
  * @module @deepseek-ai/dsh-fantasy-reports/workflow
  */
@@ -8,8 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ResearchWorkflow, ResearchWorkflowRun } from '@deepseek-ai/dsh-research'
 import type { ResearchWorkflowResult } from '@deepseek-ai/dsh-research/types'
-import type { FantasyLeagueSettings, FantasyPlayer, FantasyTeam } from '@deepseek-ai/dsh-fantasy/types'
-import type {} from '@deepseek-ai/dsh-fantasy'
+import type { FantasyLeagueSettings, FantasyPlayer, FantasyTeam, PlayerKey } from '@deepseek-ai/dsh-fantasy/types'
+import { scoreStats } from '@deepseek-ai/dsh-fantasy'
 import {
   type Comparison, holdsJsonObject, type ModelCall, parseCalls, parseCheck, parseComparisons, parseSummary, parseWaivers, type WaiverPick,
 } from './answers.ts'
@@ -57,7 +57,7 @@ export interface WeeklyReportInput {
 
 /**
  * Build the research workflow for one team's weekly report.
- * @param ctx - consumer context with the fantasy and web services.
+ * @param ctx - consumer context with the fantasy, fantasy projection, and web services.
  * @param config - validated report policy.
  * @param input - trusted team, league settings, week, mode, and history.
  * @returns a workflow that publishes unless the Yahoo facts fail or no model stage answers usably.
@@ -148,9 +148,10 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
   if (roster.players.length === 0 || roster.players.length > config.maxPlayers) {
     throw withheld(`the Yahoo roster has ${roster.players.length} players; reports cover 1 to ${config.maxPlayers}`)
   }
-  const players = new Map(roster.players.map((player, index) => [`P${index + 1}`, player]))
-  const slots = settings.rosterSlots
   const caveats: string[] = []
+  const projected = new Projections(ctx, run, settings, Number(input.season), week, caveats)
+  const players = new Map((await projected.fill(roster.players, 'the roster')).map((player, index) => [`P${index + 1}`, player]))
+  const slots = settings.rosterSlots
   const name = (id: string): string => (players.get(id) as FantasyPlayer).name
   const matchupTeams = matchups.find(matchup => matchup.teams.some(entry => entry.key === team.teamKey))?.teams
   const ours = matchupTeams?.find(entry => entry.key === team.teamKey)
@@ -159,11 +160,14 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
 
   const needs = positionNeeds(players, code, slots, week)
   const freeAgents = new Map<string, readonly FantasyPlayer[]>()
+  const yahooFreeAgents = new Map<string, readonly FantasyPlayer[]>()
   if (config.waiverPositions > 0) {
     for (const position of waiverQueries(needs, players)) {
       try {
-        freeAgents.set(position, await ctx.fantasy.players(team.leagueKey, { status: 'FA', position, sort: 'rank', start: 0,
-          count: Math.min(25, config.waiverCandidates * 3), week }, run.signal))
+        const available = await ctx.fantasy.players(team.leagueKey, { status: 'FA', position, sort: 'rank', start: 0,
+          count: Math.min(25, config.waiverCandidates * 3), week }, run.signal)
+        yahooFreeAgents.set(position, available)
+        freeAgents.set(position, await projected.fill(available, `free agents at ${position}`))
       } catch (error) {
         run.signal.throwIfAborted()
         caveats.push(`Yahoo free agents at ${position} could not be read (${String(error)}).`)
@@ -172,7 +176,7 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
   }
   const shortlist = waiverShortlist(needs, freeAgents, players, code, week,
     { positions: config.waiverPositions, candidates: config.waiverCandidates })
-  const comparison = await slotComparison(ctx, run, players, code, slots, week, opponent, caveats)
+  const comparison = await slotComparison(ctx, run, players, code, slots, week, opponent, projected, caveats)
 
   const news = await collectNews(ctx, config, players, { season: input.season, week }, run)
   const excerpts = (id: string): readonly Excerpt[] => news.excerpts.get(id) as readonly Excerpt[]
@@ -327,7 +331,8 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
       workflow: FANTASY_WORKFLOW_NAME, promptVersion: FANTASY_PROMPT_VERSION,
       team: { id: team.id, name: team.name, teamKey: team.teamKey, leagueKey: team.leagueKey },
       season: input.season, week, mode: input.mode, firedAt: input.firedAt,
-      yahoo: { settings, roster, matchups, freeAgents: Object.fromEntries(freeAgents) },
+      yahoo: { settings, roster, matchups, freeAgents: Object.fromEntries(yahooFreeAgents) },
+      projectedPoints: Object.fromEntries(projected.filled),
       history: input.history.map(report => ({ runId: report.runId, week: report.week, mode: report.mode })),
       sources: news.evidence.map(source => ({ id: source.id, url: source.url, title: source.title, players: source.players })),
       codeLineup: code, lineup, calls: Object.fromEntries(calls), closeCalls: pairs, comparisons: comparisons.map(item => item.pair.id),
@@ -338,14 +343,50 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
   }
 }
 
-/** Slot-by-slot projections of the report lineup and the opponent's Yahoo starters, when Yahoo projects both. */
+/**
+ * Projections from the projection provider, scored under league scoring, for players Yahoo left unprojected.
+ * A failed projection read leaves its players as Yahoo returned them and adds a caveat.
+ */
+class Projections {
+  /** Points filled from provider stat lines, by player key, for the run's evidence. */
+  readonly filled = new Map<PlayerKey, number>()
+
+  constructor(private readonly ctx: Context, private readonly run: ResearchWorkflowRun, private readonly settings: FantasyLeagueSettings,
+    private readonly season: number, private readonly week: number, private readonly caveats: string[]) {}
+
+  /**
+   * Project one player list in a single provider call.
+   * @param players - players as Yahoo returned them.
+   * @param label - what the list is, for the failure caveat.
+   * @returns the players, with `projectedPoints` set where Yahoo left it undefined and the provider matched them.
+   */
+  async fill(players: readonly FantasyPlayer[], label: string): Promise<FantasyPlayer[]> {
+    let lines: ReadonlyMap<PlayerKey, Readonly<Record<string, number>>>
+    try {
+      lines = await this.ctx.fantasyProjections.project(this.season, this.week, players, this.run.signal)
+    } catch (error) {
+      this.run.signal.throwIfAborted()
+      this.caveats.push(`Projections for ${label} could not be read (${String(error)}).`)
+      return [...players]
+    }
+    return players.map((player) => {
+      const line = lines.get(player.key)
+      if (player.projectedPoints !== undefined || line === undefined) return player
+      const projectedPoints = scoreStats(line, this.settings.scoring)
+      this.filled.set(player.key, projectedPoints)
+      return { ...player, projectedPoints }
+    })
+  }
+}
+
+/** Slot-by-slot projections of the report lineup and the opponent's Yahoo starters, when a roster player is projected. */
 async function slotComparison(ctx: Context, run: ResearchWorkflowRun, players: ReadonlyMap<string, FantasyPlayer>,
   lineup: readonly LineupAssignment[], slots: FantasyLeagueSettings['rosterSlots'], week: number, opponent: FantasyTeam | undefined,
-  caveats: string[]): Promise<SlotComparison[] | undefined> {
+  projected: Projections, caveats: string[]): Promise<SlotComparison[] | undefined> {
   if (opponent === undefined || ![...players.values()].some(player => player.projectedPoints !== undefined)) return undefined
   let theirs: readonly FantasyPlayer[]
   try {
-    theirs = (await ctx.fantasy.team(opponent.key, week, run.signal)).players
+    theirs = await projected.fill((await ctx.fantasy.team(opponent.key, week, run.signal)).players, "the opponent's roster")
   } catch (error) {
     run.signal.throwIfAborted()
     caveats.push(`The opponent's Yahoo roster could not be read, so the slot comparison is missing (${String(error)}).`)
@@ -378,7 +419,7 @@ function rowCaveats(players: ReadonlyMap<string, FantasyPlayer>, calls: Readonly
   }
   const unsupported = by('unsupported')
   if (unsupported.length > 0) {
-    caveats.push(`The reason check found no support for the model reasons of ${named(unsupported)}; plain Yahoo reasons replace them.`)
+    caveats.push(`The reason check found no support for the model reasons of ${named(unsupported)}; plain code reasons replace them.`)
   }
   for (const item of lineup) if (item.player === undefined) caveats.push(`No eligible player can fill ${item.slot} this week.`)
   if (news.failedFetches > 0) caveats.push(`News pages that failed to load: ${news.failedFetches}.`)

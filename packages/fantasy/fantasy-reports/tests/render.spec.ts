@@ -30,7 +30,7 @@ describe('report rendering', () => {
   it('leads with the matchup and summary, then the lineup, calls, close calls, waivers, caveats, and cited sources', () => {
     const text = renderReport(view, 19_000)
     expect(formatInstant(WEDNESDAY_WEEK_3, 'America/Phoenix')).toBe('Wed, Sep 23, 2:00 PM MST')
-    expect(text.startsWith('# The Googies · 2026 week 3 Thursday update\n**Wed, Sep 23, 2:00 PM MST · Yahoo roster, slots, and projections**'))
+    expect(text.startsWith('# The Googies · 2026 week 3 Thursday update\n**Wed, Sep 23, 2:00 PM MST · Yahoo roster and slots, weekly projections**'))
       .toBe(true)
     expect(text).toContain('**Matchup:** The Googies 116.1 vs Team 5 94.6 projected · Yahoo win probability 59%')
     expect(text).not.toContain('By slot')
@@ -39,7 +39,7 @@ describe('report rendering', () => {
     expect(text).toContain('- **WR** Jordan Addison · Min · proj n/a · **start** (Yahoo BN)')
     expect(text).toContain('Bench: Zay Flowers (Q), Jayden Daniels (O), J.K. Dobbins, Nico Collins (O), Bhayshul Tuten, Isaiah Likely')
     expect(text).toContain('**Zay Flowers — SIT** · WR · Bal · bye 13\nLimited with a hamstring injury. [5](<https://news.example/p5>)')
-    expect(text).toContain('**Trevor Lawrence — START** · QB · Jax · bye 7 · code reason\nStarts at QB; Yahoo shows no projection.')
+    expect(text).toContain('**Trevor Lawrence — START** · QB · Jax · bye 7 · code reason\nStarts at QB; no projection.')
     expect(text).toContain('**Zay Flowers or Jordan Addison** (WR)\nAddison practiced fully; Flowers did not. '
       + '[5](<https://news.example/p5>) [8](<https://news.example/p8>)')
     expect(text).toContain('## Waiver ideas\n- **Olamide Zaccheaus** · WR · Atl — A healthy fill-in.')

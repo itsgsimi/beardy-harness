@@ -29,7 +29,7 @@ export type { EarlierReport, WeeklyReportInput } from './workflow.ts'
 /** Cordis plugin identity. */
 export const name = 'fantasy-reports'
 /** Services a report reads or writes, and the registry of the on-demand command. */
-export const inject = ['agents', 'commands', 'fantasy', 'research', 'sessionPersistence', 'web']
+export const inject = ['agents', 'commands', 'fantasy', 'fantasyProjections', 'research', 'sessionPersistence', 'web']
 
 /** Human command that runs one team's report now. */
 export const REPORT_COMMAND = 'fantasy-report'

@@ -2,7 +2,7 @@
 
 [English](fantasy.md) | 中文
 
-[Fantasy 定义](../../packages/fantasy/fantasy/README.zh.md)声明只读视图和品牌化 Yahoo 键。[Yahoo 提供方](../../packages/fantasy/fantasy-yahoo/README.zh.md)提供私有 OAuth 存储及 REST 读取。[模型工具](../../packages/fantasy/tool-fantasy/README.zh.md)向调用方 Session 提供有界结果。[报告插件](../../packages/fantasy/fantasy-reports/README.zh.md)定时发送每周报告。
+[Fantasy 定义](../../packages/fantasy/fantasy/README.zh.md)声明只读视图和品牌化 Yahoo 键。[Yahoo 提供方](../../packages/fantasy/fantasy-yahoo/README.zh.md)提供私有 OAuth 存储及 REST 读取。[Sleeper 预测提供方](../../packages/fantasy/fantasy-projections-sleeper/README.zh.md)以 Yahoo 统计项 id 提供每周预测数据行，因为 Yahoo 的 API 不返回逐名球员的预测。[模型工具](../../packages/fantasy/tool-fantasy/README.zh.md)向调用方 Session 提供有界结果。[报告插件](../../packages/fantasy/fantasy-reports/README.zh.md)定时发送每周报告。
 
 ## Authority and token ownership
 
@@ -18,7 +18,7 @@
 
 ## Weekly reports
 
-报告插件按显式球队键读取配置的球队，而不是按调用方预设读取，因此一个组合可以同时为 Goran 和 Mamabear 的球队生成报告。每份报告都是一次研究工作流运行，把确定性工作与判断分开。代码读取 Yahoo 阵容、阵容位、对阵、状态、预测分数和自由球员，网页只有写出其所针对的球员时才被采纳，依据联盟的首发位、槽位锁定、轮空周和不可出场状态选出预测分数最高的合法阵容，标出接近的抉择，为薄弱位置筛选自由球员候选，并渲染报告。有日志的小型模型阶段给出固定选项的逐名球员决定、比较被标出的接近抉择、从候选自由球员中挑选、对照摘录核查理由并撰写摘要；代码逐项验证回答，不合格的球员重试一次，仍不合格的内容降级为代码默认值并在报告的注意事项中列出。只有在没有任何模型阶段给出可用回答时报告才会被扣留，Yahoo 失败则发送失败通知。插件启动时，若某支球队的最近时段仍在其窗口内且研究历史中没有已完成的报告，就对该时段补跑一次；已完成的报告则以原始触发时间再次交给投递。影子模式把所有报告只发送到一个配置的频道，并附上标明球队的标签。处于 `commandPresets` 所列预设中的用户可以运行 `/fantasy-report <team> [full|thursday|sunday]`，立即为某支球队生成本周报告；它与定时报告共用队列，投递到定时报告的去处，且不会被同一周同一模式的早先运行阻止。除已发布或重新投递的报告外，每次触发的结果都以警告级别记录。
+报告插件按显式球队键读取配置的球队，而不是按调用方预设读取，因此一个组合可以同时为 Goran 和 Mamabear 的球队生成报告。每份报告都是一次研究工作流运行，把确定性工作与判断分开。代码读取 Yahoo 阵容、阵容位、对阵、状态和自由球员，按联盟计分规则为预测数据行计分以补上 Yahoo 缺少的球员预测，网页只有写出其所针对的球员时才被采纳，依据联盟的首发位、槽位锁定、轮空周和不可出场状态选出预测分数最高的合法阵容，标出接近的抉择，为薄弱位置筛选自由球员候选，并渲染报告。有日志的小型模型阶段给出固定选项的逐名球员决定、比较被标出的接近抉择、从候选自由球员中挑选、对照摘录核查理由并撰写摘要；代码逐项验证回答，不合格的球员重试一次，仍不合格的内容降级为代码默认值并在报告的注意事项中列出。只有在没有任何模型阶段给出可用回答时报告才会被扣留，Yahoo 失败则发送失败通知。插件启动时，若某支球队的最近时段仍在其窗口内且研究历史中没有已完成的报告，就对该时段补跑一次；已完成的报告则以原始触发时间再次交给投递。影子模式把所有报告只发送到一个配置的频道，并附上标明球队的标签。处于 `commandPresets` 所列预设中的用户可以运行 `/fantasy-report <team> [full|thursday|sunday]`，立即为某支球队生成本周报告；它与定时报告共用队列，投递到定时报告的去处，且不会被同一周同一模式的早先运行阻止。除已发布或重新投递的报告外，每次触发的结果都以警告级别记录。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -126,6 +126,25 @@ abstract gameWeeks(signal?: AbortSignal): Promise<readonly FantasyGameWeek[]>
 ```
 
 Types: [Session](session.zh.md)
+
+Source: [`packages/fantasy/fantasy/src/index.ts`](../../packages/fantasy/fantasy/src/index.ts)
+
+<a id="ctxfantasyprojections--fantasyprojectionservice-abstract-seam"></a>
+
+### `ctx.fantasyProjections` — `FantasyProjectionService` (abstract seam)
+
+Weekly projected stat lines for league players from a source other than the league provider. Lines use the stat ids of FantasyScoringStat.id and `FantasyPlayer.stats`, so league scoring applies to them unchanged through scoreStats.
+
+```ts cordis-catalog
+/** Project one NFL week's stat lines for the given players.
+ * @param season - NFL season year.
+ * @param week - NFL regular-season week.
+ * @param players - league players to project; the provider matches them by name, NFL team, and position.
+ * @param signal - caller cancellation.
+ * @returns projected stat lines by player key; players the provider cannot match are absent.
+ */
+abstract project( season: number, week: number, players: readonly FantasyPlayer[], signal?: AbortSignal, ): Promise<ReadonlyMap<PlayerKeyType, Readonly<Record<string, number>>>>
+```
 
 Source: [`packages/fantasy/fantasy/src/index.ts`](../../packages/fantasy/fantasy/src/index.ts)
 <!-- END GENERATED cordis-surface -->

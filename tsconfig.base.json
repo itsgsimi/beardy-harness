@@ -385,6 +385,7 @@
       "@deepseek-ai/dsh-deque": ["./packages/util/deque/src"],
       "@deepseek-ai/dsh-discord-gateway": ["./packages/discord/discord-gateway/src"],
       "@deepseek-ai/dsh-fantasy": ["./packages/fantasy/fantasy/src"],
+      "@deepseek-ai/dsh-fantasy-projections-sleeper": ["./packages/fantasy/fantasy-projections-sleeper/src"],
       "@deepseek-ai/dsh-fantasy-reports": ["./packages/fantasy/fantasy-reports/src"],
       "@deepseek-ai/dsh-fantasy-yahoo": ["./packages/fantasy/fantasy-yahoo/src"],
       "@deepseek-ai/dsh-file-reference": ["./packages/context/file-reference/src"],

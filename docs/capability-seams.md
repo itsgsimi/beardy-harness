@@ -20,6 +20,8 @@ flowchart LR
   pkg_fantasy_yahoo["fantasy-yahoo"]
   pkg_tool_fantasy["tool-fantasy"]
   pkg_fantasy_reports["fantasy-reports"]
+  svc_fantasyProjections["ctx.fantasyProjections<br/>Weekly Fantasy stat-line projections"]
+  pkg_fantasy_projections_sleeper["fantasy-projections-sleeper"]
   pkg_research["research"]
   svc_research["ctx.research<br/>Durable owner-scoped research runs"]
   pkg_research_local["research-local"]
@@ -347,6 +349,8 @@ flowchart LR
   pkg_experimental_speech_to_text --> svc_speechToText
   pkg_experimental_speech_to_text_sensevoice --> svc_speechToText
   pkg_fantasy --> svc_fantasy
+  pkg_fantasy --> svc_fantasyProjections
+  pkg_fantasy_projections_sleeper --> svc_fantasyProjections
   pkg_fantasy_yahoo --> svc_fantasy
   pkg_file_reference --> svc_fileReferences
   pkg_file_reference_local --> svc_fileReferences
@@ -490,6 +494,7 @@ flowchart LR
   svc_dynamicCordisRunner --> pkg_tool_cordis
   svc_fantasy --> pkg_fantasy_reports
   svc_fantasy --> pkg_tool_fantasy
+  svc_fantasyProjections --> pkg_fantasy_reports
   svc_fileReferences --> pkg_api_session_controller
   svc_fileUploads --> pkg_api_session_controller
   svc_fs --> pkg_tool_fs
@@ -612,6 +617,7 @@ flowchart LR
 | `ctx.signal` | `seam` | [`signal`](../packages/signal/signal) | [`signal-cli`](../packages/signal/signal-cli) | [`signal-notices`](../packages/signal/signal-notices) | - | The provider owns the daemon connection, the durable outbox, and the event stream; the notice consumer claims camera, health, and scheduled-run notices whose target is a Signal group or number. |
 | `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | The provider owns vendor sign-in, event admission, and frame capture; the watch classifies frames in logged Sessions, hands notices to the delivery owner of their target, and answers the camera tool. |
 | `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The provider owns OAuth and Yahoo parsing; the model tool reads the caller's mapped team and scheduled reports read configured teams. |
+| `ctx.fantasyProjections` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-projections-sleeper`](../packages/fantasy/fantasy-projections-sleeper) | [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The provider owns the projection source, stat-key translation, and player matching; scheduled reports score the lines under league scoring. |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | The local provider persists run Sessions and report attachments and executes consumer workflows such as the weekly fantasy report. |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | Owns module and exact configuration watchers; application mutations share its queue and automatic reloads await the application file lock. |
 | `ctx.pluginRegistryProbe` | `core` | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | Races public registry responses on the Host; the Client owns the initial registry recommendation. |
