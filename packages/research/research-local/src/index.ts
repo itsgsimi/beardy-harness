@@ -125,6 +125,7 @@ export class LocalResearchService extends ResearchService {
   static Config: z<Config> = z.object({
     provider: z.string().min(1), model: z.string().min(1), reasoningEffort: z.string().min(1),
     ownerScope: z.union(['session', 'profile']).default('session'), ownerNamespace: z.string().min(1),
+    stageTemperature: z.number().min(0).max(2).default(0.2),
     maxRounds: z.number().step(1).min(1).max(20).default(4),
     minRounds: z.number().step(1).min(1).max(20).default(2),
     firstRoundQueries: z.number().step(1).min(1).max(20).default(4),

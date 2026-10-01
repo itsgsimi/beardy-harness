@@ -3,6 +3,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ResearchOwner } from '@deepseek-ai/dsh-research/types'
 import { resolveConfig, type Config } from '../src/config.ts'
 import { weeklyReportWorkflow, type EarlierReport } from '../src/workflow.ts'
+import { FANTASY_STAGE_SYSTEM_PROMPT } from '../src/prompts.ts'
+import { RESEARCH_JSON_CORRECTION } from '@deepseek-ai/dsh-research-local/src/prompts.ts'
 import {
   WEDNESDAY_WEEK_3, harness, playerFetch, playerPage, playerSearch, promptOf, validDraft, yahoo,
   type Harness, type Reply,
@@ -19,6 +21,18 @@ const base = {
 } satisfies Config
 
 const pass = JSON.stringify({ issues: [] })
+
+/** Reviewer answer shape observed live: prose plus a tool call written as text. */
+const REVIEWER_PSEUDO_TOOL_CALL = 'I need to verify the injury report before auditing.\n<tool_call>\n<function=session_search>\n'
+  + '<parameter=query>Bijan Robinson week 3 practice</parameter>\n</function>\n</tool_call>'
+
+/** Writer answer shape observed live: prose plus a shell command instead of the JSON draft. */
+const WRITER_PROSE_ANSWER = 'Let me pull the latest practice reports first.\n\n```bash\ncurl -s https://www.espn.com/nfl/injuries\n```'
+
+function systemOf(request: Parameters<typeof promptOf>[0]): string {
+  return request.messages.filter(message => message.role === 'system')
+    .flatMap(message => message.content.map(block => block.type === 'text' ? block.text : '')).join('\n')
+}
 
 /** Each case persists a 15-player run with every ledger write flushed to JSONL. */
 const RUN_CASE_TIMEOUT_MS = 90_000
@@ -65,7 +79,7 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(evidence).toMatchObject({ workflow: 'fantasy-weekly-report', week: 3, mode: 'full',
       history: [{ runId: 'rp-native-earlier', week: 2, mode: 'sunday' }], structuralRepairs: 0 })
     const started = events.find(event => event.type === 'research/started')
-    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v3',
+    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v4',
       budgets: { stageTimeoutMs: 1_200_000, hardRunTimeoutMs: 14_400_000 } })
     expect(events.filter(event => event.type === 'research/search')).toHaveLength(15)
     expect(events.filter(event => event.type === 'research/finding' && event.data.accepted)).toHaveLength(15)
@@ -129,36 +143,58 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     const keeps = await execute([JSON.stringify(draft), detail, illegal], { maxReviews: 1 })
     expect(keeps.status.phase).toBe('completed')
     expect(keeps.report!.markdown).toContain('- The last review raised detail-level notes that could not be applied')
-    const unusable = await execute([JSON.stringify(draft), detail, 'no json', 'still none'], { maxReviews: 1 })
+    const unusable = await execute([JSON.stringify(draft), detail, 'no json', 'still none', 'no json again', 'none again'], { maxReviews: 1 })
     expect(unusable.report!.markdown).toContain('could not be applied')
   })
 
   it('withholds a draft that still fails code checks after the structural repair budget', async () => {
     const draft = validDraft()
     const illegal = { ...draft, lineup: [...draft.lineup.filter(item => item.slot !== 'QB'), { slot: 'QB', player: 'P9' }] }
-    const { h, status } = await execute([JSON.stringify(illegal), 'not json', '{"players":[]}'], { maxStructuralRepairs: 2 })
+    const { h, status } = await execute([JSON.stringify(illegal), 'not json', 'still not json', '{"players":[]}'], { maxStructuralRepairs: 2 })
     expect(status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('the draft still fails code checks') as string })
     expect(status.reason).toContain('P9 cannot start because Jayden Daniels has Yahoo status O')
     expect(promptOf(h.adapter.requests[1]!)).toContain('- P9: starts in QB but is recommended SIT')
-    expect(promptOf(h.adapter.requests[2]!)).toContain('- the previous patch was unusable: Error: the response contains no JSON object')
+    expect(promptOf(h.adapter.requests[2]!)).toBe(RESEARCH_JSON_CORRECTION)
+    expect(h.adapter.requests[2]!.sessionId).toBe(h.adapter.requests[1]!.sessionId)
+    expect(promptOf(h.adapter.requests[3]!)).toContain('- the previous patch was unusable: Error: the response contains no JSON object')
   })
 
   it('rewrites an unparseable writer answer and withholds when the reviewer never returns findings JSON', async () => {
-    const rewritten = await execute(['I cannot comply.', JSON.stringify(validDraft()), pass])
+    const rewritten = await execute(['I cannot comply.', 'Still no JSON.', JSON.stringify(validDraft()), pass])
     expect(rewritten.status.phase).toBe('completed')
-    expect(promptOf(rewritten.h.adapter.requests[1]!)).toContain('Your previous answer was unusable')
-    const silent = await execute([JSON.stringify(validDraft()), 'looks fine', '{"issues":"none"}'])
-    expect(silent.status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('the reviewer returned no usable findings JSON') as string })
-    const never = await execute(['I cannot comply.', 'Still no JSON.'], { maxStructuralRepairs: 1 })
+    expect(promptOf(rewritten.h.adapter.requests[1]!)).toBe(RESEARCH_JSON_CORRECTION)
+    expect(promptOf(rewritten.h.adapter.requests[2]!)).toContain('Your previous answer was unusable')
+    const silent = await execute([JSON.stringify(validDraft()), REVIEWER_PSEUDO_TOOL_CALL, 'looks fine', '{"issues":"none"}',
+      'Let me verify first.\n<tool_call><function=web_search><parameter=query>Kyren Williams week 3</parameter></function></tool_call>'])
+    expect(silent.status).toMatchObject({ phase: 'failed',
+      reason: expect.stringContaining('the reviewer returned no usable findings JSON: Error: issues must be an array') as string })
+    expect(silent.status.stageSessionIds).toHaveLength(3)
+    const never = await execute(['I cannot comply.', 'Still no JSON.', 'No.', 'Nope.'], { maxStructuralRepairs: 1 })
     expect(never.status).toMatchObject({ phase: 'failed',
       reason: expect.stringContaining('the draft still fails code checks: the answer is not the required JSON draft: Error: the response contains no JSON object') as string })
+  })
+
+  it('takes the corrective JSON answer from the same stage Session after a prose or pseudo-tool-call answer', async () => {
+    const { h, status } = await execute([WRITER_PROSE_ANSWER, JSON.stringify(validDraft()), REVIEWER_PSEUDO_TOOL_CALL, pass])
+    expect(status.phase).toBe('completed')
+    expect(status.stageSessionIds).toHaveLength(2)
+    const requests = h.adapter.requests
+    expect(requests).toHaveLength(4)
+    expect(requests.map(request => request.sessionId)).toEqual([requests[0]!.sessionId, requests[0]!.sessionId,
+      requests[2]!.sessionId, requests[2]!.sessionId])
+    expect([1, 3].map(index => promptOf(requests[index]!))).toEqual([RESEARCH_JSON_CORRECTION, RESEARCH_JSON_CORRECTION])
+    for (const request of requests) {
+      expect(systemOf(request)).toBe(FANTASY_STAGE_SYSTEM_PROMPT)
+      expect(request.tools ?? []).toEqual([])
+      expect(request.temperature).toBe(0.2)
+    }
   })
 
   it('withholds a factual repair that cannot be applied before the last review', async () => {
     const draft = validDraft()
     const detail = JSON.stringify({ issues: [{ player: null, kind: 'wrong_advice_logic',
       claim: 'Keep the current Yahoo lineup.', evidence: '', problem: 'Ignores the injury.', fix: 'Discuss Flowers.' }] })
-    const { status } = await execute([JSON.stringify(draft), detail, 'nope', '{"players":[{"player":"P99"}]}'])
+    const { status } = await execute([JSON.stringify(draft), detail, 'nope', '{"players":[{"player":"P99"}]}', 'nope', '{"players":[{"player":"P99"}]}'])
     expect(status).toMatchObject({ phase: 'failed', reason: expect.stringContaining('the factual repair patch was unusable') as string })
   })
 

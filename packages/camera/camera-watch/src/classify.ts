@@ -7,13 +7,11 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-agent'
-import type { ModelSelection } from '@deepseek-ai/dsh-agent'
+import { installDedicatedPrompt, type ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSourceMap, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import { awaitTurn, lastAssistantText, lastTurnEndReason } from '@deepseek-ai/dsh-unattended-session'
 
@@ -87,16 +85,7 @@ export async function classifyFrames(ctx: Context, request: ClassifyRequest): Pr
     ...request.cwd === undefined ? {} : { meta: { cwd: request.cwd } },
     agentOptions: { ...request.selection, maxTokens: request.maxOutputTokens },
     setup: (agentCtx) => {
-      agentCtx.systemPrompt.section({
-        name: PERSONA_PREFIX_SECTION,
-        order: agentCtx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'),
-        text: request.systemPrompt,
-        interpolate: false,
-        complete: true,
-      })
-      agentCtx.systemPrompt.suppressRuntimeContext()
-      agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => ({ ...await next(), tools: [] }))
-      agentCtx.on('agent/request', async (_payload, next) => ({ ...await next(), temperature: request.temperature }))
+      installDedicatedPrompt(agentCtx, { systemPrompt: request.systemPrompt, temperature: request.temperature })
       agentCtx.tools.guard(() => 'camera classification runs without tools')
       agentCtx.on('llm/stream', (options, next) => {
         if (options.sessionId === sessionId && ++requests > prompts) throw new Error('camera classification allows one model request per turn')

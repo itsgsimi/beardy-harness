@@ -4,7 +4,8 @@ import { DEFAULT_BUDGETS, resolveConfig, type Config } from '../src/config.ts'
 const base: Config = { provider: 'mock', model: 'test-model' }
 
 it('materializes every engine budget and profile authority from validated config', () => {
-  expect(resolveConfig(base)).toMatchObject({ ownerScope: 'session', budgets: DEFAULT_BUDGETS })
+  expect(resolveConfig(base)).toMatchObject({ ownerScope: 'session', budgets: DEFAULT_BUDGETS, stageTemperature: 0.2 })
+  expect(resolveConfig({ ...base, stageTemperature: 0 }).stageTemperature).toBe(0)
   const overrides: Config = {
     ...base, ownerScope: 'profile', ownerNamespace: 'home', reasoningEffort: 'medium',
     maxRounds: 3, minRounds: 1, firstRoundQueries: 2, laterRoundQueries: 2,
@@ -25,6 +26,9 @@ it.each([
   [{ ...base, ownerScope: 'profile' as const }, /ownerNamespace/],
   [{ ...base, ownerScope: 'profile' as const, ownerNamespace: ' ' }, /ownerNamespace/],
   [{ ...base, ownerNamespace: 'home' }, /ownerNamespace/],
+  [{ ...base, stageTemperature: -0.1 }, /stageTemperature/],
+  [{ ...base, stageTemperature: 2.1 }, /stageTemperature/],
+  [{ ...base, stageTemperature: Number.NaN }, /stageTemperature/],
   [{ ...base, maxRounds: 0 }, /maxRounds/],
   [{ ...base, maxRounds: Number.NaN }, /maxRounds/],
   [{ ...base, maxRounds: Number.MAX_SAFE_INTEGER + 1 }, /maxRounds/],

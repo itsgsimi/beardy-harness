@@ -42,7 +42,7 @@ Loader 组合测试使用以下字段装载此提供方：
     model: test-model
 ```
 
-`provider` 和 `model` 是必需的精确路由标签。`ownerScope` 默认为 `session`；`profile` 模式要求非空 `ownerNamespace`，并且部署必须明确为单用户。默认运行最多四轮，同时进行两次搜索、三次抓取和一次模型调用，硬时限为 30 分钟。所有数值预算在加载时验证，并冻结到运行事件中。[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-research-local)记录所有字段及其边界。
+`provider` 和 `model` 是必需的精确路由标签。`ownerScope` 默认为 `session`；`profile` 模式要求非空 `ownerNamespace`，并且部署必须明确为单用户。默认运行最多四轮，同时进行两次搜索、三次抓取和一次模型调用，硬时限为 30 分钟。`stageTemperature`（0 到 2，默认 0.2）设定每个阶段请求的采样温度。所有数值预算在加载时验证，并冻结到运行事件中。[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-research-local)记录所有字段及其边界。
 
 ### 读取与恢复
 
@@ -50,7 +50,7 @@ Loader 组合测试使用以下字段装载此提供方：
 
 运行和阶段 Session 标头会保留调用方的工作区路径（如果存在），以便 Agent 销毁后仍可按明确授权读取阶段日志。
 
-带 `workflow` 的 `start` 请求会执行该使用方流程，而不是通用引擎。其运行与阶段时限替代该运行的 `hardRunTimeoutMs` 和 `stageTimeoutMs`，并记录在 `research/started` 中。其阶段与通用运行共享提供方的模型准入，因此 `maxConcurrentModelCalls` 同时约束两者。
+带 `workflow` 的 `start` 请求会执行该使用方流程，而不是通用引擎。其运行与阶段时限替代该运行的 `hardRunTimeoutMs` 和 `stageTimeoutMs`，并记录在 `research/started` 中。其阶段与通用运行共享提供方的模型准入，因此 `maxConcurrentModelCalls` 同时约束两者。工作流的 `stageSystemPrompt`（1 到 4000 个字符）为其阶段替代提供方的阶段系统提示词。阶段的 `temperature` 选项替代 `stageTemperature`，其 `expectJson` 检查允许一次纠正轮次：被检查拒绝的首个回答会在同一阶段 Session 中收到 `Your reply was not the requested JSON. Reply with only the JSON object in the requested format.`，且仅当纠正回答通过检查时才作为结果。
 
 -----
 
@@ -60,7 +60,7 @@ Loader 组合测试使用以下字段装载此提供方：
 <details>
 <summary>实现细节——点击展开</summary>
 
-运行 Agent 保持空闲，其 Session 日志记录状态与所有权。引擎在实时运行 Agent 下为每次模型调用创建短生命周期的子 Agent/Session，因此阶段限制也会屏蔽注册在运行作用域中的工具。它拒绝执行其余作用域工具，并检查模型请求是否含有工具声明。`ctx.web` 负责安全搜索与抓取；网页工具的共享转换器把有界 HTML 渲染为 Markdown。来源账本先附加精确抓取文本，再写入引用事件，随后记录规范化发现和草稿引用。`ctx.sessions.flush` 是进度提交屏障。调用方刷新失败可能留下可找到的运行 Session。
+运行 Agent 保持空闲，其 Session 日志记录状态与所有权。引擎在实时运行 Agent 下为每次模型调用创建短生命周期的子 Agent/Session，因此阶段限制也会屏蔽注册在运行作用域中的工具。它拒绝执行其余作用域工具。每个阶段 Session 通过 `@deepseek-ai/dsh-agent` 的 `installDedicatedPrompt` 仅依据一个完整的阶段系统提示词作答：部署人设、运行时上下文和所有工具 schema 都不会进入请求。每个阶段轮次只能发出一次模型请求，因此带纠正轮次的阶段最多发出两次。`ctx.web` 负责安全搜索与抓取；网页工具的共享转换器把有界 HTML 渲染为 Markdown。来源账本先附加精确抓取文本，再写入引用事件，随后记录规范化发现和草稿引用。`ctx.sessions.flush` 是进度提交屏障。调用方刷新失败可能留下可找到的运行 Session。
 
 运行 Session 是唯一的状态权威，报告读取时会检查附件是否存在，因此不发布运行时不变式配套插件。
 
@@ -68,8 +68,8 @@ Loader 组合测试使用以下字段装载此提供方：
 |---|---|
 | [`src/index.ts`](src/index.ts) | 运行投影、提交顺序、所有者检查和恢复 |
 | [`src/engine.ts`](src/engine.ts) | 搜索、抓取、提取、综合、停止和报告流程 |
-| [`src/stage.ts`](src/stage.ts) | 持久化的单次模型阶段与准入 |
-| [`src/prompts.ts`](src/prompts.ts) | 版本化提示词模板 |
+| [`src/stage.ts`](src/stage.ts) | 持久化的阶段轮次、JSON 纠正轮次与准入 |
+| [`src/prompts.ts`](src/prompts.ts) | 版本化提示词模板、阶段系统提示词与纠正消息 |
 | [`src/config.ts`](src/config.ts) | 预算解析与验证 |
 
 </details>
@@ -92,7 +92,7 @@ Loader 组合测试使用以下字段装载此提供方：
 
 #### KV 缓存影响
 
-每个阶段在新的 Session 中发送一个有界提示词，因此只有后续提示词明确选择的先前页面文本才会进入上下文。父运行不会添加面向模型的工具 schema；消费方可对报告分页，而不用把完整研究记录放进调用方上下文。
+除非工作流另行提供，每个阶段 Session 的系统提示词为 `You are one stage of a research workflow. You have no tools and cannot search, browse, or run commands; work only from the text in the user message. Follow the output format the message asks for exactly.`。每个阶段在新的 Session 中发送一个有界提示词，因此只有后续提示词明确选择的先前页面文本才会进入上下文。父运行不会添加面向模型的工具 schema；消费方可对报告分页，而不用把完整研究记录放进调用方上下文。
 
 ## 已知限制与延期工作
 

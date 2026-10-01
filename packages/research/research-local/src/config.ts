@@ -25,11 +25,17 @@ export interface Config extends Partial<ResearchBudgets> {
   ownerScope?: 'session' | 'profile'
   /** Stable single-user profile authority, required with profile scope. */
   ownerNamespace?: string
+  /** Sampling temperature from 0 through 2 of every stage request a workflow stage does not override; default 0.2. */
+  stageTemperature?: number
 }
 
+/** Stage temperature for structured, instruction-following stages. */
+export const DEFAULT_STAGE_TEMPERATURE = 0.2
+
 /** Fully materialized settings retained by one provider instance. */
-export type ResolvedConfig = Omit<Config, keyof ResearchBudgets | 'ownerScope' | 'ownerNamespace'> & {
+export type ResolvedConfig = Omit<Config, keyof ResearchBudgets | 'ownerScope' | 'ownerNamespace' | 'stageTemperature'> & {
   readonly budgets: ResearchBudgets
+  readonly stageTemperature: number
 } & (
   | { readonly ownerScope: 'session'; readonly ownerNamespace?: never }
   | { readonly ownerScope: 'profile'; readonly ownerNamespace: string }
@@ -45,6 +51,8 @@ export function resolveConfig(config: Config): ResolvedConfig {
   if (config.reasoningEffort !== undefined && !config.reasoningEffort.trim()) {
     throw new Error('research reasoningEffort must be nonblank')
   }
+  const stageTemperature = config.stageTemperature ?? DEFAULT_STAGE_TEMPERATURE
+  assertTemperature(stageTemperature, 'research stageTemperature')
   const ownerScope = config.ownerScope ?? 'session'
   let owner: { readonly ownerScope: 'session' } | { readonly ownerScope: 'profile'; readonly ownerNamespace: string }
   if (ownerScope === 'profile') {
@@ -83,8 +91,17 @@ export function resolveConfig(config: Config): ResolvedConfig {
     throw new Error('research hardRunTimeoutMs must cover softRunTimeoutMs and stageTimeoutMs')
   }
   const common = {
-    provider: config.provider, model: config.model, budgets,
+    provider: config.provider, model: config.model, budgets, stageTemperature,
     ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: config.reasoningEffort }),
   }
   return { ...common, ...owner }
+}
+
+/**
+ * Reject a sampling temperature outside the range model routes accept.
+ * @param value - configured or workflow-supplied temperature.
+ * @param name - setting name used in the error.
+ */
+export function assertTemperature(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0 || value > 2) throw new Error(`${name} must be a number from 0 through 2`)
 }

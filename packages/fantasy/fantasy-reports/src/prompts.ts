@@ -4,7 +4,10 @@ import type { ReportMode } from './config.ts'
 import { REVIEW_KINDS } from './draft.ts'
 
 /** Version recorded with every report run; change it with any instruction change. */
-export const FANTASY_PROMPT_VERSION = 'fantasy-weekly-v3'
+export const FANTASY_PROMPT_VERSION = 'fantasy-weekly-v4'
+
+/** Complete system prompt of every writer, reviewer, and repair stage Session of a report run. */
+export const FANTASY_STAGE_SYSTEM_PROMPT = 'You are one stage of a fantasy football weekly report workflow: the writer, reviewer, or repair step that the user message describes. You have no tools and cannot search, browse, look anything up, or run commands, so never write a tool call; work only from the data in the user message. Every answer is exactly one JSON object in the format the message asks for, with no prose, Markdown, or code fences around it.'
 
 const MODE_FOCUS: Readonly<Record<ReportMode, string>> = {
   full: 'This is the midweek full report: assess every player in depth and set a provisional lineup.',

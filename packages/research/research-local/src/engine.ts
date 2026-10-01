@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-web'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type { ResolvedConfig } from './config.ts'
 import { datePreamble, extractPrompt, finalPrompt, planPrompt, queryPrompt, stopPrompt, synthesisPrompt } from './prompts.ts'
-import { RESEARCH_PROMPT_VERSION } from './prompts.ts'
+import { RESEARCH_PROMPT_VERSION, RESEARCH_STAGE_SYSTEM_PROMPT } from './prompts.ts'
 import { runStage, type StageAdmission } from './stage.ts'
 
 /** Run Session writes performed through the provider's serialized commit barrier. */
@@ -196,7 +196,8 @@ export class ResearchEngine {
       if (contextWindow !== undefined && Math.ceil(prompt.length / 3) + maxTokens > contextWindow) {
         throw new Error('research stage input exceeds the model context window')
       }
-      const result = await runStage(this.ctx, this.admission, this.config, id, parentAgent, prompt, maxTokens, signal, cwd,
+      const result = await runStage(this.ctx, this.admission, this.config, id, parentAgent,
+        { prompt, maxTokens, systemPrompt: RESEARCH_STAGE_SYSTEM_PROMPT, temperature: this.config.stageTemperature }, signal, cwd,
         async (stageSessionId) => {
           await this.storage.checkpoint(id, owner, { round, elapsedMs: Date.now() - startedAt, stageSessionId })
         })

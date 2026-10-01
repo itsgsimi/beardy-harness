@@ -15,7 +15,7 @@ import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent
 import { ReasoningEffortId, type RequestMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import LocalResearchService, { type Config } from '../src/index.ts'
 import { boundEvidence, boundReport, checkCitationUrls, mapLimit, parseFinding, parseQueries } from '../src/engine.ts'
-import { datePreamble, finalPrompt, queryPrompt } from '../src/prompts.ts'
+import { datePreamble, finalPrompt, queryPrompt, RESEARCH_JSON_CORRECTION, RESEARCH_STAGE_SYSTEM_PROMPT } from '../src/prompts.ts'
 import { StageAdmission } from '../src/stage.ts'
 
 const contexts: Context[] = []
@@ -52,6 +52,11 @@ async function harness(
   const caller = await ctx.agents.create({ sessionId: SessionId('research-engine-caller') })
   const owner = { kind: 'session' as const, sessionId: caller.agent.session.id }
   return { ctx, root, adapter, caller, owner, providerFiber, local: ctx.research as LocalResearchService }
+}
+
+function systemText(messages: readonly RequestMessage[]): string {
+  return messages.filter(message => message.role === 'system')
+    .flatMap(message => message.content.map(block => block.type === 'text' ? block.text : '')).join('\n')
 }
 
 function result(urls: string[]): WebSearchResult {
@@ -450,8 +455,8 @@ it('returns the same live and completed run for an exact start key', async () =>
   await h.caller.dispose()
 })
 
-it('does not admit a stage tool contributed inside the scoped Agent', async () => {
-  const h = await harness(['plan'], async () => result([]), async url => page(url))
+it('drops a stage tool contributed inside the scoped Agent from the request and denies its execution', async () => {
+  const h = await harness(['plan', toolCallResponse('call', 'scoped_stage_tool', {})], async () => result([]), async url => page(url))
   let executed = 0
   h.ctx.on('agent/created', ({ agent }) => {
     if (!agent.session.header.parentSession?.startsWith('rp-native-')) return
@@ -464,7 +469,8 @@ it('does not admit a stage tool contributed inside the scoped Agent', async () =
   await h.local.whenDone(view.id)
   expect((await h.local.status(view.id, h.owner)).phase).toBe('failed')
   expect(executed).toBe(0)
-  expect(h.adapter.requests).toHaveLength(0)
+  expect(h.adapter.requests).toHaveLength(2)
+  expect(h.adapter.requests.every(request => (request.tools ?? []).length === 0)).toBe(true)
   await h.caller.dispose()
 })
 
@@ -542,24 +548,26 @@ it('refuses to run a retried start whose durable run lost its live Agent', async
   await h.caller.dispose()
 })
 
-it('fails a stage whose restriction does not mask a registered tool before calling the model', async () => {
-  const h = await harness(['plan'], async () => result([]), async url => page(url))
+it('answers from the dedicated stage system prompt at the configured temperature with no tools', async () => {
+  const h = await harness(['plan', '[]'], async () => result([]), async url => page(url), { stageTemperature: 0.7 })
   h.ctx.tools.register(defineContentToolFixture({
     name: 'leaked_stage_tool', description: 'Must not reach a research stage', parameters: {},
     execute: async () => [{ type: 'text', text: 'escaped' }],
   }))
   vi.spyOn(ToolRuntime.prototype, 'restrict').mockReturnValue(() => {})
-  const view = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Leaked tools' })
+  const view = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Stage prompt' })
   await h.local.whenDone(view.id)
+  expect(h.adapter.requests).toHaveLength(2)
+  for (const request of h.adapter.requests) {
+    expect(systemText(request.messages)).toBe(RESEARCH_STAGE_SYSTEM_PROMPT)
+    expect(request.tools ?? []).toEqual([])
+    expect(request.temperature).toBe(0.7)
+  }
   const failed = await h.local.status(view.id, h.owner)
-  expect(failed).toMatchObject({ phase: 'failed', reason: 'Error: research stage had no settled assistant response' })
   const stage = await h.ctx.sessionPersistence.open(failed.stageSessionIds[0]!, 'read')
   const events = (await stage.read()).events
   await stage.close()
-  expect(events.find(event => event.type === 'turn/end')?.data).toMatchObject({
-    reason: { kind: 'error', error: { message: 'research stage exposed model tools: leaked_stage_tool' } },
-  })
-  expect(h.adapter.requests).toHaveLength(0)
+  expect(events.find(event => event.type === 'request/header')?.data).toMatchObject({ header: { config: { temperature: 0.7 } } })
   await h.caller.dispose()
 })
 
@@ -635,6 +643,45 @@ it('fails a workflow run with its rejection reason and bounds stage input by the
     } } })
   await h.local.whenDone(bounded.id)
   expect(await h.local.status(bounded.id, h.owner)).toMatchObject({ phase: 'failed', reason: expect.stringContaining('context window') as string })
+  await h.caller.dispose()
+})
+
+it('sends one corrective turn in the same stage Session when a JSON stage answers with prose or a pseudo tool call', async () => {
+  const pseudoToolCall = 'Let me check the latest news first.\n<tool_call><function=session_search><parameter=query>Bijan Robinson injury</parameter></function></tool_call>'
+  const issues = '{"issues":[]}'
+  const h = await harness([pseudoToolCall, issues, issues, 'The draft looks fine to me.', 'Still no JSON here.',
+    'I will run `curl https://example.com` first.', ''], async () => result([]), async url => page(url))
+  const isReview = (text: string): boolean => {
+    try {
+      return Array.isArray((JSON.parse(text) as { issues?: unknown }).issues)
+    } catch {
+      return false
+    }
+  }
+  const seen: string[] = []
+  const view = await h.local.start({ caller: h.caller.agent.session, owner: h.owner, query: 'Corrective workflow',
+    workflow: { name: 'weekly-report', promptVersion: 'weekly-v1', stageSystemPrompt: 'You are a test stage. Answer with JSON.',
+      async run(run) {
+        seen.push(await run.stage('Review A', 100, { expectJson: isReview }))
+        seen.push(await run.stage('Review B', 100, { expectJson: isReview, temperature: 1 }))
+        seen.push(await run.stage('Review C', 100, { expectJson: isReview }))
+        seen.push(await run.stage('Review D', 100, { expectJson: isReview }))
+        await expect(run.stage('Review E', 100, { temperature: 2.5 })).rejects.toThrow(/stage temperature/)
+        return { markdown: '# Done', evidence: '{}', quality: 'partial' }
+      } } })
+  await h.local.whenDone(view.id)
+  expect(await h.local.status(view.id, h.owner)).toMatchObject({ phase: 'completed' })
+  expect(seen).toEqual([issues, issues, 'The draft looks fine to me.', 'I will run `curl https://example.com` first.'])
+  expect((await h.local.status(view.id, h.owner)).stageSessionIds).toHaveLength(4)
+  const requests = h.adapter.requests
+  expect(requests).toHaveLength(7)
+  expect(requests.map(request => systemText(request.messages))).toEqual(Array(7).fill('You are a test stage. Answer with JSON.'))
+  expect(requests.map(request => request.temperature)).toEqual([0.2, 0.2, 1, 0.2, 0.2, 0.2, 0.2])
+  expect(requests[0]!.sessionId).toBe(requests[1]!.sessionId)
+  const corrective = JSON.stringify(requests[1]!.messages)
+  expect(corrective).toContain('session_search')
+  expect(corrective).toContain(JSON.stringify(RESEARCH_JSON_CORRECTION).slice(1, -1))
+  expect(JSON.stringify(requests[2]!.messages)).not.toContain('requested JSON')
   await h.caller.dispose()
 })
 

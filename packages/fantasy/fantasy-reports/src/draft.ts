@@ -82,6 +82,22 @@ export function parseJsonObject(text: string): Record<string, unknown> {
   return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
 }
 
+/**
+ * Turn a throwing parser into a stage's JSON check, so the check admits exactly what the caller later parses.
+ * @param parse - parser that throws on an unusable answer.
+ * @returns whether `parse` accepts an answer.
+ */
+export function parses(parse: (text: string) => unknown): (text: string) => boolean {
+  return (text) => {
+    try {
+      parse(text)
+    } catch {
+      return false
+    }
+    return true
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

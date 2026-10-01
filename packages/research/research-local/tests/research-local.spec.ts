@@ -247,6 +247,10 @@ describe('research run storage', () => {
       workflow: { ...workflow, promptVersion: ' ' } })).rejects.toThrow(/promptVersion/)
     await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
       workflow: { ...workflow, budgets: { stageTimeoutMs: 0 } } })).rejects.toThrow(/stageTimeoutMs/)
+    for (const stageSystemPrompt of [' ', 'x'.repeat(4001)]) {
+      await expect((ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
+        workflow: { ...workflow, stageSystemPrompt } })).rejects.toThrow(/stageSystemPrompt/)
+    }
     const stored = await (ctx.research as LocalResearchService).startStored({ caller: source.session, owner: source.owner, query: 'League',
       workflow: { ...workflow, budgets: { hardRunTimeoutMs: 7200000 } } })
     const storedHandle = await ctx.sessionPersistence.open(SessionId(stored.id), 'read')
