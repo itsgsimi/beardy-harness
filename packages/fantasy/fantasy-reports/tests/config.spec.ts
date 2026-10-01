@@ -54,6 +54,13 @@ describe('report configuration', () => {
       pagesPerPlayer: 2, maxReviews: 3, maxStructuralRepairs: 2, runTimeoutMs: 14_400_000, maxDeliveryChars: 19_000 })
     expect(config.excludedHosts).toEqual(DEFAULT_EXCLUDED_HOSTS)
     expect(config).not.toHaveProperty('shadowChannelId')
+    expect(config.commandPresets).toEqual([])
+    expect(config.teams.map(team => team.commandPresets)).toEqual([[], []])
+    const lanes = resolveConfig({ ...household, commandPresets: ['beardy', 'beardy-mamabear'],
+      teams: [{ ...household.teams[0]!, commandPresets: ['beardy-mamabear'] }, household.teams[1]!] })
+    expect(lanes.teams.map(team => team.commandPresets)).toEqual([['beardy-mamabear'], ['beardy', 'beardy-mamabear']])
+    const loaded = Schema({ ...household, commandPresets: ['beardy'] })
+    expect(resolveConfig(loaded).teams.map(team => team.commandPresets)).toEqual([['beardy'], ['beardy']])
     expect(resolveConfig({ ...household, excludedHosts: [' Example.COM '], firstWeek: 2, lastWeek: 2 }))
       .toMatchObject({ excludedHosts: ['example.com'], firstWeek: 2, lastWeek: 2 })
     expect(Schema({ ...household })).toMatchObject({ maxPlayers: 30, excludedHosts: [...DEFAULT_EXCLUDED_HOSTS] })
@@ -79,6 +86,11 @@ describe('report configuration', () => {
       [{ teams: [{ ...team, teamKey: '470.l.809970' }] }, /invalid fantasy team key/],
       [{ teams: [team, { ...team, id: 'copy' }] }, /duplicate team key/],
       [{ teams: [{ ...team, schedule: { ...team.schedule, sunday: '99 * * * *' } }] }, /./],
+      [{ commandPresets: ['Beardy'] }, /fantasy-reports: commandPresets must be distinct preset ids/],
+      [{ commandPresets: ['beardy', 'beardy'] }, /commandPresets must be distinct preset ids/],
+      [{ commandPresets: ['beardy'], teams: [{ ...team, commandPresets: ['beardy-mamabear'] }] },
+        /fantasy-reports: team googies commandPresets must name presets from commandPresets/],
+      [{ teams: [{ ...team, commandPresets: ['-x'] }] }, /team googies commandPresets must be distinct preset ids/],
     ]
     for (const [override, error] of cases) expect(() => resolveConfig(Object.assign({}, household, override))).toThrow(error)
   })
@@ -100,6 +112,8 @@ describe('report configuration', () => {
     expect(fired).toBe('[fantasy-report:lights:2026:3:sunday:catch-up:1790530200000]')
     expect(parseReportTag(`Lights weekly fantasy report ${fired}`)).toEqual({ team: 'lights', season: '2026', week: 3, mode: 'sunday',
       fire: { trigger: 'catch-up', at: 1_790_530_200_000 } })
+    expect(parseReportTag('Googies [fantasy-report:googies:2026:4:full:manual:1790812800000]')).toEqual({ team: 'googies', season: '2026',
+      week: 4, mode: 'full', fire: { trigger: 'manual', at: 1_790_812_800_000 } })
     expect(localDate(Date.UTC(2026, 8, 24, 5, 0), 'America/Phoenix')).toBe('2026-09-23')
   })
 })

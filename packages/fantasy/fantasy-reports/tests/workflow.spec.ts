@@ -65,7 +65,7 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(evidence).toMatchObject({ workflow: 'fantasy-weekly-report', week: 3, mode: 'full',
       history: [{ runId: 'rp-native-earlier', week: 2, mode: 'sunday' }], structuralRepairs: 0 })
     const started = events.find(event => event.type === 'research/started')
-    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v2',
+    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v3',
       budgets: { stageTimeoutMs: 1_200_000, hardRunTimeoutMs: 14_400_000 } })
     expect(events.filter(event => event.type === 'research/search')).toHaveLength(15)
     expect(events.filter(event => event.type === 'research/finding' && event.data.accepted)).toHaveLength(15)
@@ -92,11 +92,13 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       { player: 'P7', kind: 'fabricated_or_external_fact', claim: 'Hall had 30 carries last week', evidence: '', problem: 'x', fix: 'Remove.' },
       { player: 'P1', kind: 'wording_or_precision', claim: 'Row P1: the practice report supports this choice.', evidence: '', problem: 'x', fix: 'Reword.' },
     ] })
-    const fixed = { ...draft.players[6]!, reason: 'Hall practiced fully and keeps the flex.' }
-    const patch = JSON.stringify({ players: [fixed], lineup: [], actions: [], decisions: [], caveats: [] })
+    const { player: _player, ...row } = draft.players[6]!
+    const patch = JSON.stringify({ players: [{ id: 'P7', ...row, reason: 'Hall practiced fully and keeps the flex.' }],
+      lineup: [], actions: [], decisions: [], caveats: [] })
     const { h, status, report } = await execute([JSON.stringify(draft), review, patch, pass])
     expect(status.phase).toBe('completed')
     expect(promptOf(h.adapter.requests[2]!)).toContain('Reviewer findings')
+    expect(promptOf(h.adapter.requests[2]!)).toContain('keyed by "player" exactly as in the draft, for example {"player":"P14"')
     expect(report!.markdown).toContain('Hall practiced fully and keeps the flex.')
     const evidence = JSON.parse(await readEvidence(h, report!.evidenceRef)) as {
       reviews: Array<{ issues: unknown[]; discarded: unknown[] }>

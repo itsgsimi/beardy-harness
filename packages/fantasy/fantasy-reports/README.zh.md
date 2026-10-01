@@ -46,11 +46,29 @@ kind: "package-reference"
 
 ### 时间表与比赛周
 
-每支球队在 `timezone` 中有三个 cron 表达式。触发逐个执行，每次研究运行至少在上一次开始后 `minimumStartGapMs`（默认 90 分钟）才开始。触发会解析包含其本地日期的 Yahoo 比赛周；超出 `firstWeek` 到 `lastWeek` 的范围时不做任何事。已有运行的比赛周与模式会被跳过，因此重复触发不会发送第二份报告。
+每支球队在 `timezone` 中有三个 cron 表达式。触发逐个执行，每次研究运行至少在上一次开始后 `minimumStartGapMs`（默认 90 分钟）才开始。触发会解析包含其本地日期的 Yahoo 比赛周；超出 `firstWeek` 到 `lastWeek` 的范围时不做任何事。已有定时或补跑运行的比赛周与模式会被跳过，因此重复触发不会发送第二份报告。
+
+每次触发记录一行 `fantasy-reports: <team> <mode>[ catch-up| manual] <outcome>[: <reason>]`。`published` 或 `redelivered` 的报告以 info 级别记录；`skipped`、`withheld`、`failed` 和 `undelivered` 以 warn 级别连同原因记录，因此只保留警告的日志仍能显示每次未发送报告的触发。插件停止时仍在排队或运行的触发以 warn 级别记录 `<team> <mode> abandoned because the plugin stopped`，且不再调用 Yahoo、研究或投递。
 
 ### 重启补跑
 
 插件启动时，会对每支球队在该时刻或之前的最近一个时段复查一次，前提是距该时段不足 `catchUpWindowMs`（默认 12 小时）；设为 `0` 即关闭补跑。周日时段使用更短的 `sundayCatchUpWindowMs`（默认 2 小时），从该球队的周日时段起算，使补跑的周日报告仍在开球前送达；启动间隔等待结束后会再次检查该窗口。其余由研究历史决定：没有运行或只有被中断运行的时段获得一次补跑；已完成的报告会以其原始触发时间再次交给投递，由监听器去重，因此先前交接失败的报告仍能到达 Discord；已有失败、被扣留、已取消或补跑过的运行的时段不做处理。本周更早的时段被最近的时段取代，永不补跑。
+
+### 按需报告
+
+把 `commandPresets` 设为允许其用户运行 `/fantasy-report <team> [full|thursday|sunday]` 的 Agent 预设；模式默认为 `full`。该命令仅供人类使用，其输入从不进入模型，Discord 网关会把它与该预设的其他命令一起列出。球队的 `commandPresets` 存在且非空时，进一步限定谁能请求该球队，例如只允许某位球队主人的通道请求她自己的球队；其中每一项也必须出现在顶层列表中。列表为默认的空值时不注册该命令。
+
+```yaml
+commandPresets: [beardy, beardy-mamabear]
+teams:
+  - id: googies
+    # ...
+  - id: lights
+    # ...
+    commandPresets: [beardy]
+```
+
+请求会解析 `timezone` 中包含今天日期的 Yahoo 比赛周，并运行与定时报告相同的工作流，触发方式标为 `manual`。它立即回复 `Started the full report for The Googies; it will post to the team's report channel when done.`，或说明队列中排在它前面的报告数量；报告或其失败通知投递到该球队定时报告的去处，包括影子频道。未知球队会返回列出该预设可请求球队 id 的错误；日期超出 `firstWeek` 到 `lastWeek` 时以通知失败。即使该比赛周与模式已有运行，手动运行仍会开始；定时触发和补跑从不计入手动运行。它与定时触发共用队列，因此从不与其他报告重叠，但既不等待也不重置 `minimumStartGapMs`。
 
 ### 投递、通知与影子模式
 
@@ -58,7 +76,7 @@ kind: "package-reference"
 
 ### 历史
 
-每次运行都从球队的调用方 Session `fantasy-reports-<id>` 链接；`workspacePath` 改变后，球队的调用方改为 `fantasy-reports-<id>-<hash>`，其中 `<hash>` 是新路径 SHA-256 的前 8 位十六进制数字，先前的调用方 Session 保持不变。每次运行的查询带有 `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` 标签，其中 trigger 为 `scheduled` 或 `catch-up`，`firedAt` 是投递所携带的触发时间（epoch 毫秒）。新报告会向撰写阶段展示最多 `historyReports` 份同一球队、同一赛季的已完成报告，作为对比数据。Beardy 可以通过 `deep_research` 的 `list` 和 `report` 读取同样的报告。
+每次运行都从球队的调用方 Session `fantasy-reports-<id>` 链接；`workspacePath` 改变后，球队的调用方改为 `fantasy-reports-<id>-<hash>`，其中 `<hash>` 是新路径 SHA-256 的前 8 位十六进制数字，先前的调用方 Session 保持不变。每次运行的查询带有 `[fantasy-report:<team>:<season>:<week>:<mode>:<trigger>:<firedAt>]` 标签，其中 trigger 为 `scheduled`、`catch-up` 或 `manual`，`firedAt` 是投递所携带的触发时间（epoch 毫秒）。新报告会向撰写阶段展示最多 `historyReports` 份同一球队、同一赛季的已完成报告，作为对比数据。Beardy 可以通过 `deep_research` 的 `list` 和 `report` 读取同样的报告。
 
 -----
 
@@ -73,7 +91,7 @@ kind: "package-reference"
 1. **Yahoo 事实。** 工作流读取该周的阵容、每名球员的阵容位锁定和对阵，并把联盟、球队和比赛周与请求核对。在册球员获得短 ID（`P1`、`P2`……）。
 2. **来源。** 每名球员最多有 `searchesPerPlayer` 次查询，并保留最多 `pagesPerPlayer` 个不在 `excludedHosts` 中的 HTTPS 页面。页面只有写出该球员姓名时才被采纳；姓名过短无法可靠匹配时直接采纳页面。任何模型读取页面之前，都会移除 FantasyPros 排名与预测标题，并把“30th easiest opponent”这类赛程强度序数改写为直白的难度描述。页面以名单姓名附近的原文段落限定长度。每次搜索、抓取失败和采纳决定都进入运行，每个被采纳页面的模型可见原文成为来源附件。
 3. **草稿。** 撰写阶段返回 JSON：每名球员一行并附 1–2 条带引文的事实，外加阵容、行动、关键抉择和注意事项。
-4. **代码检查。** 引文必须是所引页面中 12–300 个字符的原文摘录，且该页面写出了此球员。阵容必须用合格球员填满联盟的首发位，不得包含轮空或被 Yahoo 标为缺阵、伤病名单、禁赛或非现役的球员；每名首发都必须是 `START` 或 `CONDITIONAL`。因比赛已开始而被 Yahoo 锁定阵容位的球员保持 Yahoo 显示的位置：被锁定的首发保留其阵容位并免于可出场检查，被锁定的替补不得首发。失败会交给结构修复补丁处理，最多 `maxStructuralRepairs` 次，且不消耗事实审阅次数。
+4. **代码检查。** 引文必须是所引页面中 12–300 个字符的原文摘录，且该页面写出了此球员。阵容必须用合格球员填满联盟的首发位，不得包含轮空或被 Yahoo 标为缺阵、伤病名单、禁赛或非现役的球员；每名首发都必须是 `START` 或 `CONDITIONAL`。因比赛已开始而被 Yahoo 锁定阵容位的球员保持 Yahoo 显示的位置：被锁定的首发保留其阵容位并免于可出场检查，被锁定的替补不得首发。失败会交给结构修复补丁处理，最多 `maxStructuralRepairs` 次，且不消耗事实审阅次数。补丁行与草稿行一样以 `player` 为键；改用 `id` 指明球员的补丁行也被接受，而撰写阶段的草稿必须使用 `player`。
 5. **审阅。** 审阅阶段返回的发现必须逐字引用草稿，若指出矛盾还须逐字引用来源或 Yahoo 上下文。无锚定、仅措辞、无需修改和重复的发现会被丢弃并保留在证据中。每次有发现的审阅之后都跟一次修复补丁。完成 `maxReviews` 次审阅后，若仍有错误球队、赛程或赛季的发现，报告被扣留；其他发现会再修复一次，报告会注明这些修改未经再次审阅。
 6. **报告。** 由代码渲染已接受的草稿：行动、相对当前 Yahoo 阵容的变更、阵容及被 Yahoo 锁定的球员、关键抉择、每名球员的 Yahoo 阵容位及锁定、状态、轮空周和预测分数、后续检查，以及不附带预览的来源链接。已接受的建议不会再被模型改写。证据文件保存 Yahoo 快照、来源、草稿和每次审阅。
 
@@ -81,7 +99,7 @@ kind: "package-reference"
 
 | 源文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 定时器、重启补跑、比赛周解析、历史、通知与投递 |
+| [`src/index.ts`](src/index.ts) | 定时器、重启补跑、按需命令、比赛周解析、历史、通知与投递 |
 | [`src/workflow.ts`](src/workflow.ts) | 来源、阶段与发布策略 |
 | [`src/draft.ts`](src/draft.ts) | 草稿解析、代码检查、补丁与审阅筛选 |
 | [`src/lineup.ts`](src/lineup.ts) | Yahoo 阵容位合法性、阵容位锁定与阵容变更 |
@@ -101,6 +119,7 @@ kind: "package-reference"
 - [研究子系统](../../../docs/subsystems/research.zh.md) — 持久运行与使用方工作流。
 - [每周报告决策](../../../.agents/notes/implemented/feature/2026-09-27-native-fantasy-weekly-reports.zh.md) — 为何报告采用研究工作流，以及保留了哪些 Odysseus 防护。
 - [锁定与补跑决策](../../../.agents/notes/implemented/feature/2026-09-27-fantasy-report-locks-and-catch-up.zh.md) — 为何由代码检查被锁定的阵容位，以及重启如何补跑错过的时段而不重复发送。
+- [修复与按需决策](../../../.agents/notes/implemented/bug-fix/2026-09-30-fantasy-reports-repair-and-on-demand.zh.md) — `id` 补丁别名、warn 级别的触发结果，以及 `/fantasy-report` 命令。
 
 -----
 
@@ -129,6 +148,8 @@ kind: "package-reference"
 - 阵容位锁定在报告运行时读取，比赛稍后才开始的球员此时尚未锁定；报告仍提示在修改 Yahoo 前检查阵容锁定，且从不执行修改。
 - 补跑只在插件启动时进行，且只针对每支球队的最近时段。补跑期间再次被中断的时段、窗口关闭后投递仍失败的已完成报告，以及标签中没有触发时间的已完成报告，都只保留在研究历史中。
 - 只有提供方为在册球员返回预测分数时，报告才显示 Yahoo 预测。
+- 只有修复补丁的球员行接受 `id` 别名；修复提示以 `player` 键展示当前阵容，因此阵容行仍须使用 `player`。
+- `/fantasy-report` 总是报告包含今天日期的比赛周，不接受比赛周参数。
 
 <a id="dev-note"></a>
 ### 开发备注

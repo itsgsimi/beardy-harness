@@ -28,6 +28,11 @@ export interface TeamConfig {
   readonly channelId: string
   /** Cron expressions for the three weekly reports, in the configured timezone. */
   readonly schedule: ReportScheduleConfig
+  /**
+   * Agent presets that may request this team's report on demand; each must also be in the top-level
+   * `commandPresets`. Absent or empty, every preset in `commandPresets` may request it.
+   */
+  readonly commandPresets?: string[]
 }
 
 /** One team's three weekly start times. */
@@ -54,6 +59,11 @@ export interface Config {
   readonly lastWeek?: number
   /** When set, every report and notice goes only to this delivery target, labeled with its team; same forms as `channelId`. */
   readonly shadowChannelId?: string
+  /**
+   * Agent presets whose Sessions may run the human `/fantasy-report` command. Empty, the default,
+   * registers no command.
+   */
+  readonly commandPresets?: string[]
   /** Minimum milliseconds between two report starts. */
   readonly minimumStartGapMs?: number
   /**
@@ -107,16 +117,18 @@ export interface Config {
   readonly deliveryRetryMs?: number
 }
 
-/** A configured team with its checked Yahoo identities. */
-export interface ResolvedTeam extends Omit<TeamConfig, 'teamKey'> {
+/** A configured team with its checked Yahoo identities and the presets that may request it on demand. */
+export interface ResolvedTeam extends Omit<TeamConfig, 'teamKey' | 'commandPresets'> {
   readonly teamKey: TeamKeyType
   readonly leagueKey: LeagueKeyType
+  readonly commandPresets: readonly string[]
 }
 
 /** Complete report policy after every bound is applied and checked. */
-export interface ResolvedConfig extends Required<Omit<Config, 'teams' | 'shadowChannelId' | 'excludedHosts'>> {
+export interface ResolvedConfig extends Required<Omit<Config, 'teams' | 'shadowChannelId' | 'excludedHosts' | 'commandPresets'>> {
   readonly teams: readonly ResolvedTeam[]
   readonly excludedHosts: readonly string[]
+  readonly commandPresets: readonly string[]
   readonly shadowChannelId?: string
 }
 
@@ -156,12 +168,22 @@ export const Config: z<Config> = z.object({
     schedule: z.object({
       full: z.string().required(), thursday: z.string().required(), sunday: z.string().required(),
     }).required(),
+    commandPresets: z.array(z.string()),
   })).required(),
   shadowChannelId: z.string(),
+  commandPresets: z.array(z.string()).default([]),
   excludedHosts: z.array(z.string()).default([...DEFAULT_EXCLUDED_HOSTS]),
   ...Object.fromEntries(Object.entries(BOUNDS).map(([key, [fallback, min, max]]) =>
     [key, z.number().step(1).min(min).max(max).default(fallback)])) as Record<BoundKey, z<number>>,
 })
+
+/** Reject a preset list with an invalid or repeated preset id. */
+function presetList(presets: readonly string[], field: string): readonly string[] {
+  if (presets.some(preset => !/^[a-z][a-z0-9-]*$/u.test(preset)) || new Set(presets).size !== presets.length) {
+    throw new Error(`fantasy-reports: ${field} must be distinct preset ids`)
+  }
+  return presets
+}
 
 /**
  * Apply defaults and reject unusable routes, schedules, keys, and bounds at load.
@@ -190,6 +212,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
     throw new Error('fantasy-reports: excludedHosts must be host names')
   }
   if (config.teams.length === 0) throw new Error('fantasy-reports: teams must name at least one team')
+  const commandPresets = presetList(config.commandPresets ?? [], 'commandPresets')
   const ids = new Set<string>()
   const keys = new Set<string>()
   const teams = config.teams.map((team): ResolvedTeam => {
@@ -204,10 +227,15 @@ export function resolveConfig(config: Config): ResolvedConfig {
     if (keys.has(teamKey)) throw new Error(`fantasy-reports: duplicate team key ${teamKey}`)
     keys.add(teamKey)
     for (const mode of REPORT_MODES) assertSchedule(team.schedule[mode], config.timezone)
-    return { ...team, teamKey, leagueKey: LeagueKey(teamKey.replace(/\.t\.[0-9]+$/u, '')) }
+    const teamPresets = team.commandPresets === undefined || team.commandPresets.length === 0 ? commandPresets
+      : presetList(team.commandPresets, `team ${team.id} commandPresets`)
+    if (teamPresets.some(preset => !commandPresets.includes(preset))) {
+      throw new Error(`fantasy-reports: team ${team.id} commandPresets must name presets from commandPresets`)
+    }
+    return { ...team, teamKey, leagueKey: LeagueKey(teamKey.replace(/\.t\.[0-9]+$/u, '')), commandPresets: teamPresets }
   })
   return {
-    timezone: config.timezone, workspacePath: config.workspacePath, teams, excludedHosts, ...bounds,
+    timezone: config.timezone, workspacePath: config.workspacePath, teams, excludedHosts, commandPresets, ...bounds,
     ...(config.shadowChannelId === undefined ? {} : { shadowChannelId: config.shadowChannelId }),
   }
 }

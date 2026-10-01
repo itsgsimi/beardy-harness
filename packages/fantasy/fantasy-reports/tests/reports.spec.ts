@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import type { CronRunFinished, Scheduler } from '@deepseek-ai/dsh-cron'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { cronerScheduler, type CronRunFinished, type Scheduler } from '@deepseek-ai/dsh-cron'
 import type { ResearchRunView } from '@deepseek-ai/dsh-research/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { resolveConfig, type Config } from '../src/config.ts'
-import { apply, handOff, inject, mountReports, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
+import { apply, handOff, inject, mountReports, REPORT_COMMAND, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
 import { HANG, WEDNESDAY_WEEK_3, harness, lockedRoster, promptOf, validDraft, yahoo, type Harness, type Reply } from './support.ts'
 
 /** Each case persists one or more 15-player runs with every ledger write flushed to JSONL. */
@@ -221,6 +222,34 @@ describe('scheduled weekly reports', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     await expect(handOff(h.ctx, config, payload, stopping.signal)).rejects.toMatchObject({ name: 'AbortError' })
   })
 
+  it('runs a manual request despite earlier runs of its slot and fails it with a notice outside the report weeks', async () => {
+    const { h, delivered } = await setup(['{"players":[]}', draft, pass])
+    expect((await fire(h, { maxStructuralRepairs: 0 }, WEDNESDAY_WEEK_3)).kind).toBe('withheld')
+    expect(await fire(h, {}, WEDNESDAY_WEEK_3 + 60_000)).toMatchObject({ kind: 'skipped' })
+    const manual = await fire(h, {}, WEDNESDAY_WEEK_3 + 120_000, 0, 'full', { manual: true })
+    expect(manual).toMatchObject({ kind: 'published' })
+    const runs = await h.research.list({ owner: { kind: 'profile', namespace: 'beardy' }, limit: 10 })
+    expect(runs[0]!.query).toContain(`[fantasy-report:googies:2026:3:full:manual:${WEDNESDAY_WEEK_3 + 120_000}]`)
+    expect(delivered.map(item => [item.jobName, item.outcome, item.firedAt])).toEqual([
+      ['fantasy-googies-full', 'failed', WEDNESDAY_WEEK_3], ['fantasy-googies-full', 'answered', WEDNESDAY_WEEK_3 + 120_000]])
+    expect(await fire(h, {}, Date.UTC(2026, 6, 1, 21), 0, 'full', { manual: true }))
+      .toEqual({ kind: 'failed', reason: 'Error: 2026-07-01 is outside report weeks 1-17' })
+    expect(delivered[2]).toMatchObject({ outcome: 'failed', failure: { code: 'FANTASY_REPORT_FAILED',
+      message: 'Error: 2026-07-01 is outside report weeks 1-17' } })
+  })
+
+  it('leaves manual runs out of the scheduled and catch-up slot checks', async () => {
+    const { h } = await setup([draft, pass, draft, pass])
+    expect((await fire(h, {}, WEDNESDAY_WEEK_3 - 3_600_000, 0, 'full', { manual: true })).kind).toBe('published')
+    expect((await fire(h, {}, WEDNESDAY_WEEK_3)).kind).toBe('published')
+    const late = SUNDAY_WEEK_3 + 1_800_000
+    const list = vi.spyOn(h.research, 'list')
+    const manualRun = (await h.research.list({ owner: { kind: 'profile', namespace: 'beardy' }, limit: 10 }))[1]!
+    list.mockResolvedValueOnce([{ ...manualRun, query: `x [fantasy-report:googies:2026:3:sunday:manual:${late - 60_000}]` }])
+    expect(await fire(h, {}, late, 0, 'sunday', { catchUp: { slotAt: SUNDAY_WEEK_3, open: () => false } }))
+      .toEqual({ kind: 'skipped', reason: 'the catch-up window of [fantasy-report:googies:2026:3:sunday] closed before its start' })
+  })
+
   it('retries a rejected handoff until a listener accepts it', async () => {
     const { h } = await setup([])
     const warn = vi.spyOn(h.ctx.logger, 'warn')
@@ -303,6 +332,7 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     const { h, delivered } = await setup([draft, pass])
     const timers = fakeScheduler()
     const info = vi.spyOn(h.ctx.logger, 'info')
+    const warn = vi.spyOn(h.ctx.logger, 'warn')
     const starts: number[] = []
     const start = h.research.start.bind(h.research)
     vi.spyOn(h.research, 'start').mockImplementation((request) => {
@@ -319,7 +349,7 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     timers.ticks.get('30 15 * * 3')!(WEDNESDAY_WEEK_3 + 5_400_000)
     timers.ticks.get('0 14 * * 3')!(WEDNESDAY_WEEK_3)
     await settled
-    expect(info).toHaveBeenCalledWith(
+    expect(warn).toHaveBeenCalledWith(
       expect.stringMatching(/^fantasy-reports: lights full withheld: Error: fantasy report withheld: Yahoo returned/u) as string)
     expect(info).toHaveBeenCalledWith('fantasy-reports: googies full published')
     expect(delivered.map(item => [item.jobName, item.outcome])).toEqual([['fantasy-lights-full', 'failed'], ['fantasy-googies-full', 'answered']])
@@ -331,18 +361,26 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(timers.stopped).toHaveLength(6)
   })
 
-  it('logs a fire that throws and ends an in-flight report quietly on disposal', async () => {
+  it('logs a fire that throws and warns about fires that disposal abandons', async () => {
     const { h } = await setup([HANG])
     const timers = fakeScheduler()
     const errors = vi.spyOn(h.ctx.logger, 'error')
+    const warn = vi.spyOn(h.ctx.logger, 'warn')
     const fiber = await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
       mountReports(ctx, household, timers.scheduler, Date.now)
     } })
     const entered = new Promise<void>((resolve) => { h.ctx.on('llm/stream', (_request, next) => { resolve(); return next() }) })
     timers.ticks.get('0 14 * * 3')!(WEDNESDAY_WEEK_3)
+    timers.ticks.get('30 15 * * 3')!(WEDNESDAY_WEEK_3 + 5_400_000)
     await entered
+    const research = vi.spyOn(h.research, 'start')
     await fiber.dispose()
     expect(errors).not.toHaveBeenCalled()
+    expect(research).not.toHaveBeenCalled()
+    expect(warn.mock.calls.flat().filter(line => String(line).includes('abandoned'))).toEqual([
+      'fantasy-reports: googies full abandoned because the plugin stopped',
+      'fantasy-reports: lights full abandoned because the plugin stopped',
+    ])
     const throwing = await setup([draft, pass])
     const again = fakeScheduler()
     const logged = vi.spyOn(throwing.h.ctx.logger, 'error')
@@ -369,6 +407,113 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(delivered).toEqual([expect.objectContaining({ jobName: 'fantasy-googies-sunday', firedAt: SUNDAY_WEEK_3 + 1_800_000 })])
     await fiber.dispose()
     expect(info.mock.calls.flat().filter(line => String(line).includes('catch-up'))).toHaveLength(1)
+  })
+
+  it('fires the second team 90 minutes after the first team\'s report was withheld, on real croner timers', async () => {
+    const { h, delivered } = await setup([draft, pass])
+    const info = vi.spyOn(h.ctx.logger, 'info')
+    const warn = vi.spyOn(h.ctx.logger, 'warn')
+    const [googies, lights] = household.teams
+    const config: Config = { ...household, teams: [{ ...googies!, teamKey: '470.l.809970.t.6' }, { ...lights!, teamKey: '470.l.809970.t.7' }] }
+    vi.useFakeTimers({ now: WEDNESDAY_WEEK_3 - 60_000, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    try {
+      const fiber = await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
+        mountReports(ctx, config, cronerScheduler, Date.now)
+      } })
+      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.waitFor(() => { expect(delivered).toHaveLength(1) }, { timeout: 60_000 })
+      expect(delivered[0]).toMatchObject({ jobName: 'fantasy-googies-full', outcome: 'failed', firedAt: WEDNESDAY_WEEK_3,
+        failure: { code: 'FANTASY_REPORT_WITHHELD' } })
+      await vi.advanceTimersByTimeAsync(WEDNESDAY_WEEK_3 + 5_400_000 - Date.now())
+      await vi.waitFor(() => { expect(delivered).toHaveLength(2) }, { timeout: 60_000 })
+      expect(delivered[1]).toMatchObject({ jobName: 'fantasy-lights-full', outcome: 'answered', firedAt: WEDNESDAY_WEEK_3 + 5_400_000 })
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^fantasy-reports: googies full withheld: /u) as string)
+      expect(info).toHaveBeenCalledWith('fantasy-reports: lights full published')
+      await fiber.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('runs /fantasy-report for a permitted preset at once, acknowledges, and posts the report or a failure notice', async () => {
+    const { h, delivered } = await setup(['{"players":[]}', draft, pass])
+    const timers = fakeScheduler()
+    const info = vi.spyOn(h.ctx.logger, 'info')
+    const warn = vi.spyOn(h.ctx.logger, 'warn')
+    const requested = WEDNESDAY_WEEK_3 + 3_600_000
+    const config: Config = { ...household, maxStructuralRepairs: 0, commandPresets: ['beardy', 'beardy-mamabear'],
+      teams: [{ ...household.teams[0]!, commandPresets: ['beardy', 'beardy-mamabear'] }, { ...household.teams[1]!, commandPresets: ['beardy'] }] }
+    const fiber = await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
+      mountReports(ctx, config, timers.scheduler, () => requested)
+    } })
+    const agent = (preset: string): Agent => {
+      const session = h.ctx.sessions.create(SessionId(`command-${preset}`), { meta: { agentPreset: preset } })
+      return { id: session.id, session } as Agent
+    }
+    const beardy = agent('beardy')
+    const mama = agent('beardy-mamabear')
+    const run = async (who: Agent, line: string) => (await h.ctx.commands.execute(who, line, [], new AbortController().signal))?.result
+    const scheduled = new Promise<void>((resolve) => {
+      warn.mockImplementation((line) => { if (String(line).startsWith('fantasy-reports: googies full withheld')) resolve() })
+    })
+    timers.ticks.get('0 14 * * 3')!(WEDNESDAY_WEEK_3)
+    await scheduled
+    const published = new Promise<void>((resolve) => {
+      info.mockImplementation((line) => { if (line === 'fantasy-reports: googies full manual published') resolve() })
+    })
+    expect(await run(beardy, `/${REPORT_COMMAND} Googies`)).toEqual({ kind: 'success',
+      text: 'Started the full report for The Googies; it will post to the team\'s report channel when done.' })
+    const failed = new Promise<void>((resolve) => {
+      warn.mockImplementation((line) => { if (String(line).startsWith('fantasy-reports: googies thursday manual failed')) resolve() })
+    })
+    expect(await run(mama, '/fantasy-report googies thursday')).toEqual({ kind: 'success',
+      text: 'Queued the thursday report for The Googies behind 1 earlier report; it will post to the team\'s report channel when done.' })
+    await published
+    await failed
+    expect(delivered.map(item => [item.jobName, item.outcome, item.firedAt, item.failure?.code])).toEqual([
+      ['fantasy-googies-full', 'failed', WEDNESDAY_WEEK_3, 'FANTASY_REPORT_WITHHELD'],
+      ['fantasy-googies-full', 'answered', requested, undefined],
+      ['fantasy-googies-thursday', 'failed', requested, 'FANTASY_REPORT_FAILED'],
+    ])
+    expect(delivered[1]).toMatchObject({ deliverChannelId: '1472404859679670455', text: expect.stringMatching(/^# The Googies/u) as string })
+    expect(await run(mama, '/fantasy-report lights')).toEqual({ kind: 'error',
+      text: 'Unknown team "lights". Teams you can request: googies.' })
+    const usage = { kind: 'error', text: 'Usage: /fantasy-report <googies|lights> [full|thursday|sunday]' }
+    expect(await run(beardy, '/fantasy-report')).toEqual(usage)
+    expect(await run(beardy, '/fantasy-report lights weekly')).toEqual(usage)
+    expect(await run(beardy, '/fantasy-report lights full now')).toEqual(usage)
+    expect(await run(agent('beardy-guest'), '/fantasy-report googies')).toEqual({ kind: 'error',
+      text: 'Fantasy reports cannot be requested in this lane.' })
+    const unnamed = h.ctx.sessions.create(SessionId('command-unnamed'))
+    expect(await run({ id: unnamed.id, session: unnamed } as Agent, '/fantasy-report googies')).toEqual({ kind: 'error',
+      text: 'Fantasy reports cannot be requested in this lane.' })
+    await fiber.dispose()
+    expect(await run(beardy, '/fantasy-report googies')).toBeUndefined()
+  })
+
+  it('names the shadow channel and the queue depth in the acknowledgement', async () => {
+    const { h } = await setup([HANG])
+    await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
+      mountReports(ctx, { ...household, commandPresets: ['beardy'], shadowChannelId: '1472404859679670455' }, fakeScheduler().scheduler,
+        () => WEDNESDAY_WEEK_3)
+    } })
+    const session = h.ctx.sessions.create(SessionId('command-beardy'), { meta: { agentPreset: 'beardy' } })
+    const run = async (line: string) => (await h.ctx.commands.execute({ id: session.id, session } as Agent, line, [],
+      new AbortController().signal))?.result.text
+    expect(await run('/fantasy-report googies')).toBe('Started the full report for The Googies; it will post to the shadow channel when done.')
+    await run('/fantasy-report lights sunday')
+    expect(await run('/fantasy-report lights thursday')).toBe(
+      'Queued the thursday report for Lights Kamara Action behind 2 earlier reports; it will post to the shadow channel when done.')
+  })
+
+  it('registers no command while commandPresets is empty', async () => {
+    const { h } = await setup([])
+    await h.ctx.plugin({ name: 'reports-under-test', inject, apply: (ctx: Context) => {
+      mountReports(ctx, household, fakeScheduler().scheduler, Date.now)
+    } })
+    const session = h.ctx.sessions.create(SessionId('command-beardy'), { meta: { agentPreset: 'beardy' } })
+    expect(await h.ctx.commands.execute({ id: session.id, session } as Agent, '/fantasy-report googies', [], new AbortController().signal))
+      .toBeUndefined()
   })
 
   it('mounts real croner timers through the plugin entry and releases them on disposal', async () => {

@@ -8,6 +8,7 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../util/delivery-target" },
     { "path": "../../core/agent" },
+    { "path": "../../interaction/commands" },
     { "path": "../../core/session" },
     { "path": "../../cron/cron" },
     { "path": "../fantasy" },

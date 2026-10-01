@@ -151,14 +151,25 @@ export function parseDraft(output: string): FantasyDraft {
 }
 
 /**
+ * Name a patch row by `id` when it has no `player`: repair stages are told to keep each row's id, and
+ * some answer `{"id":"P14",...}`. Only patch rows accept the alias; a writer draft must use `player`.
+ */
+function patchRow(value: unknown): unknown {
+  if (!isRecord(value) || value.player !== undefined || typeof value.id !== 'string') return value
+  const { id, ...row } = value
+  return { ...row, player: id }
+}
+
+/**
  * Apply a repair patch: changed player rows replace their originals, and a non-empty section replaces its section.
+ * A patch row may name its player with `id` instead of `player`.
  * @param draft - current draft.
  * @param output - repair stage text.
  * @returns the patched draft; a malformed patch throws.
  */
 export function applyPatch(draft: FantasyDraft, output: string): FantasyDraft {
   const value = parseJsonObject(output)
-  const rows = new Map(list(value.players ?? [], 'players').map(parsePlayer).map(row => [row.player, row]))
+  const rows = new Map(list(value.players ?? [], 'players').map(patchRow).map(parsePlayer).map(row => [row.player, row]))
   for (const player of rows.keys()) {
     if (!draft.players.some(row => row.player === player)) throw new Error(`the patch changes unknown player ${player}`)
   }
