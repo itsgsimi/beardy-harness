@@ -19,6 +19,9 @@
     - id: fantasy-report-yahoo-fixture
       name: './yahoo-fixture.mjs'
 
+    - id: fantasy-report-projections-fixture
+      name: './projections-fixture.mjs'
+
     - id: fantasy-report-research-fixture
       name: './research-fixture.mjs'
       config:

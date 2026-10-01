@@ -1,7 +1,7 @@
 **Shadow run: native report for The Googies.** Sent only to this channel; the team's own channel received nothing from this run.
 
 # The Googies · 2026 week 3 full report
-**Wed, Sep 23, 2:00 PM MST · Yahoo roster, slots, and projections**
+**Wed, Sep 23, 2:00 PM MST · Yahoo roster and slots, weekly projections**
 
 **Matchup:** The Googies 116.1 vs Team 5 94.6 projected · Yahoo win probability 59%
 
@@ -9,15 +9,15 @@
 The Googies are projected 116.1 to 94.6 against Team 5 and keep their current Yahoo lineup. The main question is Zay Flowers, who was limited Wednesday with a hamstring injury; Jordan Addison starts instead if Flowers is limited again by Friday. Jayden Daniels and Nico Collins are out and stay on the bench. Olamide Zaccheaus is the waiver option if receiver depth runs short.
 
 ## Lineup
-- **QB** Trevor Lawrence · Jax · proj n/a
-- **RB** Jahmyr Gibbs · Det · proj n/a
-- **RB** Omarion Hampton · LAC · proj n/a
-- **WR** Parker Washington · Jax · proj n/a
-- **WR** Zay Flowers · Bal · proj n/a · Yahoo Q (Hamstring)
-- **TE** Tyler Warren · Ind · proj n/a
-- **W/R/T** Breece Hall · NYJ · proj n/a
-- **K** Cairo Santos · Chi · proj n/a
-- **DEF** Steelers · Pit · proj n/a
+- **QB** Trevor Lawrence · Jax · proj 17.3
+- **RB** Jahmyr Gibbs · Det · proj 17.6
+- **RB** Omarion Hampton · LAC · proj 12.8
+- **WR** Parker Washington · Jax · proj 10.3
+- **WR** Zay Flowers · Bal · proj 9.8 · Yahoo Q (Hamstring)
+- **TE** Tyler Warren · Ind · proj 8.5
+- **W/R/T** Breece Hall · NYJ · proj 11.8
+- **K** Cairo Santos · Chi · proj 8.1
+- **DEF** Steelers · Pit · proj 8.3
 
 Bench: Jordan Addison, Jayden Daniels (O), J.K. Dobbins, Nico Collins (O), Bhayshul Tuten, Isaiah Likely
 
@@ -75,6 +75,7 @@ Flowers keeps the WR spot if he practices fully by Friday; he was limited Wednes
 - **Olamide Zaccheaus** · WR · Atl — Healthy receiver depth if Flowers cannot play; Addison is the only healthy bench receiver.
 
 ## Caveats
+- The opponent's Yahoo roster could not be read, so the slot comparison is missing (Error: fantasy-yahoo: API unavailable).
 - Recommendations only: check final injury reports and Yahoo lineup locks before changing your lineup.
 
 ## Sources

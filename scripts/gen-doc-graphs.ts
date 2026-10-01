@@ -137,6 +137,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'The provider owns OAuth and Yahoo parsing; the model tool reads the caller\'s mapped team and scheduled reports read configured teams.',
   },
   {
+    key: 'fantasyProjections',
+    pkg: 'fantasy',
+    title: 'Weekly Fantasy stat-line projections',
+    mode: 'seam',
+    implementations: ['fantasy-projections-sleeper'],
+    consumers: ['fantasy-reports'],
+    note: 'The provider owns the projection source, stat-key translation, and player matching; scheduled reports score the lines under league scoring.',
+  },
+  {
     key: 'research',
     pkg: 'research',
     title: 'Durable owner-scoped research runs',

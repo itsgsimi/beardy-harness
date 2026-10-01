@@ -22,6 +22,8 @@ flowchart LR
   pkg_fantasy_yahoo["fantasy-yahoo"]
   pkg_tool_fantasy["tool-fantasy"]
   pkg_fantasy_reports["fantasy-reports"]
+  svc_fantasyProjections["ctx.fantasyProjections<br/>Weekly Fantasy stat-line projections"]
+  pkg_fantasy_projections_sleeper["fantasy-projections-sleeper"]
   pkg_research["research"]
   svc_research["ctx.research<br/>Durable owner-scoped research runs"]
   pkg_research_local["research-local"]
@@ -349,6 +351,8 @@ flowchart LR
   pkg_experimental_speech_to_text --> svc_speechToText
   pkg_experimental_speech_to_text_sensevoice --> svc_speechToText
   pkg_fantasy --> svc_fantasy
+  pkg_fantasy --> svc_fantasyProjections
+  pkg_fantasy_projections_sleeper --> svc_fantasyProjections
   pkg_fantasy_yahoo --> svc_fantasy
   pkg_file_reference --> svc_fileReferences
   pkg_file_reference_local --> svc_fileReferences
@@ -492,6 +496,7 @@ flowchart LR
   svc_dynamicCordisRunner --> pkg_tool_cordis
   svc_fantasy --> pkg_fantasy_reports
   svc_fantasy --> pkg_tool_fantasy
+  svc_fantasyProjections --> pkg_fantasy_reports
   svc_fileReferences --> pkg_api_session_controller
   svc_fileUploads --> pkg_api_session_controller
   svc_fs --> pkg_tool_fs
@@ -614,6 +619,7 @@ flowchart LR
 | `ctx.signal` | `seam` | [`signal`](../packages/signal/signal) | [`signal-cli`](../packages/signal/signal-cli) | [`signal-notices`](../packages/signal/signal-notices) | - | 提供方负责守护进程连接、持久发件箱和事件流；通知使用方认领目标为 Signal 群组或号码的摄像头、健康和定时运行通知。 |
 | `ctx.camera` | `seam` | [`camera`](../packages/camera/camera) | [`camera-ring`](../packages/camera/camera-ring) | [`camera-watch`](../packages/camera/camera-watch) | - | 提供方负责厂商登录、事件接纳和画面截取；监视插件在记录在案的 Session 中对画面分类，把通知交给其目标的投递方，并回答 camera 工具。 |
 | `ctx.fantasy` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-yahoo`](../packages/fantasy/fantasy-yahoo) | [`tool-fantasy`](../packages/fantasy/tool-fantasy), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 提供方拥有 OAuth 与 Yahoo 解析；模型工具读取调用方映射的球队，定时报告读取配置的球队。 |
+| `ctx.fantasyProjections` | `seam` | [`fantasy`](../packages/fantasy/fantasy) | [`fantasy-projections-sleeper`](../packages/fantasy/fantasy-projections-sleeper) | [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 提供方拥有预测来源、统计键转换和球员匹配；定时报告按联盟计分规则为数据行计分。 |
 | `ctx.research` | `seam` | [`research`](../packages/research/research) | [`research-local`](../packages/research/research-local) | [`tool-research`](../packages/research/tool-research), [`fantasy-reports`](../packages/fantasy/fantasy-reports) | - | 本地提供方保存运行 Session 和报告附件，并执行每周 Fantasy 报告等使用方工作流。 |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |
 | `ctx.pluginRegistryProbe` | `core` | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | [`client-ui-plugin-manager`](../packages/client/ui-plugin-manager) | - | 在 Host 上并发比较公共安装源响应；初始安装源推荐由 Client 负责。 |

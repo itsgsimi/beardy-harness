@@ -457,6 +457,7 @@
     { "path": "./packages/signal/signal-cli" },
     { "path": "./packages/signal/signal-notices" },
     { "path": "./packages/fantasy/fantasy" },
+    { "path": "./packages/fantasy/fantasy-projections-sleeper" },
     { "path": "./packages/fantasy/fantasy-reports" },
     { "path": "./packages/fantasy/fantasy-yahoo" },
     { "path": "./packages/fantasy/tool-fantasy" },

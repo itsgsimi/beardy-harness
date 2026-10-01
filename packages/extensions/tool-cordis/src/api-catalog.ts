@@ -1084,6 +1084,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'fantasyProjections',
+    summary: 'Weekly projected stat lines for league players from a source other than the league provider.',
+    description: 'Weekly projected stat lines for league players from a source other than the league provider. Lines use the stat ids of FantasyScoringStat.id and `FantasyPlayer.stats`, so league scoring applies to them unchanged through scoreStats.',
+    methods: [
+      {
+        signature: 'abstract project( season: number, week: number, players: readonly FantasyPlayer[], signal?: AbortSignal, ): Promise<ReadonlyMap<PlayerKeyType, Readonly<Record<string, number>>>>',
+        description: 'Project one NFL week\'s stat lines for the given players.',
+        parameters: [{ name: 'season', description: 'NFL season year.' }, { name: 'week', description: 'NFL regular-season week.' }, { name: 'players', description: 'league players to project; the provider matches them by name, NFL team, and position.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'projected stat lines by player key; players the provider cannot match are absent.',
+      },
+    ],
+  },
+  {
     key: 'fileReferences',
     summary: 'Host capability for cancellable file-reference discovery.',
     description: 'Host capability for cancellable file-reference discovery.',

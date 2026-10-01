@@ -27,7 +27,7 @@ export function callInstructions(mode: ReportMode, ids: readonly string[]): stri
   const example = Object.fromEntries(ids.map(id => [id, { call: 'START|SIT|FLEX|HOLD', reason: 'at most 200 characters', sources: [] }]))
   return `Stage: player calls. ${MODE_FOCUS[mode]} Decide this week's call for each player in the fact sheets below.
 
-Calls: START starts him in his position slot, FLEX starts him in a flex slot, SIT benches him this week, HOLD benches and keeps him (injured, suspended, or on bye). Each sheet shows the code's default call from Yahoo projections, availability, and slot locks; keep it unless the facts or excerpts give a concrete reason to change it. Code rejects any call that makes the lineup illegal, starts a player Yahoo lists as unable to play, or moves a player whose slot Yahoo has locked.
+Calls: START starts him in his position slot, FLEX starts him in a flex slot, SIT benches him this week, HOLD benches and keeps him (injured, suspended, or on bye). Each sheet shows the code's default call from projections, availability, and slot locks; keep it unless the facts or excerpts give a concrete reason to change it. Code rejects any call that makes the lineup illegal, starts a player Yahoo lists as unable to play, or moves a player whose slot Yahoo has locked.
 
 Write each reason in at most 200 characters from the sheet's facts and excerpts only; never invent injuries, roles, opponents, kickoff times, or statistics. In "sources" cite only source numbers listed in that player's excerpts, or [] when the reason rests on Yahoo facts alone. No URLs.
 
@@ -42,7 +42,7 @@ ${JSON.stringify(example)}`
  */
 export function closeCallInstructions(ids: readonly string[]): string {
   const example = Object.fromEntries(ids.map(id => [id, { text: 'at most 600 characters', sources: [] }]))
-  return `Stage: close calls. Each pair below is a starter and a bench player that code flagged as close: their Yahoo projections are near each other, or the starter's Yahoo status is uncertain. For each pair, say in at most 600 characters which player to start and what would change that choice, using only the listed facts, final calls, and excerpts. Cite only source numbers listed for the two players. No URLs.
+  return `Stage: close calls. Each pair below is a starter and a bench player that code flagged as close: their projections are near each other, or the starter's Yahoo status is uncertain. For each pair, say in at most 600 characters which player to start and what would change that choice, using only the listed facts, final calls, and excerpts. Cite only source numbers listed for the two players. No URLs.
 
 Return ONLY this JSON object with exactly these keys (${ids.join(', ')}):
 ${JSON.stringify(example)}`

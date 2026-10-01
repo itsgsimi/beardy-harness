@@ -95,7 +95,7 @@ function hundredths(player: FantasyPlayer): number {
 }
 
 /**
- * Choose the legal lineup with the most filled slots and the highest summed Yahoo projection. A missing
+ * Choose the legal lineup with the most filled slots and the highest summed projection. A missing
  * projection counts as zero; ties keep current Yahoo starters, then their current slots, then roster
  * order. Locked starters stay in their current slot, locked reserves stay out, and players Yahoo lists
  * as unable to play never start unless locked in. A pool restricts who may start.

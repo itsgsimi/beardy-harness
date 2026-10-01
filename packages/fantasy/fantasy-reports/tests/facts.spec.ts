@@ -25,12 +25,12 @@ describe('code calls and plain reasons', () => {
   })
 
   it('states only Yahoo facts and the lineup in plain reasons', () => {
-    expect(plainReason(fixture.get('P1')!, 'QB', 3)).toBe('Starts at QB; Yahoo shows no projection.')
-    expect(plainReason(fixture.get('P5')!, 'WR', 3)).toBe('Starts at WR; Yahoo shows no projection. Yahoo lists him Q (Hamstring).')
+    expect(plainReason(fixture.get('P1')!, 'QB', 3)).toBe('Starts at QB; no projection.')
+    expect(plainReason(fixture.get('P5')!, 'WR', 3)).toBe('Starts at WR; no projection. Yahoo lists him Q (Hamstring).')
     expect(plainReason(fixture.get('P9')!, undefined, 3)).toBe('Benched: Yahoo status O (Elbow).')
     expect(plainReason(synthetic('Bye', ['WR'], { byeWeek: 3 }), undefined, 3)).toBe('Benched: on bye in week 3.')
     expect(plainReason(synthetic('Depth', ['WR'], { projectedPoints: 7.25, status: 'Q' }), undefined, 3))
-      .toBe('Benched; Yahoo projects 7.3, and the starters rank ahead of him. Yahoo lists him Q.')
+      .toBe('Benched; projected 7.3, and the starters rank ahead of him. Yahoo lists him Q.')
     expect(plainReason(synthetic('Locked', ['WR'], { slotLocked: true }), 'WR', 3)).toBe('Yahoo has locked him in WR because his game has started.')
     expect(plainReason(synthetic('Locked', ['WR'], { slotLocked: true }), undefined, 3))
       .toBe('Yahoo has locked him on the bench because his game has started.')

@@ -3,23 +3,23 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/fantasy/fantasy/README.md
 /:
-  en: 786b4e74c1e4807c
-  zh: 6f78127de7754d3c
+  en: d7ff0a93dfa344da
+  zh: 39a8f2ca06a3aa80
 /deepseek-ai-dsh-fantasy:
   en: 9bd4106b10c11782
   zh: e2660822f59c24ed
 /deepseek-ai-dsh-fantasy/summary:
-  en: 2c9036d3ed5e7f93
-  zh: 9929f989d1c9fd17
+  en: 31502889d8c78675
+  zh: 600d611ad15a2a35
 /deepseek-ai-dsh-fantasy/table-of-contents:
   en: d152484eb41ac6b4
   zh: 3eaa889f39470150
 /deepseek-ai-dsh-fantasy/use-this-package:
-  en: 1257401c5f0e383f
-  zh: 2eed88fe263a5bf5
+  en: 07707ca710de3cf8
+  zh: 726da09f113bc1af
 /deepseek-ai-dsh-fantasy/understand-the-implementation:
-  en: 2ee8e969030bbdc9
-  zh: 40f32ace76dc7755
+  en: 4d8ddf50a5169776
+  zh: 0bbd5626011b8759
 /deepseek-ai-dsh-fantasy/further-exploration:
   en: e0445b2eec02532a
   zh: f9711f1ce09f771d
@@ -39,8 +39,8 @@
   en: d993a4e2ddbf53f5
   zh: f9f6abac8351e951
 /deepseek-ai-dsh-fantasy/known-limitations-and-deferred-work:
-  en: 98686834f94d633d
-  zh: c547e0123323c0aa
+  en: c18f4eb9cf83fcf1
+  zh: a6e7d4ec16a024d8
 /deepseek-ai-dsh-fantasy/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 6c5f9788c6536776

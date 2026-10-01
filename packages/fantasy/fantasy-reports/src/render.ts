@@ -28,7 +28,7 @@ export interface ReportView {
   readonly slots: readonly FantasyRosterSlot[]
   /** The team's Yahoo matchup entry and its opponent, when Yahoo returned the week's matchup. */
   readonly matchup?: { readonly ours: FantasyTeam; readonly opponent: FantasyTeam }
-  /** Slot-by-slot projections, present only when Yahoo projected both lineups. */
+  /** Slot-by-slot projections, present only when a roster player is projected and the opponent's roster was read. */
   readonly comparison?: readonly SlotComparison[]
   readonly summary: string
   readonly lineup: readonly LineupAssignment[]
@@ -89,7 +89,7 @@ function render(view: ReportView, compact: boolean): string {
   }).join(' ')
   const name = (id: string): string => (view.players.get(id) as FantasyPlayer).name
   const lines = [`# ${view.teamName} · ${view.season} week ${view.week} ${MODE_TITLES[view.mode]}`,
-    `**${formatInstant(view.firedAt, view.timezone)} · Yahoo roster, slots, and projections**`, '']
+    `**${formatInstant(view.firedAt, view.timezone)} · Yahoo roster and slots, weekly projections**`, '']
   if (view.matchup !== undefined) {
     const { ours, opponent } = view.matchup
     const odds = ours.winProbability === undefined ? '' : ` · Yahoo win probability ${Math.round(ours.winProbability * 100)}%`

@@ -84,6 +84,10 @@ describe('dsh-beardy bundle', () => {
       name: '@deepseek-ai/dsh-fantasy-reports', disabled: true,
     })
     expect(rows.find(row => row.id === 'fantasy-weekly-reports')).not.toHaveProperty('config')
+    expect(rows.find(row => row.id === 'fantasy-projections-sleeper')).toMatchObject({
+      name: '@deepseek-ai/dsh-fantasy-projections-sleeper', disabled: true,
+    })
+    expect(rows.find(row => row.id === 'fantasy-projections-sleeper')).not.toHaveProperty('config')
     for (const [id, name] of [['camera-ring', '@deepseek-ai/dsh-camera-ring'], ['camera-watch', '@deepseek-ai/dsh-camera-watch'],
       ['signal-cli', '@deepseek-ai/dsh-signal-cli'], ['signal-notices', '@deepseek-ai/dsh-signal-notices']]) {
       expect(rows.find(row => row.id === id)).toMatchObject({ name, disabled: true })
@@ -95,6 +99,7 @@ describe('dsh-beardy bundle', () => {
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-fantasy-yahoo')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-fantasy')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-fantasy-reports')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-fantasy-projections-sleeper')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-local-model-control')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-session-query-sqlite')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-session-query')

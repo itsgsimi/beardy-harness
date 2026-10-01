@@ -1,4 +1,4 @@
-/** Fixture Yahoo data, a scripted model, fake web providers, and the local research provider for report tests. */
+/** Fixture Yahoo data and projections, a scripted model, fake web providers, and the local research provider for report tests. */
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
@@ -9,9 +9,9 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
-import { FantasyService, PlayerKey } from '@deepseek-ai/dsh-fantasy'
+import { FantasyProjectionService, FantasyService, PlayerKey } from '@deepseek-ai/dsh-fantasy'
 import type {
-  FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyPlayer, FantasyRoster, LeagueKey, TeamKey,
+  FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyPlayer, FantasyRoster, LeagueKey, PlayerKey as PlayerId, TeamKey,
 } from '@deepseek-ai/dsh-fantasy/types'
 import { parseGameWeeks, parseLeagueSettings, parseMatchups, parsePlayers, parseRoster } from '@deepseek-ai/dsh-fantasy-yahoo'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -122,6 +122,26 @@ export class FixtureFantasy extends FantasyService {
   async gameWeeks(): Promise<readonly FantasyGameWeek[]> { return this.data.weeks }
 }
 
+/** Projection provider answering from stat lines keyed by player name; no line is the default. */
+export class FixtureProjections extends FantasyProjectionService {
+  /** Stat lines by player name. */
+  lines: Readonly<Record<string, Readonly<Record<string, number>>>> = {}
+  /** Error thrown by every projection read. */
+  failure?: Error
+  /** Season, week, and player names of every read, in order. */
+  readonly reads: Array<{ season: number; week: number; names: string[] }> = []
+
+  async project(season: number, week: number,
+    players: readonly FantasyPlayer[]): Promise<ReadonlyMap<PlayerId, Readonly<Record<string, number>>>> {
+    this.reads.push({ season, week, names: players.map(player => player.name) })
+    if (this.failure !== undefined) throw this.failure
+    return new Map(players.flatMap((player) => {
+      const line = this.lines[player.name]
+      return line === undefined ? [] : [[player.key, line] as const]
+    }))
+  }
+}
+
 /** One page per player: `https://news.example/p<N>` names the player and states a practice fact. */
 export function playerPage(index: number): { url: string; text: string } {
   const player = yahoo.roster.players[index]!
@@ -222,6 +242,7 @@ export interface Harness {
   readonly root: string
   readonly adapter: MockAdapter
   readonly fantasy: FixtureFantasy
+  readonly projections: FixtureProjections
   readonly research: LocalResearchService
   dispose(): Promise<void>
 }
@@ -256,9 +277,10 @@ export async function harness(replies: readonly Reply[], options: {
     ? { provider: 'mock', model: 'test-model', ownerScope: 'session' }
     : { provider: 'mock', model: 'test-model', ownerScope: 'profile', ownerNamespace: 'beardy', ...options.research })
   await ctx.plugin(FixtureFantasy)
+  await ctx.plugin(FixtureProjections)
   const fantasy = ctx.fantasy as FixtureFantasy
   return {
-    ctx, root, adapter, fantasy, research: ctx.research as LocalResearchService,
+    ctx, root, adapter, fantasy, projections: ctx.fantasyProjections as FixtureProjections, research: ctx.research as LocalResearchService,
     async dispose() {
       try {
         await ctx.fiber.dispose()

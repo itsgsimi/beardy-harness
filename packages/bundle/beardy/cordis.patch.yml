@@ -99,10 +99,16 @@
       name: '@deepseek-ai/dsh-tool-fantasy'
       disabled: true
 
-# Weekly reports need the Yahoo provider, native research with profile ownership, and the Discord
-# gateway. The personal profile supplies teams, channels, schedules, and the workspace. The row id
-# differs from the Odysseus bridge row `fantasy-reports`, so both can load during a shadow week.
+# Weekly reports need the Yahoo provider, the Sleeper projection provider, native research with
+# profile ownership, and the Discord gateway. The personal profile supplies teams, channels,
+# schedules, and the workspace; enable the projection row with the report row, since its defaults
+# need no private values. The row id differs from the Odysseus bridge row `fantasy-reports`, so both
+# can load during a shadow week.
 - insert:
+    - id: fantasy-projections-sleeper
+      name: '@deepseek-ai/dsh-fantasy-projections-sleeper'
+      disabled: true
+
     - id: fantasy-weekly-reports
       name: '@deepseek-ai/dsh-fantasy-reports'
       disabled: true

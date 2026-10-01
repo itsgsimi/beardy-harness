@@ -1690,12 +1690,36 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-training-export -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-projections-sleeper -->
+<a id="deepseek-aidsh-fantasy-projections-sleeper"></a>
+
+## `@deepseek-ai/dsh-fantasy-projections-sleeper`
+
+- `source`: [`packages/fantasy/fantasy-projections-sleeper/src/index.ts:12`](../packages/fantasy/fantasy-projections-sleeper/src/index.ts)
+
+```ts config-catalog
+/** Provider deployment values. */
+export interface Config {
+  /** HTTPS origin of the Sleeper API. */
+  readonly baseUrl?: string
+  /** Sleeper season type of the projected week. */
+  readonly seasonType?: 'regular' | 'pre' | 'post'
+  /** Sleeper positions requested; rows with none of them among their positions never match. */
+  readonly positions?: string[]
+  /** Milliseconds one week's projections are reused after their request starts; `0` requests every time. */
+  readonly cacheTtlMs?: number
+  /** Deadline in milliseconds for each Sleeper HTTP request. */
+  readonly requestTimeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-fantasy-projections-sleeper -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-reports -->
 <a id="deepseek-aidsh-fantasy-reports"></a>
 
 ## `@deepseek-ai/dsh-fantasy-reports`
 
-- `inject`: `agents` · `commands` · `fantasy` · `research` · `sessionPersistence` · `web`
+- `inject`: `agents` · `commands` · `fantasy` · `fantasyProjections` · `research` · `sessionPersistence` · `web`
 - `source`: [`packages/fantasy/fantasy-reports/src/config.ts:49`](../packages/fantasy/fantasy-reports/src/config.ts)
 
 ```ts config-catalog

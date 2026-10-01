@@ -46,7 +46,7 @@ export function lineupCall(player: FantasyPlayer, slot: string | undefined, week
 }
 
 /**
- * Format a Yahoo projection for prompts and reports.
+ * Format a projection for prompts and reports.
  * @param value - projected points.
  * @returns one decimal, or `n/a`.
  */
@@ -55,14 +55,14 @@ export function points(value: number | undefined): string {
 }
 
 /**
- * A plain reason built only from Yahoo facts and the lineup, used when no model reason is usable.
+ * A plain reason built only from Yahoo facts, the player's projection, and the lineup, used when no model reason is usable.
  * @param player - roster player.
  * @param slot - the player's starting slot, or undefined on the bench.
  * @param week - report week.
  * @returns one or two short sentences.
  */
 export function plainReason(player: FantasyPlayer, slot: string | undefined, week: number): string {
-  const projection = player.projectedPoints === undefined ? 'Yahoo shows no projection' : `Yahoo projects ${points(player.projectedPoints)}`
+  const projection = player.projectedPoints === undefined ? 'no projection' : `projected ${points(player.projectedPoints)}`
   const status = player.status === undefined ? '' : ` Yahoo lists him ${player.status}${player.injuryNote === undefined ? '' : ` (${player.injuryNote})`}.`
   if (player.slotLocked === true) {
     return slot === undefined ? 'Yahoo has locked him on the bench because his game has started.'
@@ -88,7 +88,7 @@ export interface ClosePair {
 
 /**
  * Flag starter and bench pairs worth a comparison: an uncertain starter (Yahoo Q, D, or GTD) with his best
- * eligible available backup, then pairs whose Yahoo projections differ by at most the margin, closest first.
+ * eligible available backup, then pairs whose projections differ by at most the margin, closest first.
  * Locked players and players Yahoo lists as unable to play are never paired.
  * @param players - roster players by short id, in roster order.
  * @param lineup - final starting assignments.
@@ -199,7 +199,7 @@ export interface WeakPosition extends PositionNeed {
 
 /**
  * Positions whose free agents must be read: those with a need, or every base position when any roster
- * player has a Yahoo projection, since a projection gap can then show weakness.
+ * player has a projection, since a projection gap can then show weakness.
  * @param needs - scored base positions.
  * @param players - roster players by short id.
  * @returns positions to request, in Yahoo order.
@@ -212,7 +212,7 @@ export function waiverQueries(needs: readonly PositionNeed[], players: ReadonlyM
 /**
  * Choose the weakest positions and their best available free agents. A position qualifies by need or a
  * positive projection gap and ranks by need, then gap. Candidates must be eligible for the position and
- * able to play this week, and rank by Yahoo projection, then Yahoo rank, then percent owned.
+ * able to play this week, and rank by projection, then Yahoo rank, then percent owned.
  * @param needs - scored base positions.
  * @param freeAgents - free agents read per position.
  * @param players - roster players by short id.
