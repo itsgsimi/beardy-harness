@@ -1739,27 +1739,35 @@ export interface Config {
   readonly maxConcurrentFetches?: number
   /** Characters rendered from one fetched page before admission. */
   readonly maxPageChars?: number
-  /** Characters of one admitted page shown to a model, kept as passages around roster names. */
+  /** Characters of one admitted page kept as the run's source text, as passages around roster names. */
   readonly sourceExcerptChars?: number
-  /** Characters of all admitted pages shown to the writer; each page's share never drops below 1,200. */
-  readonly promptSourceChars?: number
   /** Hosts whose pages are never fetched; each entry also covers its subdomains. */
   readonly excludedHosts?: string[]
   /** Largest roster a report covers. */
   readonly maxPlayers?: number
-  /** Output ceiling of the writer stage. */
-  readonly writerMaxTokens?: number
-  /** Output ceiling of each reviewer stage. */
-  readonly reviewerMaxTokens?: number
-  /** Output ceiling of each repair stage. */
-  readonly repairMaxTokens?: number
-  /** Factual reviews before the final-round rule applies. */
-  readonly maxReviews?: number
-  /** Structural repairs before publication is withheld. */
-  readonly maxStructuralRepairs?: number
-  /** Earlier completed reports of the same team and season shown as context. */
+  /** Verbatim news excerpts shown with one player's fact sheet, at most one per admitted page. */
+  readonly excerptsPerPlayer?: number
+  /** Characters of one news excerpt. */
+  readonly excerptChars?: number
+  /** Roster players judged in one per-player call stage. */
+  readonly playersPerStage?: number
+  /** Output ceiling of every model stage. */
+  readonly stageMaxTokens?: number
+  /** Yahoo projection difference, in whole points, at or under which a starter and a bench player form a close call. */
+  readonly closeCallMargin?: number
+  /** Close calls compared by the close-call stage; 0 skips the stage. */
+  readonly maxCloseCalls?: number
+  /** Weakest roster positions searched for free agents; 0 skips the waiver shortlist and its stage. */
+  readonly waiverPositions?: number
+  /** Free agents shortlisted per weak position. */
+  readonly waiverCandidates?: number
+  /** Most waiver picks the waiver stage may return. */
+  readonly waiverPicks?: number
+  /** Whether a final stage checks each model reason against its cited excerpts. */
+  readonly checkReasons?: boolean
+  /** Earlier completed reports of the same team and season shown to the summary stage. */
   readonly historyReports?: number
-  /** Characters of earlier reports shown as context, shared by all of them. */
+  /** Characters of earlier reports shown to the summary stage, shared by all of them. */
   readonly historyChars?: number
   /** Deadline of one model stage. */
   readonly stageTimeoutMs?: number

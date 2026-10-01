@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-30-fantasy-report-hybrid-pipeline.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-30-fantasy-report-hybrid-pipeline.md
+/agent-note-fantasy-report-hybrid-pipeline:
+  en: f13192c8ad1583cb
+  zh: c12048bc0970590b
+/agent-note-fantasy-report-hybrid-pipeline/problem:
+  en: 00b707eeb2a40625
+  zh: 39cf90670bc51246
+/agent-note-fantasy-report-hybrid-pipeline/decision:
+  en: c4bb2805630a9160
+  zh: 80aa6d6242fccd5d
+/agent-note-fantasy-report-hybrid-pipeline/alternatives-considered:
+  en: 8a2a248ed871ff61
+  zh: 118b20d92ffd1391
+/agent-note-fantasy-report-hybrid-pipeline/consequences:
+  en: c398cd1474143071
+  zh: 8ac45c901c5dc80d

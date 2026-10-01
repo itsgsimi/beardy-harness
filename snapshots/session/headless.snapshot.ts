@@ -849,22 +849,26 @@ async function verifyNativeResearchRestart(
   })
 }
 
-/** A scheduled report: one workflow run whose review and repair stages are logged children, read back by the model. */
+/** A scheduled report: one workflow run whose small model stages are logged children, read back by the model. */
 function verifyFantasyReport(logs: readonly SessionLog[]): void {
   const [primary, caller, run, ...stages] = logs
-  expect(logs).toHaveLength(7)
+  expect(logs).toHaveLength(10)
   expect(caller?.header.id).toBe('fantasy-reports-googies')
   const runEvents = records(run!.content)
   expect(runEvents.find(event => event.type === 'research/started')?.data)
-    .toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v4', callerSessionId: 'fantasy-reports-googies' })
+    .toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v5', callerSessionId: 'fantasy-reports-googies' })
   expect(runEvents.find(event => event.type === 'research/finished')?.data).toMatchObject({ phase: 'completed', quality: 'verified_urls' })
   expect(runEvents.filter(event => event.type === 'research/source')).toHaveLength(15)
   expect(stages.every(stage => stage.header.parentSession === run!.header.id)).toBe(true)
   expect(stages.every(stage => records(stage.content).filter(event => event.type === 'request/header')
     .every(event => !Object.hasOwn((event.data as JsonObject).header as JsonObject, 'tools')))).toBe(true)
+  expect(stages.map((stage) => {
+    const message = records(stage.content).find(event => event.type === 'user/message')?.data as JsonObject
+    return /^Stage: ([a-z ]+)\./u.exec(((message.content as JsonObject[])[0] as JsonObject).text as string)?.[1]
+  })).toEqual(['player calls', 'player calls', 'player calls', 'close calls', 'waiver picks', 'reason check', 'summary'])
   const report = records(primary!.content).find(event => event.type === 'tool/result'
     && ((event.data as JsonObject).message as JsonObject).toolCallId === 'fantasy-report-read')
-  expect(JSON.stringify(report)).toContain('Flowers was limited Wednesday with a hamstring injury')
+  expect(JSON.stringify(report)).toContain('Limited Wednesday with a hamstring injury and questionable')
 }
 
 async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly SessionLog[], ctx: NormalizeContext): Promise<void> {

@@ -109,6 +109,32 @@ export function playerPassages(text: string, players: readonly FantasyPlayer[], 
 }
 
 /**
+ * One verbatim excerpt about a player: from the first sentence that names him, through following
+ * sentences while they fit, cut at a word boundary. A page that never names him by surname, which name
+ * admission allows only for short names, yields its opening text.
+ * @param text - committed source text.
+ * @param player - roster player the page was admitted for.
+ * @param maxChars - excerpt bound.
+ * @returns an exact substring of `text`.
+ */
+export function playerExcerpt(text: string, player: FantasyPlayer, maxChars: number): string {
+  const term = windowTerm(player)
+  const sentences = [...text.matchAll(/[^.!?\n]+(?:[.!?]+|\n|$)/gu)]
+  const escaped = term?.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+  const first = escaped === undefined ? -1 : sentences.findIndex(match => new RegExp(`\\b${escaped}\\b`, 'iu').test(match[0]))
+  const start = first < 0 ? 0 : (sentences[first] as RegExpExecArray).index
+  let end = start
+  for (const match of sentences.slice(Math.max(first, 0))) {
+    if (match.index + match[0].length - start > maxChars && end > start) break
+    end = match.index + match[0].length
+  }
+  const excerpt = text.slice(start, Math.min(end, start + maxChars))
+  if (end - start <= maxChars) return excerpt.trim()
+  const space = excerpt.lastIndexOf(' ')
+  return (space > maxChars / 2 ? excerpt.slice(0, space) : excerpt).trim()
+}
+
+/**
  * Whether a URL may be fetched: HTTPS on a host outside the exclusion list.
  * @param url - search result URL.
  * @param excludedHosts - lowercase host names; each also excludes its subdomains.
@@ -123,13 +149,4 @@ export function fetchable(url: string, excludedHosts: readonly string[]): boolea
   }
   const host = parsed.hostname.toLowerCase()
   return parsed.protocol === 'https:' && !excludedHosts.some(excluded => host === excluded || host.endsWith(`.${excluded}`))
-}
-
-/**
- * Collapse whitespace and case for literal quote and anchor checks.
- * @param text - quote, claim, or source text.
- * @returns comparison form.
- */
-export function normalizedText(text: string): string {
-  return text.replace(/\s+/gu, ' ').trim().toLowerCase()
 }

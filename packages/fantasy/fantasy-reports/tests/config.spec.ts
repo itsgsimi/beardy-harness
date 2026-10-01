@@ -51,7 +51,11 @@ describe('report configuration', () => {
     const config = resolveConfig(household)
     expect(config).toMatchObject({ firstWeek: 1, lastWeek: 17, minimumStartGapMs: 5_400_000, catchUpWindowMs: 43_200_000,
       sundayCatchUpWindowMs: 7_200_000, searchesPerPlayer: 2,
-      pagesPerPlayer: 2, maxReviews: 3, maxStructuralRepairs: 2, runTimeoutMs: 14_400_000, maxDeliveryChars: 19_000 })
+      pagesPerPlayer: 2, excerptsPerPlayer: 2, excerptChars: 300, playersPerStage: 5, stageMaxTokens: 4_000, closeCallMargin: 2,
+      maxCloseCalls: 3, waiverPositions: 2, waiverCandidates: 4, waiverPicks: 2, checkReasons: true, runTimeoutMs: 14_400_000,
+      maxDeliveryChars: 19_000 })
+    expect(resolveConfig({ ...household, checkReasons: false, waiverPositions: 0 }))
+      .toMatchObject({ checkReasons: false, waiverPositions: 0 })
     expect(config.excludedHosts).toEqual(DEFAULT_EXCLUDED_HOSTS)
     expect(config).not.toHaveProperty('shadowChannelId')
     expect(config.commandPresets).toEqual([])
@@ -63,13 +67,13 @@ describe('report configuration', () => {
     expect(resolveConfig(loaded).teams.map(team => team.commandPresets)).toEqual([['beardy'], ['beardy']])
     expect(resolveConfig({ ...household, excludedHosts: [' Example.COM '], firstWeek: 2, lastWeek: 2 }))
       .toMatchObject({ excludedHosts: ['example.com'], firstWeek: 2, lastWeek: 2 })
-    expect(Schema({ ...household })).toMatchObject({ maxPlayers: 30, excludedHosts: [...DEFAULT_EXCLUDED_HOSTS] })
+    expect(Schema({ ...household })).toMatchObject({ maxPlayers: 30, checkReasons: true, excludedHosts: [...DEFAULT_EXCLUDED_HOSTS] })
   })
 
   it('rejects unusable routes, identities, schedules, and bounds at load', () => {
     const team = household.teams[0]!
     const cases: Array<[Partial<Config>, RegExp]> = [
-      [{ maxReviews: 0 }, /maxReviews must be an integer from 1 through 6/],
+      [{ playersPerStage: 0 }, /playersPerStage must be an integer from 1 through 15/],
       [{ runTimeoutMs: 1.5 }, /runTimeoutMs/],
       [{ catchUpWindowMs: 604_800_001 }, /catchUpWindowMs must be an integer from 0 through 604800000/],
       [{ sundayCatchUpWindowMs: -1 }, /sundayCatchUpWindowMs must be an integer from 0 through 86400000/],

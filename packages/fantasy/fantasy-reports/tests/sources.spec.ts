@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FantasyPlayer } from '@deepseek-ai/dsh-fantasy/types'
 import { PlayerKey } from '@deepseek-ai/dsh-fantasy'
-import { admitsPlayer, cleanSource, fetchable, isDefense, nameWords, normalizedText, playerPassages } from '../src/sources.ts'
+import { admitsPlayer, cleanSource, fetchable, isDefense, nameWords, playerExcerpt, playerPassages } from '../src/sources.ts'
 
 function player(name: string, positions = ['RB']): FantasyPlayer {
   return { key: PlayerKey('470.p.1'), name, positions }
@@ -56,13 +56,24 @@ describe('model-visible passages', () => {
     expect(playerPassages(crowded, [player('Breece Hall')], 2000)).toHaveLength(2000)
   })
 
-  it('fetches only HTTPS pages outside excluded hosts and normalizes quote text', () => {
+  it('cuts one verbatim excerpt from the first sentence naming the player', () => {
+    const page = 'Week 3 injury report. J.K. Dobbins practiced fully on Wednesday. He is splitting carries. Other news follows here.'
+    const dobbins = player('J.K. Dobbins')
+    expect(playerExcerpt(page, dobbins, 80)).toBe('Dobbins practiced fully on Wednesday. He is splitting carries.')
+    expect(page).toContain(playerExcerpt(page, dobbins, 80))
+    expect(playerExcerpt(page, dobbins, 30)).toBe('Dobbins practiced fully on')
+    expect(playerExcerpt('Practice notes. Nobody named here at all.', player('Al Ra'), 20)).toBe('Practice notes.')
+    expect(playerExcerpt('Abcdefghijklmnopqrstuvwxyz', player('A B'), 10)).toBe('Abcdefghij')
+    expect(playerExcerpt('The Steelers defense had five sacks.\nNext line.', player('Steelers', ['DEF']), 200))
+      .toBe('The Steelers defense had five sacks.\nNext line.')
+  })
+
+  it('fetches only HTTPS pages outside excluded hosts', () => {
     expect(fetchable('https://news.example/a', ['reddit.com'])).toBe(true)
     expect(fetchable('https://old.reddit.com/r/nfl', ['reddit.com'])).toBe(false)
     expect(fetchable('https://reddit.com/', ['reddit.com'])).toBe(false)
     expect(fetchable('https://notreddit.com/', ['reddit.com'])).toBe(true)
     expect(fetchable('http://news.example/a', [])).toBe(false)
     expect(fetchable('not a url', [])).toBe(false)
-    expect(normalizedText('  Practiced\n  FULLY ')).toBe('practiced fully')
   })
 })

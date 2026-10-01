@@ -1,98 +1,81 @@
 **Shadow run: native report for The Googies.** Sent only to this channel; the team's own channel received nothing from this run.
 
 # The Googies · 2026 week 3 full report
-**Wed, Sep 23, 2:00 PM MST · Yahoo roster, slots, and scoring**
+**Wed, Sep 23, 2:00 PM MST · Yahoo roster, slots, and projections**
 
-Yahoo matchup: Team 6 (projected 116.1) vs Team 5 (projected 94.6)
+**Matchup:** The Googies 116.1 vs Team 5 94.6 projected · Yahoo win probability 59%
 
-## What to do now
-- Keep the current Yahoo lineup.
-- Check Zay Flowers on Friday; start Jordan Addison instead if he is limited again.
+## Summary
+The Googies are projected 116.1 to 94.6 against Team 5 and keep their current Yahoo lineup. The main question is Zay Flowers, who was limited Wednesday with a hamstring injury; Jordan Addison starts instead if Flowers is limited again by Friday. Jayden Daniels and Nico Collins are out and stay on the bench. Olamide Zaccheaus is the waiver option if receiver depth runs short.
 
-## Suggested lineup
-- **QB** — Trevor Lawrence
-- **RB** — Jahmyr Gibbs
-- **RB** — Omarion Hampton
-- **WR** — Parker Washington
-- **WR** — Zay Flowers — conditional
-- **TE** — Tyler Warren
-- **W/R/T** — Breece Hall
-- **K** — Cairo Santos
-- **DEF** — Steelers
+## Lineup
+- **QB** Trevor Lawrence · Jax · proj n/a
+- **RB** Jahmyr Gibbs · Det · proj n/a
+- **RB** Omarion Hampton · LAC · proj n/a
+- **WR** Parker Washington · Jax · proj n/a
+- **WR** Zay Flowers · Bal · proj n/a · Yahoo Q (Hamstring)
+- **TE** Tyler Warren · Ind · proj n/a
+- **W/R/T** Breece Hall · NYJ · proj n/a
+- **K** Cairo Santos · Chi · proj n/a
+- **DEF** Steelers · Pit · proj n/a
 
-Recommendations only: check final injury reports and your league's lineup locks before changing Yahoo.
+Bench: Jordan Addison, Jayden Daniels (O), J.K. Dobbins, Nico Collins (O), Bhayshul Tuten, Isaiah Likely
 
-## The close calls
-**WR2: Zay Flowers or Jordan Addison**
-Flowers keeps the WR spot if he practices fully by Friday; otherwise Jordan Addison, who practiced fully, replaces him. [5](<https://news.example/week-3/5>) [8](<https://news.example/week-3/8>)
+## Player calls
+**Trevor Lawrence — START** · QB · Jax · bye 7
+Practiced fully Wednesday and is expected to start; with Jayden Daniels out he is the clear quarterback. [1](<https://news.example/week-3/1>)
 
-**QB: Trevor Lawrence**
-Jayden Daniels is ruled out with an elbow injury, so Trevor Lawrence starts at quarterback. [1](<https://news.example/week-3/1>) [9](<https://news.example/week-3/9>)
+**Jahmyr Gibbs — START** · RB · Det · bye 6
+Practiced fully and led the backfield with 21 touches in week 2. [2](<https://news.example/week-3/2>)
 
-## Every player
-**Trevor Lawrence — Start** · QB · Jax · Yahoo slot QB · bye 7
-Lawrence is the healthy starting quarterback with Daniels out. [1](<https://news.example/week-3/1>)
-Watch: Friday practice report. · Confidence: high
+**Omarion Hampton — START** · RB · LAC · bye 7
+Practiced fully and is expected to handle early downs in week 3. [3](<https://news.example/week-3/3>)
 
-**Jahmyr Gibbs — Start** · RB · Det · Yahoo slot RB · bye 6
-Gibbs is the lead back and a weekly starter. [2](<https://news.example/week-3/2>)
-Watch: Friday practice report. · Confidence: high
+**Parker Washington — START** · WR · Jax · bye 7
+Practiced fully and ran a route on 88 percent of dropbacks in week 2. [4](<https://news.example/week-3/4>)
 
-**Omarion Hampton — Start** · RB · LAC · Yahoo slot RB · bye 7
-Hampton keeps the early-down role and starts at RB2. [3](<https://news.example/week-3/3>)
-Watch: Friday practice report. · Confidence: high
+**Zay Flowers — START** · WR · Bal · bye 13
+Limited Wednesday with a hamstring injury and questionable; start him only if he practices fully by Friday. [5](<https://news.example/week-3/5>)
 
-**Parker Washington — Start** · WR · Jax · Yahoo slot WR · bye 7
-Washington is a near every-down receiver and starts at WR. [4](<https://news.example/week-3/4>)
-Watch: Friday practice report. · Confidence: high
+**Tyler Warren — START** · TE · Ind · bye 13
+Practiced fully and saw seven targets in week 2. [6](<https://news.example/week-3/6>)
 
-**Zay Flowers — Conditional start** · WR · Bal · Yahoo slot WR · bye 13 · status Q (Hamstring)
-Flowers was limited Wednesday with a hamstring injury; start him only if he practices fully by Friday. [5](<https://news.example/week-3/5>)
-Watch: Friday hamstring update. · Confidence: medium
+**Breece Hall — FLEX** · RB · NYJ · bye 13
+Practiced fully and is expected to lead the backfield, so he holds the flex. [7](<https://news.example/week-3/7>)
 
-**Tyler Warren — Start** · TE · Ind · Yahoo slot TE · bye 13
-Warren is the starting tight end with a steady target share. [6](<https://news.example/week-3/6>)
-Watch: Friday practice report. · Confidence: high
+**Jordan Addison — SIT** · WR · Min · bye 6
+Practiced fully and caught five passes in week 2; first receiver in if Flowers sits. [8](<https://news.example/week-3/8>)
 
-**Breece Hall — Start** · RB · NYJ · Yahoo slot W/R/T · bye 13
-Hall leads his backfield and holds the flex. [7](<https://news.example/week-3/7>)
-Watch: Friday practice report. · Confidence: high
+**Jayden Daniels — HOLD** · QB · Was · bye 7
+Did not practice Wednesday and is ruled out for week 3 with an elbow injury. [9](<https://news.example/week-3/9>)
 
-**Jordan Addison — Bench** · WR · Min · Yahoo slot BN · bye 6
-Addison is the first receiver off the bench if Flowers sits. [8](<https://news.example/week-3/8>)
-Watch: Friday practice report. · Confidence: high
+**J.K. Dobbins — SIT** · RB · Den · bye 10
+Splitting carries in week 3; stays behind Gibbs, Hampton, and Hall. [10](<https://news.example/week-3/10>)
 
-**Jayden Daniels — Bench / hold** · QB · Was · Yahoo slot BN · bye 7 · status O (Elbow)
-Daniels is ruled out; keep him benched. [9](<https://news.example/week-3/9>)
-Watch: Friday practice report. · Confidence: high
+**Nico Collins — HOLD** · WR · Hou · bye 8
+Out for week 3 with a hamstring injury. [11](<https://news.example/week-3/11>)
 
-**J.K. Dobbins — Bench** · RB · Den · Yahoo slot BN · bye 10
-Dobbins splits carries; he stays on the bench behind Gibbs, Hampton, and Hall. [10](<https://news.example/week-3/10>)
-Watch: Friday practice report. · Confidence: high
+**Bhayshul Tuten — SIT** · RB · Jax · bye 7
+A change-of-pace back behind Gibbs, Hampton, and Hall. [12](<https://news.example/week-3/12>)
 
-**Nico Collins — Bench / hold** · WR · Hou · Yahoo slot BN · bye 8 · status O (Hamstring)
-Collins is out this week; hold him on the bench. [11](<https://news.example/week-3/11>)
-Watch: Friday practice report. · Confidence: high
+**Isaiah Likely — SIT** · TE · NYG · bye 8
+Played 60 percent of snaps in week 2, but Warren starts at tight end. [13](<https://news.example/week-3/13>)
 
-**Bhayshul Tuten — Bench** · RB · Jax · Yahoo slot BN · bye 7
-Tuten is a change-of-pace back and a bench depth piece. [12](<https://news.example/week-3/12>)
-Watch: Friday practice report. · Confidence: high
+**Cairo Santos — START** · K · Chi · bye 10
+Practiced fully and has made every field goal this season. [14](<https://news.example/week-3/14>)
 
-**Isaiah Likely — Bench** · TE · NYG · Yahoo slot BN · bye 8
-Likely stays behind Warren at tight end this week. [13](<https://news.example/week-3/13>)
-Watch: Friday practice report. · Confidence: high
+**Steelers — START** · DEF · Pit · bye 9
+Nine sacks through two weeks and a turnover-prone opponent in week 3. [15](<https://news.example/week-3/15>)
 
-**Cairo Santos — Start** · K · Chi · Yahoo slot K · bye 10
-Santos has been accurate and stays the kicker. [14](<https://news.example/week-3/14>)
-Watch: Friday practice report. · Confidence: high
+## Close calls
+**Zay Flowers or Jordan Addison** (WR)
+Flowers keeps the WR spot if he practices fully by Friday; he was limited Wednesday with a hamstring injury and is questionable. Addison practiced fully and replaces him if Flowers is limited again or ruled out. [5](<https://news.example/week-3/5>) [8](<https://news.example/week-3/8>)
 
-**Steelers — Start** · DEF · Pit · Yahoo slot DEF · bye 9
-The Steelers defense has a strong pass rush and starts. [15](<https://news.example/week-3/15>)
-Watch: Friday practice report. · Confidence: high
+## Waiver ideas
+- **Olamide Zaccheaus** · WR · Atl — Healthy receiver depth if Flowers cannot play; Addison is the only healthy bench receiver.
 
-## Next check
-- Final inactive lists are not published yet.
-- Recheck the Friday injury reports before the first kickoff.
+## Caveats
+- Recommendations only: check final injury reports and Yahoo lineup locks before changing your lineup.
 
 ## Sources
 [1 · Trevor Lawrence week 3 notes](<https://news.example/week-3/1>)

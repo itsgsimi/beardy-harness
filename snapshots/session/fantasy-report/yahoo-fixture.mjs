@@ -6,6 +6,9 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 export const name = 'fantasy-report-yahoo-fixture'
 export const inject = ['loader']
 
+/** Free-agent reads at any position answer with the mixed available-player capture. */
+const FREE_AGENTS = /^\/fantasy\/v2\/league\/470\.l\.809970\/players;status=FA;position=[A-Z/]+;/u
+
 const RESPONSES = {
   '/fantasy/v2/league/470.l.809970/settings': 'league-settings',
   '/fantasy/v2/game/nfl/game_weeks': 'game-weeks',
@@ -25,7 +28,7 @@ export async function apply(ctx) {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input))
-    const fixture = RESPONSES[url.pathname]
+    const fixture = FREE_AGENTS.test(url.pathname) ? 'league-waivers-all' : RESPONSES[url.pathname]
     if (url.origin !== 'https://fantasysports.yahooapis.com' || fixture === undefined
       || init?.method !== 'GET' || init?.headers?.Authorization !== 'Bearer fixture-access') {
       throw new Error(`unexpected Yahoo fixture request ${url.pathname}`)

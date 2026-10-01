@@ -39,6 +39,7 @@
         shadowChannelId: '1472404859679670455'
         searchesPerPlayer: 1
         pagesPerPlayer: 1
+        playersPerStage: 8
         maxConcurrentFetches: 1
         deliveryAttempts: 1
         catchUpWindowMs: 0
