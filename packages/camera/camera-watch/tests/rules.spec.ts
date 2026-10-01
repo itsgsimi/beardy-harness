@@ -4,7 +4,7 @@ import { Config as ConfigSchema, resolveConfig, WATCH_DEFAULTS } from '../src/co
 import type { Config, ResolvedPolicy } from '../src/config.ts'
 import { deviceBaseline, frameAttachment, historyRecord, partitionHistory, storedVerdict } from '../src/history.ts'
 import type { HistoryFrame, HistoryRecord } from '../src/history.ts'
-import { FIRST_FRAME_LINE, localDateTime, renderDingNotice, renderNotice } from '../src/notice.ts'
+import { FIRST_FRAME_LINE, localDateTime, renderDingNotice, renderNotice, UNPARSED_LINE } from '../src/notice.ts'
 import { addsToEarlyNotice, insideWindow, lingeringMs, localMinute, noticeReasons, personFrames, vehicleChange } from '../src/policy.ts'
 import type { PolicyEvent } from '../src/policy.ts'
 import { NIGHT, NOON } from './support.ts'
@@ -415,8 +415,7 @@ describe('renderNotice', () => {
   })
 
   it('explains a missing description', () => {
-    expect(renderNotice({ ...base, reasons: ['ding'], status: 'unparsed', text: 'I think someone is there.' }).split('\n')[1]).toBe('I think someone is there.')
-    expect(renderNotice({ ...base, reasons: ['ding'], status: 'unparsed' }).split('\n')).toHaveLength(1)
+    expect(renderNotice({ ...base, reasons: ['ding'], status: 'unparsed' }).split('\n')[1]).toBe(UNPARSED_LINE)
     expect(renderNotice({ ...base, reasons: ['ding'], status: 'skipped', failure: 'NO_FRAMES', captureFailure: 'snapshot-unavailable' }).split('\n').slice(1))
       .toEqual(['No picture could be captured.', 'Fewer pictures than planned (snapshot-unavailable).'])
     expect(renderNotice({ ...base, reasons: ['ding'], status: 'skipped', failure: 'QUEUE_FULL' })).toContain('Not checked: earlier events were still being checked.')

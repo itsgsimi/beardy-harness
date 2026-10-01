@@ -59,6 +59,15 @@ function verdictFields(verdict: NonNullable<HistoryRecord['verdict']>): Partial<
   return { answers: Object.fromEntries(Object.entries(verdict.answers).map(([question, answer]) => [question, answer.answer])) }
 }
 
+/**
+ * Description of a record without a verdict. An `unparsed` record's raw model text stays in history
+ * only, so the model cannot relay it to the user.
+ */
+function missingDescription(record: HistoryRecord): string {
+  if (record.status === 'unparsed') return 'Not described: the vision answer could not be read.'
+  return record.frames.length === 0 ? 'No picture was captured.' : 'Not described.'
+}
+
 function modelEvent(record: HistoryRecord, labels: ReadonlyMap<string, string>, timezone: string): CameraToolEvent {
   const verdict = record.verdict
   return {
@@ -66,7 +75,7 @@ function modelEvent(record: HistoryRecord, labels: ReadonlyMap<string, string>, 
     time: localDateTime(record.occurredAt, timezone),
     camera: labels.get(record.deviceId) ?? record.deviceId,
     kind: record.kind,
-    description: verdict?.description ?? record.text ?? (record.frames.length === 0 ? 'No picture was captured.' : 'Not described.'),
+    description: verdict?.description ?? missingDescription(record),
     labels: verdict?.labels ?? [],
     counts: verdict?.counts ?? {},
     ...verdict === undefined ? {} : verdictFields(verdict),

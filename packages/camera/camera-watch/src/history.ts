@@ -61,7 +61,7 @@ export const historyRecord = z.object({
   /** Stable code for a `failed` or `skipped` status. */
   failure: z.string().max(64).optional(),
   verdict: historyVerdict.optional(),
-  /** One-line model text for an `unparsed` status. */
+  /** One-line model text for an `unparsed` status, kept for debugging; notices and the `camera` tool never show it. */
   text: z.string().max(200).optional(),
   reasons: z.array(z.enum(NOTICE_REASONS)),
   /**

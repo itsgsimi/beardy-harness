@@ -71,7 +71,9 @@ const CONFIDENCES = new Set(['high', 'medium', 'low'])
 const URL_PATTERN = /https?:\/\//iu
 
 /**
- * Extract the JSON object a stage returned, tolerating code fences and surrounding prose.
+ * Extract the JSON object a stage returned, tolerating code fences and surrounding prose. Failures
+ * throw fixed messages: the parser's own message quotes the stage output, which must not reach a
+ * run's failure reason.
  * @param text - stage output.
  * @returns the parsed object.
  */
@@ -79,7 +81,11 @@ export function parseJsonObject(text: string): Record<string, unknown> {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start < 0 || end < start) throw new Error('the response contains no JSON object')
-  return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
+  try {
+    return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
+  } catch {
+    throw new Error('the response JSON object does not parse')
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
