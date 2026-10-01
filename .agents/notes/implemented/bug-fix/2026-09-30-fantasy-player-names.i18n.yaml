@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-30-fantasy-player-names.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-30-fantasy-player-names.md
+/agent-note-fantasy-report-player-names-and-repair-row-format:
+  en: 661d51f463d5a693
+  zh: 850f13b9a0bbd834
+/agent-note-fantasy-report-player-names-and-repair-row-format/problem:
+  en: fed53f8f935b9985
+  zh: e676d8720dc11b17
+/agent-note-fantasy-report-player-names-and-repair-row-format/decision:
+  en: b01540e960272a0e
+  zh: c699cc95bc4bc14b
+/agent-note-fantasy-report-player-names-and-repair-row-format/alternatives-considered:
+  en: b42c6f78b50b65be
+  zh: d9b5a482671520f4
+/agent-note-fantasy-report-player-names-and-repair-row-format/consequences:
+  en: d4268ef83fad1ee2
+  zh: c41b4b7657813e3e

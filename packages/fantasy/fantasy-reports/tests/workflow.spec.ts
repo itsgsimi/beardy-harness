@@ -79,7 +79,7 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(evidence).toMatchObject({ workflow: 'fantasy-weekly-report', week: 3, mode: 'full',
       history: [{ runId: 'rp-native-earlier', week: 2, mode: 'sunday' }], structuralRepairs: 0 })
     const started = events.find(event => event.type === 'research/started')
-    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v4',
+    expect(started?.data).toMatchObject({ workflow: 'fantasy-weekly-report', promptVersion: 'fantasy-weekly-v5',
       budgets: { stageTimeoutMs: 1_200_000, hardRunTimeoutMs: 14_400_000 } })
     expect(events.filter(event => event.type === 'research/search')).toHaveLength(15)
     expect(events.filter(event => event.type === 'research/finding' && event.data.accepted)).toHaveLength(15)
@@ -98,6 +98,24 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(report!.markdown).not.toContain('cleared by doctors')
   })
 
+  it('keys a writer draft that named its players and a structural repair that wrote rationale, as the live stages answered', async () => {
+    const draft = validDraft()
+    const names = new Map(yahoo.roster.players.map((player, index) => [`P${index + 1}`, player.name]))
+    const named = { ...draft, players: draft.players.map(row => ({ ...row, player: names.get(row.player)!,
+      ...(row.player === 'P1' ? { facts: [{ ...row.facts[0]!, quote: 'was officially cleared by doctors' }] } : {}) })) }
+    const { player: _player, reason: _reason, ...rest } = draft.players[0]!
+    const patch = JSON.stringify({ players: [{ player: 'P1', ...rest, confidence: 'High', rationale: 'Lawrence keeps the QB spot.',
+      sources: [1] }], lineup: [], actions: [], decisions: [], caveats: [] })
+    const { h, status, report } = await execute([JSON.stringify(named), patch, pass])
+    expect(status.phase).toBe('completed')
+    const repair = promptOf(h.adapter.requests[1]!)
+    expect(repair).toContain('- P1: fact 0 quote is not a 12 to 300 character excerpt of source 1')
+    expect(repair).not.toContain('not a roster id')
+    expect(repair).toContain('"player":"P1"')
+    expect(repair).toContain('never a name: {"player":"P1","recommendation":"START|SIT|CONDITIONAL|HOLD","confidence":"high|medium|low","facts":[')
+    expect(report!.markdown).toContain('Lawrence keeps the QB spot.')
+  })
+
   it('applies an anchored factual finding, discards unanchored ones, and publishes after a clean second review', async () => {
     const draft = validDraft()
     const review = JSON.stringify({ issues: [
@@ -112,7 +130,7 @@ describe('weekly report workflow', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     const { h, status, report } = await execute([JSON.stringify(draft), review, patch, pass])
     expect(status.phase).toBe('completed')
     expect(promptOf(h.adapter.requests[2]!)).toContain('Reviewer findings')
-    expect(promptOf(h.adapter.requests[2]!)).toContain('keyed by "player" exactly as in the draft, for example {"player":"P14"')
+    expect(promptOf(h.adapter.requests[2]!)).toContain('the roster id from the draft in "player", never a name: {"player":"P1","recommendation":"START|SIT|CONDITIONAL|HOLD"')
     expect(report!.markdown).toContain('Hall practiced fully and keeps the flex.')
     const evidence = JSON.parse(await readEvidence(h, report!.evidenceRef)) as {
       reviews: Array<{ issues: unknown[]; discarded: unknown[] }>

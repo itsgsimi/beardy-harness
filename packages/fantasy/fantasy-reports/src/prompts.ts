@@ -4,10 +4,16 @@ import type { ReportMode } from './config.ts'
 import { REVIEW_KINDS } from './draft.ts'
 
 /** Version recorded with every report run; change it with any instruction change. */
-export const FANTASY_PROMPT_VERSION = 'fantasy-weekly-v4'
+export const FANTASY_PROMPT_VERSION = 'fantasy-weekly-v5'
 
 /** Complete system prompt of every writer, reviewer, and repair stage Session of a report run. */
 export const FANTASY_STAGE_SYSTEM_PROMPT = 'You are one stage of a fantasy football weekly report workflow: the writer, reviewer, or repair step that the user message describes. You have no tools and cannot search, browse, look anything up, or run commands, so never write a tool call; work only from the data in the user message. Every answer is exactly one JSON object in the format the message asks for, with no prose, Markdown, or code fences around it.'
+
+/** One players row exactly as the writer and both repair stages are shown it. */
+const PLAYER_ROW = '{"player":"P1","recommendation":"START|SIT|CONDITIONAL|HOLD","confidence":"high|medium|low","facts":[{"text":"paraphrased observation, 5-300 characters","source":1,"quote":"exact contiguous 12-300 character excerpt of that source"}],"reason":"your decision and rationale, at most 430 characters","watch":"what would change the decision, at most 210 characters"}'
+
+/** Patch format shared by both repair stages; "player" keeps the roster id of the row it replaces. */
+const PATCH_FORMAT = `Return ONLY a JSON patch {"players":[...],"lineup":[...],"actions":[...],"decisions":[...],"caveats":[...]}. "players" holds only changed rows, each a complete row with exactly these fields and the roster id from the draft in "player", never a name: ${PLAYER_ROW}. Lineup entries are {"slot":"QB","player":"P1"}.`
 
 const MODE_FOCUS: Readonly<Record<ReportMode, string>> = {
   full: 'This is the midweek full report: assess every player in depth and set a provisional lineup.',
@@ -30,7 +36,7 @@ Evidence. Sources may describe old seasons: date-check every claim and reject st
 Decisions. Start/sit choices are your judgment and need a factual basis, not a quote saying the same thing. Compare every bench player with realistic alternatives. Give a clear choice now and say what would change it. Recommendations only: never claim to execute lineup changes, claims, or trades.
 
 Return ONLY one JSON object, no Markdown fences:
-{"players":[{"player":"P1","recommendation":"START|SIT|CONDITIONAL|HOLD","confidence":"high|medium|low","facts":[{"text":"paraphrased observation, 5-300 characters","source":1,"quote":"exact contiguous 12-300 character excerpt of that source"}],"reason":"your decision and rationale, at most 430 characters","watch":"what would change the decision, at most 210 characters"}],
+{"players":[${PLAYER_ROW}],
 "lineup":[{"slot":"QB","player":"P1"}],
 "actions":["2-4 short strings: lineup changes from the current Yahoo slots and top priorities"],
 "decisions":[{"title":"short comparison title","text":"30-900 character comparison","sources":[1,2]}],
@@ -60,7 +66,7 @@ export function structuralRepairInstructions(errors: readonly string[]): string 
   return `The fantasy report draft failed these code checks:
 ${errors.map(error => `- ${error}`).join('\n')}
 
-Correct only these problems. Return ONLY a JSON patch {"players":[...],"lineup":[...],"actions":[...],"decisions":[...],"caveats":[...]}. "players" holds only changed rows, each a complete row with every writer field, keyed by "player" exactly as in the draft, for example {"player":"P14","recommendation":"START",...}. The other keys hold complete replacement arrays when you change that section and [] when you leave it unchanged. Copy each quote verbatim from its cited source text, or replace or remove the fact; never invent source text. A player with admitted sources keeps at least one fact. No URLs.`
+Correct only these problems. ${PATCH_FORMAT} The other keys hold complete replacement arrays when you change that section and [] when you leave it unchanged. Copy each quote verbatim from its cited source text, or replace or remove the fact; never invent source text. A player with admitted sources keeps at least one fact. No URLs.`
 }
 
 /**
@@ -68,5 +74,5 @@ Correct only these problems. Return ONLY a JSON patch {"players":[...],"lineup":
  * @returns the fixed instruction block that precedes the findings and affected data.
  */
 export function factualRepairInstructions(): string {
-  return 'Repair the reviewer findings below in this fantasy report. Return ONLY a JSON patch {"players":[...],"lineup":[...],"actions":[...],"decisions":[...],"caveats":[...]}. "players" holds only changed rows, each a complete row with every writer field, keyed by "player" exactly as in the draft, for example {"player":"P14","recommendation":"START",...}; recommendation is START, SIT, CONDITIONAL, or HOLD and every starter is START or CONDITIONAL. The other keys hold complete replacement arrays when you change that section and [] when you leave it unchanged. Correct every finding; do not copy a defective row unchanged. Remove an unsupported fact or replace it with another fact whose quote is copied verbatim from a supplied source. Correct team or schedule claims only from the Yahoo context or a cited source. Keep each reason at most 430 and each watch at most 210 characters. No URLs. The corrected report is checked again.'
+  return `Repair the reviewer findings below in this fantasy report. ${PATCH_FORMAT} Every starter is START or CONDITIONAL. The other keys hold complete replacement arrays when you change that section and [] when you leave it unchanged. Correct every finding; do not copy a defective row unchanged. Remove an unsupported fact or replace it with another fact whose quote is copied verbatim from a supplied source. Correct team or schedule claims only from the Yahoo context or a cited source. Keep each reason at most 430 and each watch at most 210 characters. No URLs. The corrected report is checked again.`
 }

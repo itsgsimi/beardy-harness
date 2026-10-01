@@ -91,7 +91,7 @@ teams:
 1. **Yahoo 事实。** 工作流读取该周的阵容、每名球员的阵容位锁定和对阵，并把联盟、球队和比赛周与请求核对。在册球员获得短 ID（`P1`、`P2`……）。
 2. **来源。** 每名球员最多有 `searchesPerPlayer` 次查询，并保留最多 `pagesPerPlayer` 个不在 `excludedHosts` 中的 HTTPS 页面。页面只有写出该球员姓名时才被采纳；姓名过短无法可靠匹配时直接采纳页面。任何模型读取页面之前，都会移除 FantasyPros 排名与预测标题，并把“30th easiest opponent”这类赛程强度序数改写为直白的难度描述。页面以名单姓名附近的原文段落限定长度。每次搜索、抓取失败和采纳决定都进入运行，每个被采纳页面的模型可见原文成为来源附件。
 3. **草稿。** 撰写阶段返回 JSON：每名球员一行并附 1–2 条带引文的事实，外加阵容、行动、关键抉择和注意事项。
-4. **代码检查。** 引文必须是所引页面中 12–300 个字符的原文摘录，且该页面写出了此球员。阵容必须用合格球员填满联盟的首发位，不得包含轮空或被 Yahoo 标为缺阵、伤病名单、禁赛或非现役的球员；每名首发都必须是 `START` 或 `CONDITIONAL`。因比赛已开始而被 Yahoo 锁定阵容位的球员保持 Yahoo 显示的位置：被锁定的首发保留其阵容位并免于可出场检查，被锁定的替补不得首发。失败会交给结构修复补丁处理，最多 `maxStructuralRepairs` 次，且不消耗事实审阅次数。补丁行与草稿行一样以 `player` 为键；改用 `id` 指明球员的补丁行也被接受，而撰写阶段的草稿必须使用 `player`。
+4. **代码检查。** 引文必须是所引页面中 12–300 个字符的原文摘录，且该页面写出了此球员。阵容必须用合格球员填满联盟的首发位，不得包含轮空或被 Yahoo 标为缺阵、伤病名单、禁赛或非现役的球员；每名首发都必须是 `START` 或 `CONDITIONAL`。因比赛已开始而被 Yahoo 锁定阵容位的球员保持 Yahoo 显示的位置：被锁定的首发保留其阵容位并免于可出场检查，被锁定的替补不得首发。失败会交给结构修复补丁处理，最多 `maxStructuralRepairs` 次，且不消耗事实审阅次数。检查之前，球员行或阵容行中不是在册 ID、但在忽略大小写和空白后恰好等于一名在册球员姓名的 `player` 值会变为该球员的 ID，大小写或空白写法不同的 ID 会变为该 ID；未知或有歧义的姓名仍以 `not a roster id` 失败。补丁行与草稿行一样以 `player` 为键；补丁行可以用 `id` 代替 `player`，并在缺少 `reason` 时用 `rationale` 或 `reasoning` 代替，而撰写阶段的草稿必须使用撰写字段。没有别名能提供 `facts`，因此缺少带引文事实的补丁行仍会失败。
 5. **审阅。** 审阅阶段返回的发现必须逐字引用草稿，若指出矛盾还须逐字引用来源或 Yahoo 上下文。无锚定、仅措辞、无需修改和重复的发现会被丢弃并保留在证据中。每次有发现的审阅之后都跟一次修复补丁。完成 `maxReviews` 次审阅后，若仍有错误球队、赛程或赛季的发现，报告被扣留；其他发现会再修复一次，报告会注明这些修改未经再次审阅。
 6. **报告。** 由代码渲染已接受的草稿：行动、相对当前 Yahoo 阵容的变更、阵容及被 Yahoo 锁定的球员、关键抉择、每名球员的 Yahoo 阵容位及锁定、状态、轮空周和预测分数、后续检查，以及不附带预览的来源链接。已接受的建议不会再被模型改写。证据文件保存 Yahoo 快照、来源、草稿和每次审阅。
 
@@ -120,6 +120,7 @@ teams:
 - [每周报告决策](../../../.agents/notes/implemented/feature/2026-09-27-native-fantasy-weekly-reports.zh.md) — 为何报告采用研究工作流，以及保留了哪些 Odysseus 防护。
 - [锁定与补跑决策](../../../.agents/notes/implemented/feature/2026-09-27-fantasy-report-locks-and-catch-up.zh.md) — 为何由代码检查被锁定的阵容位，以及重启如何补跑错过的时段而不重复发送。
 - [修复与按需决策](../../../.agents/notes/implemented/bug-fix/2026-09-30-fantasy-reports-repair-and-on-demand.zh.md) — `id` 补丁别名、warn 级别的触发结果，以及 `/fantasy-report` 命令。
+- [球员姓名决策](../../../.agents/notes/implemented/bug-fix/2026-09-30-fantasy-player-names.zh.md) — 为什么姓名会映射为在册 ID、接受哪些补丁别名，以及为什么修复提示词要重述行格式。
 
 -----
 
@@ -130,7 +131,7 @@ teams:
 
 #### 模型看到的内容
 
-每个阶段都是报告研究运行下一个新的无工具 Session，在阶段系统提示词之后只有一条任务消息，没有运行时上下文。系统提示词为 `You are one stage of a fantasy football weekly report workflow: the writer, reviewer, or repair step that the user message describes. You have no tools and cannot search, browse, look anything up, or run commands, so never write a tool call; work only from the data in the user message. Every answer is exactly one JSON object in the format the message asks for, with no prose, Markdown, or code fences around it.` 未通过阶段 JSON 检查的回答之后会追加 `Your reply was not the requested JSON. Reply with only the JSON object in the requested format.`撰写消息包含带版本的指令、JSON 形式的 Yahoo 上下文（球队、比赛周、报告时间、首发与替补阵容位、计分值、对阵预测，以及每名球员的 ID、NFL 球队、位置、Yahoo 阵容位及其是否锁定、状态、伤病说明、轮空周和预测分数）、标为对比数据的早先报告，以及标为不可信数据的已采纳页面段落。审阅消息包含 Yahoo 上下文、被引用的段落和草稿。修复消息包含错误或发现、受影响的行、其余各部分以及受影响的段落。
+每个阶段都是报告研究运行下一个新的无工具 Session，在阶段系统提示词之后只有一条任务消息，没有运行时上下文。系统提示词为 `You are one stage of a fantasy football weekly report workflow: the writer, reviewer, or repair step that the user message describes. You have no tools and cannot search, browse, look anything up, or run commands, so never write a tool call; work only from the data in the user message. Every answer is exactly one JSON object in the format the message asks for, with no prose, Markdown, or code fences around it.` 未通过阶段 JSON 检查的回答之后会追加 `Your reply was not the requested JSON. Reply with only the JSON object in the requested format.`撰写消息包含带版本的指令、JSON 形式的 Yahoo 上下文（球队、比赛周、报告时间、首发与替补阵容位、计分值、对阵预测，以及每名球员的 ID、NFL 球队、位置、Yahoo 阵容位及其是否锁定、状态、伤病说明、轮空周和预测分数）、标为对比数据的早先报告，以及标为不可信数据的已采纳页面段落。审阅消息包含 Yahoo 上下文、被引用的段落和草稿。修复消息先重述撰写阶段的球员行格式和阵容条目格式，然后包含错误或发现、受影响的行、其余各部分以及受影响的段落。
 
 #### Token 影响
 
