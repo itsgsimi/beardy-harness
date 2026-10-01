@@ -127,6 +127,61 @@ describe('time-context invariants', () => {
     }).toThrow(/rendered timestamp does not match the unique browser zone/)
   })
 
+  it('accepts readings with and without a weekday that matches the local date', async () => {
+    const ctx = await setup()
+    expect(() => { ctx.emit('session/event', preparing(1, 1), event(reading())) }).not.toThrow()
+    expect(() => {
+      ctx.emit('session/event', preparing(1, 1), event(reading(
+        '1',
+        '1',
+        'model-visible message',
+        '2026-07-14T00:00:00+00:00[UTC] (Tuesday)',
+      )))
+    }).not.toThrow()
+  })
+
+  it('rejects a weekday that disagrees with the timestamp local date', async () => {
+    const ctx = await setup()
+    expect(() => {
+      ctx.emit('session/event', preparing(1, 1), event(reading(
+        '1',
+        '1',
+        'model-visible message',
+        '2026-07-14T00:00:00+00:00[UTC] (Wednesday)',
+      )))
+    }).toThrow(/weekday "Wednesday" does not match local date 2026-07-14/)
+    expect(() => {
+      ctx.emit('session/event', preparing(1, 1), event(reading(
+        '1',
+        '1',
+        'model-visible message',
+        '2026-07-14T00:00:00+00:00[UTC] (Someday)',
+      )))
+    }).toThrow(/weekday "Someday" does not match local date 2026-07-14/)
+  })
+
+  it('checks a browser-zone weekday against the zone-local date, not the UTC date', async () => {
+    const ctx = await setup()
+    const policy = 'Browser time zone for this request: America/New_York. '
+      + 'Interpret otherwise-unqualified dates and times in this zone.'
+    const withWeekday = (timestamp: string) => event(reading('1', '1', 'model-visible message', timestamp, policy))
+    expect(() => {
+      ctx.emit('session/event', preparing(1, 1, 'America/New_York'), withWeekday(
+        '2026-07-13T20:00:00-04:00[America/New_York] (Monday)',
+      ))
+    }).not.toThrow()
+    expect(() => {
+      ctx.emit('session/event', preparing(1, 1, 'America/New_York'), withWeekday(
+        '2026-07-13T20:00:00-04:00[America/New_York] (Tuesday)',
+      ))
+    }).toThrow(/weekday "Tuesday" does not match local date 2026-07-13/)
+    expect(() => {
+      ctx.emit('session/event', preparing(1, 1, 'America/New_York'), withWeekday(
+        '2026-07-13T20:00:00-04:00[America/New_York]',
+      ))
+    }).not.toThrow()
+  })
+
   it('reports browser-zone timestamp formatter failures as invariant violations', async () => {
     const ctx = await setup()
     const policy = 'Browser time zone for this request: Asia/Shanghai. '

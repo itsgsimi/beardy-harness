@@ -11,9 +11,15 @@ import { createTimestampFormatter, formatTimestamp } from './timestamp.ts'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-time-context'
 const SOURCE_NAME = 'time-context'
+/** English weekday names indexed by `Date.prototype.getUTCDay()`. */
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
+/**
+ * Durable reading text. The optional ` (Weekday)` suffix follows the timestamp only when the
+ * writer enabled `weekday`; readings without it remain valid released history.
+ */
 const READING = new RegExp(
   '^Time sampled while preparing turn (\\d+), step (\\d+): '
-  + '(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})\\[[^\\]]+\\])\\n'
+  + '((\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2}))\\[[^\\]]+\\](?: \\(([A-Za-z]+)\\))?)\\n'
   + '(Browser time zone for this request: .+)\\n'
   + 'Elapsed since the preceding (model-visible message|step context): '
   + '(?:unavailable|(?:(?:\\d+d )?(?:\\d+h )?(?:\\d+m )?\\d+s))\\.$',
@@ -123,23 +129,34 @@ function validateReading(
     || section.text !== blockText) {
     fail('time-context source must carry only the exact snapshot text, not request authority')
   }
-  const renderedBrowserContext = match[4]
+  const renderedBrowserContext = match[6]
   const browserContext = deriveBrowserTimeZoneContext(requestMessages(history, turn))
   const expectedBrowserContext = renderBrowserTimeZoneContext(browserContext)
   if (renderedBrowserContext !== expectedBrowserContext) {
     fail('time-context browser-zone text does not match current-turn user messages')
   }
-  const baseline = match[5]
+  const baseline = match[7]
   if ((step === 1) !== (baseline === 'model-visible message')) {
     fail(`time-context step ${step} uses the wrong elapsed-time baseline ${JSON.stringify(baseline)}`)
   }
   const rendered = match[3]
-  /* v8 ignore next -- the preceding fixed regexp always supplies capture group three. */
-  if (rendered === undefined) fail('time-context reading omitted its rendered timestamp')
-  const renderedTime = Date.parse(rendered.replace(/\[[^\]]+\]$/, ''))
+  const instant = match[4]
+  /* v8 ignore next 3 -- the preceding fixed regexp always supplies capture groups three and four. */
+  if (rendered === undefined || instant === undefined) {
+    fail('time-context reading omitted its rendered timestamp')
+  }
+  const renderedTime = Date.parse(instant)
   if (!Number.isFinite(renderedTime) || !Number.isSafeInteger(event.time)
     || event.time < renderedTime) {
     fail('time-context rendered timestamp must parse and not postdate its durable event')
+  }
+  const weekday = match[5]
+  if (weekday !== undefined) {
+    const localDate = instant.slice(0, 10)
+    const expectedWeekday = WEEKDAYS[new Date(`${localDate}T00:00:00Z`).getUTCDay()]
+    if (weekday !== expectedWeekday) {
+      fail(`time-context weekday ${JSON.stringify(weekday)} does not match local date ${localDate}`)
+    }
   }
   if (browserContext.kind === 'resolved') {
     let expectedTimestamp: string
@@ -148,6 +165,7 @@ function validateReading(
         renderedTime,
         createTimestampFormatter(browserContext.timeZone),
         browserContext.timeZone,
+        weekday !== undefined,
       )
     } catch (error: unknown) {
       fail(`time-context browser zone cannot format its durable timestamp: ${String(error)}`)

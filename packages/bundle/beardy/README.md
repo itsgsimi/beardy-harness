@@ -163,7 +163,7 @@ The bundle contributes a patch layer; it is not a library or an application bin.
 - The Beardy persona identifies the agent as a warmly pragmatic coding and research agent.
 - `$DSH_HOME/SOUL.md` supplies Beardy's editable personality without replacing project `AGENTS.md` or `CLAUDE.md` instructions.
 - Curated cross-session memory: the `memory` tool edits `$DSH_HOME/USER.md` and `MEMORY.md`, and both files load back into later sessions as user-global instructions.
-- A conversation clock (`dsh-time-context`) resolves relative time for conversations that span days, with durable injections throttled to hourly.
+- A conversation clock (`dsh-time-context`) resolves relative time for conversations that span days, with durable injections throttled to hourly and naming the local weekday.
 - The complete Creator mode capability roster remains available and is inherited rather than duplicated.
 - Creator mode's Cordis inspection, temporary package, and composition-authoring capabilities are available to Beardy.
 - Durable SQLite full-text search covers persisted session history without using the session-persistence database.

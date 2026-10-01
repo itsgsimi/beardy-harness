@@ -4316,6 +4316,8 @@ export interface Config {
   timeZone?: string
   /** Minimum milliseconds between durable injections in one session. Defaults to 600000 (10 minutes); 0 injects at every eligible step. */
   refreshIntervalMs?: number
+  /** Append the local English weekday after the reading's timestamp, as `(Wednesday)`. Defaults to false. */
+  weekday?: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-time-context -->

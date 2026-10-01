@@ -163,7 +163,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-beardy
 - Beardy persona 把 agent 标识为一个务实温和的编码与研究 agent。
 - `$DSH_HOME/SOUL.md` 提供可编辑的 Beardy 个性，且不会取代项目的 `AGENTS.md` 或 `CLAUDE.md` 指令。
 - 跨会话的策展记忆：`memory` 工具编辑 `$DSH_HOME/USER.md` 与 `MEMORY.md`，两个文件随后作为 user-global 指令加载进之后的会话。
-- 对话时钟（`dsh-time-context`）为跨越数天的对话解析相对时间，持久注入按小时节流。
+- 对话时钟（`dsh-time-context`）为跨越数天的对话解析相对时间，持久注入按小时节流并注明本地星期几。
 - 完整的 Creator mode 能力清单依然可用，且以继承方式获得而非复制。
 - Beardy 可以使用 Creator mode 的 Cordis 检查、临时 package 与组装创作能力。
 - 持久的 SQLite 全文搜索覆盖已持久化的会话历史，且不使用 session-persistence 数据库。

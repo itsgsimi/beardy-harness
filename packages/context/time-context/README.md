@@ -29,7 +29,7 @@ Mount this plugin when the model should interpret unqualified dates and times in
 
 ### What the model gets
 
-Each injected reading has three lines: an ISO-shaped timestamp with numeric offset and IANA zone, the browser-zone policy for the request, and the elapsed duration in compact whole-second units. Step 1 measures from the latest preceding model-visible message; later steps measure from the preceding time-context event in the same turn. A missing baseline reports `unavailable`, and backward wall-clock movement clamps elapsed time to zero.
+Each injected reading has three lines: an ISO-shaped timestamp with numeric offset and IANA zone, the browser-zone policy for the request, and the elapsed duration in compact whole-second units. Step 1 measures from the latest preceding model-visible message; later steps measure from the preceding time-context event in the same turn. A missing baseline reports `unavailable`, and backward wall-clock movement clamps elapsed time to zero. With `weekday: true`, the timestamp is followed by the English weekday of its local date, such as `2026-09-30T20:30:00-07:00[America/Phoenix] (Wednesday)`.
 
 ### Configuration
 
@@ -45,6 +45,7 @@ The minimal mount needs no configuration. A positive `refreshIntervalMs` suppres
 |---|---|---|
 | `timeZone` | process zone | Fallback display zone when the open turn has no unique browser zone |
 | `refreshIntervalMs` | `600000` (10 minutes) | Minimum milliseconds between durable injections in one session |
+| `weekday` | `false` | Append the local English weekday after the timestamp |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-time-context) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -64,7 +65,7 @@ This section explains the design of the plugin; the observable behavior is cover
 
 ### Design concept
 
-The plugin prepends an `agent/pre-step` listener that delegates first and appends one sourced `UserMessage` when an injection is due and the downstream decision enters the step. Each reading uses the exact snapshot source `{ kind: 'plugin', plugin: 'time-context', form: 'snapshot', sections: [{ name: 'time-context', text }] }`, and the invariant companion validates that shape, re-derives the current-turn browser policy from the original `user-rpc` messages, and checks the timestamp zone and elapsed baseline.
+The plugin prepends an `agent/pre-step` listener that delegates first and appends one sourced `UserMessage` when an injection is due and the downstream decision enters the step. Each reading uses the exact snapshot source `{ kind: 'plugin', plugin: 'time-context', form: 'snapshot', sections: [{ name: 'time-context', text }] }`, and the invariant companion validates that shape, re-derives the current-turn browser policy from the original `user-rpc` messages, and checks the timestamp zone, any weekday against the timestamp's local date, and the elapsed baseline. Readings without a weekday stay valid, so released sessions replay unchanged.
 
 ### Source map
 
@@ -101,7 +102,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Each injected message contains three lines. `<timestamp>` is an ISO-shaped timestamp with numeric offset and IANA zone; durations use compact whole-second units.
+Each injected message contains three lines. `<timestamp>` is an ISO-shaped timestamp with numeric offset and IANA zone, followed by the local English weekday in parentheses when `weekday` is enabled; durations use compact whole-second units.
 
 ##### First step
 

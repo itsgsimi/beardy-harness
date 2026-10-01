@@ -58,12 +58,15 @@ export interface Config {
   timeZone?: string
   /** Minimum milliseconds between durable injections in one session. Defaults to 600000 (10 minutes); 0 injects at every eligible step. */
   refreshIntervalMs?: number
+  /** Append the local English weekday after the reading's timestamp, as `(Wednesday)`. Defaults to false. */
+  weekday?: boolean
 }
 
 /** Schemastery validation for {@link Config}. */
 export const Config: z<Config> = z.object({
   timeZone: z.string(),
   refreshIntervalMs: z.number(),
+  weekday: z.boolean(),
 })
 
 /** Format a non-negative elapsed millisecond count as compact whole-second units. */
@@ -104,12 +107,13 @@ function renderText(
   previous: number | undefined,
   formatter: Intl.DateTimeFormat,
   timeZone: string,
+  weekday: boolean,
   browserContext: BrowserTimeZoneContext,
 ): string {
   const elapsed = previous === undefined ? 'unavailable' : formatDuration(now - previous)
   const baseline = step === 1 ? 'model-visible message' : 'step context'
   const browserText = renderBrowserTimeZoneContext(browserContext)
-  return `Time sampled while preparing turn ${turn}, step ${step}: ${formatTimestamp(now, formatter, timeZone)}\n`
+  return `Time sampled while preparing turn ${turn}, step ${step}: ${formatTimestamp(now, formatter, timeZone, weekday)}\n`
     + `${browserText}\n`
     + `Elapsed since the preceding ${baseline}: ${elapsed}.`
 }
@@ -126,12 +130,13 @@ function validateRefreshInterval(refreshIntervalMs: number): void {
 /**
  * Register a prepended pre-step listener for the lifetime of `ctx`.
  * @param ctx - plugin context; the listener is disposed with it.
- * @param config - time zone and durable refresh scheduling configuration.
+ * @param config - time zone, weekday display, and durable refresh scheduling configuration.
  * @throws when the refresh interval is invalid or the configured or process time zone cannot be resolved.
  */
 export function apply(ctx: Context, config: Config): void {
   const timeZone = config.timeZone
   const refreshIntervalMs = config.refreshIntervalMs ?? 600_000
+  const weekday = config.weekday ?? false
   validateRefreshInterval(refreshIntervalMs)
   let fallbackFormatter: Intl.DateTimeFormat
   try {
@@ -210,6 +215,7 @@ export function apply(ctx: Context, config: Config): void {
       previous,
       formatterFor(selectedTimeZone),
       selectedTimeZone,
+      weekday,
       browser,
     )
     return {

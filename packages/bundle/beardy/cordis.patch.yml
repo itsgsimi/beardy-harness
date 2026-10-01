@@ -24,11 +24,13 @@
 
     # A clock for conversations that span days: "this morning" and elapsed-time
     # readings resolve against the browser's zone when a turn carries one, and
-    # the process zone otherwise. Durable injections are throttled to hourly.
+    # the process zone otherwise. Durable injections are throttled to hourly and
+    # name the local weekday so digests do not guess it from the date.
     - id: time-context
       name: '@deepseek-ai/dsh-time-context'
       config:
         refreshIntervalMs: 3600000
+        weekday: true
 
     # Three days is the complete wttr.in j1 forecast.
     - id: tool-weather

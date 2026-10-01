@@ -296,11 +296,11 @@ describe('dsh-beardy composition gating', () => {
     expect(rows.find(row => row.id === 'health')?.config).toEqual({ probes: [] })
   })
 
-  it('mounts the clock with an hourly injection throttle', () => {
+  it('mounts the clock with an hourly injection throttle and the local weekday', () => {
     const row = patchRows().find(candidate => candidate.id === 'time-context')
     expect(row).toEqual(expect.objectContaining({
       name: '@deepseek-ai/dsh-time-context',
-      config: { refreshIntervalMs: 3600000 },
+      config: { refreshIntervalMs: 3600000, weekday: true },
     }))
   })
 
