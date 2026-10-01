@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-30-research-stage-system-prompt.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-30-research-stage-system-prompt.md
+/agent-note-dedicated-system-prompt-temperature-and-corrective-json-turn-for-research-stages:
+  en: cf4a1befaf356edf
+  zh: 95b5c6ac947b1a49
+/agent-note-dedicated-system-prompt-temperature-and-corrective-json-turn-for-research-stages/problem:
+  en: d37bd6770eb7965f
+  zh: 606d93efa6311a22
+/agent-note-dedicated-system-prompt-temperature-and-corrective-json-turn-for-research-stages/decision:
+  en: 58be47daea822958
+  zh: 64d9379aa617f349
+/agent-note-dedicated-system-prompt-temperature-and-corrective-json-turn-for-research-stages/alternatives-considered:
+  en: 28eb519454b6be22
+  zh: c0f96ec3272a8249
+/agent-note-dedicated-system-prompt-temperature-and-corrective-json-turn-for-research-stages/consequences:
+  en: 35e44ee23f075715
+  zh: 2e7ec3794aaeb90c

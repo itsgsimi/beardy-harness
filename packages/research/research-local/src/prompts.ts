@@ -3,7 +3,16 @@
 import type { ResearchCategory } from '@deepseek-ai/dsh-research/types'
 
 /** Change this identifier whenever a stage prompt's meaning changes. */
-export const RESEARCH_PROMPT_VERSION = 'odysseus-general-v1'
+export const RESEARCH_PROMPT_VERSION = 'odysseus-general-v2'
+
+/**
+ * Complete system prompt of every general research stage Session, and of workflow stages whose
+ * workflow sets no stage system prompt.
+ */
+export const RESEARCH_STAGE_SYSTEM_PROMPT = 'You are one stage of a research workflow. You have no tools and cannot search, browse, or run commands; work only from the text in the user message. Follow the output format the message asks for exactly.'
+
+/** Text of the corrective `user/message` a stage receives when its answer fails the stage's JSON check. */
+export const RESEARCH_JSON_CORRECTION = 'Your reply was not the requested JSON. Reply with only the JSON object in the requested format.'
 
 const categoryInstructions: Record<ResearchCategory, string> = {
   general: 'Organize the answer around the question and distinguish evidence from uncertainty.',

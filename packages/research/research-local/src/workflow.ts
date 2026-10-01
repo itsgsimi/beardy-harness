@@ -6,15 +6,19 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ResearchWorkflow, ResearchWorkflowRun } from '@deepseek-ai/dsh-research'
 import type { ResearchBudgets, ResearchOwner, ResearchRunId, ResearchSource } from '@deepseek-ai/dsh-research/types'
 import type {} from '@deepseek-ai/dsh-attachment'
-import type { ResolvedConfig } from './config.ts'
+import { assertTemperature, type ResolvedConfig } from './config.ts'
 import type { EngineStorage } from './engine.ts'
+import { RESEARCH_STAGE_SYSTEM_PROMPT } from './prompts.ts'
 import { runStage, type StageAdmission } from './stage.ts'
 
 /** Largest run or stage deadline a workflow may request, matching the provider's config bound. */
 const MAX_WORKFLOW_DEADLINE_MS = 86_400_000
 
+/** Longest stage system prompt a workflow may supply. */
+const MAX_STAGE_SYSTEM_PROMPT_CHARS = 4000
+
 /**
- * Reject an unusable workflow before its name, version, or deadlines enter a durable start event.
+ * Reject an unusable workflow before its name, version, deadlines, or stage system prompt enter the run.
  * @param workflow - consumer procedure from a trusted start call.
  * @param budgets - provider budgets the workflow may override.
  * @returns budgets recorded for, and enforced on, this run.
@@ -23,6 +27,10 @@ export function workflowBudgets(workflow: ResearchWorkflow, budgets: ResearchBud
   if (!/^[a-z][a-z0-9_-]{0,63}$/u.test(workflow.name)) throw new Error('research workflow name is invalid')
   if (!workflow.promptVersion.trim() || workflow.promptVersion.length > 100) {
     throw new Error('research workflow promptVersion must be 1 to 100 characters')
+  }
+  const prompt = workflow.stageSystemPrompt
+  if (prompt !== undefined && (!prompt.trim() || prompt.length > MAX_STAGE_SYSTEM_PROMPT_CHARS)) {
+    throw new Error(`research workflow stageSystemPrompt must be 1 to ${MAX_STAGE_SYSTEM_PROMPT_CHARS} characters`)
   }
   const resolved = { ...budgets, ...workflow.budgets }
   for (const key of ['hardRunTimeoutMs', 'stageTimeoutMs'] as const) {
@@ -58,16 +66,20 @@ export async function runWorkflow(ctx: Context, admission: StageAdmission, confi
   workflow: ResearchWorkflow, execution: WorkflowExecution): Promise<void> {
   const { id, parentAgent, owner, signal, startedAt, contextWindow, cwd } = execution
   let round = 0
+  const systemPrompt = workflow.stageSystemPrompt ?? RESEARCH_STAGE_SYSTEM_PROMPT
   const run: ResearchWorkflowRun = {
     id,
     signal,
-    async stage(prompt, maxTokens) {
+    async stage(prompt, maxTokens, options) {
       signal.throwIfAborted()
       if (!Number.isSafeInteger(maxTokens) || maxTokens < 1) throw new Error('research workflow stage maxTokens must be positive')
+      const temperature = options?.temperature ?? config.stageTemperature
+      assertTemperature(temperature, 'research workflow stage temperature')
       if (contextWindow !== undefined && Math.ceil(prompt.length / 3) + maxTokens > contextWindow) {
         throw new Error('research stage input exceeds the model context window')
       }
-      const result = await runStage(ctx, admission, config, id, parentAgent, prompt, maxTokens, signal, cwd,
+      const request = { prompt, maxTokens, systemPrompt, temperature, expectJson: options?.expectJson }
+      const result = await runStage(ctx, admission, config, id, parentAgent, request, signal, cwd,
         async (stageSessionId) => {
           await storage.checkpoint(id, owner, { round, elapsedMs: Date.now() - startedAt, stageSessionId })
         })

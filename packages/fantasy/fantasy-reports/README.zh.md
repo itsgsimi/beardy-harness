@@ -86,7 +86,7 @@ teams:
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-插件把每份报告作为[研究工作流](../../research/research/README.zh.md)启动：提供方记录工作流名称和提示词版本，每次模型调用都是该运行下一个有日志、无工具的阶段 Session。
+插件把每份报告作为[研究工作流](../../research/research/README.zh.md)启动：提供方记录工作流名称和提示词版本，每次模型调用都是该运行下一个有日志、无工具的阶段 Session。撰写、审阅和修复阶段传入一个由稍后读取回答的同一解析器构成的 JSON 检查，因此散文回答或伪工具调用回答会先在同一阶段 Session 中得到一次纠正轮次，然后才交给工作流自身的修复或重试策略；纠正回答仍不合格时，首个回答交给该策略处理。
 
 1. **Yahoo 事实。** 工作流读取该周的阵容、每名球员的阵容位锁定和对阵，并把联盟、球队和比赛周与请求核对。在册球员获得短 ID（`P1`、`P2`……）。
 2. **来源。** 每名球员最多有 `searchesPerPlayer` 次查询，并保留最多 `pagesPerPlayer` 个不在 `excludedHosts` 中的 HTTPS 页面。页面只有写出该球员姓名时才被采纳；姓名过短无法可靠匹配时直接采纳页面。任何模型读取页面之前，都会移除 FantasyPros 排名与预测标题，并把“30th easiest opponent”这类赛程强度序数改写为直白的难度描述。页面以名单姓名附近的原文段落限定长度。每次搜索、抓取失败和采纳决定都进入运行，每个被采纳页面的模型可见原文成为来源附件。
@@ -105,7 +105,7 @@ teams:
 | [`src/lineup.ts`](src/lineup.ts) | Yahoo 阵容位合法性、阵容位锁定与阵容变更 |
 | [`src/sources.ts`](src/sources.ts) | 姓名采纳、页面清理与段落 |
 | [`src/render.ts`](src/render.ts) | 报告 Markdown |
-| [`src/prompts.ts`](src/prompts.ts) | 带版本的阶段指令 |
+| [`src/prompts.ts`](src/prompts.ts) | 带版本的阶段指令与阶段系统提示词 |
 | [`src/config.ts`](src/config.ts) | 配置验证 |
 
 </details>
@@ -130,7 +130,7 @@ teams:
 
 #### 模型看到的内容
 
-每个阶段都是报告研究运行下一个新的无工具 Session，在阶段系统提示词和运行时上下文之后只有一条任务消息。撰写消息包含带版本的指令、JSON 形式的 Yahoo 上下文（球队、比赛周、报告时间、首发与替补阵容位、计分值、对阵预测，以及每名球员的 ID、NFL 球队、位置、Yahoo 阵容位及其是否锁定、状态、伤病说明、轮空周和预测分数）、标为对比数据的早先报告，以及标为不可信数据的已采纳页面段落。审阅消息包含 Yahoo 上下文、被引用的段落和草稿。修复消息包含错误或发现、受影响的行、其余各部分以及受影响的段落。
+每个阶段都是报告研究运行下一个新的无工具 Session，在阶段系统提示词之后只有一条任务消息，没有运行时上下文。系统提示词为 `You are one stage of a fantasy football weekly report workflow: the writer, reviewer, or repair step that the user message describes. You have no tools and cannot search, browse, look anything up, or run commands, so never write a tool call; work only from the data in the user message. Every answer is exactly one JSON object in the format the message asks for, with no prose, Markdown, or code fences around it.` 未通过阶段 JSON 检查的回答之后会追加 `Your reply was not the requested JSON. Reply with only the JSON object in the requested format.`撰写消息包含带版本的指令、JSON 形式的 Yahoo 上下文（球队、比赛周、报告时间、首发与替补阵容位、计分值、对阵预测，以及每名球员的 ID、NFL 球队、位置、Yahoo 阵容位及其是否锁定、状态、伤病说明、轮空周和预测分数）、标为对比数据的早先报告，以及标为不可信数据的已采纳页面段落。审阅消息包含 Yahoo 上下文、被引用的段落和草稿。修复消息包含错误或发现、受影响的行、其余各部分以及受影响的段落。
 
 #### Token 影响
 
@@ -138,7 +138,7 @@ teams:
 
 #### KV Cache 影响
 
-每个阶段都是新的单轮 Session，阶段之间不复用前缀。同一球队、同一比赛周的报告共享指令前缀，但从 Yahoo 上下文起开始不同。
+每个阶段都是新的 Session，阶段之间不复用前缀；纠正轮次延续其所属阶段的前缀。同一球队、同一比赛周的报告共享指令前缀，但从 Yahoo 上下文起开始不同。
 
 ## 已知限制与后续工作
 

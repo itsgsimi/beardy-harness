@@ -46,11 +46,14 @@ export interface ResearchWorkflowRun {
   readonly signal: AbortSignal
   /**
    * Run one tool-free model turn in a new child Session of the run, after committing its ID to the run.
+   * The stage Session answers from the workflow's stage system prompt, or the provider's when the
+   * workflow sets none, and sees no tools or runtime context.
    * @param prompt - exact user message; the child Session log reconstructs the request.
    * @param maxTokens - output ceiling for this stage.
-   * @returns settled, non-empty assistant text.
+   * @param options - sampling override and the JSON check that admits one corrective turn.
+   * @returns settled, non-empty assistant text: the corrective answer when one ran and passed the check, otherwise the first answer.
    */
-  stage(prompt: string, maxTokens: number): Promise<string>
+  stage(prompt: string, maxTokens: number, options?: ResearchStageOptions): Promise<string>
   /**
    * Commit one search outcome to the run.
    * @param result - query, status, and returned URLs.
@@ -74,6 +77,19 @@ export interface ResearchWorkflowRun {
   finding(result: ResearchFinding): Promise<void>
 }
 
+/** Per-stage choices a workflow passes with one stage prompt. */
+export interface ResearchStageOptions {
+  /** Sampling temperature from 0 through 2 replacing the provider's configured stage temperature. */
+  readonly temperature?: number
+  /**
+   * Whether an answer is the JSON the prompt asks for. A rejected first answer receives one corrective
+   * `user/message` in the same stage Session, so the stage makes at most two model requests.
+   * @param text - trimmed, non-empty answer text.
+   * @returns true when the answer parses as the expected JSON shape.
+   */
+  readonly expectJson?: (text: string) => boolean
+}
+
 /**
  * A consumer-owned research procedure the provider executes inside one durable run. The provider
  * records the workflow name and prompt version at start and commits the resolved report as completed;
@@ -86,6 +102,11 @@ export interface ResearchWorkflow {
   readonly promptVersion: string
   /** Run and stage deadlines replacing the provider's configured values for this run only. */
   readonly budgets?: Partial<Pick<ResearchBudgets, 'hardRunTimeoutMs' | 'stageTimeoutMs'>>
+  /**
+   * Complete system prompt of every stage Session of this run, replacing the provider's research stage
+   * prompt; 1 to 4000 characters. Each stage Session logs it with its first request.
+   */
+  readonly stageSystemPrompt?: string
   /**
    * Execute the procedure.
    * @param run - ledger writes and logged model stages bound to the run.

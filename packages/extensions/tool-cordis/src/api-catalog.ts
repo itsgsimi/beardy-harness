@@ -6572,12 +6572,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ResearchSourceAttempt {\n    readonly round: number;\n    readonly requestedUrl: string;\n    readonly status: \'fetched\' | \'http_error\' | \'error\';\n    readonly finalUrl?: string;\n    readonly statusCode?: number;\n    readonly retrievedAt: number;\n    readonly source?: ResearchSource;\n    readonly reason?: string;\n}',
   },
   {
+    name: 'ResearchStageOptions',
+    declaration: 'export interface ResearchStageOptions {\n    readonly temperature?: number;\n    readonly expectJson?: (text: string) => boolean;\n}',
+  },
+  {
     name: 'ResearchStart',
     declaration: 'export interface ResearchStart {\n    readonly caller: Session;\n    readonly owner: ResearchOwner;\n    readonly query: string;\n    readonly requestKey?: string;\n    readonly category?: ResearchCategory;\n    readonly workflow?: ResearchWorkflow;\n}',
   },
   {
     name: 'ResearchWorkflow',
-    declaration: 'export interface ResearchWorkflow {\n    readonly name: string;\n    readonly promptVersion: string;\n    readonly budgets?: Partial<Pick<ResearchBudgets, \'hardRunTimeoutMs\' | \'stageTimeoutMs\'>>;\n    run(run: ResearchWorkflowRun): Promise<ResearchWorkflowResult>;\n}',
+    declaration: 'export interface ResearchWorkflow {\n    readonly name: string;\n    readonly promptVersion: string;\n    readonly budgets?: Partial<Pick<ResearchBudgets, \'hardRunTimeoutMs\' | \'stageTimeoutMs\'>>;\n    readonly stageSystemPrompt?: string;\n    run(run: ResearchWorkflowRun): Promise<ResearchWorkflowResult>;\n}',
   },
   {
     name: 'ResearchWorkflowPage',
@@ -6589,7 +6593,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ResearchWorkflowRun',
-    declaration: 'export interface ResearchWorkflowRun {\n    readonly id: ResearchRunId;\n    readonly signal: AbortSignal;\n    stage(prompt: string, maxTokens: number): Promise<string>;\n    search(result: ResearchSearch): Promise<void>;\n    fetched(page: ResearchWorkflowPage): Promise<ResearchSource>;\n    failed(attempt: Omit<ResearchSourceAttempt, \'status\' | \'source\'> & {\n        readonly status: \'http_error\' | \'error\';\n    }): Promise<void>;\n    finding(result: ResearchFinding): Promise<void>;\n}',
+    declaration: 'export interface ResearchWorkflowRun {\n    readonly id: ResearchRunId;\n    readonly signal: AbortSignal;\n    stage(prompt: string, maxTokens: number, options?: ResearchStageOptions): Promise<string>;\n    search(result: ResearchSearch): Promise<void>;\n    fetched(page: ResearchWorkflowPage): Promise<ResearchSource>;\n    failed(attempt: Omit<ResearchSourceAttempt, \'status\' | \'source\'> & {\n        readonly status: \'http_error\' | \'error\';\n    }): Promise<void>;\n    finding(result: ResearchFinding): Promise<void>;\n}',
   },
   {
     name: 'ResolvedAlwaysRetryPolicy',

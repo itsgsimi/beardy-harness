@@ -86,7 +86,7 @@ Every run is linked from the team's caller Session `fantasy-reports-<id>`; after
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The plugin starts each report as a [research workflow](../../research/research/README.md): the provider records the workflow name and prompt version, and every model call is a logged, tool-free stage Session of the run.
+The plugin starts each report as a [research workflow](../../research/research/README.md): the provider records the workflow name and prompt version, and every model call is a logged, tool-free stage Session of the run. Writer, reviewer, and repair stages pass a JSON check built from the same parser that later reads the answer, so a prose or pseudo-tool-call answer receives one corrective turn in the same stage Session before the workflow's own repair or retry policy sees it; a failing corrective answer leaves the first answer to that policy.
 
 1. **Yahoo facts.** The workflow reads the roster, each player's slot lock, and the matchup for the week, and checks the league, team, and week against the request. Roster players get short ids (`P1`, `P2`, ...).
 2. **Sources.** Each player gets up to `searchesPerPlayer` queries and keeps up to `pagesPerPlayer` HTTPS pages outside `excludedHosts`. A page is admitted only when it names the player; a name too short to match admits the page. FantasyPros rank and projection headers are removed, and strength-of-schedule ordinals such as "30th easiest opponent" become plain difficulty words before any model reads the page. Literal passages around roster names bound each page. Every search, fetch failure, and admission decision enters the run, and each admitted page's exact model-visible text becomes a source attachment.
@@ -105,7 +105,7 @@ No invariant companion is published: timers, queue order, and delivery attempts 
 | [`src/lineup.ts`](src/lineup.ts) | Yahoo slot legality, slot locks, and lineup changes |
 | [`src/sources.ts`](src/sources.ts) | Name admission, page cleaning, and passages |
 | [`src/render.ts`](src/render.ts) | Report Markdown |
-| [`src/prompts.ts`](src/prompts.ts) | Versioned stage instructions |
+| [`src/prompts.ts`](src/prompts.ts) | Versioned stage instructions and the stage system prompt |
 | [`src/config.ts`](src/config.ts) | Configuration validation |
 
 </details>
@@ -130,7 +130,7 @@ No invariant companion is published: timers, queue order, and delivery attempts 
 
 #### What the model sees
 
-Each stage is a new tool-free Session under the report's research run, with one task message after the stage system prompt and runtime context. The writer message holds the versioned instructions, the Yahoo context as JSON (team, week, report time, starting and reserve slots, scoring values, matchup projections, and each player's id, NFL team, positions, Yahoo slot and whether it is locked, status, injury note, bye, and projection), earlier reports marked as comparison data, and the admitted page passages marked as untrusted data. Reviewer messages hold the Yahoo context, the cited passages, and the draft. Repair messages hold the errors or findings, the affected rows, the other sections, and the affected passages.
+Each stage is a new tool-free Session under the report's research run, with one task message after the stage system prompt and no runtime context. The system prompt is `You are one stage of a fantasy football weekly report workflow: the writer, reviewer, or repair step that the user message describes. You have no tools and cannot search, browse, look anything up, or run commands, so never write a tool call; work only from the data in the user message. Every answer is exactly one JSON object in the format the message asks for, with no prose, Markdown, or code fences around it.` An answer that fails its stage's JSON check is followed by `Your reply was not the requested JSON. Reply with only the JSON object in the requested format.` The writer message holds the versioned instructions, the Yahoo context as JSON (team, week, report time, starting and reserve slots, scoring values, matchup projections, and each player's id, NFL team, positions, Yahoo slot and whether it is locked, status, injury note, bye, and projection), earlier reports marked as comparison data, and the admitted page passages marked as untrusted data. Reviewer messages hold the Yahoo context, the cited passages, and the draft. Repair messages hold the errors or findings, the affected rows, the other sections, and the affected passages.
 
 #### Token effect
 
@@ -138,7 +138,7 @@ A writer message carries at most `promptSourceChars` characters of passages (120
 
 #### KV Cache effect
 
-Every stage is a fresh single-turn Session, so no stage reuses another's prefix. Reports of the same team and week share the instruction prefix but differ from the Yahoo context on.
+Every stage is a fresh Session, so no stage reuses another's prefix; a corrective turn extends its own stage's prefix. Reports of the same team and week share the instruction prefix but differ from the Yahoo context on.
 
 ## Known Limitations and Deferred Work
 

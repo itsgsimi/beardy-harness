@@ -1,12 +1,13 @@
-/** One-turn persisted research stages with bounded model admission. */
+/** Persisted research stage turns with a dedicated system prompt and bounded model admission. */
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import { installDedicatedPrompt, type Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ResearchRunId } from '@deepseek-ai/dsh-research/types'
 import type { ResolvedConfig } from './config.ts'
+import { RESEARCH_JSON_CORRECTION } from './prompts.ts'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -68,15 +69,37 @@ export interface StageResult {
   readonly text: string
 }
 
+/** The model-visible input and sampling of one stage. */
+export interface StageRequest {
+  /** Exact first `user/message` text. */
+  readonly prompt: string
+  /** Output ceiling of each stage request. */
+  readonly maxTokens: number
+  /** Complete system prompt of the stage Session. */
+  readonly systemPrompt: string
+  /** Sampling temperature of each stage request. */
+  readonly temperature: number
+  /**
+   * Whether an answer is the JSON the prompt asks for; absent accepts the first answer.
+   * @param text - trimmed, non-empty answer text.
+   * @returns false to send {@link RESEARCH_JSON_CORRECTION} as one corrective turn.
+   */
+  readonly expectJson?: ((text: string) => boolean) | undefined
+}
+
 /**
- * Run a single logged model turn without exposing any registered tool.
+ * Run one logged stage turn without exposing any registered tool, plus one corrective turn in the same
+ * Session when `expectJson` rejects the first answer. The stage Session answers from
+ * `request.systemPrompt` alone: no deployment persona, runtime context, or tool schema reaches it, and
+ * every request carries `request.temperature`. Each turn may make exactly one model request, so a stage
+ * makes at most two. A corrective answer replaces the first only when it passes `expectJson`; an
+ * unsettled or failing corrective answer leaves the first answer as the result.
  * @param ctx - provider context that owns the child Agent.
  * @param admission - shared bounded model gate.
  * @param config - exact route, effort and stage timeout.
  * @param runId - parent research Session identity.
  * @param parentAgent - live run Agent whose scoped tools remain inherited and restrictable.
- * @param prompt - exact versioned user input.
- * @param maxTokens - stage output ceiling.
+ * @param request - exact versioned input, system prompt, sampling, and JSON check.
  * @param signal - run cancellation and hard timeout.
  * @param cwd - caller workspace for authorized explicit stage reads.
  * @param linked - commit the stage ID into the run Session before sending input.
@@ -88,8 +111,7 @@ export async function runStage(
   config: ResolvedConfig,
   runId: ResearchRunId,
   parentAgent: Agent,
-  prompt: string,
-  maxTokens: number,
+  request: StageRequest,
   signal: AbortSignal,
   cwd: string | undefined,
   linked: (id: SessionId) => Promise<void>,
@@ -103,6 +125,7 @@ export async function runStage(
     stageSignal.throwIfAborted()
     const id = SessionId(`rs-native-${randomUUID()}`)
     let modelCalls = 0
+    let turns = 0
     let response: SessionEvent<'assistant/message'> | undefined
     const handle = await ctx.agents.create({
       sessionId: id,
@@ -112,22 +135,20 @@ export async function runStage(
       agentOptions: {
         provider: config.provider,
         model: config.model,
-        maxTokens,
+        maxTokens: request.maxTokens,
         ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(config.reasoningEffort) }),
       },
       setup: (agentCtx) => {
         agentCtx.tools.presentAs('native')
         agentCtx.tools.restrict({ allow: [] })
         agentCtx.tools.guard(() => 'research stages cannot execute tools')
+        installDedicatedPrompt(agentCtx, { systemPrompt: request.systemPrompt, temperature: request.temperature })
         agentCtx.on('session/event', (session, event) => {
           if (session.id === id && event.type === 'assistant/message') response = event
         })
-        agentCtx.on('llm/stream', (request, next) => {
-          if (request.sessionId !== id) return next()
-          if (++modelCalls > 1) throw new Error('research stage attempted another model call')
-          if (request.tools !== undefined && request.tools.length > 0) {
-            throw new Error(`research stage exposed model tools: ${request.tools.map(tool => tool.name).join(', ')}`)
-          }
+        agentCtx.on('llm/stream', (options, next) => {
+          if (options.sessionId !== id) return next()
+          if (++modelCalls > turns) throw new Error('research stage attempted another model call')
           return next()
         })
       },
@@ -140,14 +161,29 @@ export async function runStage(
       }
     }
     stageSignal.addEventListener('abort', abort, { once: true })
-    try {
-      await linked(id)
-      stageSignal.throwIfAborted()
-      handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: prompt }], source: { kind: 'user' } }))
+    const turn = async (text: string): Promise<SessionEvent<'assistant/message'> | undefined> => {
+      response = undefined
+      turns++
+      handle.agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
       await handle.agent.whenIdle()
       stageSignal.throwIfAborted()
       if (!await ctx.sessions.flush(handle.agent.session)) throw new Error('research stage has no durability provider')
-      return { id, text: responseText(response) }
+      return response
+    }
+    try {
+      await linked(id)
+      stageSignal.throwIfAborted()
+      const first = responseText(await turn(request.prompt))
+      if (request.expectJson === undefined || request.expectJson(first)) return { id, text: first }
+      const corrective = await turn(RESEARCH_JSON_CORRECTION)
+      let second: string
+      try {
+        second = responseText(corrective)
+      } catch {
+        // An unsettled or empty corrective answer leaves the first answer as the stage result.
+        return { id, text: first }
+      }
+      return { id, text: request.expectJson(second) ? second : first }
     } finally {
       stageSignal.removeEventListener('abort', abort)
       await handle.dispose()

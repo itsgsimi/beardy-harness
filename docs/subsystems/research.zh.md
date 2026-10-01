@@ -14,7 +14,7 @@
 
 ## 阶段 Session 的回忆排除
 
-引擎为每次模型调用创建短生命周期的 Agent/Session，并在其 `parentSession` 标头中写入运行 ID。每个子 Session 记录精确提示词、请求标头、助手回复或尝试以及轮次结束；`deriveMessages()` 可重建每次模型请求。默认 API Session 列表和 `session_search` 会省略父 ID 以 `rp-native-` 开头的子 Session。按明确 Session ID 读取或明确指定父 Session 的搜索仍可访问它们。阶段 Agent 不向模型暴露工具，并拒绝执行工具。每个阶段发送有界上下文，因此先前网页文本只有进入已记录提示词时才会进入后续调用。
+引擎为每个模型阶段创建短生命周期的 Agent/Session，并在其 `parentSession` 标头中写入运行 ID。每个子 Session 记录精确提示词、请求标头、助手回复或尝试以及轮次结束；`deriveMessages()` 可重建每次模型请求。默认 API Session 列表和 `session_search` 会省略父 ID 以 `rp-native-` 开头的子 Session。按明确 Session ID 读取或明确指定父 Session 的搜索仍可访问它们。阶段 Agent 不向模型暴露工具，并拒绝执行工具。每个阶段 Session 仅依据一个完整的阶段系统提示词作答，不含部署人设和运行时上下文；除非阶段自行设定，采样温度为提供方的 `stageTemperature`。每个阶段发送有界上下文，因此先前网页文本只有进入已记录提示词时才会进入后续调用。
 
 运行及其阶段子 Session 会保留调用方 Session 的工作区路径（如果存在），因此明确授权的工作区读取仍可访问阶段日志。会话引用候选列表也默认排除阶段子 Session。
 
@@ -24,7 +24,7 @@
 
 ## 使用方工作流
 
-可信使用方可以向 `start` 传入 `ResearchWorkflow` 来代替类别。提供方在 `research/started` 中记录工作流名称、提示词版本以及运行和阶段时限，然后以 `ResearchWorkflowRun` 调用该工作流。每次 `stage` 调用都是运行下一个有日志、无工具的子 Session；`search`、`fetched`、`failed` 和 `finding` 写入与通用引擎相同的账本事件，`fetched` 会在来源事件之前附加模型可见的页面原文。工作流返回的结果成为完成的报告与证据；拒绝则以错误文本为原因把运行结束为 `failed`。工作流阶段与通用阶段共享提供方的模型准入。[每周 Fantasy 报告](../../packages/fantasy/fantasy-reports/README.zh.md)是工作流使用方之一。
+可信使用方可以向 `start` 传入 `ResearchWorkflow` 来代替类别。提供方在 `research/started` 中记录工作流名称、提示词版本以及运行和阶段时限，然后以 `ResearchWorkflowRun` 调用该工作流。每次 `stage` 调用都是运行下一个有日志、无工具的子 Session，设定了工作流 `stageSystemPrompt` 时以其作为系统提示词；带 `expectJson` 检查的阶段在首个回答未通过检查时，于同一 Session 中发送一次纠正轮次；`search`、`fetched`、`failed` 和 `finding` 写入与通用引擎相同的账本事件，`fetched` 会在来源事件之前附加模型可见的页面原文。工作流返回的结果成为完成的报告与证据；拒绝则以错误文本为原因把运行结束为 `failed`。工作流阶段与通用阶段共享提供方的模型准入。[每周 Fantasy 报告](../../packages/fantasy/fantasy-reports/README.zh.md)是工作流使用方之一。
 
 ## 模型访问与 Beardy 选择
 

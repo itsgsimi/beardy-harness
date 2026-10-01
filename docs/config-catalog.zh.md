@@ -3246,6 +3246,8 @@ export interface Config extends Partial<ResearchBudgets> {
   ownerScope?: 'session' | 'profile'
   /** Stable single-user profile authority, required with profile scope. */
   ownerNamespace?: string
+  /** Sampling temperature from 0 through 2 of every stage request a workflow stage does not override; default 0.2. */
+  stageTemperature?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-research-local -->

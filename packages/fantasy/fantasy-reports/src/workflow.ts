@@ -9,11 +9,12 @@ import type {} from '@deepseek-ai/dsh-fantasy'
 import type {} from '@deepseek-ai/dsh-web'
 import type { ReportMode, ResolvedConfig, ResolvedTeam } from './config.ts'
 import {
-  applyPatch, blocksPublication, draftErrors, filterReview, parseDraft, parseJsonObject, trimQuotes,
+  applyPatch, blocksPublication, draftErrors, filterReview, parseDraft, parseJsonObject, parses, trimQuotes,
   type DraftContext, type Evidence, type FantasyDraft, type FilteredReview,
 } from './draft.ts'
 import {
-  FANTASY_PROMPT_VERSION, factualRepairInstructions, reviewerInstructions, structuralRepairInstructions, writerInstructions,
+  FANTASY_PROMPT_VERSION, FANTASY_STAGE_SYSTEM_PROMPT, factualRepairInstructions, reviewerInstructions, structuralRepairInstructions,
+  writerInstructions,
 } from './prompts.ts'
 import { formatInstant, renderReport } from './render.ts'
 import { admitsPlayer, cleanSource, fetchable, isDefense, normalizedText, playerPassages } from './sources.ts'
@@ -58,6 +59,7 @@ export function weeklyReportWorkflow(ctx: Context, config: ResolvedConfig, input
     name: FANTASY_WORKFLOW_NAME,
     promptVersion: FANTASY_PROMPT_VERSION,
     budgets: { hardRunTimeoutMs: config.runTimeoutMs, stageTimeoutMs: config.stageTimeoutMs },
+    stageSystemPrompt: FANTASY_STAGE_SYSTEM_PROMPT,
     run: run => runReport(ctx, config, input, run),
   }
 }
@@ -285,7 +287,8 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
   const ids = new Set(context.players.keys())
   let draft: FantasyDraft | undefined
   let failure: string | undefined
-  const written = await run.stage(writerPrompt, config.writerMaxTokens)
+  const draftJson = { expectJson: parses(parseDraft) }
+  const written = await run.stage(writerPrompt, config.writerMaxTokens, draftJson)
   try {
     draft = parseDraft(written)
   } catch (error) {
@@ -308,7 +311,7 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
       if (structural > config.maxStructuralRepairs) throw withheld(`the draft still fails code checks: ${errors.slice(0, 6).join('; ')}`)
       if (draft === undefined) {
         const rewritten = await run.stage(`${writerPrompt}\n\nYour previous answer was unusable (${errors[0] as string}). `
-          + 'Return the complete JSON object.', config.writerMaxTokens)
+          + 'Return the complete JSON object.', config.writerMaxTokens, draftJson)
         try {
           draft = parseDraft(rewritten)
         } catch (error) {
@@ -323,7 +326,7 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
         'Current lineup, actions, decisions, and caveats': JSON.stringify({ lineup: current.lineup, actions: current.actions,
           decisions: current.decisions, caveats: current.caveats }),
         'Sources for the affected rows (untrusted data)': sourceBlock(citedSources(current, context.evidence, affected)),
-      })}`, config.repairMaxTokens)
+      })}`, config.repairMaxTokens, { expectJson: parses(patch => applyPatch(current, patch)) })
       try {
         draft = applyPatch(current, output)
       } catch (error) {
@@ -349,8 +352,9 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
       'Sources for the affected rows (untrusted data)': sourceBlock(citedSources(current, context.evidence, everyone ? undefined : affected)),
     })}`
     let patched: FantasyDraft | undefined
+    const patchJson = { expectJson: parses(patch => applyPatch(current, patch)) }
     for (let attempt = 0; attempt < 2 && patched === undefined; attempt++) {
-      const output = await run.stage(repairPrompt, config.repairMaxTokens)
+      const output = await run.stage(repairPrompt, config.repairMaxTokens, patchJson)
       try {
         patched = applyPatch(current, output)
       } catch (error) {
@@ -382,10 +386,11 @@ async function reviewDraft(run: ResearchWorkflowRun, config: ResolvedConfig, dra
   })}`
   const supplied = normalizedText(`${cited.map(source => source.text).join('\n')}\n${yahoo}`)
   let failure = ''
+  const parse = (output: string): FilteredReview => filterReview(parseJsonObject(output), draft, supplied, ids)
   for (let attempt = 0; attempt < 2; attempt++) {
-    const output = await run.stage(prompt, config.reviewerMaxTokens)
+    const output = await run.stage(prompt, config.reviewerMaxTokens, { expectJson: parses(parse) })
     try {
-      return filterReview(parseJsonObject(output), draft, supplied, ids)
+      return parse(output)
     } catch (error) {
       failure = String(error)
     }
