@@ -195,7 +195,9 @@ export class YahooFantasyService extends FantasyService {
     return parseMatchups(await this.get(`/league/${pathPart(key)}/scoreboard${week === undefined ? '' : `;week=${week}`}`, signal))
   }
   async matchups(key: TeamId, week?: number, signal?: AbortSignal) {
-    return parseMatchups(await this.get(`/team/${pathPart(key)}/matchups${week === undefined ? '' : `;week=${week}`}`, signal))
+    // Yahoo ignores `;week=` on team matchups and returns the whole season; `;weeks=` selects one.
+    const matchups = parseMatchups(await this.get(`/team/${pathPart(key)}/matchups${week === undefined ? '' : `;weeks=${week}`}`, signal))
+    return week === undefined ? matchups : matchups.filter(matchup => matchup.week === week)
   }
   async team(key: TeamId, week: number, signal?: AbortSignal) {
     return parseRoster(await this.get(`/team/${pathPart(key)}/roster;week=${week}/players/stats;type=week;week=${week}`, signal))

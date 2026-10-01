@@ -14,7 +14,7 @@ const RESPONSES = {
   '/fantasy/v2/league/470.l.809970/settings': 'league-settings',
   '/fantasy/v2/game/nfl/game_weeks': 'game-weeks',
   '/fantasy/v2/team/470.l.809970.t.7/roster;week=3/players/stats;type=week;week=3': 'team-roster-week-stats',
-  '/fantasy/v2/team/470.l.809970.t.7/matchups;week=3': 'team-matchups',
+  '/fantasy/v2/team/470.l.809970.t.7/matchups;weeks=3': 'team-matchups',
 }
 
 /** Captures stored beside this fixture rather than with the provider's tests. */

@@ -149,6 +149,15 @@ describe('weekly report pipeline', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       + 'The suggested lineup keeps every current Yahoo starter.')
   })
 
+  it('faces the opponent of the report week when Yahoo returns the whole season', async () => {
+    const [current] = yahoo.matchups
+    const earlier = { ...current!, week: 1, teams: current!.teams.map(entry => entry.key === yahoo.roster.team.key ? entry
+      : { ...entry, key: '470.l.809970.t.8' as TeamKey, name: 'Week One Rival' }) }
+    const { report } = await execute(replies(), {}, { data: { matchups: [earlier, current!] } })
+    expect(report!.markdown).toContain('**Matchup:** The Googies 116.1 vs Team 5 94.6 projected')
+    expect(report!.markdown).not.toContain('Week One Rival')
+  })
+
   it('applies legal model swaps, rejects locked and unavailable moves, and drops unusable stage items', async () => {
     const model = stageModel({
       'player calls': data => Object.fromEntries(data.players!
