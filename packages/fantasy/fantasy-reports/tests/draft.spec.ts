@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyPatch, blocksPublication, draftErrors, draftProse, filterReview, parseDraft, parseJsonObject, trimQuotes,
+  applyPatch, blocksPublication, draftErrors, draftProse, filterReview, parseDraft, parseJsonObject, resolveRosterIds, rosterId, trimQuotes,
   type DraftContext, type Evidence, type FantasyDraft,
 } from '../src/draft.ts'
 import { normalizedText } from '../src/sources.ts'
@@ -57,17 +57,17 @@ describe('draft parsing', () => {
   it('patches only changed rows and non-empty sections, rejecting unknown rows', () => {
     const draft = validDraft()
     const changed = { ...draft.players[1]!, reason: 'Gibbs is the clear starter.' }
-    const patched = applyPatch(draft, JSON.stringify({ players: [changed], lineup: [], actions: ['Start Gibbs.'], decisions: [], caveats: [] }))
+    const patched = applyPatch(draft, JSON.stringify({ players: [changed], lineup: [], actions: ['Start Gibbs.'], decisions: [], caveats: [] }), players)
     expect(patched.players[1]!.reason).toBe('Gibbs is the clear starter.')
     expect(patched.players[0]).toEqual(draft.players[0])
     expect(patched.actions).toEqual(['Start Gibbs.'])
     expect(patched.lineup).toEqual(draft.lineup)
     const sections = applyPatch(draft, JSON.stringify({ lineup: [{ slot: 'qb', player: 'P9' }],
-      decisions: [{ title: 'QB', text: 'Daniels returns from injury and takes the QB spot.', sources: [9] }], caveats: ['New caveat.'] }))
+      decisions: [{ title: 'QB', text: 'Daniels returns from injury and takes the QB spot.', sources: [9] }], caveats: ['New caveat.'] }), players)
     expect(sections.lineup).toEqual([{ slot: 'QB', player: 'P9' }])
     expect(sections.caveats).toEqual(['New caveat.'])
     expect(sections.decisions[0]!.title).toBe('QB')
-    expect(() => applyPatch(draft, JSON.stringify({ players: [{ ...changed, player: 'P99' }] }))).toThrow('unknown player P99')
+    expect(() => applyPatch(draft, JSON.stringify({ players: [{ ...changed, player: 'P99' }] }), players)).toThrow('unknown player P99')
   })
 
   it('accepts a repair row keyed by id, as a factual repair stage answered, while the writer draft must use player', () => {
@@ -75,14 +75,63 @@ describe('draft parsing', () => {
     const { player: _player, ...row } = draft.players[13]!
     const live = `{"players":[${JSON.stringify({ id: 'P14', ...row, recommendation: 'START', reason: 'Kicker stays in the K slot.' })}],`
       + '"lineup":[],"actions":[],"decisions":[],"caveats":[]}'
-    const patched = applyPatch(draft, live)
+    const patched = applyPatch(draft, live, players)
     expect(patched.players[13]).toEqual({ ...draft.players[13], reason: 'Kicker stays in the K slot.' })
     expect(patched.players[13]).not.toHaveProperty('id')
-    const both = applyPatch(draft, JSON.stringify({ players: [{ id: 'P99', ...draft.players[1], reason: 'Player wins over id.' }] }))
+    const both = applyPatch(draft, JSON.stringify({ players: [{ id: 'P99', ...draft.players[1], reason: 'Player wins over id.' }] }), players)
     expect(both.players[1]!.reason).toBe('Player wins over id.')
-    expect(() => applyPatch(draft, JSON.stringify({ players: [{ id: 14, ...row }] }))).toThrow('players[0].player must be a string')
-    expect(() => applyPatch(draft, JSON.stringify({ players: ['P14'] }))).toThrow('players[0] must be an object')
+    expect(() => applyPatch(draft, JSON.stringify({ players: [{ id: 14, ...row }] }), players)).toThrow('players[0].player must be a string')
+    expect(() => applyPatch(draft, JSON.stringify({ players: ['P14'] }), players)).toThrow('players[0] must be an object')
     expect(() => parseDraft(JSON.stringify({ ...draft, players: [{ id: 'P14', ...row }] }))).toThrow('players[0].player must be a string')
+  })
+
+  it('keys a writer draft that named its players by roster id, as the live writer answered', () => {
+    const draft = validDraft()
+    const named = (id: string): string => players.get(id)!.name
+    const live = JSON.stringify({ ...draft,
+      players: draft.players.map(row => ({ ...row, player: named(row.player), confidence: row.player === 'P1' ? 'High' : row.confidence })),
+      lineup: draft.lineup.map(item => ({ ...item, player: item.player === 'P1' ? ' trevor  LAWRENCE ' : item.player })) })
+    const before = parseDraft(live)
+    expect(draftErrors(before, context).slice(0, 2)).toEqual(['Trevor Lawrence: not a roster id', 'Jahmyr Gibbs: not a roster id'])
+    const resolved = resolveRosterIds(before, players)
+    expect(resolved.players.map(row => row.player)).toEqual(rosterIds)
+    expect(resolved.players[0]!.confidence).toBe('high')
+    expect(resolved.lineup).toEqual(draft.lineup)
+    expect(draftErrors(resolved, context)).toEqual([])
+  })
+
+  it('maps only exact, unique names and loosely written ids', () => {
+    expect(rosterId(' p1 ', players)).toBe('P1')
+    expect(rosterId('P 14', players)).toBe('P14')
+    expect(rosterId('Jahmyr Gibbs', players)).toBe('P2')
+    expect(rosterId('Gibbs', players)).toBe('Gibbs')
+    expect(rosterId('P99', players)).toBe('P99')
+    const twins = new Map([['P1', players.get('P1')!], ['P2', { ...players.get('P2')!, name: 'Trevor Lawrence' }]])
+    expect(rosterId('Trevor Lawrence', twins)).toBe('Trevor Lawrence')
+    const draft = validDraft()
+    expect(draftErrors(resolveRosterIds({ ...draft, players: [...draft.players.slice(1), { ...draft.players[0]!, player: 'Gibbs' }] },
+      players), context)).toEqual(['Gibbs: not a roster id', 'P1: missing roster row'])
+  })
+
+  it('accepts the live repair rows: P1 with a rationale or reasoning field, or a player name; facts are never invented', () => {
+    const draft = validDraft()
+    const { player: _player, reason: _reason, ...rest } = draft.players[0]!
+    const rationale = applyPatch(draft, JSON.stringify({ players: [{ player: 'P1', ...rest, confidence: 'High',
+      rationale: 'Lawrence keeps the QB spot.', sources: [2] }] }), players)
+    expect(rationale.players[0]).toMatchObject({ player: 'P1', confidence: 'high', reason: 'Lawrence keeps the QB spot.' })
+    const reasoning = applyPatch(draft, JSON.stringify({ players: [{ player: 'Trevor Lawrence', ...rest,
+      reasoning: 'Lawrence starts.' }], lineup: [{ slot: 'QB', player: 'trevor lawrence' }] }), players)
+    expect(reasoning.players[0]).toMatchObject({ player: 'P1', reason: 'Lawrence starts.' })
+    expect(reasoning.lineup).toEqual([{ slot: 'QB', player: 'P1' }])
+    const own = applyPatch(draft, JSON.stringify({ players: [{ ...draft.players[0]!, rationale: 'Ignored.' }] }), players)
+    expect(own.players[0]!.reason).toBe(draft.players[0]!.reason)
+    const { facts: _facts, ...noFacts } = rest
+    expect(() => applyPatch(draft, JSON.stringify({ players: [{ player: 'P1', ...noFacts, confidence: 'High', rationale: 'Starts.', sources: [2] }] }),
+      players)).toThrow('P1.facts must be an array')
+    expect(() => applyPatch(draft, '{"players":[{"player":"P1","recommendation":"START","reasoning":"Starts."}]}', players))
+      .toThrow('P1.confidence must be a string')
+    expect(() => parseDraft(JSON.stringify({ ...draft, players: [{ ...rest, player: 'P1', rationale: 'x' }] })))
+      .toThrow('P1.reason must be a string')
   })
 })
 

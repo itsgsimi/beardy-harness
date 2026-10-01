@@ -172,30 +172,80 @@ export function parseDraft(output: string): FantasyDraft {
   }
 }
 
+function nameKey(name: string): string {
+  return name.trim().replace(/\s+/gu, ' ').toLowerCase()
+}
+
 /**
- * Name a patch row by `id` when it has no `player`: repair stages are told to keep each row's id, and
- * some answer `{"id":"P14",...}`. Only patch rows accept the alias; a writer draft must use `player`.
+ * Resolve a model-written player reference to its short roster id. Writers and repairs are shown ids such
+ * as `P1`, yet sometimes answer with the player's name: a reference that is not an id but equals exactly one
+ * roster player's name, ignoring case and surrounding or repeated whitespace, becomes that player's id, and
+ * an id written with different case or spacing becomes the id. Anything else is returned unchanged, so an
+ * unknown or ambiguous name still fails the roster-id check.
+ * @param reference - `player` value from a draft or patch row.
+ * @param players - roster players by short id.
+ * @returns the matching roster id, or `reference` unchanged.
+ */
+export function rosterId(reference: string, players: ReadonlyMap<string, FantasyPlayer>): string {
+  const id = reference.replace(/\s+/gu, '').toUpperCase()
+  if (players.has(id)) return id
+  const key = nameKey(reference)
+  const named = [...players].filter(([, player]) => nameKey(player.name) === key)
+  return named.length === 1 ? (named[0] as [string, FantasyPlayer])[0] : reference
+}
+
+/**
+ * Key every player row and lineup assignment of a draft by roster id, applying {@link rosterId}.
+ * @param draft - parsed draft whose rows may name players.
+ * @param players - roster players by short id.
+ * @returns the draft with resolvable references replaced by ids.
+ */
+export function resolveRosterIds(draft: FantasyDraft, players: ReadonlyMap<string, FantasyPlayer>): FantasyDraft {
+  return {
+    ...draft,
+    players: draft.players.map(row => ({ ...row, player: rosterId(row.player, players) })),
+    lineup: draft.lineup.map(assignment => ({ ...assignment, player: rosterId(assignment.player, players) })),
+  }
+}
+
+/** Fields repair stages write for the reason; a row's own `reason` wins. */
+const REASON_ALIASES = ['rationale', 'reasoning'] as const
+
+/**
+ * Accept the field names repair stages substitute in a patch row: `id` names the player when there is no
+ * `player`, and `rationale` or `reasoning` supplies the reason when there is no `reason`. Only patch rows
+ * accept aliases; a writer draft must use the writer fields. No alias supplies `facts`, whose quotes must be
+ * verbatim source text.
  */
 function patchRow(value: unknown): unknown {
-  if (!isRecord(value) || value.player !== undefined || typeof value.id !== 'string') return value
-  const { id, ...row } = value
-  return { ...row, player: id }
+  if (!isRecord(value)) return value
+  let row = value
+  if (row.player === undefined && typeof row.id === 'string') {
+    const { id, ...rest } = row
+    row = { ...rest, player: id }
+  }
+  const alias = REASON_ALIASES.find(key => typeof row[key] === 'string')
+  return row.reason === undefined && alias !== undefined ? { ...row, reason: row[alias] } : row
 }
 
 /**
  * Apply a repair patch: changed player rows replace their originals, and a non-empty section replaces its section.
- * A patch row may name its player with `id` instead of `player`.
- * @param draft - current draft.
+ * A patch row may use the aliases `id` for `player` and `rationale` or `reasoning` for `reason`, and patch
+ * rows and lineup assignments may name players; both resolve through {@link rosterId}.
+ * @param draft - current draft, keyed by roster id.
  * @param output - repair stage text.
+ * @param players - roster players by short id.
  * @returns the patched draft; a malformed patch throws.
  */
-export function applyPatch(draft: FantasyDraft, output: string): FantasyDraft {
+export function applyPatch(draft: FantasyDraft, output: string, players: ReadonlyMap<string, FantasyPlayer>): FantasyDraft {
   const value = parseJsonObject(output)
-  const rows = new Map(list(value.players ?? [], 'players').map(patchRow).map(parsePlayer).map(row => [row.player, row]))
+  const rows = new Map(list(value.players ?? [], 'players').map(patchRow).map(parsePlayer)
+    .map(row => ({ ...row, player: rosterId(row.player, players) })).map(row => [row.player, row]))
   for (const player of rows.keys()) {
     if (!draft.players.some(row => row.player === player)) throw new Error(`the patch changes unknown player ${player}`)
   }
   const lineup = value.lineup === undefined ? [] : parseLineup(value.lineup)
+    .map(assignment => ({ ...assignment, player: rosterId(assignment.player, players) }))
   const actions = value.actions === undefined ? [] : strings(value.actions, 'actions')
   const decisions = value.decisions === undefined ? [] : parseDecisions(value.decisions)
   const caveats = value.caveats === undefined ? [] : strings(value.caveats, 'caveats')

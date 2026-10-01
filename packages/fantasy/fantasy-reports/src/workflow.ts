@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-fantasy'
 import type {} from '@deepseek-ai/dsh-web'
 import type { ReportMode, ResolvedConfig, ResolvedTeam } from './config.ts'
 import {
-  applyPatch, blocksPublication, draftErrors, filterReview, parseDraft, parseJsonObject, parses, trimQuotes,
+  applyPatch, blocksPublication, draftErrors, filterReview, parseDraft, parseJsonObject, parses, resolveRosterIds, trimQuotes,
   type DraftContext, type Evidence, type FantasyDraft, type FilteredReview,
 } from './draft.ts'
 import {
@@ -301,7 +301,7 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
     if (draft === undefined) {
       errors = [`the answer is not the required JSON draft: ${failure as string}`]
     } else {
-      draft = trimQuotes(draft, context.evidence)
+      draft = trimQuotes(resolveRosterIds(draft, context.players), context.evidence)
       errors = draftErrors(draft, context)
       if (errors.length > 0 && failure !== undefined) errors.push(`the previous patch was unusable: ${failure}`)
     }
@@ -326,9 +326,9 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
         'Current lineup, actions, decisions, and caveats': JSON.stringify({ lineup: current.lineup, actions: current.actions,
           decisions: current.decisions, caveats: current.caveats }),
         'Sources for the affected rows (untrusted data)': sourceBlock(citedSources(current, context.evidence, affected)),
-      })}`, config.repairMaxTokens, { expectJson: parses(patch => applyPatch(current, patch)) })
+      })}`, config.repairMaxTokens, { expectJson: parses(patch => applyPatch(current, patch, context.players)) })
       try {
-        draft = applyPatch(current, output)
+        draft = applyPatch(current, output, context.players)
       } catch (error) {
         failure = String(error)
       }
@@ -352,11 +352,11 @@ async function settleDraft(run: ResearchWorkflowRun, config: ResolvedConfig, mod
       'Sources for the affected rows (untrusted data)': sourceBlock(citedSources(current, context.evidence, everyone ? undefined : affected)),
     })}`
     let patched: FantasyDraft | undefined
-    const patchJson = { expectJson: parses(patch => applyPatch(current, patch)) }
+    const patchJson = { expectJson: parses(patch => applyPatch(current, patch, context.players)) }
     for (let attempt = 0; attempt < 2 && patched === undefined; attempt++) {
       const output = await run.stage(repairPrompt, config.repairMaxTokens, patchJson)
       try {
-        patched = applyPatch(current, output)
+        patched = applyPatch(current, output, context.players)
       } catch (error) {
         failure = String(error)
       }
