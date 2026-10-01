@@ -48,7 +48,7 @@ kind: "package-reference"
 
 每支球队在 `timezone` 中有三个 cron 表达式。触发逐个执行，每次研究运行至少在上一次开始后 `minimumStartGapMs`（默认 90 分钟）才开始。触发会解析包含其本地日期的 Yahoo 比赛周；超出 `firstWeek` 到 `lastWeek` 的范围时不做任何事。已有定时或补跑运行的比赛周与模式会被跳过，因此重复触发不会发送第二份报告。
 
-每次触发记录一行 `fantasy-reports: <team> <mode>[ catch-up| manual] <outcome>[: <reason>]`。`published` 或 `redelivered` 的报告以 info 级别记录；`skipped`、`withheld`、`failed` 和 `undelivered` 以 warn 级别连同原因记录，因此只保留警告的日志仍能显示每次未发送报告的触发。插件停止时仍在排队或运行的触发以 warn 级别记录 `<team> <mode> abandoned because the plugin stopped`，且不再调用 Yahoo、研究或投递。
+每次触发记录一行 `fantasy-reports: <team> <mode>[ catch-up| manual] <outcome>[: <reason>]`。`published` 或 `redelivered` 的报告以 info 级别记录；`skipped`、`withheld`、`failed` 和 `undelivered` 以 warn 级别连同原因记录，因此只保留警告的日志仍能显示每次未发送报告的触发。插件停止时仍在排队或运行的触发以 warn 级别记录 `<team> <mode> abandoned because the plugin stopped`，且不再调用 Yahoo、研究或投递。挂载定时器时记录 `fantasy-reports: armed <n> report timers; next <team> <mode> at <ISO time>`，停止时记录 `fantasy-reports: report timers stopped; reports queued or running: <n>`，两者均为 info 级别，因此日志能显示某个时段经过时其定时器是否已挂载。
 
 ### 重启补跑
 

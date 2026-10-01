@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { cronerScheduler, type CronRunFinished, type Scheduler } from '@deepseek-ai/dsh-cron'
+import { cronerScheduler, type CronRunFinished, type Scheduler, type ScheduledJob } from '@deepseek-ai/dsh-cron'
 import type { ResearchRunView } from '@deepseek-ai/dsh-research/types'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { resolveConfig, type Config } from '../src/config.ts'
-import { apply, handOff, inject, mountReports, REPORT_COMMAND, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
+import { apply, handOff, inject, mountReports, nextFire, REPORT_COMMAND, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
 import {
   HANG, WEDNESDAY_WEEK_3, harness, lockedRoster, promptOf, replies, stageModel, stageOf, yahoo, type Harness, type Reply,
 } from './support.ts'
@@ -361,6 +361,7 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       mountReports(ctx, { ...household, minimumStartGapMs: 1000 }, timers.scheduler, Date.now)
     } })
     expect([...timers.ticks.keys()]).toHaveLength(6)
+    expect(info).toHaveBeenCalledWith('fantasy-reports: armed 6 report timers; next googies full at 2026-09-30T21:00:00.000Z')
     const settled = new Promise<void>((resolve) => {
       info.mockImplementation((line) => { if (String(line).startsWith('fantasy-reports: googies full')) resolve() })
     })
@@ -377,6 +378,15 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     timers.ticks.get('0 7 * * 0')!(Date.UTC(2026, 6, 1))
     await fiber.dispose()
     expect(timers.stopped).toHaveLength(6)
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(/^fantasy-reports: report timers stopped; reports queued or running: \d+$/u) as string)
+  })
+
+  it('names the earliest next fire among armed timers, or says none has one', () => {
+    const job = (at: number | undefined): ScheduledJob => ({ stop: () => {}, nextRunAt: () => at })
+    expect(nextFire(new Map([['lights full', job(Date.UTC(2026, 9, 7, 2, 30))], ['googies thursday', job(Date.UTC(2026, 9, 1, 22))],
+      ['googies sunday', job(undefined)]]))).toBe('next googies thursday at 2026-10-01T22:00:00.000Z')
+    expect(nextFire(new Map([['googies sunday', job(undefined)]]))).toBe('no timer has a next fire')
   })
 
   it('logs a fire that throws and warns about fires that disposal abandons', async () => {
