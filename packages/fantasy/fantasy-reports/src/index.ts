@@ -401,6 +401,21 @@ export function logOutcome(ctx: Context, label: string, outcome: ReportOutcome):
   else ctx.logger.warn(line)
 }
 
+/**
+ * Describe the earliest next fire among armed report timers, so a missed slot shows in the log whether
+ * its timer was armed.
+ * @param jobs - armed timers by team and mode label.
+ * @returns `next <label> at <ISO time>`, or `no timer has a next fire`.
+ */
+export function nextFire(jobs: ReadonlyMap<string, ScheduledJob>): string {
+  let next: { readonly label: string; readonly at: number } | undefined
+  for (const [label, job] of jobs) {
+    const at = job.nextRunAt()
+    if (at !== undefined && (next === undefined || at < next.at)) next = { label, at }
+  }
+  return next === undefined ? 'no timer has a next fire' : `next ${next.label} at ${new Date(next.at).toISOString()}`
+}
+
 /** A `/fantasy-report` request the caller's preset may make. */
 export interface ReportRequest {
   readonly team: ResolvedTeam
@@ -437,7 +452,8 @@ export function parseReportRequest(config: ResolvedConfig, preset: string | unde
  * when `commandPresets` names a preset, run every fire and request one at a time with the configured
  * spacing between scheduled and catch-up research starts, and drain the queue on disposal. A requested
  * report shares the queue, so it never overlaps another report, but neither waits for nor resets the
- * start spacing. A queued or running fire that disposal abandons logs a warning.
+ * start spacing. Arming logs the timer count and the earliest next fire, and disposal logs how many
+ * reports were queued or running; a queued or running fire that disposal abandons logs a warning.
  * @param ctx - consumer context.
  * @param supplied - loader configuration.
  * @param scheduler - timer factory; the plugin uses croner.
@@ -480,6 +496,7 @@ export function mountReports(ctx: Context, supplied: Config, scheduler: Schedule
       })
       jobs.set(`${row.team.id} ${row.mode}`, job)
     }
+    ctx.logger.info(`fantasy-reports: armed ${jobs.size} report timers; ${nextFire(jobs)}`)
     for (const slot of catchUpSlots(config, clock())) {
       const label = `${slot.team.id} ${slot.mode}`
       const window = catchUpWindow(config, slot.mode)
@@ -505,6 +522,7 @@ export function mountReports(ctx: Context, supplied: Config, scheduler: Schedule
       },
     })
     return async () => {
+      ctx.logger.info(`fantasy-reports: report timers stopped; reports queued or running: ${queued}`)
       unregister?.()
       stopping.abort(new Error('fantasy-reports stopped'))
       for (const job of jobs.values()) job.stop()
