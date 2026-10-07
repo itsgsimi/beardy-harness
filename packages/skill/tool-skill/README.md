@@ -87,7 +87,6 @@ The package is built on two ideas. First, the catalog is a durable projection, d
 | [`src/index.ts`](src/index.ts) | Plugin entry: tool registration, catalog and gesture pre-step listeners, rendering and digest |
 | [`src/nudge.ts`](src/nudge.ts) | Session projection of completed turns and prior notices, plus next-step nudge admission |
 | [`src/manage.ts`](src/manage.ts) | Draft lint, approval preview, and scoped file mutations |
-| — | No runtime invariant companion is published; this model-facing adapter has no independent lifecycle stream; execution relations are owned by the capability seam it calls. |
 
 ### Catalog lifecycle
 

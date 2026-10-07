@@ -56,8 +56,6 @@ Both delivery limits are validated at mount. The tool requires an agent Session 
 
 The pure `./types` entry declares `PresentedFile` and the Session event without importing Host runtime code. The Web consumer validates persisted declarations before displaying or opening them. The event stores no Session ID, so forked history resolves relative paths against the viewed Session's workspace.
 
-**Runtime invariant:** No companion is published. Tool and event registrations are effect-owned, and the Session log owns file declarations; the plugin maintains no independent file-content store.
-
 </details>
 
 -----

@@ -84,7 +84,6 @@ The service family runs one admission-and-storage flow: every entry point enforc
 | [`src/error.ts`](src/error.ts) | `AttachmentError` class and the `isImageAdmissionError` runtime subset |
 | [`src/brand.ts`](src/brand.ts) | `AttachmentId` branded opaque identifier |
 | [`src/schema.ts`](src/schema.ts) | `imageAttachmentRefSchema` zod validation for stored image references |
-| — | No runtime invariant companion is published; this stateless seam owns types while implementations enforce immutable-store checks. |
 
 </details>
 

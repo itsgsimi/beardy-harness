@@ -87,7 +87,6 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 | [`src/index.ts`](src/index.ts) | 插件入口：工具注册、目录与手势 pre-step 监听器、渲染与 digest |
 | [`src/nudge.ts`](src/nudge.ts) | 已完成轮次及历史提醒的 Session 投影，以及下一步骤的提醒判定 |
 | [`src/manage.ts`](src/manage.ts) | 草稿检查、审批预览及按作用域进行的文件变更 |
-| — | 不发布运行时不变式伴生入口；这个面向模型的适配器没有独立的生命周期流；执行关系由它调用的能力 seam 负责。 |
 
 ### 目录生命周期
 
