@@ -10,6 +10,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   foldScheduleEvents, renderRecurringReminderBatchFraming, renderReminderFraming,
 } from '@deepseek-ai/dsh-schedule'
+// Type-only: the `schedule` MessageSourceMap entry is declared beside the runtime that delivers it.
+import type {} from '@deepseek-ai/dsh-schedule/src/runtime.ts'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { ConversationRecord } from './domain.ts'
 
@@ -22,7 +24,6 @@ import type { ConversationRecord } from './domain.ts'
  * @returns Number of reminders placed in the Agent inbox.
  */
 export async function dispatchLegacyReminders(ctx: Context, agent: Agent): Promise<number> {
-  // oxlint-disable-next-line typescript/no-deprecated -- Historical V3 reminders remain live for Discord-owned Sessions.
   const due = foldScheduleEvents(agent.session.ownEvents()).active
     .filter(record => Date.parse(record.scheduledAt) <= Date.now())
   for (const record of due) {

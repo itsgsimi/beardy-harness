@@ -118,6 +118,22 @@ async function bench(options: {
         }],
       },
     })),
+    // Authenticated browsers persist the Developer tools preference through the Host.
+    mutate: (ns: string, ops: readonly { op: string; path: readonly string[]; value?: unknown }[]) => {
+      if (ns !== 'ui-settings') throw new Error(`unexpected settings mutation of ${ns}`)
+      for (const op of ops) {
+        if (op.op === 'set' && op.path[0] === 'enabled' && typeof op.value === 'boolean') developerToolsEnabled = op.value
+      }
+      return Promise.resolve({ ok: true as const, value: {
+        ns: 'ui-settings',
+        schema: { type: 'object', dict: { enabled: { type: 'boolean' } } },
+        value: { enabled: developerToolsEnabled },
+        autoGenerate: false,
+        applies: 'live',
+        secrets: [],
+        revision: 1,
+      } })
+    },
     update: (_ns: string, patch: { selectedDefault?: unknown }) => {
       calls.push(`settings:${JSON.stringify(patch)}`)
       if (options.failSettingsUpdate === true) {
@@ -1055,7 +1071,7 @@ describe('ui-agent-preset apply', () => {
     await b.ctx.fiber.dispose()
   })
 
-  it.each(['ptc', 'minimal'])('clears a browser-local staged %s choice without rewriting the Host default', async (preset) => {
+  it.each(['ptc', 'minimal'])('clears a staged %s choice on a non-loopback browser and corrects the Host default', async (preset) => {
     const b = await bench({ memory: true, presets: [
       ...ROSTER_MOVED.value.presets, { id: 'ptc', isDefault: false },
     ] })
@@ -1077,8 +1093,10 @@ describe('ui-agent-preset apply', () => {
     await b.ctx.configForms.developerTools.setEnabled(false)
     const section = (b.slots.entries('settings.section')[0]!.inject as () => AgentPresetSectionInjected & Record<string, unknown>)()
     await section.load()
-    expect(section.hooks.agentPresetSection.getSnapshot().rows.find(row => row.isDefault)?.id).toBe('minimal')
-    expect(b.calls.filter(call => call.startsWith('settings:'))).toEqual([])
+    // An authenticated non-loopback browser writes the Host settings like loopback does,
+    // so the Developer tools correction moves the shared default off Minimal.
+    expect(section.hooks.agentPresetSection.getSnapshot().rows.find(row => row.isDefault)?.id).toBe('standard')
+    expect(b.calls.filter(call => call.startsWith('settings:'))).toEqual(['settings:{"selectedDefault":"standard"}'])
     state.current = 's1'
     await injectSeat(SessionId('s1')).load()
     sessions.notify()

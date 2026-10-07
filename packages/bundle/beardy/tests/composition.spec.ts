@@ -147,6 +147,7 @@ describe('dsh-beardy composition gating', () => {
             { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: 'Help Mamabear.' } },
             { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web' },
             { id: 'tool-memory', name: '@deepseek-ai/dsh-tool-memory' },
+            { id: 'tool-schedule', name: '@deepseek-ai/dsh-tool-schedule' },
           ],
         } },
       ] },
@@ -199,6 +200,8 @@ describe('dsh-beardy composition gating', () => {
     for (const id of ['beardy', 'beardy-discord', 'beardy-unattended']) {
       const preset = presets.find(row => (row.config as { id: string }).id === id)
       const children = (preset!.config as { plugins: JsonRecord[] }).plugins
+      // Reminder tools are preset-scoped; the Host Schedule row only owns storage and delivery.
+      expect(children.some(row => row.id === 'tool-schedule'), `${id}/tool-schedule`).toBe(true)
       const delegation = children.find(row => row.id === 'delegation')
       if (delegation === undefined || !Array.isArray(delegation.config)) throw new Error(`missing ${id} delegation`)
       for (const childId of ['tool-subagent', 'tool-subagent-fork', 'tool-subagent-codex', 'tool-subagent-claude-code']) {
@@ -215,7 +218,7 @@ describe('dsh-beardy composition gating', () => {
       throw new Error('missing Mamabear preset plugins')
     }
     const mamabearIds = mamabear.config.plugins.filter(isRecord).map(row => row.id)
-    expect(mamabearIds).toEqual(['persona', 'tool-web', 'tool-memory'])
+    expect(mamabearIds).toEqual(['persona', 'tool-web', 'tool-memory', 'tool-schedule'])
     for (const forbidden of ['tool-bash', 'tool-pwsh', 'tool-fs', 'tool-discord']) expect(mamabearIds).not.toContain(forbidden)
 
     const ctx = new Context()

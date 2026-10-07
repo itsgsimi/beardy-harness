@@ -179,7 +179,7 @@ dsh plugin --profile <name> add @deepseek-ai/dsh-beardy
 <details>
 <summary>实现内部细节 — 点击展开</summary>
 
-patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-sqlite`，选择 `searxng` web provider，禁用 DeepSeek 搜索行，启用 `tool-web`，并插入 `tool-session-query`、`tool-weather`、`time-context` 以及按 token 门控的 `tool-discord`、`discord-gateway` 与 `cron` 行。三个 profile YAML 声明通过 `agent-preset-registry` 注册 `beardy`、`beardy-unattended` 和 `beardy-discord`；每个声明都包含 persona、作为全局指令候选的策展记忆文件和 `memory` 工具。无人值守与 Discord 声明增加各自的回复指引，并要求记忆写入经过审批。SearXNG 负责 Web 搜索传输与结果映射，搜索后端持有独立的派生 SQLite 数据库，历史工具 Consumer 负责面向模型的 schema、指引与工作区授权。组合包自身不持有任何运行时服务或可变状态。
+patch 选择随发行版交付的 `beardy` agent preset，覆盖 `session-query-sqlite`，选择 `searxng` web provider，禁用 DeepSeek 搜索行，启用 `tool-web`，并插入 `tool-session-query`、`tool-weather`、`time-context` 以及按 token 门控的 `tool-discord`、`discord-gateway` 与 `cron` 行。三个 profile YAML 声明通过 `agent-preset-registry` 注册 `beardy`、`beardy-unattended` 和 `beardy-discord`；每个声明都包含 persona、作为全局指令候选的策展记忆文件、`memory` 工具以及按 preset 作用域挂载的 `tool-schedule` 提醒工具。无人值守与 Discord 声明增加各自的回复指引，并要求记忆写入经过审批。SearXNG 负责 Web 搜索传输与结果映射，搜索后端持有独立的派生 SQLite 数据库，历史工具 Consumer 负责面向模型的 schema、指引与工作区授权。组合包自身不持有任何运行时服务或可变状态。
 
 ### 源码地图
 

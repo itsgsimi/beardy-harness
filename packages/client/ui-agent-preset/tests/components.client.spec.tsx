@@ -111,7 +111,8 @@ describe('the new-session chip', () => {
     ] }, undefined, undefined, enabled)
 
     fireEvent.click(screen.getByRole('button'))
-    expect(screen.getAllByRole('menuitem')).toHaveLength(enabled ? 5 : 3)
+    // The Manage modes footer adds one menu item after the modes.
+    expect(screen.getAllByRole('menuitem')).toHaveLength((enabled ? 5 : 3) + 1)
     expect(screen.getByRole('menuitem', { name: /^Standard mode/ })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /^mine/ })).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: /^PTC mode/ }) !== null).toBe(enabled)

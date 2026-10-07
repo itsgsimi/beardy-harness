@@ -2396,6 +2396,9 @@ importers:
       '@deepseek-ai/dsh-tool-research':
         specifier: workspace:*
         version: link:../../research/tool-research
+      '@deepseek-ai/dsh-tool-schedule':
+        specifier: workspace:*
+        version: link:../../schedule/tool-schedule
       '@deepseek-ai/dsh-tool-session-query':
         specifier: workspace:*
         version: link:../../session-query/tool-session-query
@@ -3045,7 +3048,7 @@ importers:
         version: link:../../../vendor/schemastery
       ring-client-api:
         specifier: ^14.3.0
-        version: 14.3.0
+        version: 14.3.0(supports-color@9.4.0)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -24947,11 +24950,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@homebridge/camera-utils@3.0.0':
+  '@homebridge/camera-utils@3.0.0(supports-color@9.4.0)':
     dependencies:
       execa: 9.6.1
       ffmpeg-for-homebridge: 2.2.2
-      pick-port: 2.2.1
+      pick-port: 2.2.1(supports-color@9.4.0)
       rxjs: 7.8.2
       systeminformation: 5.33.13
     transitivePeerDependencies:
@@ -30193,7 +30196,7 @@ snapshots:
 
   performance-now@2.1.0: {}
 
-  pick-port@2.2.1:
+  pick-port@2.2.1(supports-color@9.4.0):
     dependencies:
       debug: 4.4.3(supports-color@9.4.0)
     transitivePeerDependencies:
@@ -30506,10 +30509,10 @@ snapshots:
     dependencies:
       glob: 7.2.3
 
-  ring-client-api@14.3.0:
+  ring-client-api@14.3.0(supports-color@9.4.0):
     dependencies:
       '@eneris/push-receiver': 4.3.0
-      '@homebridge/camera-utils': 3.0.0
+      '@homebridge/camera-utils': 3.0.0(supports-color@9.4.0)
       colors: 1.4.0
       debug: 4.4.3(supports-color@9.4.0)
       json-bigint: 1.0.0
@@ -30517,7 +30520,7 @@ snapshots:
       systeminformation: 5.33.13
       undici: 7.28.0
       uuid: 13.0.2
-      werift: 0.22.4
+      werift: 0.22.4(supports-color@9.4.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -31637,7 +31640,7 @@ snapshots:
 
   webidl-conversions@8.0.1: {}
 
-  werift-common@0.0.3:
+  werift-common@0.0.3(supports-color@9.4.0):
     dependencies:
       '@shinyoshiaki/jspack': 0.0.6
       debug: 4.4.3(supports-color@9.4.0)
@@ -31674,7 +31677,7 @@ snapshots:
     dependencies:
       '@shinyoshiaki/jspack': 0.0.6
 
-  werift@0.22.4:
+  werift@0.22.4(supports-color@9.4.0):
     dependencies:
       '@fidm/x509': 1.2.1
       '@minhducsun2002/leb128': 1.0.0
@@ -31693,7 +31696,7 @@ snapshots:
       multicast-dns: 7.2.5
       turbo-crc32: 1.0.1
       tweetnacl: 1.0.3
-      werift-common: 0.0.3
+      werift-common: 0.0.3(supports-color@9.4.0)
       werift-dtls: 0.5.8
       werift-ice: 0.2.3
       werift-rtp: 0.8.9

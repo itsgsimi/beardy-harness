@@ -107,7 +107,7 @@ describe('session.search', () => {
       { ...hit('ordinary'), header: ordinary.header },
     ] }))
     installSearchQuery(ctx, searchSessions)
-    const list = new ApiSessionList(ctx)
+    const list = new ApiSessionList(ctx, 8)
     expect((await list.list()).map(item => item.sessionId)).toEqual(['ordinary'])
     expect(await ctx.sessionQuery.readSession(stage.id)).toMatchObject({ session: { parentSession: sid('rp-native-run') } })
     expect(await list.search('match', new AbortController().signal)).toMatchObject({ items: [{ sessionId: ordinary.id }] })

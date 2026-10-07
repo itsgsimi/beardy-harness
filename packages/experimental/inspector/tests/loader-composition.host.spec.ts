@@ -57,7 +57,7 @@ describe('experimental Inspector through a real Loader composition', () => {
     context.loader.builtins.include = Include
     const modules = new Map<string, unknown>([
       ['@deepseek-ai/dsh-host-webserver', WebServer],
-      ['fixture:connection', (ctx: Context) => { new HostConnectionService(ctx, [], {} as BrowserAuth) }],
+      ['fixture:connection', (ctx: Context) => { new HostConnectionService(ctx, [], { kind: 'browser', browserAuth: {} as BrowserAuth }) }],
       ['@deepseek-ai/dsh-experimental-inspector', Inspector],
     ])
     context.loader.internal = {

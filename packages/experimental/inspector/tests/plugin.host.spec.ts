@@ -40,7 +40,7 @@ describe('experimental Inspector Host plugin', () => {
     let authenticated = false
     const auth: Pick<BrowserAuth, 'isAuthenticated'> = { isAuthenticated: () => authenticated }
     context.provide('webServer', routes as WebServer)
-    const connection = new HostConnectionService(context, [], auth as BrowserAuth)
+    const connection = new HostConnectionService(context, [], { kind: 'browser', browserAuth: auth as BrowserAuth })
     const fiber = context.plugin(
       { name, inject: [...inject], Config, apply },
       { port: 0, captureFetch: false },
@@ -123,7 +123,7 @@ describe('experimental Inspector Host plugin', () => {
     context = new Context()
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: () => () => {}, registerUpgrade: () => () => {} }
     context.provide('webServer', routes as WebServer)
-    new HostConnectionService(context, [], {} as BrowserAuth)
+    new HostConnectionService(context, [], { kind: 'browser', browserAuth: {} as BrowserAuth })
     context.provide('inspector', {
       publish: () => undefined,
       cordis: { getTree: () => Promise.reject(new Error('unused test service')) },
@@ -145,7 +145,7 @@ describe('experimental Inspector Host plugin', () => {
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: () => () => {}, registerUpgrade: () => () => {} }
     context.provide('webServer', routes as WebServer)
     context.provide('cmdlineArgs', { get: () => ['--inspect'] })
-    const connection = new HostConnectionService(context, [], {} as BrowserAuth)
+    const connection = new HostConnectionService(context, [], { kind: 'browser', browserAuth: {} as BrowserAuth })
     vi.mocked(open).mockRejectedValueOnce(new Error('Chrome unavailable'))
     const fiber = context.plugin({ name, inject: [...inject], Config, apply }, { port: 0, captureFetch: false })
     await fiber.await()

@@ -34,7 +34,7 @@ async function harness(url: string, streamIdleTimeoutMs = 1_000, queueTimeoutMs 
   return ctx
 }
 
-const request = { model: 'deepseek-v4-flash', messages: [] }
+const request = { model: 'deepseek-flash', messages: [] }
 
 describe('pi-ai provider admission lifecycle', () => {
   it('fails an intentionally unloaded route before credential lookup, admission, or HTTP dispatch', async () => {

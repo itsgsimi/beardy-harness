@@ -6,6 +6,7 @@ import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 import type { GlobalStandardProps, SessionStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { en } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 import { ResearchRow } from '../src/client/tool/toolviews/research-row.tsx'
@@ -19,19 +20,20 @@ const standard: GlobalStandardProps & SessionStandardProps = {
   usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
   useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
   inputActions: { captureInsertion: unused, insertText: unused, setDraft: unused,
-    addAttachments: unused, removeAttachment: unused, pruneAttachments: unused, submit: unused },
+    addAttachments: unused, removeAttachment: unused, pruneAttachments: unused, submit: unused, persistDraft: unused },
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 function props(meta: unknown, isError = false, name = 'odysseus_research'): Props {
+  const argsRaw = '{"action":"report","id":"rp-report"}'
   const block: ToolResultNode = {
     kind: 'tool-result', seq: 10, time: 2000, callTime: 1000, callId: 'research',
-    call: { name, argsRaw: '{"action":"report","id":"rp-report"}' },
+    name, args: PartialArguments.fromText(argsRaw),
+    call: { name, argsRaw },
     content: [{ type: 'text', text: 'A short model page' }], isError, subCalls: [], meta,
   }
   return {
     ...standard, callId: 'research', openFile: unused, loadImage: unused,
-    useToolCallArgumentsPartial: unused,
     phase: 'result', toolName: name, block, t,
     useDisclosure: () => ({ expanded: false, setExpanded: vi.fn(), toggle: vi.fn() }),
   }

@@ -137,7 +137,9 @@ export class AgentPresetSeatController {
       return
     }
     await this.load()
-    this.set({ pickerSaving: false, pickerError: this.store.getSnapshot().error })
+    // A selection refusal belongs to the chip's Toast; only a roster read failure reports here.
+    const { error } = this.store.getSnapshot()
+    this.set({ pickerSaving: false, pickerError: typeof error === 'string' ? error : null })
   }
 
   /**
