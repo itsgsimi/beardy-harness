@@ -266,7 +266,6 @@ export function expectedDshPackageFiles(manifest: PackageManifest): readonly str
     ...[...localeFiles].sort(),
     'lib/index.js',
     ...manifest.bin ? ['lib/bin.js'] : [],
-    ...exportDefault(manifest, './path-segment') === './lib/path-segment.js' ? ['lib/path-segment.js'] : [],
     // Worker-thread packages ship a CJS worker entry; the browser worker
     // bundle is an ES module a page loads with `new Worker(type: 'module')`.
     // Keyed on the artifact path, like ./client below.
