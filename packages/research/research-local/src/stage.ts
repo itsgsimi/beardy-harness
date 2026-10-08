@@ -2,7 +2,8 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import { installDedicatedPrompt, type Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { installDedicatedPrompt } from '@deepseek-ai/dsh-dedicated-prompt'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ResearchRunId } from '@deepseek-ai/dsh-research/types'

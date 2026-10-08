@@ -7,6 +7,7 @@
     { "path": "../../../vendor/schemastery" },
     { "path": "../../../vendor/cordis" },
     { "path": "../../core/agent" },
+    { "path": "../../prompt/dedicated-prompt" },
     { "path": "../../attachment/attachment" },
     { "path": "../research" },
     { "path": "../../core/session" },

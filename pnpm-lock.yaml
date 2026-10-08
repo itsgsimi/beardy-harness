@@ -3117,6 +3117,9 @@ importers:
       '@deepseek-ai/dsh-camera-ring':
         specifier: workspace:*
         version: link:../camera-ring
+      '@deepseek-ai/dsh-dedicated-prompt':
+        specifier: workspace:*
+        version: link:../../prompt/dedicated-prompt
       '@deepseek-ai/dsh-delivery-target':
         specifier: workspace:*
         version: link:../../util/delivery-target
@@ -11558,6 +11561,9 @@ importers:
       '@deepseek-ai/dsh-attachment-local':
         specifier: workspace:*
         version: link:../../attachment/attachment-local
+      '@deepseek-ai/dsh-dedicated-prompt':
+        specifier: workspace:*
+        version: link:../../prompt/dedicated-prompt
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
         version: link:../../llm/llm

@@ -100,7 +100,6 @@ await handle.agent.whenIdle()
 | [`src/dispatch.ts`](src/dispatch.ts) | `agentEvents` 融合分发器与 `assembleContextFor(agent)` |
 | [`src/consumed-work.ts`](src/consumed-work.ts) | `foldConsumedWork(events)`：日志消费掉的工作最终怎样了 |
 | [`src/model-selection.ts`](src/model-selection.ts) | `installModelSelection`：把一个选择耦合到组装与路由 |
-| [`src/dedicated-prompt.ts`](src/dedicated-prompt.ts) | `installDedicatedPrompt`：为单一用途的 Agent 作用域提供一个完整系统提示词（不含运行时上下文和工具 schema）以及固定的请求温度 |
 | [`src/archive-admission.ts`](src/archive-admission.ts) | Workspace 注册表归档准入中的 `turn` 族：运行中的回合及其用户原因取消 |
 
 ### 注册表与生命周期

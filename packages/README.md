@@ -39,6 +39,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`schedule/`](schedule/README.md) | Host-owned scheduled follow-ups |
 | [`health/`](health/README.md) | Explicit endpoint probes and Host status |
 | [`homelab/`](homelab/README.md) | Beardy-backed read-only home-network observations |
+| [`prompt/`](prompt/README.md) | Dedicated complete prompts for single-purpose Agent scopes |
 | [`feedback/`](feedback/README.md) | Human feedback capture and command |
 | [`telemetry/`](telemetry/README.md) | Shared Cordis OTel reporting channels |
 | [`identity/`](identity/README.md) | Shared anonymous identity |

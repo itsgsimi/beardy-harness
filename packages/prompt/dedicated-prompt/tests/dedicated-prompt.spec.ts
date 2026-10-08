@@ -4,7 +4,8 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { agentEvents, installDedicatedPrompt, type Agent } from '../src/index.ts'
+import { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
+import { installDedicatedPrompt } from '../src/index.ts'
 
 const PROMPT = 'You are one isolated stage. Answer with JSON only.'
 

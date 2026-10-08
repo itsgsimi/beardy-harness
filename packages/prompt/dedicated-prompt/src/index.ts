@@ -1,12 +1,12 @@
 /**
  * Agent-scoped prompt isolation for single-purpose model turns that must answer from one dedicated
  * system prompt with no tools.
- * @module @deepseek-ai/dsh-agent/dedicated-prompt
+ * @module @deepseek-ai/dsh-dedicated-prompt
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
-import type {} from './runtime-types.ts'
+import type {} from '@deepseek-ai/dsh-agent'
 
 /** The prompt and sampling an isolated Agent scope sends on every request. */
 export interface DedicatedPrompt {

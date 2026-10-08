@@ -376,6 +376,7 @@
       "@deepseek-ai/dsh-credentials": ["./packages/credentials/credentials/src"],
       "@deepseek-ai/dsh-credentials-local": ["./packages/credentials/credentials-local/src"],
       "@deepseek-ai/dsh-cron": ["./packages/cron/cron/src"],
+      "@deepseek-ai/dsh-dedicated-prompt": ["./packages/prompt/dedicated-prompt/src"],
       "@deepseek-ai/dsh-deepseek-llm-api-extensions": ["./packages/llm/deepseek-llm-api-extensions/src"],
       "@deepseek-ai/dsh-delivery-target": ["./packages/util/delivery-target/src"],
       "@deepseek-ai/dsh-deque": ["./packages/util/deque/src"],

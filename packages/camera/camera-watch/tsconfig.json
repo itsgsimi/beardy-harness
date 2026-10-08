@@ -27,6 +27,9 @@
       "path": "../../core/agent-default-model"
     },
     {
+      "path": "../../prompt/dedicated-prompt"
+    },
+    {
       "path": "../../llm/llm"
     },
     {

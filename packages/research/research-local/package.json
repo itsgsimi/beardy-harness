@@ -16,6 +16,7 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-dedicated-prompt": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
     "@deepseek-ai/dsh-research": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
@@ -29,6 +30,7 @@
   "dependencies": { "@deepseek-ai/schemastery": "workspace:~" },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-dedicated-prompt": "workspace:*",
     "@deepseek-ai/dsh-agent-loop": "workspace:*",
     "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",

@@ -60,7 +60,7 @@ Loader 组合测试使用以下字段装载此提供方：
 <details>
 <summary>实现细节——点击展开</summary>
 
-运行 Agent 保持空闲，其 Session 日志记录状态与所有权。引擎在实时运行 Agent 下为每次模型调用创建短生命周期的子 Agent/Session，因此阶段限制也会屏蔽注册在运行作用域中的工具。它拒绝执行其余作用域工具。每个阶段 Session 通过 `@deepseek-ai/dsh-agent` 的 `installDedicatedPrompt` 仅依据一个完整的阶段系统提示词作答：部署人设、运行时上下文和所有工具 schema 都不会进入请求。每个阶段轮次只能发出一次模型请求，因此带纠正轮次的阶段最多发出两次。`ctx.web` 负责安全搜索与抓取；网页工具的共享转换器把有界 HTML 渲染为 Markdown。来源账本先附加精确抓取文本，再写入引用事件，随后记录规范化发现和草稿引用。`ctx.sessions.flush` 是进度提交屏障。调用方刷新失败可能留下可找到的运行 Session。
+运行 Agent 保持空闲，其 Session 日志记录状态与所有权。引擎在实时运行 Agent 下为每次模型调用创建短生命周期的子 Agent/Session，因此阶段限制也会屏蔽注册在运行作用域中的工具。它拒绝执行其余作用域工具。每个阶段 Session 通过 `@deepseek-ai/dsh-dedicated-prompt` 的 `installDedicatedPrompt` 仅依据一个完整的阶段系统提示词作答：部署人设、运行时上下文和所有工具 schema 都不会进入请求。每个阶段轮次只能发出一次模型请求，因此带纠正轮次的阶段最多发出两次。`ctx.web` 负责安全搜索与抓取；网页工具的共享转换器把有界 HTML 渲染为 Markdown。来源账本先附加精确抓取文本，再写入引用事件，随后记录规范化发现和草稿引用。`ctx.sessions.flush` 是进度提交屏障。调用方刷新失败可能留下可找到的运行 Session。
 
 运行 Session 是唯一的状态权威，报告读取时会检查附件是否存在，因此不发布运行时不变式配套插件。
 

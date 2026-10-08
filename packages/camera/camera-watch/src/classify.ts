@@ -7,7 +7,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { installDedicatedPrompt, type ModelSelection } from '@deepseek-ai/dsh-agent'
+import type { ModelSelection } from '@deepseek-ai/dsh-agent'
+import { installDedicatedPrompt } from '@deepseek-ai/dsh-dedicated-prompt'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSourceMap, UserMessage } from '@deepseek-ai/dsh-llm'
