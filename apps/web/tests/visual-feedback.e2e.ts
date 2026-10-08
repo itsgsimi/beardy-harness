@@ -24,7 +24,7 @@ describe.skipIf(MODE === 'record')('web: inline visual feedback', () => {
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
-      replayFixture: join(DIR, 'session.v3.jsonl'), compareReplaySession: true,
+      replayFixture: join(DIR, 'session.v4.jsonl'), compareReplaySession: true,
       extraOverlayPath: OVERLAY, extraInstallAnchors: INSTALL_ANCHORS,
     })
     browser = await chromium.launch()
@@ -42,7 +42,7 @@ describe.skipIf(MODE === 'record')('web: inline visual feedback', () => {
   })
 
   it('shows charts, original screenshots, animated GIFs, and working isolated mockups alongside findings', async () => {
-    const [prompt] = fixtureUserPrompts(await readFile(join(DIR, 'session.v3.jsonl'), 'utf8'))
+    const [prompt] = fixtureUserPrompts(await readFile(join(DIR, 'session.v4.jsonl'), 'utf8'))
     if (prompt === undefined) throw new Error('Visual fixture requires a user prompt')
     const settled = scaffold.whenTurnSettled()
     const composer = page.locator('[data-composer-input]').first()
@@ -53,10 +53,8 @@ describe.skipIf(MODE === 'record')('web: inline visual feedback', () => {
     expect(session).toBeDefined()
     const deliveries = session!.snapshotEvents().filter(event => event.type === 'deliverables/presented')
     expect(deliveries).toHaveLength(4)
-    expect(session!.snapshotEvents().some(event => event.type === 'system/message'
-      && JSON.stringify(event.data).includes('use it proactively'))).toBe(true)
     expect(session!.snapshotEvents().some(event => event.type === 'request/header'
-      && JSON.stringify(event.data).includes('present_visual'))).toBe(true)
+      && JSON.stringify(event.data).includes('Use visuals during browser testing'))).toBe(true)
     await expect.poll(() => page.locator('[data-presented-visual]').count()).toBe(4)
     const cards = page.locator('[data-presented-visual]')
     await expect.poll(() => cards.locator('img').evaluateAll(images => images.every(image =>

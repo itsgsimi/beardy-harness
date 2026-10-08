@@ -1,13 +1,7 @@
-- button "System prompt":
-  - img
-  - img
-  - text: System prompt
 - text: Show the chart, screenshot, animation, and interactive mockup in this conversation with a brief explanation of each. The files chart.svg, screenshot.png, interaction.gif, and mockup.html already exist. All data is illustrative. {{clock}}
-- button "Copy":
-  - img
-- button "4 tool calls · 1 message":
-  - text: 4 tool calls · 1 message
-  - img
+- button "Copy"
+- status: Completed
+- button "Completed in {{duration}}"
 - 'figure "Response time comparison Illustrative data: latency falls from {{duration}} to {{duration}}."':
   - strong: Response time comparison
   - paragraph: "Illustrative data: latency falls from {{duration}} to {{duration}}."
@@ -40,36 +34,15 @@
 - paragraph: The illustrative chart shows a 50% reduction in response time. The screenshot and GIF show the visual state and motion; the mockup lets you toggle its data. These are examples, not measured browser-test results.
 - button "Preview chart.svg in sidebar"
 - text: "chart.svg Illustrative data: latency falls from {{duration}} to {{duration}}."
-- button "Open chart.svg in sidebar": Open
-- button "More file actions for chart.svg":
-  - img
 - button "Preview screenshot.png in sidebar"
 - text: screenshot.png Example screenshot illustrating the status bar.
-- button "Open screenshot.png in sidebar": Open
-- button "More file actions for screenshot.png":
-  - img
 - button "Preview interaction.gif in sidebar"
 - text: interaction.gif Example animation showing a shrinking response-time bar.
-- button "Open interaction.gif in sidebar": Open
-- button "More file actions for interaction.gif":
-  - img
 - button "Preview mockup.html in sidebar"
 - text: mockup.html Illustrative UI proposal. Toggle the data to explore the chart.
-- button "Open mockup.html in sidebar": Open
-- button "More file actions for mockup.html":
-  - img
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- button "Usage 400 tok":
-  - img
-  - text: Usage 400 tok
-- button "Ran for {{duration}}":
-  - img
-  - text: Ran for {{duration}}
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
+- button "Usage 400 tok"
 - text: {{clock}}
