@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`@deepseek-ai/dsh-agent` 中的 `installDedicatedPrompt` 承载摄像头分类所用的机制：一个遮蔽部署人设前缀的完整段落、被抑制的运行时上下文、一个丢弃所有工具 schema 的 `system-prompt/assemble` 监听器，以及一个设定温度的 `agent/request` 监听器。摄像头分类和研究阶段都调用它；各自保留自己的工具守卫和拒绝文本。它位于 `dsh-agent`，因为该辅助函数同时需要系统提示词服务和 `agent/request` 事件，而 `dsh-agent` 已依赖 `dsh-system-prompt`。
+`@deepseek-ai/dsh-dedicated-prompt` 中的 `installDedicatedPrompt` 承载摄像头分类所用的机制：一个遮蔽部署人设前缀的完整段落、被抑制的运行时上下文、一个丢弃所有工具 schema 的 `system-prompt/assemble` 监听器，以及一个设定温度的 `agent/request` 监听器。摄像头分类和研究阶段都调用它；各自保留自己的工具守卫和拒绝文本。它位于 Beardy 维护的包中，因为它只需要公开的系统提示词服务和 `agent/request` 事件，因此任何上游包都无需承载它（[承载规则](../architecture/2026-10-07-downstream-carry-into-plugins.zh.md)）。
 
 每个研究阶段 Session 现在依据 `You are one stage of a research workflow. You have no tools and cannot search, browse, or run commands; work only from the text in the user message. Follow the output format the message asks for exactly.` 作答。`ResearchWorkflow` 可以提供自己的 `stageSystemPrompt`（1 到 4000 个字符）；Fantasy 工作流说明它是 Fantasy 报告的撰写、审阅或修复阶段，没有工具，并且每个回答都是一个 JSON 对象。除非工作流为某个阶段传入 `temperature`，每个阶段请求都带有 research-local 的 `stageTemperature`，默认 0.2，验证范围为 0 到 2。通用提示词版本变为 `odysseus-general-v2`，Fantasy 提示词版本变为 `fantasy-weekly-v4`。
 

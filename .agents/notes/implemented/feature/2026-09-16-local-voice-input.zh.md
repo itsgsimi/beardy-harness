@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-添加可选的主机服务 `dsh-speech-whisper`。它限制编码字节数、解码时长、并发数和总耗时，通过托管子进程服务运行 FFmpeg，并将 WAV 发送到配置的 whisper.cpp 端点。基础配置包含明确参数，但默认禁用语音。卸载提供程序时会取消并等待活动任务结束。
+添加可选的主机服务 `dsh-speech-whisper`。它限制编码字节数、解码时长、并发数和总耗时，通过托管子进程服务运行 FFmpeg，并将 WAV 发送到配置的 whisper.cpp 端点。Beardy 组合包包含明确参数，但默认禁用语音。卸载提供程序时会取消并等待活动任务结束。
 
 通过 `conversation.input.right` 添加 `ui-voice`，使用共享工具栏控件、语义颜色及中英文文案。麦克风需要安全浏览器上下文。停止录音通过 `SessionInput.appendDraft()` 插入文字，不替换引用节点或发送消息；取消则丢弃录音。GET 能力查询使用缓冲请求策略，POST 音频上传使用流式策略。
 

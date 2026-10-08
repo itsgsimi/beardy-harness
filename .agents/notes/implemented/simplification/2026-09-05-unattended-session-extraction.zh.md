@@ -10,7 +10,7 @@ Webhook 入口、cron 调度器与 Discord 网关各自手写了相同的根 Ses
 
 ## Decision
 
-**由一个库拥有开启流程。** 新包 `packages/session/unattended-session/` 导出 `openUnattendedSession(ctx, spec, signal)`：完整的有序事务，含 standing key、信号绑定、在 standing/workspace/create/attach 之后的取消检查，以及带报告的回滚（已附加时先分离，再处置，各自独立 `try`，警告以 `unattended session:` 为前缀）。spec 携带调用方选定的带品牌 `sessionId`、预设名、工作区路径、标题、解析后的 `agentOptions`，以及在预设挂载后组合的可选额外 `AgentSetup`——webhook 的创建时模型选择即经此固定。提示词准入刻意留在各入口：`webhook`/`cron`/`discord` source block 由入口拥有，纳入 helper 只会为无共享收益的事强制引入判别式 spec。
+**由一个库为 cron 与 Discord 网关拥有开启流程。** 新包 `packages/session/unattended-session/` 导出 `openUnattendedSession(ctx, spec, signal)`：完整的有序事务，含 standing key、信号绑定、在 standing/workspace/create/attach 之后的取消检查，以及带报告的回滚（已附加时先分离，再处置，各自独立 `try`，警告以 `unattended session:` 为前缀）。spec 携带调用方选定的带品牌 `sessionId`、预设名、工作区路径、标题、解析后的 `agentOptions`，以及在预设挂载后组合的可选额外 `AgentSetup`——Discord 网关经此注册频道命令并应用通道工具过滤。Webhook 入口保留上游内联的同一有序事务，因此上游包不导入任何 Beardy 包（[承载规则](../architecture/2026-10-07-downstream-carry-into-plugins.zh.md)）。提示词准入刻意留在各入口：`webhook`/`cron`/`discord` source block 由入口拥有，纳入 helper 只会为无共享收益的事强制引入判别式 spec。
 
 `resumeUnattendedSession` 复用相同的预设与工作区准备、附加、权限应用，以及分离和处置回滚。带判别字段的开启路径把 Agent 创建和仅创建时设置的标题同持久化日志恢复分开，使缺失的恢复日志保留自身的失败原因。
 
@@ -24,4 +24,4 @@ Webhook 入口、cron 调度器与 Discord 网关各自手写了相同的根 Ses
 
 ## Consequences
 
-Cron 与 Discord 获得了此前缺失的 standing-key 预热与提前取消；被预先取消的调度器现在在创建工作区或 Agent 之前就判定该次触发失败，而不再是创建后再处置。Webhook 行为逐字节一致：其调用顺序测试原样通过，且准入失败的回滚（发生在开启成功之后）仍留在 `dsh-webhook` 内、沿用其 `webhook:` 警告前缀——共享 helper 永远看不到已准入的提示词。两个消费方的服务依赖 import 头已经相似到触发 jscpd 克隆门禁；cron 的 import 头带了一条窄范围 `jscpd:ignore`，因为共享逻辑就是该包本身，为躲开 token 阈值而重排 import 只会掩盖这面镜子。
+Cron 与 Discord 获得了此前缺失的 standing-key 预热与提前取消；被预先取消的调度器现在在创建工作区或 Agent 之前就判定该次触发失败，而不再是创建后再处置。Webhook 按相同顺序保留其内联开启流程，因此修改该事务时必须同时更新两份副本。两个消费方的服务依赖 import 头已经相似到触发 jscpd 克隆门禁；cron 的 import 头带了一条窄范围 `jscpd:ignore`，因为共享逻辑就是该包本身，为躲开 token 阈值而重排 import 只会掩盖这面镜子。

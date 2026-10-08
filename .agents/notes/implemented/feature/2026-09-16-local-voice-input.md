@@ -10,7 +10,7 @@ The downstream harness requires typing even when a microphone or Discord voice n
 
 ## Decision
 
-Add `dsh-speech-whisper` as an optional host service. It bounds encoded bytes, decoded duration, concurrency, and elapsed time; runs FFmpeg through the managed subprocess service; and sends WAV to a configured whisper.cpp endpoint. The base profile carries explicit configuration with speech disabled. Provider disposal aborts and drains active work.
+Add `dsh-speech-whisper` as an optional host service. It bounds encoded bytes, decoded duration, concurrency, and elapsed time; runs FFmpeg through the managed subprocess service; and sends WAV to a configured whisper.cpp endpoint. The Beardy bundle carries explicit configuration with speech disabled. Provider disposal aborts and drains active work.
 
 Add `ui-voice` through `conversation.input.right`, using shared toolbar controls, semantic colors, and English/Chinese copy. Microphone capture requires a secure browser context. Stop inserts text through `SessionInput.appendDraft()` without replacing reference nodes or submitting the message; Cancel discards capture. The GET capability route uses a buffered request body policy, while POST audio intake streams.
 

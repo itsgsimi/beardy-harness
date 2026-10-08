@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-07-downstream-carry-into-plugins.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-07-downstream-carry-into-plugins.md
+/agent-note-downstream-code-lives-in-downstream-packages:
+  en: b3c0c64f4885d0db
+  zh: 11de7d1fa175007e
+/agent-note-downstream-code-lives-in-downstream-packages/problem:
+  en: 9fd80f69622e3fa0
+  zh: 249e635fddd74ec2
+/agent-note-downstream-code-lives-in-downstream-packages/decision:
+  en: dd1aa2447cac9936
+  zh: 9457422257549b1d
+/agent-note-downstream-code-lives-in-downstream-packages/decision/carry-ledger:
+  en: 158473823c79afaa
+  zh: 8d16621f3b6b4a07
+/agent-note-downstream-code-lives-in-downstream-packages/alternatives-considered:
+  en: c4d980c8624084ee
+  zh: 319d8282c992567d
+/agent-note-downstream-code-lives-in-downstream-packages/consequences:
+  en: ec1cb6fb34d468ab
+  zh: 3bbcf125eb681f92
