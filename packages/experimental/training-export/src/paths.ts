@@ -1,15 +1,15 @@
 /**
  * On-disk layout for the training-export sidecar: `<root>/<session-id-escaped>/`
  * holding `samples.jsonl`, `labels.jsonl`, and `meta.json`. Session ids use the
- * JSONL persistence path encoder so sidecar and Session directories agree.
+ * same path encoding as JSONL persistence so sidecar and Session directories agree.
  * @module @deepseek-ai/dsh-experimental-training-export/paths
  */
 
 import { join } from 'node:path'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { encodeSegment } from '@deepseek-ai/dsh-session-persistence-jsonl/path-segment'
+import { encodeSegment } from './path-segment.ts'
 
-export { encodeSegment } from '@deepseek-ai/dsh-session-persistence-jsonl/path-segment'
+export { encodeSegment } from './path-segment.ts'
 
 /**
  * The directory this plugin owns for one session's sidecar artifacts.

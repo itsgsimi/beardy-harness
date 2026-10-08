@@ -1,5 +1,11 @@
-/** Safe, injective Session-id encoding for persisted directory names. */
+/**
+ * Injective Session-id encoding for sidecar directory names, kept identical to the JSONL
+ * persistence encoder so a sidecar directory and its Session directory share one name.
+ * @module @deepseek-ai/dsh-experimental-training-export/path-segment
+ */
 
+// The sidecar keeps its own copy so it depends on no persistence subpath export.
+/* jscpd:ignore-start */
 /**
  * Encode an arbitrary string as a single safe path segment, injectively over ALL JS (UTF-16)
  * strings — including lone surrogates. A Session id is an unvalidated branded string,
@@ -27,3 +33,4 @@ export function encodeSegment(raw: string): string {
   }
   return out
 }
+/* jscpd:ignore-end */

@@ -34,9 +34,6 @@
     },
     {
       "path": "../../session/session-title"
-    },
-    {
-      "path": "../../session/session-persistence-jsonl"
     }
   ]
 }
