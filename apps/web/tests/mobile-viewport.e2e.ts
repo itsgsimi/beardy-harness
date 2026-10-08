@@ -273,7 +273,7 @@ describe('web e2e: phone viewport', () => {
     expect(await overflowing(page)).toEqual([])
     report.push(await geometry(page, 'Pending question'))
     await shot(page, '04-question')
-    await composer.getByRole('button', { name: 'Skip this question' }).click()
+    await composer.getByRole('button', { name: 'Skip', exact: true }).click()
     expect(await asked).toEqual({ answers: [{ id: 'color', selected: [] }] })
     await expect.poll(() => page.locator('[data-question-key]').count(), { timeout: 10_000 }).toBe(0)
   }, 60_000)

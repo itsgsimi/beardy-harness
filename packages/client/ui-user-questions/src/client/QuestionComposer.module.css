@@ -446,6 +446,16 @@
 @media (max-width: 720px) {
   .card {
     border-radius: var(--dsw-radius-xl);
+    /* Phone portrait: a smaller cap leaves the transcript and the header row
+       visible above the card, and the on-screen keyboard still leaves the
+       footer actions reachable once the body scrolls. */
+    max-height: min(50dvh, 520px);
+  }
+
+  /* Finger-sized header, pager, and close controls. */
+  .iconButton {
+    width: 36px;
+    height: 36px;
   }
 
   .header {
