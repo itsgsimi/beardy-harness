@@ -1,5 +1,5 @@
 ---
-description: "Shared open-and-await machinery for unattended entry points, for maintainers wiring webhook, cron, or Discord ingress or debugging a half-opened Session."
+description: "Shared open-and-await machinery for unattended entry points, for maintainers wiring cron or Discord ingress or debugging a half-opened Session."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-unattended-session` opens a root Agent Session for webhook, cron, and Discord entry points in one rollback-safe transaction. It resolves presets, creates the workspace and Agent, binds cancellation, attaches, applies permissions, and titles the Session. Each caller retains prompt admission and supplies its Session id prefix, title, model options, and extra setup. Shared helpers (`awaitTurn`, `sleep`, `lastAssistantText`, and `lastTurnEndReason`) bound waits and read turn results. This is a library, not a Cordis plugin.
+`dsh-unattended-session` opens a root Agent Session for cron and Discord entry points in one rollback-safe transaction. It resolves presets, creates the workspace and Agent, binds cancellation, attaches, applies permissions, and titles the Session. Each caller retains prompt admission and supplies its Session id prefix, title, model options, and extra setup. Shared helpers (`awaitTurn`, `sleep`, `lastAssistantText`, and `lastTurnEndReason`) bound waits and read turn results. This is a library, not a Cordis plugin.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ As an ingress author, build a spec, open through the helper, then admit your own
 
 ### Opening a Session
 
-`openUnattendedSession(ctx, spec, signal)` takes an `UnattendedSessionSpec`: the caller-chosen branded `sessionId`, `agentPreset`, `permissionPreset`, absolute `workspacePath`, `title`, `agentOptions` (provider, model, optional reasoning effort and `maxTokens`), and an optional `setup` composed inside the Agent scope after the preset mounts — webhook uses it to pin a creation-time model selection. It returns the `sessionId`, the `AgentHandle`, and the attached `Workspace`, which the caller keeps for later detach or disposal. A failure or cancellation before Agent creation leaves nothing behind; afterwards the Agent is disposed, and detached first when the attach had succeeded. A consumer that accepts a configured `modelSelection` declares that field with `ConfiguredModelSelectionSchema`, and `validateModelSelection()` checks the explicit ingress choice against exact adapter metadata before opening a Session; a caller resuming a Session supplies its logged choice when available.
+`openUnattendedSession(ctx, spec, signal)` takes an `UnattendedSessionSpec`: the caller-chosen branded `sessionId`, `agentPreset`, `permissionPreset`, absolute `workspacePath`, `title`, `agentOptions` (provider, model, optional reasoning effort and `maxTokens`), and an optional `setup` composed inside the Agent scope after the preset mounts — the Discord gateway uses it to register channel commands and apply a lane tool filter. It returns the `sessionId`, the `AgentHandle`, and the attached `Workspace`, which the caller keeps for later detach or disposal. A failure or cancellation before Agent creation leaves nothing behind; afterwards the Agent is disposed, and detached first when the attach had succeeded. A consumer that accepts a configured `modelSelection` declares that field with `ConfiguredModelSelectionSchema`, and `validateModelSelection()` checks the explicit ingress choice against exact adapter metadata before opening a Session; a caller resuming a Session supplies its logged choice when available.
 
 ### Waiting for one turn
 
@@ -70,7 +70,6 @@ A failure inside the post-create region detaches (only when attached) and dispos
 
 Read these pages when the open transaction is not enough. They move from the consumers to the services the transaction drives.
 
-- [Webhook ingress](../../webhook/webhook/README.md) — opens a Session per verified delivery and admits its own prompt.
 - [Cron scheduler](../../cron/cron/README.md) — opens one Session per job fire under a turn bound.
 - [Discord gateway](../../discord/discord-gateway/README.md) — opens one Session per conversing channel.
 - [Agent preset registry](../../preset/agent-preset-registry/README.md) — resolution, standing keys, and mounting that the transaction performs first.

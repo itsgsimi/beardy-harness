@@ -1,6 +1,6 @@
 /**
  * Shared machinery for opening, resuming, and awaiting unattended root Agent Sessions, consumed by
- * webhook ingress, the cron scheduler, and the Discord gateway.
+ * the cron scheduler and the Discord gateway.
  * @module @deepseek-ai/dsh-unattended-session
  */
 

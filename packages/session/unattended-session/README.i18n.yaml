@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/session/unattended-session/README.md
 /:
-  en: f70175eb044ec0d5
-  zh: 979dfd18f54d3a14
+  en: baf82dc83aebbe60
+  zh: 9714f6dbf1d8ba68
 /deepseek-ai-dsh-unattended-session:
   en: e54d0f7409034e2f
   zh: c6e4bc43667d6549
 /deepseek-ai-dsh-unattended-session/summary:
-  en: 0ffb2d0b0c9e7ff5
-  zh: ceda8cbf71e253d5
+  en: 70e0f27ceea6b83f
+  zh: 8adba36972c5aeaa
 /deepseek-ai-dsh-unattended-session/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -18,8 +18,8 @@
   en: cdc691842da28071
   zh: c1013a83d8824fdf
 /deepseek-ai-dsh-unattended-session/use-this-package/opening-a-session:
-  en: 618c73f47ff98858
-  zh: 8fe9a556e6601bc3
+  en: 53f3971f436839b8
+  zh: 510d1dd2700e9a1b
 /deepseek-ai-dsh-unattended-session/use-this-package/waiting-for-one-turn:
   en: 4ccfd994a5bf93c9
   zh: d313c407b41426df
@@ -36,8 +36,8 @@
   en: 74ad0cd3dffee813
   zh: 2d5fdd8a4fedd1ca
 /deepseek-ai-dsh-unattended-session/further-exploration:
-  en: 746168b06a978666
-  zh: 9ef623fbb4fd04a7
+  en: 592ac121fd14046c
+  zh: c031428ddfad1284
 /deepseek-ai-dsh-unattended-session/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90

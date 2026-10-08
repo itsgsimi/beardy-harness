@@ -46,7 +46,7 @@ function reportRollbackFailure(ctx: Context, subject: string, error: unknown): v
 }
 
 /**
- * Open one unattended root Session in the order webhook ingress established: permission resolve,
+ * Open one unattended root Session in the order webhook ingress uses: permission resolve,
  * preset resolve and its standing key, workspace create, Agent creation bound to `signal`, attach,
  * permission set, title. A failure after Agent creation disposes it (and detaches first when the
  * attach had succeeded); each rollback failure is reported while the original error propagates.

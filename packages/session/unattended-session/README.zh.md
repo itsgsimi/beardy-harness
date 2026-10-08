@@ -1,5 +1,5 @@
 ---
-description: "面向无人值守入口的共享开启与等待机制，供接入 webhook、cron 或 Discord 入口或排查半开启 Session 的维护者使用。"
+description: "面向无人值守入口的共享开启与等待机制，供接入 cron 或 Discord 入口或排查半开启 Session 的维护者使用。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-unattended-session` 通过一个可安全回滚的事务，为 webhook、cron 和 Discord 入口开启根 Agent Session。它解析预设、创建工作区和 Agent、绑定取消、附加、应用权限，并为 Session 设置标题。各调用方保留提示词准入职责，并提供 Session id 前缀、标题、模型选项和额外 setup。共享辅助函数（`awaitTurn`、`sleep`、`lastAssistantText` 和 `lastTurnEndReason`）为等待设界并读取轮次结果。这是一个库，而非 Cordis 插件。
+`dsh-unattended-session` 通过一个可安全回滚的事务，为 cron 和 Discord 入口开启根 Agent Session。它解析预设、创建工作区和 Agent、绑定取消、附加、应用权限，并为 Session 设置标题。各调用方保留提示词准入职责，并提供 Session id 前缀、标题、模型选项和额外 setup。共享辅助函数（`awaitTurn`、`sleep`、`lastAssistantText` 和 `lastTurnEndReason`）为等待设界并读取轮次结果。这是一个库，而非 Cordis 插件。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 开启一个 Session
 
-`openUnattendedSession(ctx, spec, signal)` 接受一个 `UnattendedSessionSpec`：由调用方选定的带品牌 `sessionId`、`agentPreset`、`permissionPreset`、绝对 `workspacePath`、`title`、`agentOptions`（provider、model、可选推理力度与 `maxTokens`），以及在预设挂载后于 Agent 作用域内组合的可选 `setup`——webhook 用它固定创建时的模型选择。它返回 `sessionId`、`AgentHandle` 与已附加的 `Workspace`，调用方保留后者以便后续分离或处置。Agent 创建之前的失败或取消不留任何残留；之后的失败会处置该 Agent，若附加已成功则先分离。接受配置 `modelSelection` 的消费方用 `ConfiguredModelSelectionSchema` 声明该字段，`validateModelSelection()` 在打开 Session 前按确切适配器元数据检查显式入口选择；恢复 Session 的调用方在存在日志选择时传入该选择。
+`openUnattendedSession(ctx, spec, signal)` 接受一个 `UnattendedSessionSpec`：由调用方选定的带品牌 `sessionId`、`agentPreset`、`permissionPreset`、绝对 `workspacePath`、`title`、`agentOptions`（provider、model、可选推理力度与 `maxTokens`），以及在预设挂载后于 Agent 作用域内组合的可选 `setup`——Discord 网关用它注册频道命令并应用通道工具过滤。它返回 `sessionId`、`AgentHandle` 与已附加的 `Workspace`，调用方保留后者以便后续分离或处置。Agent 创建之前的失败或取消不留任何残留；之后的失败会处置该 Agent，若附加已成功则先分离。接受配置 `modelSelection` 的消费方用 `ConfiguredModelSelectionSchema` 声明该字段，`validateModelSelection()` 在打开 Session 前按确切适配器元数据检查显式入口选择；恢复 Session 的调用方在存在日志选择时传入该选择。
 
 ### 等待一个回合
 
@@ -70,7 +70,6 @@ kind: "package-reference"
 
 当开启事务本身不够用时阅读这些页面。它们从消费方走向该事务驱动的各个服务。
 
-- [Webhook 入口](../../webhook/webhook/README.zh.md) —— 每个经过验证的投递开启一个 Session 并准入自己的提示词。
 - [Cron 调度器](../../cron/cron/README.zh.md) —— 每次任务触发在回合界限内开启一个 Session。
 - [Discord 网关](../../discord/discord-gateway/README.zh.md) —— 每个会话频道开启一个 Session。
 - [Agent 预设注册表](../../preset/agent-preset-registry/README.zh.md) —— 事务最先执行的解析、standing key 与挂载。
