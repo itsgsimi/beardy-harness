@@ -110,19 +110,29 @@ describe('Discord cold reminder timers', () => {
   })
 })
 
+/** Serve the in-memory Session as its persisted log through a read-only handle double. */
+function persisted(session: Session) {
+  const close = vi.fn(async () => {})
+  return { close, sessionPersistence: { open: vi.fn(async () => ({
+    read: async () => ({ events: session.ownEvents() }), close, inheritedEventCount: 0,
+  })) } }
+}
+
 describe('legacy reminder dispatch', () => {
   it('does not flush a session without due reminders', async () => {
     const session = Session.create(SessionId('legacy-future'))
     session.append('schedule/change', { version: 1, operation: 'create',
       schedule: createAfterScheduleRecord(ScheduleId('future'), 'Later', 60, Date.now(), 'Later') })
     const flush = vi.fn(async () => true)
-    const ctx = new Context().extend({ sessions: { flush } })
+    const store = persisted(session)
+    const ctx = new Context().extend({ sessions: { flush }, sessionPersistence: store.sessionPersistence })
     const followup = vi.fn()
     const agent: Pick<Agent, 'session' | 'followup'> = { session, followup }
 
     expect(await dispatchLegacyReminders(ctx, agent as Agent)).toBe(0)
     expect(followup).not.toHaveBeenCalled()
     expect(flush).not.toHaveBeenCalled()
+    expect(store.close).toHaveBeenCalledOnce()
   })
 
   it('frames historical untitled recurring reminders and requires a durable inbox splice', async () => {
@@ -133,7 +143,7 @@ describe('legacy reminder dispatch', () => {
     session.append('schedule/change', { version: 1, operation: 'create',
       schedule: untitled as typeof old })
     const flush = vi.fn(async () => false)
-    const ctx = new Context().extend({ sessions: { flush } })
+    const ctx = new Context().extend({ sessions: { flush }, sessionPersistence: persisted(session).sessionPersistence })
     const followup = vi.fn<Agent['followup']>()
     const agent: Pick<Agent, 'session' | 'followup'> = { session, followup }
 

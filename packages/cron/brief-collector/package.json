@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-brief-collector",
   "description": "Bounded RSS, Atom, and weather evidence for one configured cron brief",
-  "version": "0.1.7-rc.2",
+  "version": "0.2.1-alpha.1",
   "publishConfig": {
     "access": "public"
   },

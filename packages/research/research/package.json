@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-research",
   "description": "Durable research service definition and Session event types",
-  "version": "0.1.7-rc.2",
+  "version": "0.2.1-alpha.1",
   "publishConfig": { "access": "public" },
   "repository": { "type": "git", "url": "git+https://github.com/deepseek-ai/deepseek-harness.git", "directory": "packages/research/research" },
   "type": "module",

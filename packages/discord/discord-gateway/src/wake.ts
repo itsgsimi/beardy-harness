@@ -6,7 +6,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   foldScheduleEvents, renderRecurringReminderBatchFraming, renderReminderFraming,
 } from '@deepseek-ai/dsh-schedule'
@@ -16,15 +16,22 @@ import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { ConversationRecord } from './domain.ts'
 
 /**
- * Deliver due reminders retained in a Discord Session's historical event log.
- * Their dispatch marker and inbox splice share one Session flush, so recovery
+ * Deliver due reminders retained in a Discord Session's persisted event log.
+ * Their dispatch markers and inbox splice share one Session flush, so recovery
  * cannot arm the same one-shot reminder after its delivery is durable.
  * @param ctx - Session persistence owner.
  * @param agent - Resumed Discord Agent carrying the historical reminders.
  * @returns Number of reminders placed in the Agent inbox.
  */
 export async function dispatchLegacyReminders(ctx: Context, agent: Agent): Promise<number> {
-  const due = foldScheduleEvents(agent.session.ownEvents()).active
+  const handle = await ctx.sessionPersistence.open(agent.session.id, 'read')
+  let events: readonly SessionEvent[]
+  try {
+    ({ events } = await handle.read(handle.inheritedEventCount))
+  } finally {
+    await handle.close()
+  }
+  const due = foldScheduleEvents(events).active
     .filter(record => Date.parse(record.scheduledAt) <= Date.now())
   for (const record of due) {
     const title = record.title ?? 'Reminder'

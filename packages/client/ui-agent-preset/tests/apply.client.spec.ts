@@ -774,7 +774,7 @@ describe('ui-agent-preset apply', () => {
       ctx.provide('uiWorkspace', uiWorkspaceDouble() as never)
       await ctx.plugin({ inject: [...inject, 'conversation', 'sessions', 'uiWorkspace'], apply }).await()
       const chip = (slots.entries('conversation.hero.agentPreset')[0]!
-        .inject as unknown as () => AgentPresetSeatInjected)()
+        .inject as () => AgentPresetSeatInjected & Record<string, unknown>)()
       await chip.load()
 
       await chip.setPickerPlacement('standard', 'hidden')
