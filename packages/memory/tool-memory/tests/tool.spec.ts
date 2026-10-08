@@ -77,8 +77,10 @@ describe('memory tool', () => {
   it('registers the memory tool and its prompt section', async () => {
     const { ctx } = await setup()
     expect(ctx.tools.schemas().map(tool => tool.name)).toEqual(['memory'])
+    ctx.systemPrompt.section({ name: 'tool:goal', order: ctx.systemPrompt.getSectionOrder('TOOL_GOAL'), text: 'goal' })
+    ctx.systemPrompt.section({ name: 'tool:session-query', order: ctx.systemPrompt.getSectionOrder('TOOL_SESSION_QUERY'), text: 'recall' })
     const assembly = await ctx.systemPrompt.assemble()
-    expect(assembly.sections.map(section => section.name)).toContain('tool:memory')
+    expect(assembly.sections.map(section => section.name).filter(name => name.startsWith('tool:'))).toEqual(['tool:session-query', 'tool:memory', 'tool:goal'])
   })
 
   it('does not register the tool when no filesystem provider is mounted', async () => {

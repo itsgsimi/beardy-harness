@@ -23,6 +23,12 @@ export const name = 'tool-memory'
 /** Services the plugin registers its tool and guidance on; `fs` is awaited through a nested inject. */
 export const inject = ['tools', 'systemPrompt']
 
+/**
+ * Prompt order of the `tool:memory` section: after the session-query tool guidance (2300) and before
+ * the goal tool guidance (2400) in the System Prompt service's named section allocation.
+ */
+export const MEMORY_SECTION_ORDER = 2350
+
 /** Default character cap for USER.md, sized to stay far under the instruction-file byte budget. */
 export const DEFAULT_USER_MAX_CHARS = 1375
 
@@ -120,7 +126,7 @@ export function apply(ctx: Context, config: Config): void {
   assertConfig(resolved)
   ctx.systemPrompt.section({
     name: 'tool:memory',
-    order: ctx.systemPrompt.getSectionOrder('TOOL_MEMORY'),
+    order: MEMORY_SECTION_ORDER,
     text: PROMPT_TEXT,
   })
   ctx.inject(['fs'], (fsCtx) => {
