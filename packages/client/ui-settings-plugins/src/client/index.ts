@@ -17,8 +17,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
-import { ResearchCard } from './ResearchCard.tsx'
-import { RESEARCH_NS, ResearchCardController, type ResearchSettings } from './research-card-controller.ts'
 import type { PluginsSettingsSectionInjected, PluginsSettingsTabEntry } from './PluginsSettingsSection.tsx'
 import { en, zh } from './locales.ts'
 
@@ -28,7 +26,7 @@ export type { PluginsSettingsSectionInjected, PluginsSettingsSectionProps } from
 const NS = 'settings.plugins'
 
 /** Required services (cordis fiber inject). */
-export const inject = ['slots', 'locale', 'configForms']
+export const inject = ['slots', 'locale']
 
 /**
  * Mount the built-in plugins section.
@@ -37,11 +35,6 @@ export const inject = ['slots', 'locale', 'configForms']
 export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-plugins: section dictionaries')
-  const research = new ResearchCardController(ctx.configForms.get<ResearchSettings>(RESEARCH_NS))
-  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
-    name: 'settings.plugins.tab', id: 'research', order: 20,
-    label: () => t('researchTitle'), locale: NS, inject: () => research.inject(),
-  }, ResearchCard))
 
   let tabsVersion = -1
   let tabsRevision = -1

@@ -27,6 +27,7 @@ Research runs survive a process restart and retain owner-scoped progress and rep
 | [`research`](research/README.md) | Run identity, owner, report, event, and service types | `ctx.research` |
 | [`research-local`](research-local/README.md) | Persists, lists, and reconciles runs and report attachments | provider for `ctx.research` |
 | [`tool-research`](tool-research/README.md) | Exposes `deep_research` actions and paged reports | consumer of `ctx.research` |
+| [`client-ui-research`](client-ui-research/README.md) | Web report dialog for research calls and the research worker Settings tab | browser plugin |
 
 -----
 

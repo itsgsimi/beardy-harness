@@ -90,6 +90,12 @@
       name: '@deepseek-ai/dsh-tool-research'
       disabled: true
 
+# The `dsh.client` research row renders saved reports for both research tools
+# and adds the research worker picker to Settings → Plugins.
+- insert:
+    - id: ui-research
+      name: '@deepseek-ai/dsh-client-ui-research'
+
 # The personal profile supplies the private token path, caller teams, and season.
 # Enable both rows together once the private import source or store is available.
 - insert:

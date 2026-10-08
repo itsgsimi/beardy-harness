@@ -56,7 +56,7 @@ changes:
 <a id="verification"></a>
 ## 验证
 
-pnpm exec vitest run packages/client/ui-settings-plugins/tests/research-card.client.spec.tsx packages/session/session-format-v3-to-v4/tests/message-sources.spec.ts：15 个测试通过；pnpm run typecheck 通过。
+pnpm exec vitest run packages/research/client-ui-research/tests/research-card.client.spec.tsx packages/session/session-format-v3-to-v4/tests/message-sources.spec.ts：15 个测试通过；pnpm run typecheck 通过。
 
 <a id="dev-note"></a>
 ## 开发备注

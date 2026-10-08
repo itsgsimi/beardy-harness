@@ -27,6 +27,7 @@ kind: "package-group"
 | [`research`](research/README.zh.md) | 运行身份、所有者、报告、事件和服务类型 | `ctx.research` |
 | [`research-local`](research-local/README.zh.md) | 持久保存、列出和协调运行及报告附件 | `ctx.research` 的提供方 |
 | [`tool-research`](tool-research/README.zh.md) | 提供 `deep_research` 操作和分页报告 | `ctx.research` 的消费方 |
+| [`client-ui-research`](client-ui-research/README.zh.md) | 研究调用的 Web 报告对话框和研究工作模型设置标签页 | 浏览器插件 |
 
 -----
 

@@ -49,6 +49,7 @@ describe('dsh-beardy bundle', () => {
       expect.objectContaining({ id: 'tool-weather', name: '@deepseek-ai/dsh-tool-weather' }),
       expect.objectContaining({ id: 'tool-homelab', name: '@deepseek-ai/dsh-tool-homelab', disabled: true }),
       expect.objectContaining({ id: 'ui-voice', name: '@deepseek-ai/dsh-client-ui-voice' }),
+      expect.objectContaining({ id: 'ui-research', name: '@deepseek-ai/dsh-client-ui-research' }),
     ]))
     expect(rows.find(row => row.id === 'speech-whisper')).toEqual({
       id: 'speech-whisper',
@@ -65,6 +66,7 @@ describe('dsh-beardy bundle', () => {
     })
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-speech-whisper')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-client-ui-voice')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-client-ui-research')
     expect(rows.find(row => row.id === 'agent-preset-registry')?.config).toEqual({ default: 'beardy' })
     expect(rows.find(row => row.id === 'session-query-sqlite')?.config).toEqual({
       path: { __jsExpr: "dshHomePath('session-search.sqlite')" },

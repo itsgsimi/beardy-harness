@@ -70,7 +70,7 @@ Beardy 随附的 `tool-odysseus-research` 桥接条目，以及原生 `research-
   disabled: false
 ```
 
-提供方和模型必须对应已准入的 LLM 路由。该配置档命名空间允许此单用户 Beardy 配置档中的每个 Session 访问其运行；若报告仅应属于一个调用方 Session，可改用 `ownerScope: session`。[原生工具](../../research/tool-research/README.zh.md)提供 `deep_research` 和分页报告。若继续使用 Odysseus，请按照[远端必需配置](../../web/tool-odysseus-research/README.zh.md)启用桥接条目。同时挂载两个工具会在加载时失败。
+提供方和模型必须对应已准入的 LLM 路由。该配置档命名空间允许此单用户 Beardy 配置档中的每个 Session 访问其运行；若报告仅应属于一个调用方 Session，可改用 `ownerScope: session`。[原生工具](../../research/tool-research/README.zh.md)提供 `deep_research` 和分页报告。若继续使用 Odysseus，请按照[远端必需配置](../../web/tool-odysseus-research/README.zh.md)启用桥接条目。同时挂载两个工具会在加载时失败。默认启用的 `ui-research` 条目为两种工具提供[报告对话框和研究设置标签页](../../research/client-ui-research/README.zh.md)。
 
 Beardy 还随附默认禁用的 `fantasy-yahoo` 和 `tool-fantasy` 条目。个人补丁先提供私有 DSH token 路径、一次性导入来源、调用方到球队的映射及人工授权预设，再同时启用两项。[Fantasy 提供方](../../fantasy/fantasy-yahoo/README.zh.md)负责授权与刷新；[工具](../../fantasy/tool-fantasy/README.zh.md)返回有界只读结果。默认禁用的 `fantasy-weekly-reports` 条目发送[定时每周报告](../../fantasy/fantasy-reports/README.zh.md)；个人补丁提供其球队、频道、时间表和工作区，并在启用 Yahoo 条目、以默认配置提供[球员预测](../../fantasy/fantasy-projections-sleeper/README.zh.md)的默认禁用 `fantasy-projections-sleeper` 条目和 profile 范围的原生研究后一同启用它。
 

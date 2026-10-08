@@ -56,7 +56,7 @@ Existing V4 messages remain valid. Discord, cron, and skill notice kinds only at
 <a id="verification"></a>
 ## Verification
 
-pnpm exec vitest run packages/client/ui-settings-plugins/tests/research-card.client.spec.tsx packages/session/session-format-v3-to-v4/tests/message-sources.spec.ts: 15 tests passed; pnpm run typecheck passed.
+pnpm exec vitest run packages/research/client-ui-research/tests/research-card.client.spec.tsx packages/session/session-format-v3-to-v4/tests/message-sources.spec.ts: 15 tests passed; pnpm run typecheck passed.
 
 <a id="dev-note"></a>
 ## Dev Note

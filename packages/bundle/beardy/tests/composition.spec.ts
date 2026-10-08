@@ -167,6 +167,7 @@ describe('dsh-beardy composition gating', () => {
     for (const [id, name] of [
       ['speech-whisper', '@deepseek-ai/dsh-speech-whisper'],
       ['ui-voice', '@deepseek-ai/dsh-client-ui-voice'],
+      ['ui-research', '@deepseek-ai/dsh-client-ui-research'],
       ['tool-discord', '@deepseek-ai/dsh-tool-discord'],
       ['discord-gateway', '@deepseek-ai/dsh-discord-gateway'],
       ['cron', '@deepseek-ai/dsh-cron'],
