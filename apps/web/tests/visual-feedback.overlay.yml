@@ -1,0 +1,5 @@
+# The Beardy bundle owns the presented-visual Chat node; the shipped Web
+# surface under test does not mount it, so this overlay inserts the same row.
+- insert:
+    - id: ui-visuals
+      name: '@deepseek-ai/dsh-client-ui-visuals'

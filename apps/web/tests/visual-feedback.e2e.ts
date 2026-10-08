@@ -13,6 +13,8 @@ import { connectFreshWorkspace, newEnglishPage } from './support.ts'
 
 const DIR = fileURLToPath(new URL('../../../snapshots/web/visual-feedback', import.meta.url))
 const SHOTS = fileURLToPath(new URL('../../../.playwright-mcp/visual-feedback', import.meta.url))
+const OVERLAY = fileURLToPath(new URL('./visual-feedback.overlay.yml', import.meta.url))
+const INSTALL_ANCHORS = [fileURLToPath(new URL('../../../packages/visuals/client-ui-visuals/package.json', import.meta.url))]
 const MODE = webSnapshotMode()
 
 describe.skipIf(MODE === 'record')('web: inline visual feedback', () => {
@@ -21,7 +23,10 @@ describe.skipIf(MODE === 'record')('web: inline visual feedback', () => {
   let page: Page
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({ replayFixture: join(DIR, 'session.v3.jsonl'), compareReplaySession: true })
+    scaffold = await launchWebScaffold({
+      replayFixture: join(DIR, 'session.v3.jsonl'), compareReplaySession: true,
+      extraOverlayPath: OVERLAY, extraInstallAnchors: INSTALL_ANCHORS,
+    })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
