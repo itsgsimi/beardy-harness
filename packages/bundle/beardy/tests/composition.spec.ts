@@ -153,6 +153,8 @@ describe('dsh-beardy composition gating', () => {
       ] },
     ]
     const shipped = composeEntries(layers)
+    expect(shipped.filter(row => row.id === 'speech-whisper')).toEqual([expect.objectContaining({ disabled: true })])
+    expect(shipped.filter(row => row.id === 'ui-voice')).toEqual([expect.objectContaining({ name: '@deepseek-ai/dsh-client-ui-voice' })])
     expect(shipped.some(row => row.id === 'preset-beardy-brief' || row.id === 'preset-beardy-mamabear')).toBe(false)
     const warnings: string[] = []
     const rows = composeEntries([...layers, personal], warning => warnings.push(warning))
@@ -164,6 +166,7 @@ describe('dsh-beardy composition gating', () => {
     }
     for (const [id, name] of [
       ['speech-whisper', '@deepseek-ai/dsh-speech-whisper'],
+      ['ui-voice', '@deepseek-ai/dsh-client-ui-voice'],
       ['tool-discord', '@deepseek-ai/dsh-tool-discord'],
       ['discord-gateway', '@deepseek-ai/dsh-discord-gateway'],
       ['cron', '@deepseek-ai/dsh-cron'],

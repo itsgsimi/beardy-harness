@@ -75,7 +75,9 @@
     "@deepseek-ai/dsh-camera-watch": "workspace:*",
     "@deepseek-ai/dsh-signal": "workspace:*",
     "@deepseek-ai/dsh-signal-cli": "workspace:*",
-    "@deepseek-ai/dsh-signal-notices": "workspace:*"
+    "@deepseek-ai/dsh-signal-notices": "workspace:*",
+    "@deepseek-ai/dsh-speech-whisper": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-voice": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

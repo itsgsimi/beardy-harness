@@ -7,7 +7,6 @@
       config:
         id: ptc
         order: 2
-        picker: more
         plugins:
           - id: persona
             name: '@deepseek-ai/dsh-persona'

@@ -16,7 +16,7 @@ The optional attachment consumer recognizes common audio filenames in standard f
 
 Encoded bytes, decoded duration, concurrent requests, and total time have explicit configuration limits. FFmpeg may read pipes only. Cancellation or plugin disposal aborts uploads, terminates decoder processes, and waits for pending tasks. Transcription failures do not create empty user turns.
 
-The base profile leaves speech disabled. Browser microphone capture requires HTTPS or localhost. The inference model controls supported languages; no NPU, live-call capture, or speech synthesis is required by this feature.
+The Beardy bundle ships speech transcription disabled. Browser microphone capture requires HTTPS or localhost. The inference model controls supported languages; no NPU, live-call capture, or speech synthesis is required by this feature.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

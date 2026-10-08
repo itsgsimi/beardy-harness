@@ -2194,9 +2194,6 @@ importers:
       '@deepseek-ai/dsh-skill-filesystem':
         specifier: workspace:*
         version: link:../../skill/skill-filesystem
-      '@deepseek-ai/dsh-speech-whisper':
-        specifier: workspace:*
-        version: link:../../speech/speech-whisper
       '@deepseek-ai/dsh-spill-local':
         specifier: workspace:*
         version: link:../../spill/spill-local
@@ -2327,6 +2324,9 @@ importers:
       '@deepseek-ai/dsh-camera-watch':
         specifier: workspace:*
         version: link:../../camera/camera-watch
+      '@deepseek-ai/dsh-client-ui-voice':
+        specifier: workspace:*
+        version: link:../../client/ui-voice
       '@deepseek-ai/dsh-cron':
         specifier: workspace:*
         version: link:../../cron/cron
@@ -2372,6 +2372,9 @@ importers:
       '@deepseek-ai/dsh-signal-notices':
         specifier: workspace:*
         version: link:../../signal/signal-notices
+      '@deepseek-ai/dsh-speech-whisper':
+        specifier: workspace:*
+        version: link:../../speech/speech-whisper
       '@deepseek-ai/dsh-subagent-dsh-sdk':
         specifier: workspace:*
         version: link:../../subagent/subagent-dsh-sdk
@@ -2802,9 +2805,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-user-questions':
         specifier: workspace:*
         version: link:../../client/ui-user-questions
-      '@deepseek-ai/dsh-client-ui-voice':
-        specifier: workspace:*
-        version: link:../../client/ui-voice
       '@deepseek-ai/dsh-client-ui-workflow-run':
         specifier: workspace:*
         version: link:../../client/ui-workflow-run
@@ -11433,6 +11433,27 @@ importers:
       '@deepseek-ai/dsh-scope':
         specifier: workspace:*
         version: link:../../core/scope
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+
+  packages/prompt/dedicated-prompt:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:*
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-scope':
+        specifier: workspace:*
+        version: link:../../core/scope
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../core/system-prompt

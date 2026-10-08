@@ -190,3 +190,21 @@
     - id: brief-collector
       name: '@deepseek-ai/dsh-brief-collector'
       disabled: true
+
+# Voice input: the Whisper transcription host row stays disabled until a
+# profile layer enables it by id with its endpoint, and the `dsh.client`
+# dictation row joins the browser roster that dsh-web-app's modules row scans.
+- insert:
+    - id: speech-whisper
+      name: '@deepseek-ai/dsh-speech-whisper'
+      disabled: true
+      config:
+        endpoint: http://127.0.0.1:8178/inference
+        ffmpegPath: ffmpeg
+        maxAudioBytes: 16777216
+        maxDurationSeconds: 180
+        timeoutMs: 120000
+        maxConcurrent: 2
+
+    - id: ui-voice
+      name: '@deepseek-ai/dsh-client-ui-voice'

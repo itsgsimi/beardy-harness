@@ -16,7 +16,7 @@
 
 编码字节数、解码时长、并发请求和总时间都有明确的配置限制。FFmpeg 仅可读取管道。取消或卸载插件会中止上传、终止解码进程并等待正在进行的任务结束。转写失败不会创建空用户轮次。
 
-基础配置默认禁用语音。浏览器麦克风需要 HTTPS 或 localhost。语言支持取决于推理模型；此功能无需 NPU，也不包含实时通话捕获或语音合成。
+Beardy 组合包默认禁用语音转写。浏览器麦克风需要 HTTPS 或 localhost。语言支持取决于推理模型；此功能无需 NPU，也不包含实时通话捕获或语音合成。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

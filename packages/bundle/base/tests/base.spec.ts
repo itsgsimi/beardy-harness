@@ -43,18 +43,6 @@ describe('dsh-base bundle', () => {
     expect(rows.filter(row => row.id === 'subagent-claude-code')).toHaveLength(0)
     expect(rows.find(row => row.id === 'web')?.config).toMatchObject({ fetchProvider: 'http' })
     expect(rows.find(row => row.id === 'web-fetch-http')).toBeDefined()
-    expect(rows.find(row => row.id === 'speech-whisper')).toMatchObject({
-      name: '@deepseek-ai/dsh-speech-whisper',
-      disabled: true,
-      config: {
-        endpoint: 'http://127.0.0.1:8178/inference',
-        ffmpegPath: 'ffmpeg',
-        maxAudioBytes: 16777216,
-        maxDurationSeconds: 180,
-        timeoutMs: 120000,
-        maxConcurrent: 2,
-      },
-    })
     expect(rows.find(row => row.id === 'tool-web')?.config).toMatchObject({ fetch: true })
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
