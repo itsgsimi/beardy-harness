@@ -357,6 +357,32 @@
       }
     },
     {
+      "name": "present_visual",
+      "description": "Show a saved screenshot, chart, animated GIF, SVG diagram, or self-contained HTML/CSS/JavaScript mockup directly in the conversation with your findings. When data is clearer as a chart, show the chart alongside your text explanation. Use visuals during browser testing and whenever they explain the work better than prose. Create the file first, then call this tool. PNG, JPEG, WebP, GIF, SVG and UTF-8 HTML are supported. Embed all mockup assets; external resources are blocked. A snapshot is preserved for the user. This tool displays the file but does not inspect its contents for you.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Existing visual file, absolute or relative to the working directory."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title describing the visual; also used as image alternative text."
+          },
+          "description": {
+            "type": "string",
+            "description": "Findings or explanation to display beside the visual."
+          }
+        },
+        "required": [
+          "path",
+          "title",
+          "description"
+        ]
+      }
+    },
+    {
       "name": "read",
       "description": "Read a UTF-8 text file and return line-numbered content.",
       "parameters": {

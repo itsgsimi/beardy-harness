@@ -487,6 +487,7 @@ const EXPECTED_TOOLS = [
   'job_output',
   'list_agents',
   'present',
+  'present_visual',
   'read',
   'read_image',
   'schedule_create',
