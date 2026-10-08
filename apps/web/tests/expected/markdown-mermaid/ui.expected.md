@@ -1,24 +1,37 @@
 - heading "Mermaid previews" [level=1]
+- text: Code block
 - button "Source"
-- button "Copy"
-- tooltip "Copy"
-- img "Mermaid diagram"
-- button "Source"
+- button "Wrap lines" [pressed]
 - button "Copy"
 - img "Mermaid diagram"
+- text: Code block
 - button "Source"
+- button "Wrap lines" [pressed]
+- button "Copy"
+- img "Mermaid diagram"
+- text: Code block
+- button "Source"
+- button "Wrap lines" [pressed]
 - button "Copy"
 - status: Unable to render this diagram. The source is shown below.
 - code: flowchart LR A[unfinished
+- text: Code block
 - button "Source"
+- button "Wrap lines" [pressed]
 - button "Copy"
 - img "Mermaid diagram"
+- text: Code block
 - button "Source"
+- button "Wrap lines" [pressed]
 - button "Copy"
 - img "Graphviz diagram"
+- text: Code block
 - button "Source"
+- button "Wrap lines" [pressed]
 - button "Copy"
 - img "SVG preview"
+- text: html
 - button "Source"
+- button "Wrap lines" [pressed]
 - button "Copy"
 - iframe

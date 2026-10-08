@@ -190,11 +190,20 @@ export function CodeBlock({
       )
 
   const previewAction = previewAvailable && <Tooltip label={showingPreview ? preview.sourceLabel : preview.previewLabel} side="top">
-    <button type="button" className={css.copyButton} aria-label={showingPreview ? preview.sourceLabel : preview.previewLabel}
+    <button type="button" className={clsx(css.copyButton, css.iconButton)} aria-label={showingPreview ? preview.sourceLabel : preview.previewLabel}
       onClick={() => { setShowSource(value => !value) }}>
-      <IconCodeOutlineRegular size={16} />
+      <span aria-hidden="true"><IconCodeOutlineRegular size={16} /></span>
     </button>
   </Tooltip>
+  const copyActionLabel = copied ? copiedLabel : copyLabel
+  const copyAction = (
+    <button type="button" className={clsx(css.copyButton, previewAvailable && css.iconButton)}
+      aria-label={previewAvailable ? copyActionLabel : undefined} onClick={onCopy}>
+      {previewAvailable
+        ? <span aria-hidden="true">{copied ? <IconCheckOutlineRegular size={16} /> : <IconCopyOutlineRegular size={16} />}</span>
+        : copyActionLabel}
+    </button>
+  )
 
   return (
     <div ref={rootRef} className={clsx(css.block, 'md-code-block', lineNumbers && css.numbered, toolbarLabels !== undefined && css.card, previewAvailable && css.preview, showingPreview && css.showingPreview, className)}
@@ -214,12 +223,7 @@ export function CodeBlock({
           {!previewAvailable && <div className={css.infostring}>{lang ?? ''}</div>}
           <div className={css.action}>
             {previewAction}
-            <button type="button" className={css.copyButton}
-              aria-label={previewAvailable ? copied ? copiedLabel : copyLabel : undefined} onClick={onCopy}>
-              {previewAvailable
-                ? copied ? <IconCheckOutlineRegular size={16} /> : <IconCopyOutlineRegular size={16} />
-                : copied ? copiedLabel : copyLabel}
-            </button>
+            {previewAvailable ? <Tooltip label={copyActionLabel} side="top">{copyAction}</Tooltip> : copyAction}
           </div>
         </div>}
       </div>}

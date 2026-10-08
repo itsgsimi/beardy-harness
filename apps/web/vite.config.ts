@@ -29,6 +29,20 @@ function clientDocumentTitle(): Plugin {
   }
 }
 
+/** Preserve preview licenses and Graphviz source availability in every browser distribution. */
+function previewNotices(): Plugin {
+  return {
+    name: 'dsh-preview-notices',
+    async generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'preview-third-party-notices.txt',
+        source: await readFile(src('../../packages/client/ui-primitives/THIRD_PARTY_PREVIEW_NOTICES.txt'), 'utf8'),
+      })
+    },
+  }
+}
+
 /** Keep the redistribution license beside the bundled brand font. */
 function brandFontLicense(): Plugin {
   return {
@@ -170,7 +184,7 @@ export default defineConfig({
   // directory, and the served index resolves identically from the site root.
   base: './',
   plugins: [
-    rejectStandaloneServe(), clientDocumentTitle(), brandFontLicense(), react(), emitPreviewPage(),
+    previewNotices(), rejectStandaloneServe(), clientDocumentTitle(), brandFontLicense(), react(), emitPreviewPage(),
     productWebBundleIsolation(src('../..'), src('.')),
   ],
   build: {
