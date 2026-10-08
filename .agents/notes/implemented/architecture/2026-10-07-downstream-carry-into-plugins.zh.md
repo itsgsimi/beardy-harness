@@ -23,8 +23,9 @@ Beardy 代码放在 Beardy 维护的包和 `dsh-beardy` 组合包中。只有当
 | webhook 入口的无人值守开启 | `webhook/webhook` 对 `dsh-unattended-session` 的导入 | 已移除；webhook 保留上游的内联开启流程，cron 与 Discord 继续使用共享库 |
 | `beardy` profile 模板 | `boot/app-boot` 的 `PROFILE_TEMPLATES` | profile 自身的 `package.json` 列出其三个组合包层 |
 | `encodeSegment` 子路径导出 | `session/session-persistence-jsonl` | `experimental/training-export` 中的副本，并通过测试与 JSONL 编码器比对 |
+| `skill_manage`、技能提醒、它们的六个配置字段以及被裁剪技能的重新加载指引 | `skill/tool-skill` | 与 `tool-skill` 并列的新行 [`dsh-tool-skill-manage`](../../../../packages/memory/tool-skill-manage/README.zh.md)；该指引从目录消息移到其自身的 `tool:skill-manage` 提示词分节 |
 
-没有任何 Session 事件、消息来源或持久化字段改由其他包声明，因此无需持久化变更记录。
+`skill-nudge` 消息来源以相同的 `@persistenceAttribution` 声明迁入 `dsh-tool-skill-manage`。其摘要未变，因此持久化目录只记录新的源码位置，无需持久化变更记录。
 
 ### 承载清单
 
@@ -35,7 +36,6 @@ Beardy 代码放在 Beardy 维护的包和 `dsh-beardy` 组合包中。只有当
 | `agent-instructions` 可配置的用户全局候选与按 Session 冻结 | 约 490 行 | 带冻结列表的可配置用户全局文件；人设与记忆依赖它 |
 | `sandbox-policy`/`fs-sandbox` 经批准的单次 home 写入；`fs.makeDirectory`/`removeFile` | 约 440 行 | 按调用的修改许可 |
 | `tool-present` 可视内容、`ui-chat.processDisclosure`、`ui-deliverables` 节点 | 约 600 行 | 内联可视交付 |
-| `tool-skill` 管理与提醒 | 约 1.4K 行 | 无需上游改动；迁入 Beardy 包 |
 | `ui-tool` 研究卡片与 `ui-settings-plugins` 研究设置 | 约 445 行 | 无需上游改动；迁入 Beardy 客户端包 |
 | 供 `ui-voice` 听写使用的 `ui-conversation.appendDraft` | 约 60 行 | 输入框追加操作 |
 | 研究阶段隐藏（`rp-native-` 前缀）与 `known-event-types.ts` 中的 7 个名称 | 约 30 行 | 隐藏 Session 的 header 标志与插件贡献的已知事件类型 |
@@ -61,4 +61,5 @@ Beardy 代码放在 Beardy 维护的包和 `dsh-beardy` 组合包中。只有当
 - Agent 轮次之外直接调用 `ctx.llm` 的调用方（例如压缩摘要与会话标题）在已卸载的本地路由上会到达适配器，而不是以 `LOCAL_MODEL_UNLOADED` 失败。
 - 卸载不再拒绝已在 `llm-pi-ai` 准入队列中等待的请求。
 - 新的 Beardy profile 需要一个列出其组合包的 `package.json`；`dsh --profile beardy` 不再自动创建它。
+- 只要启用技能管理或提醒，被裁剪技能的重新加载语句就位于系统提示词中，包括技能目录为空的 Session，而不再位于每条已发布的目录消息里。
 - 两份副本保持同一算法：webhook 的内联开启流程与 `openUnattendedSession` 一致，training-export 的 `encodeSegment` 与 JSONL 编码器一致（后者由测试固定）。

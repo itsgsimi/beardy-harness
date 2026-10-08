@@ -25312,7 +25312,7 @@
       "digest": "61b02f972734210284010906ecaa97b3c92e6de66db3bf95faa568ad66a186fc",
       "names": [],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:54"
+        "packages/memory/tool-skill-manage/src/index.ts:41"
       ]
     },
     {
@@ -25784,7 +25784,7 @@
       "digest": "83079c8a3f733ac3fa603eefa0fbb4737ca4d8b69e7e2e7298b60f9ac4098693",
       "names": [],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:44"
+        "packages/skill/tool-skill/src/index.ts:40"
       ]
     },
     {
@@ -27630,7 +27630,7 @@
         "packages/skill/tool-skill/src/index.ts#SkillCatalogSource"
       ],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:38"
+        "packages/skill/tool-skill/src/index.ts:34"
       ]
     },
     {

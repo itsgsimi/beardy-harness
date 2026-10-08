@@ -4,51 +4,31 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": [
-    "src"
-  ],
+  "include": ["src"],
   "references": [
     {
-      "path": "../../../vendor/cordis"
+      "path": "../../../vendor/cosmokit"
     },
     {
-      "path": "../../../vendor/cosmokit"
+      "path": "../../../vendor/cordis"
     },
     {
       "path": "../../../vendor/schemastery"
     },
     {
-      "path": "../../core/agent"
-    },
-    {
       "path": "../../core/scope"
-    },
-    {
-      "path": "../../core/tools"
-    },
-    {
-      "path": "../../fs/fs"
-    },
-    {
-      "path": "../../fs/fs-sandbox"
-    },
-    {
-      "path": "../../interaction/user-approval"
     },
     {
       "path": "../../llm/llm"
     },
     {
-      "path": "../../sandbox/sandbox-policy"
-    },
-    {
-      "path": "../../session/session-projection"
-    },
-    {
-      "path": "../../util/home-paths"
+      "path": "../../core/agent"
     },
     {
       "path": "../skill"
+    },
+    {
+      "path": "../../core/tools"
     }
   ]
 }

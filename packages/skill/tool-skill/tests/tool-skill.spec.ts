@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
@@ -14,7 +14,6 @@ import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry, { agentEvents, type Agent, type PreStepDecision } from '@deepseek-ai/dsh-agent'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
-import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 
@@ -187,55 +186,6 @@ async function mintAgentScope(ctx: Context, subject: string | Agent): Promise<{ 
 }
 
 describe('dsh-tool-skill', () => {
-  it('creates, updates, and deletes a workspace skill through skill_manage', async () => {
-    const workspace = await tempDir('skill-manage')
-    // The filesystem provider scans .agents/skills only below a detected project root.
-    await mkdir(join(workspace, '.git'), { recursive: true })
-    const home = await tempDir('skill-manage-home')
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-    await ctx.plugin(ToolRuntime)
-    await ctx.plugin(AgentRegistry)
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(LocalFileSystem, { cwd: workspace })
-    await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
-    await ctx.plugin(toolSkill, { enableSkillManagement: true })
-    const agent = agentForCwd(workspace)
-
-    const create = await ctx.tools.execute({
-      signal: testToolSignal,
-      callId: ToolCallId('skill-manage-create'),
-      name: 'skill_manage',
-      arguments: { action: 'create', name: 'release-checklist', description: 'Release checks', content: 'Run the release checks.' },
-      agent,
-    })
-    expect(create.isError).toBe(false)
-    const path = join(workspace, '.agents/skills/release-checklist.md')
-    expect(await readFile(path, 'utf8')).toContain('Run the release checks.')
-    expect((await ctx.skills.list({ cwd: workspace })).map(skill => skill.name)).toContain('release-checklist')
-
-    const update = await ctx.tools.execute({
-      signal: testToolSignal,
-      callId: ToolCallId('skill-manage-update'),
-      name: 'skill_manage',
-      arguments: { action: 'update', name: 'release-checklist', description: 'Updated checks', content: 'Run the updated checks.' },
-      agent,
-    })
-    expect(update.isError).toBe(false)
-    expect(await readFile(path, 'utf8')).toContain('Run the updated checks.')
-
-    const remove = await ctx.tools.execute({
-      signal: testToolSignal,
-      callId: ToolCallId('skill-manage-delete'),
-      name: 'skill_manage',
-      arguments: { action: 'delete', name: 'release-checklist' },
-      agent,
-    })
-    expect(remove.isError).toBe(false)
-    await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
-    expect((await ctx.skills.list({ cwd: workspace })).map(skill => skill.name)).not.toContain('release-checklist')
-  })
-
   it('registers the skill tool schema and removes it on dispose', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -286,7 +236,7 @@ describe('dsh-tool-skill', () => {
 
   it('injects a stable durable name-and-description catalog at the first step', async () => {
     const home = await tempDir('tool-catalog')
-    const ctx = await setup(home, { catalogDescriptionMaxLength: 50, enableSkillManagement: true })
+    const ctx = await setup(home, { catalogDescriptionMaxLength: 50 })
     ctx.skills.register({
       name: 'z-skill',
       description: 'Long   description '.repeat(5),
@@ -366,7 +316,6 @@ describe('dsh-tool-skill', () => {
             '</available_skills>',
             '',
             "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.",
-            'If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.',
             'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
             '</system-reminder>',
           ].join('\n'),
@@ -571,22 +520,6 @@ describe('dsh-tool-skill', () => {
 
     await fireStep(ctx, agent, 1, 4)
     expect(catalogMessages(session)).toHaveLength(3)
-  })
-
-  it('keeps pruned skill reload guidance in a replacement catalog when management is enabled', async () => {
-    const home = await tempDir('tool-managed-catalog')
-    const ctx = await setup(home, { enableSkillManagement: true })
-    ctx.skills.register({ name: 'first-skill', description: 'First skill', source: 'runtime', content: 'First body.' })
-    const session = Session.create(SessionId('managed-catalog'))
-    const agent = sessionAgent(session)
-    openMessageTurn(session)
-    await composePrefixForAgent(ctx, agent)
-    await fireStep(ctx, agent, 1, 1)
-    ctx.skills.register({ name: 'second-skill', description: 'Second skill', source: 'runtime', content: 'Second body.' })
-    await fireStep(ctx, agent, 1, 2)
-    const addition = catalogMessages(session)[1]
-    if (addition?.type !== 'user/message') throw new Error('expected catalog addition')
-    expect(JSON.stringify(addition.data.content)).toContain('reload that skill by name')
   })
 
   it('resumes from the durable entries of the latest visible catalog', async () => {
@@ -853,7 +786,7 @@ describe('dsh-tool-skill', () => {
     await scope.dispose()
   })
 
-  it('validates the catalog description and skill body caps', async () => {
+  it('validates the catalog description cap', async () => {
     const home = await tempDir('tool-invalid-catalog-cap')
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
@@ -863,8 +796,6 @@ describe('dsh-tool-skill', () => {
     await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
 
     await expect(ctx.plugin(toolSkill, { catalogDescriptionMaxLength: 2 })).rejects.toThrow('greater than or equal to 3')
-    await expect(ctx.plugin(toolSkill, { skillBodyMaxBytes: 0 })).rejects.toThrow('skillBodyMaxBytes')
-    await expect(ctx.plugin(toolSkill, { skillBodyMaxBytes: 1.5 })).rejects.toThrow('skillBodyMaxBytes')
   })
 
   it('loads a skill for the calling agent cwd', async () => {

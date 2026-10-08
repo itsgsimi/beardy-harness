@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-memory 组合包为 agent 提供持久、可人工编辑且由所有会话共享的事实记录。其面向模型的 `memory` 工具编辑 Harness home 下两个有字符上限的 Markdown 文件：`USER.md` 描述用户，`MEMORY.md` 保存 agent 笔记。条目使用严格的单行格式，无人值守写入可选审批。`dsh-agent-instructions` 把两个文件加载到每个新会话的 baseline，因此 memory 不需要 context plugin，且保留 prompt prefix cache。
+memory 组合包为 agent 提供持久、可人工编辑且由所有会话共享的事实记录。其面向模型的 `memory` 工具编辑 Harness home 下两个有字符上限的 Markdown 文件：`USER.md` 描述用户，`MEMORY.md` 保存 agent 笔记。条目使用严格的单行格式，无人值守写入可选审批。`dsh-agent-instructions` 把两个文件加载到每个新会话的 baseline，因此 memory 不需要 context plugin，且保留 prompt prefix cache。agent 应重复执行的流程通过 `skill_manage` 保存为技能。
 
 ## 目录
 
@@ -24,6 +24,7 @@ memory 组合包为 agent 提供持久、可人工编辑且由所有会话共享
 | 包 | 角色 | ctx key |
 |---|---|---|
 | [`tool-memory/`](tool-memory/README.zh.md) | Model-facing `memory` 工具，编辑 `$DSH_HOME/USER.md` 与 `$DSH_HOME/MEMORY.md`，带上限、格式校验与审批门 | registers on `ctx.tools`, consumes `ctx.fs` |
+| [`tool-skill-manage/`](tool-skill-manage/README.zh.md) | Model-facing `skill_manage` 工具，管理工作区与 Harness home 技能，可选的保存为技能提示，以及被裁剪技能的重新加载指引 | registers on `ctx.tools` and `ctx.systemPrompt`, consumes `ctx.fs` and `ctx.skills` |
 
 -----
 

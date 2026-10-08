@@ -356,6 +356,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | Package | Config | Description |
 |---|---|---|
 | `@deepseek-ai/dsh-tool-memory` | yes | Model-facing curated memory tool editing USER.md and MEMORY.md under the Harness home |
+| `@deepseek-ai/dsh-tool-skill-manage` | yes | Model-facing skill_manage tool, save-it-as-a-skill nudge, and pruned-skill reload guidance |
 
 ## plan
 

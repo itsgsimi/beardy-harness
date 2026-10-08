@@ -1,0 +1,67 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/memory/tool-skill-manage/README.md
+/:
+  en: 1c5e7d216594a2f8
+  zh: 7f1922d3ba209fdd
+/deepseek-ai-dsh-tool-skill-manage:
+  en: 2ece76f52a899a1f
+  zh: dd681d944153f61c
+/deepseek-ai-dsh-tool-skill-manage/summary:
+  en: 9a4df26806128e99
+  zh: 395e32fd192b672f
+/deepseek-ai-dsh-tool-skill-manage/table-of-contents:
+  en: c5a5c3146154e343
+  zh: c5d23ea2c5a305a9
+/deepseek-ai-dsh-tool-skill-manage/configuration:
+  en: e81da5736b3ac91e
+  zh: 2de54f268d045fec
+/deepseek-ai-dsh-tool-skill-manage/dev-note:
+  en: 5dd54ecf8358cc1b
+  zh: d8cb27a2bad44395
+/deepseek-ai-dsh-tool-skill-manage/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-skill-manage/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: e4c7376d4f29dbd5
+/deepseek-ai-dsh-tool-skill-manage/model-experience/tool-schema/what-the-model-sees:
+  en: 8c95e98a6f38c2d1
+  zh: 8a1873761ea3b2d3
+/deepseek-ai-dsh-tool-skill-manage/model-experience/tool-schema/token-effect:
+  en: c2804f74e91c253d
+  zh: b6dc3b1decb7d9d5
+/deepseek-ai-dsh-tool-skill-manage/model-experience/tool-schema/kv-cache-effect:
+  en: 4ee92571a5f8a71a
+  zh: b573306d56561981
+/deepseek-ai-dsh-tool-skill-manage/model-experience/system-prompt-section:
+  en: c17d2aa0c515f8f3
+  zh: c17d2aa0c515f8f3
+/deepseek-ai-dsh-tool-skill-manage/model-experience/system-prompt-section/what-the-model-sees:
+  en: 359bfd5a2808afa4
+  zh: a2551962c4318572
+/deepseek-ai-dsh-tool-skill-manage/model-experience/system-prompt-section/what-the-model-sees/pruned-skill-reload-guidance:
+  en: 1b02e587a01e94ab
+  zh: 07340fac8893420f
+/deepseek-ai-dsh-tool-skill-manage/model-experience/system-prompt-section/token-effect:
+  en: 2d0d0bb626272eae
+  zh: 579db4e3c9dd197b
+/deepseek-ai-dsh-tool-skill-manage/model-experience/system-prompt-section/kv-cache-effect:
+  en: 6eeb85752af0679c
+  zh: d1ef329c2e4bd256
+/deepseek-ai-dsh-tool-skill-manage/model-experience/skill-nudge:
+  en: 2a63dcaa41472b3d
+  zh: 2a63dcaa41472b3d
+/deepseek-ai-dsh-tool-skill-manage/model-experience/skill-nudge/what-the-model-sees:
+  en: 48109116c514edfa
+  zh: b582693429e524f4
+/deepseek-ai-dsh-tool-skill-manage/model-experience/skill-nudge/token-effect:
+  en: 783c0183566a0497
+  zh: 7b7cca65d08debc5
+/deepseek-ai-dsh-tool-skill-manage/model-experience/skill-nudge/kv-cache-effect:
+  en: 5b1bb19c8eef5a82
+  zh: c2e76ddbb2ad8a9f
+/deepseek-ai-dsh-tool-skill-manage/known-limitations-and-deferred-work:
+  en: a9299a50ab6766bd
+  zh: 492a573e3698d99a

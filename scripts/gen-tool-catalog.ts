@@ -61,6 +61,7 @@ import type ScheduleService from '@deepseek-ai/dsh-schedule'
 import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
+import * as ToolSkillManage from '@deepseek-ai/dsh-tool-skill-manage'
 import * as ToolMemory from '@deepseek-ai/dsh-tool-memory'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolJobs from '@deepseek-ai/dsh-tool-jobs'
@@ -492,17 +493,28 @@ const TOOL_PACKAGES: ToolPackage[] = [
     pkg: '@deepseek-ai/dsh-tool-skill',
     dir: 'tool-skill',
     source: 'packages/skill/tool-skill/src/index.ts',
-    requires: ['ctx.tools', 'ctx.agents', 'ctx.skills', 'ctx.fs for skill_manage'],
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.skills'],
     writes: ['tool/call', 'tool/result', 'user/message replacement catalogs via agent.inject()'],
     async mount(ctx) {
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(SkillRegistry)
-      await ctx.plugin(LocalFileSystem, { cwd: resolve(root, '.tmp/tool-catalog') })
       await ctx.plugin(SkillFileSystem, {
         dshHome: resolve(root, '.tmp/tool-catalog/.dsh'),
         agentsHome: resolve(root, '.tmp/tool-catalog/.agents'),
       })
-      await ctx.plugin(ToolSkill, { enableSkillManagement: true })
+      await ctx.plugin(ToolSkill)
+    },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-skill-manage',
+    dir: 'tool-skill-manage',
+    source: 'packages/memory/tool-skill-manage/src/index.ts',
+    requires: ['ctx.tools', 'ctx.skills', 'ctx.systemPrompt', 'ctx.fs'],
+    writes: ['tool/call', 'fs/observed after each accepted write', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(SkillRegistry)
+      await ctx.plugin(LocalFileSystem, { cwd: resolve(root, '.tmp/tool-catalog') })
+      await ctx.plugin(ToolSkillManage, { enableSkillManagement: true })
     },
   },
   {

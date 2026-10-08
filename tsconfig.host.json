@@ -440,6 +440,7 @@
     { "path": "./packages/discord/tool-discord" },
     { "path": "./packages/experimental/training-export" },
     { "path": "./packages/memory/tool-memory" },
+    { "path": "./packages/memory/tool-skill-manage" },
     { "path": "./packages/session/unattended-session" },
     { "path": "./packages/speech/speech-whisper" },
     { "path": "./packages/web/tool-odysseus-research" },

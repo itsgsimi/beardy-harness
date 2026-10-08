@@ -16,7 +16,7 @@ import SandboxedFileSystem from '@deepseek-ai/dsh-fs-sandbox'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
-import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
+import * as toolSkillManage from '@deepseek-ai/dsh-tool-skill-manage'
 
 const testToolSignal = new AbortController().signal
 let callCounter = 0
@@ -80,7 +80,7 @@ function agentForCwd(cwd?: string): Agent {
 }
 
 /** Boot the plugin stack over a real workspace and a DSH_HOME-pinned Harness home. */
-async function setup(config: toolSkill.Config, withPolicy = false): Promise<{ ctx: Context; workspace: string; home: string }> {
+async function setup(config: toolSkillManage.Config, withPolicy = false): Promise<{ ctx: Context; workspace: string; home: string }> {
   const workspace = await tempDir('manage-scope-ws')
   await mkdir(join(workspace, '.git'), { recursive: true })
   const home = await tempDir('manage-scope-home')
@@ -96,7 +96,7 @@ async function setup(config: toolSkill.Config, withPolicy = false): Promise<{ ct
   }
   await ctx.plugin(LocalFileSystem, { cwd: workspace })
   await ctx.plugin(SkillFileSystem, { dshHome: join(home, '.dsh'), agentsHome: join(home, '.agents'), watch: false })
-  await ctx.plugin(toolSkill, config)
+  await ctx.plugin(toolSkillManage, config)
   return { ctx, workspace, home }
 }
 
@@ -223,7 +223,7 @@ describe('skill_manage scopes and approval', () => {
     await ctx.plugin(SandboxPolicy, { mode: 'workspace-write', workspaceRoot: workspace })
     await ctx.plugin(SandboxedFileSystem, { cwd: workspace })
     await ctx.plugin(SkillFileSystem, { dshHome: home, agentsHome: join(container, 'agents'), watch: false })
-    await ctx.plugin(toolSkill, { enableSkillManagement: true, enableUserSkillManagement: true,
+    await ctx.plugin(toolSkillManage, { enableSkillManagement: true, enableUserSkillManagement: true,
       requireApproval: true, allowApprovedHomeWrites: true })
     const liveAgent = agentForCwd(workspace)
     const path = join(home, 'skills', 'weekly-review.md')
@@ -317,7 +317,7 @@ describe('skill_manage scopes and approval', () => {
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(SkillRegistry)
       await ctx.plugin(LocalFileSystem, { cwd: workspace })
-      await ctx.plugin(toolSkill, { enableSkillManagement: true, requireApproval: true })
+      await ctx.plugin(toolSkillManage, { enableSkillManagement: true, requireApproval: true })
       const padded = outcome === 'allowed-once' ? 'Gated workflow' : `Gated ${'y'.repeat(150)}`
       const result = await call(ctx, {
         action: 'create', name: 'gated-skill', description: padded, content: 'Body.',
@@ -472,14 +472,14 @@ describe('skill_manage scopes and approval', () => {
       return new EscapingFileSystem(new Context(), { cwd: '/', diffBasisMaxBytes: 10 * 1024 * 1024 })
     }
 
-    async function setupWithFakeFs(fs: FileSystem, config: toolSkill.Config): Promise<Context> {
+    async function setupWithFakeFs(fs: FileSystem, config: toolSkillManage.Config): Promise<Context> {
       const ctx = new Context()
       ctx.provide('fs' as never, fs)
       await ctx.plugin(SystemPrompt)
       await ctx.plugin(ToolRuntime)
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(SkillRegistry)
-      await ctx.plugin(toolSkill, config)
+      await ctx.plugin(toolSkillManage, config)
       return ctx
     }
 

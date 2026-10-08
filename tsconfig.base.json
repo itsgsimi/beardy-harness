@@ -528,6 +528,7 @@
       "@deepseek-ai/dsh-tool-schedule": ["./packages/schedule/tool-schedule/src"],
       "@deepseek-ai/dsh-tool-session-query": ["./packages/session-query/tool-session-query/src"],
       "@deepseek-ai/dsh-tool-skill": ["./packages/skill/tool-skill/src"],
+      "@deepseek-ai/dsh-tool-skill-manage": ["./packages/memory/tool-skill-manage/src"],
       "@deepseek-ai/dsh-tool-str-replace-editor": ["./packages/fs/tool-str-replace-editor/src"],
       "@deepseek-ai/dsh-tool-subagent": ["./packages/subagent/tool-subagent/src"],
       "@deepseek-ai/dsh-tool-subagent-control": ["./packages/subagent/tool-subagent-control/src"],

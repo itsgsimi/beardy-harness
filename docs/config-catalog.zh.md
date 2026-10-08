@@ -4940,13 +4940,28 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-skill`
 
 - `inject`: `agents` · `tools` · `skills`
-- `source`: [`packages/skill/tool-skill/src/index.ts:76`](../packages/skill/tool-skill/src/index.ts)
+- `source`: [`packages/skill/tool-skill/src/index.ts:61`](../packages/skill/tool-skill/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing skill catalog configuration. */
 export interface Config {
   /** Maximum normalized description length rendered in the session catalog; minimum 3. */
   catalogDescriptionMaxLength?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-skill -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-skill-manage -->
+<a id="deepseek-aidsh-tool-skill-manage"></a>
+
+## `@deepseek-ai/dsh-tool-skill-manage`
+
+- `inject`: `tools` · `skills` · `systemPrompt`
+- `source`: [`packages/memory/tool-skill-manage/src/index.ts:52`](../packages/memory/tool-skill-manage/src/index.ts)
+
+```ts config-catalog
+/** Deployment configuration for skill management and the skill nudge. */
+export interface Config {
   /** Whether to expose the workspace-local skill_manage mutation tool. */
   enableSkillManagement?: boolean
   /** Whether skill_manage may write the Harness-home user scope; needs enableSkillManagement. */
@@ -4961,7 +4976,7 @@ export interface Config {
   skillBodyMaxBytes?: number
 }
 ```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-skill -->
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-skill-manage -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-str-replace-editor -->
 <a id="deepseek-aidsh-tool-str-replace-editor"></a>

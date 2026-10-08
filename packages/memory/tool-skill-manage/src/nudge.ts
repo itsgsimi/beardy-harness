@@ -1,4 +1,4 @@
-/** Durable turn facts for the optional skill capture notice. @module @deepseek-ai/dsh-tool-skill/nudge */
+/** Durable turn facts for the optional skill capture notice. @module @deepseek-ai/dsh-tool-skill-manage/nudge */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'

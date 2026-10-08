@@ -8,7 +8,7 @@ import AgentRegistry, { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
-import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
+import * as toolSkillManage from '@deepseek-ai/dsh-tool-skill-manage'
 
 interface Harness {
   ctx: Context
@@ -31,7 +31,7 @@ async function harness(threshold = 2, origin?: 'subagent', seed?: Session): Prom
     send: () => {}, followup: () => {}, steer: () => {}, inject: () => { throw new Error('nudge uses pre-step') },
     cancel() {}, runMaintenance: task => task(new AbortController().signal), whenIdle: () => Promise.resolve(),
   }
-  const fiber = await ctx.plugin(toolSkill, { nudgeAfterToolCalls: threshold })
+  const fiber = await ctx.plugin(toolSkillManage, { nudgeAfterToolCalls: threshold })
   return { ctx, agent, fiber }
 }
 

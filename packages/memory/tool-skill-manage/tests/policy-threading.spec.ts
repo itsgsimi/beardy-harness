@@ -21,7 +21,7 @@ import SkillRegistry from '@deepseek-ai/dsh-skill'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import SandboxedFileSystem from '@deepseek-ai/dsh-fs-sandbox'
-import * as toolSkill from '@deepseek-ai/dsh-tool-skill'
+import * as toolSkillManage from '@deepseek-ai/dsh-tool-skill-manage'
 
 type Mode = 'read-only' | 'workspace-write' | 'danger-full-access'
 
@@ -90,7 +90,7 @@ async function setup(mode: Mode): Promise<{ ctx: Context; workspace: string; hom
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SandboxPolicyService, { mode, workspaceRoot: fallback })
   await ctx.plugin(SandboxedFileSystem, { cwd: fallback })
-  await ctx.plugin(toolSkill, { enableSkillManagement: true, enableUserSkillManagement: true })
+  await ctx.plugin(toolSkillManage, { enableSkillManagement: true, enableUserSkillManagement: true })
   return { ctx, workspace, home }
 }
 

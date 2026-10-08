@@ -3,7 +3,7 @@
  * workspace root or the Harness-home user root. The filesystem service owns
  * mutation and sandbox semantics; this module owns the skill document format,
  * target restriction, scope selection, and the approval gate.
- * @module @deepseek-ai/dsh-tool-skill/manage
+ * @module @deepseek-ai/dsh-tool-skill-manage/manage
  */
 
 import { join } from 'node:path'

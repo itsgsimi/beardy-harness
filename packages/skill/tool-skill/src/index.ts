@@ -10,7 +10,6 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type {} from '@deepseek-ai/dsh-fs'
 import { SessionSeq, type UserMessage } from '@deepseek-ai/dsh-session'
 import {
   escapeText,
@@ -21,14 +20,11 @@ import {
   type SkillInvocationSource,
   type SkillSummary,
 } from '@deepseek-ai/dsh-skill'
-import { applySkillManageTool } from './manage.ts'
-import { installSkillNudge } from './nudge.ts'
 
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills']
 
 const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 500
-const DEFAULT_SKILL_BODY_MAX_BYTES = 32768
 /**
  * Durable provider and item records for one published session skill catalog. The catalog is a
  * `catalog`-form context, so it records the entries it published beside the
@@ -47,17 +43,6 @@ export interface SkillCatalogSource {
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'skill-catalog': SkillCatalogSource
-    /** One notice shown to the model after a tool-heavy turn that saved no skill.
-     * Readers preserve the notice without the skill plugin.
-     * @persistenceAttribution
-     */
-    'skill-nudge': {
-      readonly kind: 'skill-nudge'
-      /** Completed tool calls in the turn this notice reports. */
-      readonly toolCalls: number
-      readonly form: 'notice'
-      readonly summary: string
-    }
   }
 }
 
@@ -76,29 +61,11 @@ function catalogSourceEntries(
 export interface Config {
   /** Maximum normalized description length rendered in the session catalog; minimum 3. */
   catalogDescriptionMaxLength?: number
-  /** Whether to expose the workspace-local skill_manage mutation tool. */
-  enableSkillManagement?: boolean
-  /** Whether skill_manage may write the Harness-home user scope; needs enableSkillManagement. */
-  enableUserSkillManagement?: boolean
-  /** Create, update, and delete ask the approval service before they touch a file. */
-  requireApproval?: boolean
-  /** Permit approved user-scope mutations in the Harness home under workspace-write. */
-  allowApprovedHomeWrites?: boolean
-  /** Tool results in one completed turn that trigger the Session's one skill nudge; 0 disables. */
-  nudgeAfterToolCalls?: number
-  /** Maximum UTF-8 bytes in a skill body written by skill_manage. */
-  skillBodyMaxBytes?: number
 }
 
 /** Validate and default the model-facing skill catalog configuration. */
 export const Config: z<Config> = z.object({
   catalogDescriptionMaxLength: z.number().default(DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH),
-  enableSkillManagement: z.boolean().default(false),
-  enableUserSkillManagement: z.boolean().default(false),
-  requireApproval: z.boolean().default(false),
-  allowApprovedHomeWrites: z.boolean().default(false),
-  nudgeAfterToolCalls: z.number().default(0),
-  skillBodyMaxBytes: z.number().default(DEFAULT_SKILL_BODY_MAX_BYTES),
 })
 
 /**
@@ -108,21 +75,8 @@ export const Config: z<Config> = z.object({
  * same-name shadow therefore removes both the schema and its call guidance.
  */
 export function apply(ctx: Context, config: Config = {}): void {
-  if (config.allowApprovedHomeWrites
-    && (!config.requireApproval || !config.enableSkillManagement || !config.enableUserSkillManagement)) {
-    throw new Error('tool-skill: allowApprovedHomeWrites requires requireApproval, enableSkillManagement, and enableUserSkillManagement')
-  }
   const catalogDescriptionMaxLength = config.catalogDescriptionMaxLength ?? DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH
   assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
-  const nudgeAfterToolCalls = config.nudgeAfterToolCalls ?? 0
-  assertPositiveInteger('nudgeAfterToolCalls', nudgeAfterToolCalls, 0)
-  const skillBodyMaxBytes = config.skillBodyMaxBytes ?? DEFAULT_SKILL_BODY_MAX_BYTES
-  assertPositiveInteger('skillBodyMaxBytes', skillBodyMaxBytes)
-  const includePrunedResultGuidance = config.enableSkillManagement === true || nudgeAfterToolCalls > 0
-
-  if (nudgeAfterToolCalls > 0) ctx.inject(['sessionProjections'], (child) => {
-    installSkillNudge(child, nudgeAfterToolCalls)
-  })
 
   const skillTool = defineTool({
     name: 'skill',
@@ -206,17 +160,6 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
   ctx.tools.register(skillTool)
 
-  if (config.enableSkillManagement === true) {
-    ctx.inject(['fs'], (fsCtx) => {
-      applySkillManageTool(fsCtx, fsCtx.fs, {
-        enableUserScope: config.enableUserSkillManagement === true,
-        requireApproval: config.requireApproval === true,
-        allowApprovedHomeWrites: config.allowApprovedHomeWrites === true,
-        skillBodyMaxBytes,
-      })
-    })
-  }
-
   // User-explicit skill invocation: a claimed user message whose first line
   // starts with `/<name>` naming a user-invocable skill is a deterministic
   // load gesture. The rendered body enters this step as injected
@@ -297,8 +240,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
     const catalog = history.published
-      ? renderCatalogUpdate(entries, includePrunedResultGuidance)
-      : renderCatalogMessage(entries, includePrunedResultGuidance)
+      ? renderCatalogUpdate(entries)
+      : renderCatalogMessage(entries)
     return {
       ...decision,
       messages: existing === undefined
@@ -308,10 +251,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 }
 
-function renderCatalogMessage(
-  entries: SkillCatalogSource['entries'],
-  includePrunedResultGuidance: boolean,
-): UserMessage {
+function renderCatalogMessage(entries: SkillCatalogSource['entries']): UserMessage {
   return createUserMessage({
     content: [{
       type: 'text',
@@ -324,9 +264,6 @@ function renderCatalogMessage(
         '</available_skills>',
         '',
         "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.",
-        ...includePrunedResultGuidance
-          ? ['If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.']
-          : [],
         'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
         '</system-reminder>',
       ].join('\n'),
@@ -339,10 +276,7 @@ function renderCatalogMessage(
   })
 }
 
-function renderCatalogUpdate(
-  entries: SkillCatalogSource['entries'],
-  includePrunedResultGuidance: boolean,
-): UserMessage {
+function renderCatalogUpdate(entries: SkillCatalogSource['entries']): UserMessage {
   const availability = entries.length === 0
     ? [
       'No skills are currently available through the `skill` tool. Do not use names from earlier skill catalogs.',
@@ -350,9 +284,6 @@ function renderCatalogUpdate(
     ]
     : [
       'Use only names in this replacement catalog. If the user names a listed skill, or the task clearly matches its description, call the `skill` tool with the exact name before acting.',
-      ...includePrunedResultGuidance
-        ? ['If a previously loaded skill result contains the marker [... tool result middle pruned ...], its steps are incomplete: reload that skill by name before acting on it.']
-        : [],
       'A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.',
     ]
   return createUserMessage({

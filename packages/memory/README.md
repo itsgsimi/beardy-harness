@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The memory group gives an agent a durable, human-editable record of facts shared by every session. Its model-facing `memory` tool edits two capped Markdown files under the Harness home: `USER.md` describes the user, and `MEMORY.md` holds the agent's notes. Entries use a strict single-line format, with optional approval for unattended writes. `dsh-agent-instructions` loads both files into each new session's baseline, so memory needs no context plugin and preserves the prompt prefix cache.
+The memory group gives an agent a durable, human-editable record of facts shared by every session. Its model-facing `memory` tool edits two capped Markdown files under the Harness home: `USER.md` describes the user, and `MEMORY.md` holds the agent's notes. Entries use a strict single-line format, with optional approval for unattended writes. `dsh-agent-instructions` loads both files into each new session's baseline, so memory needs no context plugin and preserves the prompt prefix cache. Procedures the agent should repeat are saved as skills through `skill_manage`.
 
 ## Table of Contents
 
@@ -24,6 +24,7 @@ The memory group gives an agent a durable, human-editable record of facts shared
 | Package | Role | ctx key |
 |---|---|---|
 | [`tool-memory/`](tool-memory/README.md) | Model-facing `memory` tool editing `$DSH_HOME/USER.md` and `$DSH_HOME/MEMORY.md` with caps, format checks, and an approval gate | registers on `ctx.tools`, consumes `ctx.fs` |
+| [`tool-skill-manage/`](tool-skill-manage/README.md) | Model-facing `skill_manage` tool for workspace and Harness-home skills, an optional save-it-as-a-skill notice, and pruned-skill reload guidance | registers on `ctx.tools` and `ctx.systemPrompt`, consumes `ctx.fs` and `ctx.skills` |
 
 -----
 

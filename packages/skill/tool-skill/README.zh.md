@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-agent（智能体）可以在会话期间发现、加载并按需管理 skill（技能）。在首次请求前，如果存在模型可调用 skill 且 `skill` 工具可见，agent 会收到一份持久目录，列出可用 skill 的名称与有长度上限的描述，并可用该工具加载完整指令。用户可以用 `/name` 调用某个用户可调用的 skill，把相同的指令注入该步骤。可选配置会开放经审批的工作区或用户作用域变更，以及提醒模型保存可复用流程的每轮次提示。目录变更会追加一份完整替换，其中空目录会停用旧名称；可配置 `catalogDescriptionMaxLength` 来限制每条描述的长度。
+agent 可以在会话期间发现并加载 skill。在首次请求前，如果存在模型可调用 skill 且 `skill` 工具可见，agent 会收到一份持久目录，列出可用 skill 的名称与有长度上限的描述，并可用 `skill` 工具加载完整指令。用户可以用 `/name` 调用某个用户可调用的 skill，把相同的指令注入该步骤。目录变更会追加一份完整替换，其中空目录会停用旧名称；可配置 `catalogDescriptionMaxLength` 来限制每条描述的长度。
 
 ## 目录
 
@@ -33,7 +33,7 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 
 ### 挂载与配置
 
-与 skill 注册表和至少一个提供方一起加载该插件。管理功能还需要 `ctx.fs`；经审批的管理功能需要审批服务。
+与 skill 注册表和至少一个提供方一起加载该插件。唯一配置项限制目录中渲染的规范化描述长度。
 
 ```yaml
 - name: '@deepseek-ai/dsh-skill'
@@ -44,12 +44,6 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `catalogDescriptionMaxLength` | `500` | 会话目录中渲染的规范化描述最大长度；最小为 3 |
-| `enableSkillManagement` | `false` | 暴露 `skill_manage` 变更工具；运行时需要 `ctx.fs` |
-| `enableUserSkillManagement` | `false` | 允许 `skill_manage` 写入每个会话都会加载的 Harness-home 用户根目录（`$DSH_HOME/skills`） |
-| `requireApproval` | `false` | 任何创建、更新或删除前先征询审批服务；未挂载应答者时写入被拒绝 |
-| `allowApprovedHomeWrites` | `false` | 同时启用审批与用户作用域管理后，在 `workspace-write` 中仅许可已获批的精确 home 文件或 skills 目录 |
-| `nudgeAfterToolCalls` | `0` | 一个已完成轮次中触发 Session 唯一一次“保存为 skill”提醒的已完成工具结果数；`0` 表示关闭提醒 |
-| `skillBodyMaxBytes` | `32768` | `skill_manage` 写入的 skill 正文最大 UTF-8 字节数；结尾换行计入上限 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-skill)是每个受支持字段的穷尽式真源。
 
@@ -57,14 +51,12 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 
 - **会话目录。** 当存在模型可调用 skill 且 `skill` 工具可见时，agent 会在首次请求前收到一条持久的用户角色消息，列出每个 skill 的名称与有长度上限的描述；该消息告诉模型在着手任务前先用工具加载 skill，且绝不能仅凭摘要推断指令。
 - **加载工具。** 模型以精确的 skill 名称调用 `skill`，并收到完整指令正文以及规范的 `<skill_content>` 块中的资源指引；该结果作为普通工具历史保留。
-- **管理工具。** 挂载 `ctx.fs` 时，模型可用 `skill_manage check` 检查草稿，不写文件也不请求审批。结果包含 `errors`、`warnings` 和规范化正文的 UTF-8 `bytes`。创建和更新会在审批前拒绝相同的硬错误，并在审批原因中显示检查结果及有长度上限的差异预览。缺失或过短的 `whenToUse`、过于简略的描述或正文、与目录中现有 skill 重叠，均是供作者判断的警告。创建、更新和删除管理工作区或已启用的 Harness-home 用户根目录中的扁平文件；`allowApprovedHomeWrites` 在 `allowed-once` 后只许可一次精确的 home 变更，删除还会校验观察到的文件版本。
-- **“保存为 skill”提醒。** 当 `nudgeAfterToolCalls` 为正数，且已完成的轮次有足够多的工具结果，同时没有模型加载 skill 或用户显式调用 skill 时，下一条请求可收到一条随日志留存的提示。一个 Session 在恢复后也最多收到一次提醒；被委派的子 agent 不会收到提醒。
 - **用户显式调用。** 直接用户输入中的 `/name` token 若指名某个用户可调用 skill，会把该 skill 的指令注入该步骤，而无需模型自行加载。
 - **实时目录更新。** 后续成员关系、描述或可见性变化会追加完整的替换目录；删除全部 skill 时会追加空目录，停用较早的名称。
 
 ### 可观察的成功与失败
 
-加载列出的 skill 会返回其完整指令；无论加载来自工具还是用户的显式调用，模型看到的都是同一种规范形式；`skill_manage check` 返回检查字段，变更操作返回受影响的路径和状态。无效名称会报告 `Error: invalid skill name "<name>"`，未知名称会报告该 skill 未知或已不可用，被禁用模型调用的 skill 会报告其不可用于模型调用。管理操作的拒绝会说明原因，包括正文超过 `skillBodyMaxBytes`、用户作用域被禁用、审批被拒或不可用、生命周期不匹配、目标不安全、缺少工作区 cwd 或路径逃逸。如果从未发布过目录，并且不存在模型可调用 skill，或 `skill` 工具被隐藏或遮蔽，则会整体省略目录；目录发布后，无论可见性丧失还是删除全部 skill，都会改为追加空目录来停用较早的名称。
+加载列出的 skill 会返回其完整指令；无论加载来自工具还是用户的显式调用，模型看到的都是同一种规范形态。无效名称会报告 `Error: invalid skill name "<name>"`，未知名称会报告该 skill 未知或已不可用，被禁用模型调用的 skill 会报告其不可用于模型调用。如果从未发布过目录，并且不存在模型可调用 skill，或 `skill` 工具被隐藏或遮蔽，则会整体省略目录；目录发布后，无论可见性丧失——`skill` 工具被隐藏或被同名作用域工具遮蔽——还是删除全部 skill，都会改为追加空目录来停用旧名称。
 
 -----
 
@@ -85,8 +77,6 @@ agent（智能体）可以在会话期间发现、加载并按需管理 skill（
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：工具注册、目录与手势 pre-step 监听器、渲染与 digest |
-| [`src/nudge.ts`](src/nudge.ts) | 已完成轮次及历史提醒的 Session 投影，以及下一步骤的提醒判定 |
-| [`src/manage.ts`](src/manage.ts) | 草稿检查、审批预览及按作用域进行的文件变更 |
 
 ### 目录生命周期
 
