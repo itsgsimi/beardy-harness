@@ -85,6 +85,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/experimental/ptc-runtime-python': { kind: 'indirect', reason: 'Explicit source-checkout compositions delegate model rendering to PTC mode in dsh-tools.' },
   'packages/client/ui-agent-preset': { kind: 'indirect', reason: 'Browser-side settings row; the preset it selects owns every model-facing effect.' },
   'packages/prompt/dedicated-prompt': { kind: 'indirect', reason: 'Camera-watch and research-local own the complete prompt text and temperature that the helper applies to their Agent scopes.' },
+  'packages/prompt/text-tool-output': { kind: 'indirect', reason: 'tool-fantasy and camera-watch own the tool schemas and result text; this output declaration only renders their one text field.' },
   'packages/util/crypto': { kind: 'indirect', reason: 'Pure identifier minting; the ids consumers mint with it never enter prompts as semantic content.' },
   'packages/util/deque': { kind: 'none', reason: 'In-process collection primitive; registers nothing model-facing.' },
   'packages/deliverables/workspace-changes': { kind: 'none', reason: 'The recorder appends a log-only Session event that only clients read; it registers nothing model-facing.' },

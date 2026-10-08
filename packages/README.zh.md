@@ -39,7 +39,7 @@ harness 使用 `packages/` 下的 npm 包，按能力分组。先在此找到所
 | [`schedule/`](schedule/README.zh.md) | Host 拥有的定时后续操作 |
 | [`health/`](health/README.zh.md) | 显式端点探测与 Host 状态 |
 | [`homelab/`](homelab/README.zh.md) | 只读家庭网络观测 |
-| [`prompt/`](prompt/README.zh.md) | 单一用途 Agent 提示词 |
+| [`prompt/`](prompt/README.zh.md) | Beardy 面向模型的辅助包 |
 | [`feedback/`](feedback/README.zh.md) | 人类反馈的采集与命令 |
 | [`telemetry/`](telemetry/README.zh.md) | 共享 Cordis OTel 上报通道 |
 | [`identity/`](identity/README.zh.md) | 共享匿名身份 |

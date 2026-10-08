@@ -2,7 +2,8 @@
 
 import type { CameraDevice } from '@deepseek-ai/dsh-camera'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import { defineTool, TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import { TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-text-tool-output'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { HistoryRecord } from './history.ts'
 import { localDateTime } from './notice.ts'

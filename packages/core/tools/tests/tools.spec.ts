@@ -10,7 +10,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import ApprovalService, { type ApprovalOutcome, type ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import ToolRuntime, {
   defineContentToolFixture, defineTool, JsonSchemaError, parameterSchemaSpecToJsonSchema, validateArgs, ToolArgsError, ToolNotFoundError,
-  TEXT_TOOL_OUTPUT, TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH,
+  TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH,
   type InferArgs, type ParameterSchemaSpec, type PreToolDecision, type PostToolDecision,
   type JsonSchemaNode, type ToolDefinition, type ToolDispatchExecution, type ToolExecutionResult, type ToolExecutionToken,
 } from '@deepseek-ai/dsh-tools'
@@ -160,22 +160,6 @@ describe('ToolRuntime', () => {
     const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'echo', arguments: { text: 'hi' } })
     expect(result).toEqual({ content: [{ type: 'text', text: 'hi' }], isError: false, value: 'hi' })
     expect(observed).toEqual(result)
-  })
-
-  it('declares a text-only output whose one required string renders as one text part', async () => {
-    const ctx = await setup()
-    ctx.tools.register(defineTool({
-      name: 'text-output',
-      description: 'text output',
-      parameters: {},
-      output: TEXT_TOOL_OUTPUT,
-      execute: async () => ({ text: 'body' }),
-    }))
-    expect(ctx.tools.get('text-output')?.output.schema).toEqual({
-      type: 'object', additionalProperties: false, properties: { text: { type: 'string' } }, required: ['text'],
-    })
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'text-output', arguments: {} })
-    expect(result).toEqual({ content: [{ type: 'text', text: 'body' }], isError: false, value: { text: 'body' } })
   })
 
   it('projects presentation metadata from the canonical value', async () => {

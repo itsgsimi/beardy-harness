@@ -23,6 +23,7 @@ These moves apply the rule:
 | Unattended open in webhook ingress | `webhook/webhook` import of `dsh-unattended-session` | Removed; webhook keeps upstream's inline open, and cron and Discord keep the shared library |
 | `beardy` profile template | `boot/app-boot` `PROFILE_TEMPLATES` | The profile's own `package.json` names its three bundle layers |
 | `encodeSegment` subpath export | `session/session-persistence-jsonl` | A copy in `experimental/training-export`, tested against the JSONL encoder |
+| `TEXT_TOOL_OUTPUT` output declaration | `core/tools` | New [`dsh-text-tool-output`](../../../../packages/prompt/text-tool-output/README.md) in the `prompt/` group; `tool-fantasy` and `camera-watch` import it beside `defineTool` |
 | `skill_manage`, the skill nudge, their six config fields, and pruned-skill reload guidance | `skill/tool-skill` | New [`dsh-tool-skill-manage`](../../../../packages/memory/tool-skill-manage/README.md) row beside `tool-skill`; the guidance moves from the catalog message to its own `tool:skill-manage` prompt section |
 
 The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same `@persistenceAttribution` declaration. Its digest is unchanged, so the persistence catalog records only the new source location and no persistence-change record applies.
@@ -42,9 +43,9 @@ The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same 
 | `skill-filesystem` mutation actor list | 2 lines | Configurable mutation tool names |
 | `tool-web/conversion` export | ~240 lines | An exported HTML-to-Markdown converter |
 | `--insecure-no-auth` in `bundle/web-app` (`webStartup` injection and `insecureNoAuth` on the connection row, `src/startup.ts`) and `client/connection` | ~190 lines | Kept by Goran's choice; the alternative is upstream's persisted browser-session cookie with a long lifetime |
-| Small fixes: `user-approval.activeApprovalRequestId`, `commands.listForScope`, repeat-dispose, gateway heartbeat and no-cache headers, session-controller page bound, web-fetch blocked hosts, attachment delete, time-context weekday, `TEXT_TOOL_OUTPUT` | ~1.2K lines | One small upstream change each |
+| Small fixes: `user-approval.activeApprovalRequestId`, `commands.listForScope`, repeat-dispose, gateway heartbeat and no-cache headers, session-controller page bound, web-fetch blocked hosts, attachment delete, time-context weekday | ~1.2K lines | One small upstream change each |
 | Client: phone layout, Mermaid/Graphviz previews, picker placement, settings persistence off loopback | ~2.8K lines | Client UI changes upstream |
-| Test adaptations in upstream packages to the carries above (`FileSystem` mutation methods, `HostConnectionService` auth argument, layout operations) and V3-to-V4 coverage of Beardy message sources | small | Removed with the carry each one adapts to |
+| Test adaptations in upstream packages to the carries above (`FileSystem` mutation methods, `HostConnectionService` auth argument, layout operations), V3-to-V4 coverage of Beardy message sources, and the Beardy tool names in `core/tools` `gen-tool-catalog.spec.ts` | small | Removed with the carry each one adapts to; the tool names leave when `scripts/gen-tool-catalog.ts` lists Beardy tool packages apart from the upstream manifest |
 
 ## Alternatives considered
 

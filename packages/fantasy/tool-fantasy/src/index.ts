@@ -3,7 +3,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { LeagueKey, PlayerKey, TeamKey } from '@deepseek-ai/dsh-fantasy'
-import { defineTool, TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import { TEXT_TOOL_OUTPUT } from '@deepseek-ai/dsh-text-tool-output'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 /** Cordis plugin identity. */

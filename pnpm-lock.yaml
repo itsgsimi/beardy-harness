@@ -3147,6 +3147,9 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-text-tool-output':
+        specifier: workspace:*
+        version: link:../../prompt/text-tool-output
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
@@ -9462,6 +9465,9 @@ importers:
       '@deepseek-ai/dsh-fantasy':
         specifier: workspace:*
         version: link:../fantasy
+      '@deepseek-ai/dsh-text-tool-output':
+        specifier: workspace:*
+        version: link:../../prompt/text-tool-output
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
@@ -11530,6 +11536,21 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../core/system-prompt
+
+  packages/prompt/text-tool-output:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
 
   packages/ptc-runtime/ptc-runtime:
     devDependencies:

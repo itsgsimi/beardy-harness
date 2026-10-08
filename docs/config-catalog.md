@@ -4523,7 +4523,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-fantasy`
 
 - `inject`: `fantasy` · `tools`
-- `source`: [`packages/fantasy/tool-fantasy/src/index.ts:15`](../packages/fantasy/tool-fantasy/src/index.ts)
+- `source`: [`packages/fantasy/tool-fantasy/src/index.ts:16`](../packages/fantasy/tool-fantasy/src/index.ts)
 
 ```ts config-catalog
 /** Model-result page bound. */
@@ -5214,7 +5214,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tools`
 
 - `inject`: `systemPrompt`
-- `source`: [`packages/core/tools/src/index.ts:675`](../packages/core/tools/src/index.ts)
+- `source`: [`packages/core/tools/src/index.ts:674`](../packages/core/tools/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: how the registered tools are presented to the model. */
@@ -5752,6 +5752,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 | `@deepseek-ai/dsh-session-telemetry` | — | [`packages/session/session-telemetry/src/index.ts`](../packages/session/session-telemetry/src/index.ts) |
 | `@deepseek-ai/dsh-session-title-llm` | — | [`packages/session/session-title-llm/src/index.ts`](../packages/session/session-title-llm/src/index.ts) |
 | `@deepseek-ai/dsh-subagent-in-process-driver` | — | [`packages/subagent/subagent-in-process-driver/src/index.ts`](../packages/subagent/subagent-in-process-driver/src/index.ts) |
+| `@deepseek-ai/dsh-text-tool-output` | — | [`packages/prompt/text-tool-output/src/index.ts`](../packages/prompt/text-tool-output/src/index.ts) |
 | `@deepseek-ai/dsh-timeout` | — | [`packages/util/timeout/src/index.ts`](../packages/util/timeout/src/index.ts) |
 | `@deepseek-ai/dsh-typert-generator` | — | [`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts) |
 | `@deepseek-ai/dsh-typert-protocol` | — | [`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts) |

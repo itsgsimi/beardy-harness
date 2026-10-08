@@ -45,6 +45,9 @@
       "path": "../../core/tools"
     },
     {
+      "path": "../../prompt/text-tool-output"
+    },
+    {
       "path": "../../session/unattended-session"
     },
     {

@@ -436,6 +436,7 @@
     { "path": "./packages/health/health" },
     { "path": "./packages/homelab/tool-homelab" },
     { "path": "./packages/prompt/dedicated-prompt" },
+    { "path": "./packages/prompt/text-tool-output" },
     { "path": "./packages/discord/discord-gateway" },
     { "path": "./packages/discord/tool-discord" },
     { "path": "./packages/experimental/training-export" },
