@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `/models` to inspect, load, or unload configured Docker containers and remote halorun profiles. Named group commands such as `/gaming on` unload only their configured members; `off` loads them. Successful unload intent survives Host restarts and pauses matching health probes, blocks provider routes before admission, and records matching cron fires as skipped. Commands are available only to configured Agent presets and never enter a model tool catalog.
+Use `/models` to inspect, load, or unload configured Docker containers and remote halorun profiles. Named group commands such as `/gaming on` unload only their configured members; `off` loads them. Successful unload intent survives Host restarts and pauses matching health probes, fails Agent model requests on matching provider routes, and records matching cron fires as skipped. Commands are available only to configured Agent presets and never enter a model tool catalog.
 
 ## Table of Contents
 
@@ -66,7 +66,7 @@ Mount this Host plugin with explicit state storage, operator identity, authorize
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The Host service publishes the current intentional-unload map to health, pi-ai route admission, and cron. Mutating commands are serialized within one Host and replace the state file atomically. The subprocess request specifies argv, cwd, bounded output, deadline, cancellation, and termination grace; deployment strings are validated as safe tokens before mount. Remote hold paths use absolute or `~/` spelling with safe path segments; separate checked SSH argv calls create or remove the file. Health matches an exact configured URL, and cron checks the job's chosen provider before reserving a Session.
+The Host service publishes the current intentional-unload map to health and cron. A prepended Host `agent/request` listener reads the final provider route of every Agent model request and throws `LOCAL_MODEL_UNLOADED` when that route is unloaded, before the request header is logged or an adapter receives the call. Mutating commands are serialized within one Host and replace the state file atomically. The subprocess request specifies argv, cwd, bounded output, deadline, cancellation, and termination grace; deployment strings are validated as safe tokens before mount. Remote hold paths use absolute or `~/` spelling with safe path segments; separate checked SSH argv calls create or remove the file. Health matches an exact configured URL, and cron checks the job's chosen provider before reserving a Session.
 
 | Source | Responsibility |
 |---|---|
@@ -81,7 +81,7 @@ The Host service publishes the current intentional-unload map to health, pi-ai r
 
 - [Health plugin](../health/README.md) — paused probes and human `/status`.
 - [Cron plugin](../../cron/cron/README.md) — durable skipped-fire history.
-- [pi-ai adapter](../../llm/llm-pi-ai/README.md) — route admission.
+- [Agent package](../../core/agent/README.md) — the `agent/request` waterfall that request admission listens on.
 
 -----
 
@@ -101,6 +101,7 @@ None; the controller adds no tokens to model requests.
 - **Status records intent, not independent process state.** Use a health probe to observe reachability after load; the controller does not poll container or remote process listings for `/models status`.
 - **One Host owns mutations.** The in-process queue serializes commands in one gateway; separate gateways sharing a state file require an external single-owner deployment rule.
 - **A failed state write reports an error.** After a successful unload, this Host keeps the backend paused in memory; repair storage before restart to preserve that intent.
+- **Only Agent requests are checked.** Direct `ctx.llm` callers outside an Agent turn, such as compaction summaries and session titles, reach the adapter on an unloaded route. A request already queued in an adapter when its route is unloaded is not rechecked.
 - **Remote control uses SSH's command transport.** Targets and remote command tokens are fixed by validated configuration; the controller never accepts command text as argv.
 
 <a id="dev-note"></a>

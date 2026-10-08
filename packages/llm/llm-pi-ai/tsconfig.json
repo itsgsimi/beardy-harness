@@ -27,9 +27,6 @@
       "path": "../../llm/llm"
     },
     {
-      "path": "../../health/local-model-control"
-    },
-    {
       "path": "../../attachment/attachment"
     },
     {

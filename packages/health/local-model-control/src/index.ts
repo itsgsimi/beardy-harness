@@ -10,6 +10,8 @@ import { dirname, isAbsolute, posix } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
+import type {} from '@deepseek-ai/dsh-agent'
+import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import z from '@deepseek-ai/schemastery'
 import { z as storageSchema } from 'zod'
@@ -178,7 +180,7 @@ const intentsSchema = storageSchema.object({ version: storageSchema.literal(1),
     by: storageSchema.string().min(1), at: storageSchema.iso.datetime(),
   })) }).strict()
 
-/** A read-only view used by health, route admission, and cron. */
+/** A read-only view used by health, Agent request admission, and cron. */
 export interface LocalModelStatus {
   /** Find intentional unload for one exact provider route.
    * @param provider - Configured provider route.
@@ -421,7 +423,26 @@ export class LocalModelController implements LocalModelStatus {
   }
 }
 
-/** Load durable intent before publishing status or accepting commands. */
+/**
+ * Fail every Agent model request whose final provider route is intentionally unloaded with
+ * `LOCAL_MODEL_UNLOADED`, before the request header is logged or the adapter receives the call.
+ * The listener is prepended so it reads the route after every other `agent/request` listener has
+ * replaced it. Direct `ctx.llm` callers outside an Agent turn are not checked.
+ * @param ctx - Host context owning the listener.
+ * @param status - Intentional-unload state to read on each request.
+ */
+export function installRouteAdmission(ctx: Context, status: LocalModelStatus): void {
+  ctx.on('agent/request', async (_payload, next) => {
+    const config = await next()
+    const paused = status.unloadedForRoute(config.provider)
+    if (paused !== undefined) {
+      throw new LlmError(`local model unloaded: ${paused.backend} was unloaded by ${paused.intent.by} at ${paused.intent.at}`, 'LOCAL_MODEL_UNLOADED')
+    }
+    return config
+  }, { prepend: true })
+}
+
+/** Load durable intent before publishing status, admitting Agent requests, or accepting commands. */
 export async function apply(ctx: Context, raw: Config): Promise<void> {
   const config = resolveConfig(raw)
   const controller = await LocalModelController.open(config, {
@@ -429,5 +450,6 @@ export async function apply(ctx: Context, raw: Config): Promise<void> {
     wait: (ms, signal) => delay(ms, undefined, { signal }),
   })
   ctx.provide('localModels', controller)
+  installRouteAdmission(ctx, controller)
   controller.registerCommands(ctx)
 }

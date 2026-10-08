@@ -94,7 +94,7 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-llm-pi-ai)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
-设置 `maxConcurrentRequests` 后，同一路由的槽位全部占用时，新请求按先进先出顺序排队。排队期间中止请求会将其移出队列。流成功、失败、中止、超时或消费者关闭后才释放槽位；`streamIdleTimeoutMs` 只在准入后开始计时。`queueTimeoutMs` 单独计算排队时间，过期的等待者以 `ADMISSION_TIMEOUT` 失败。通过 `ctx.localModels` 主动卸载的路由在凭据查询、准入及流计时器启动前以 `LOCAL_MODEL_UNLOADED` 失败。该代码不在默认可重试集合中：向同一满队列重试只会增加负载，不会创造容量。路由可通过 `retryPolicy.retryableCodes` 显式启用重试。准入等待不单独记录日志；最终失败仍通过常规请求结果呈现。
+设置 `maxConcurrentRequests` 后，同一路由的槽位全部占用时，新请求按先进先出顺序排队。排队期间中止请求会将其移出队列。流成功、失败、中止、超时或消费者关闭后才释放槽位；`streamIdleTimeoutMs` 只在准入后开始计时。`queueTimeoutMs` 单独计算排队时间，过期的等待者以 `ADMISSION_TIMEOUT` 失败。该代码不在默认可重试集合中：向同一满队列重试只会增加负载，不会创造容量。路由可通过 `retryPolicy.retryableCodes` 显式启用重试。准入等待不单独记录日志；最终失败仍通过常规请求结果呈现。
 
 ### 登录提供方
 

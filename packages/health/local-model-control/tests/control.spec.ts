@@ -344,6 +344,11 @@ describe('local model controls', () => {
     expect((await registered[0]?.handler(invocation))?.text).toContain('ornith: available')
     expect((await registered[1]?.handler({ ...invocation, rawInput: 'pause' }))?.text).toContain('Usage:')
     expect((await registered[0]?.handler({ ...invocation, rawInput: 'load ornith' }))?.text).toContain('health wait timed out')
+    const request = () => ctx.waterfall('agent/request', { agent: {} as never, turn: 1, step: 0, signal: h.signal },
+      () => Promise.resolve({ provider: 'subagent', model: 'ornith' }))
+    await expect(request()).resolves.toEqual({ provider: 'subagent', model: 'ornith' })
+    await registered[1]?.handler({ ...invocation, rawInput: 'on' })
+    await expect(request()).rejects.toMatchObject({ code: 'LOCAL_MODEL_UNLOADED' })
     await ctx.fiber.dispose()
     expect(removed).toEqual(['gaming', 'models'])
   })

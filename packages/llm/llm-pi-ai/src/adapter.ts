@@ -75,8 +75,6 @@ interface PiAiSnapshot {
 export interface PiAiAdapterOptions {
   /** Current validated profiles by provider route; called once per operation. */
   profiles: () => ReadonlyMap<string, ResolvedPiAiProviderProfile>
-  /** Reject an intentionally unloaded route before credentials, admission, or stream timers. */
-  checkRoute?: (provider: string) => void
   /**
    * Resolve the credential for one already-resolved profile; called once per
    * stream call and frozen for that call. `undefined` defers to the route's own
@@ -335,7 +333,6 @@ export class PiAiAdapter extends LlmAdapter {
     options: GenerateOptions,
     snapshot: PiAiSnapshot,
   ): AsyncIterable<StreamChunk> {
-    this.config.checkRoute?.(options.provider)
     if (options.stop !== undefined) {
       throw new LlmError('llm-pi-ai does not support GenerateOptions.stop', 'UNSUPPORTED_OPTION')
     }
@@ -351,7 +348,6 @@ export class PiAiAdapter extends LlmAdapter {
       options.reasoningEffort ?? profile.reasoning,
     )
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
-    this.config.checkRoute?.(options.provider)
 
     let admission = this.admissions.get(options.provider)
     if (admission === undefined) {
@@ -365,7 +361,6 @@ export class PiAiAdapter extends LlmAdapter {
       options.signal,
     )
     using _slot = { [Symbol.dispose]: release }
-    this.config.checkRoute?.(options.provider)
 
     const consumer = new AbortController()
     const upstream = options.signal === undefined
