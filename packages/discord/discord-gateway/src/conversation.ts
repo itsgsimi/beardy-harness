@@ -20,7 +20,8 @@ import { discordChannelOf } from '@deepseek-ai/dsh-delivery-target'
 import type { Agent, AgentHandle, AgentSetup } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
-import { activeApprovalRequestId, type ApprovalOutcome, type ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
+import type { ApprovalOutcome, ApprovalRequest, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
+import { ApprovalIdClaims } from './approval-asks.ts'
 import type { CommandDescriptor, CommandResult } from '@deepseek-ai/dsh-commands'
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import { parseCommand } from '@deepseek-ai/dsh-commands'
@@ -410,6 +411,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
   const conversations = new Map<string, LiveConversation>()
   const pendings = new Map<string, PendingRequest>()
+  const approvalIds = new ApprovalIdClaims(ctx)
   const tails = new Map<string, Promise<void>>()
   const batches = new Map<string, PendingBatch>()
   const inputs = new Map<string, { controller: AbortController; pending: number }>()
@@ -776,7 +778,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
    * request waits per channel: a newer request cancels the older one, because a text answer cannot
    * name which prompt it belongs to.
    */
-  async function askApproval(channelId: string, req: ApprovalRequest, unattended = false): Promise<ApprovalOutcome> {
+  async function askApproval(
+    channelId: string, req: ApprovalRequest, loggedId: ApprovalRequestId | undefined, unattended = false,
+  ): Promise<ApprovalOutcome> {
     pendings.get(channelId)?.cancel()
     if (signal.aborted || req.signal?.aborted === true) return 'cancelled'
     return await new Promise<ApprovalOutcome>((resolve) => {
@@ -796,7 +800,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         resolve(outcome)
       }
       const entry: PendingApproval = {
-        kind: 'approval', channelId, unattended, promptMessageId: '', requestId: DiscordPromptId(activeApprovalRequestId(req) ?? randomUUID()),
+        kind: 'approval', channelId, unattended, promptMessageId: '', requestId: DiscordPromptId(loggedId ?? randomUUID()),
         answerLine: (line: string): void => {
           if (unattended) return
           const outcome = approvalOutcomeForLine(line)
@@ -1225,13 +1229,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     if (cron !== undefined) {
       // A run delivering to another transport has no Discord channel to ask in.
       const channelId = cron.channelId === undefined ? undefined : discordChannelOf(cron.channelId)
-      if (channelId === undefined || activeApprovalRequestId(req) === undefined || !deps.policy.allowedChannelIds.has(channelId)
+      const loggedId = approvalIds.claim(req)
+      if (channelId === undefined || loggedId === undefined || !deps.policy.allowedChannelIds.has(channelId)
         || !settings.answerers.some(form => form === 'component' || form === 'reaction')) return Promise.resolve('unavailable')
-      return askApproval(channelId, req, true)
+      return askApproval(channelId, req, loggedId, true)
     }
     const conversation = findLive(req.agent)
     if (conversation === undefined) return next()
-    return askApproval(conversation.channelId, req)
+    return askApproval(conversation.channelId, req, approvalIds.claim(req))
   }, { prepend: true }), 'discord-gateway approval answerer')
 
   ctx.effect(() => ctx.on('user-questions/request', (request, next) => {

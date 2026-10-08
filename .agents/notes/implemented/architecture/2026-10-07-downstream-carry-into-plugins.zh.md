@@ -24,6 +24,7 @@ Beardy 代码放在 Beardy 维护的包和 `dsh-beardy` 组合包中。只有当
 | `beardy` profile 模板 | `boot/app-boot` 的 `PROFILE_TEMPLATES` | profile 自身的 `package.json` 列出其三个组合包层 |
 | `encodeSegment` 子路径导出 | `session/session-persistence-jsonl` | `experimental/training-export` 中的副本，并通过测试与 JSONL 编码器比对 |
 | `TEXT_TOOL_OUTPUT` 输出声明 | `core/tools` | `prompt/` 包组中的新包 [`dsh-text-tool-output`](../../../../packages/prompt/text-tool-output/README.zh.md)；`tool-fantasy` 与 `camera-watch` 在 `defineTool` 旁导入它 |
+| `activeApprovalRequestId` 请求到 id 的映射 | `interaction/user-approval` | `discord-gateway` 把已记录的 `approval/asked`/`approval/decided` 对折叠为仅主机可见的 `discordApprovalAsks` Session 投影，并认领与请求的工具、调用 id 和原因相同的最早未决问题 |
 | `skill_manage`、技能提醒、它们的六个配置字段以及被裁剪技能的重新加载指引 | `skill/tool-skill` | 与 `tool-skill` 并列的新行 [`dsh-tool-skill-manage`](../../../../packages/memory/tool-skill-manage/README.zh.md)；该指引从目录消息移到其自身的 `tool:skill-manage` 提示词分节 |
 
 `skill-nudge` 消息来源以相同的 `@persistenceAttribution` 声明迁入 `dsh-tool-skill-manage`。其摘要未变，因此持久化目录只记录新的源码位置，无需持久化变更记录。
@@ -43,7 +44,7 @@ Beardy 代码放在 Beardy 维护的包和 `dsh-beardy` 组合包中。只有当
 | `skill-filesystem` 修改者列表 | 2 行 | 可配置的修改工具名称 |
 | `tool-web/conversion` 导出 | 约 240 行 | 导出的 HTML 转 Markdown 转换器 |
 | `bundle/web-app` 中的 `--insecure-no-auth`（`webStartup` 注入、connection 行上的 `insecureNoAuth`、`src/startup.ts`）与 `client/connection` | 约 190 行 | 按 Goran 的选择保留；替代方案是上游带长有效期的持久浏览器会话 cookie |
-| 小修复：`user-approval.activeApprovalRequestId`、`commands.listForScope`、重复释放、网关心跳与 no-cache 头、session-controller 分页上限、web-fetch 屏蔽主机、附件删除、time-context 星期 | 约 1.2K 行 | 每项一个小的上游改动 |
+| 小修复：`commands.listForScope`、重复释放、网关心跳与 no-cache 头、session-controller 分页上限、web-fetch 屏蔽主机、附件删除、time-context 星期 | 约 1.2K 行 | 每项一个小的上游改动 |
 | 客户端：手机布局、Mermaid/Graphviz 预览、选择器位置、非 loopback 下的设置持久化 | 约 2.8K 行 | 上游客户端 UI 改动 |
 | 上游包中适配上述承载的测试（`FileSystem` 修改方法、`HostConnectionService` 认证参数、布局操作）、Beardy 消息来源的 V3 到 V4 覆盖，以及 `core/tools` 的 `gen-tool-catalog.spec.ts` 中的 Beardy 工具名 | 少量 | 随各自适配的承载一并移除；当 `scripts/gen-tool-catalog.ts` 把 Beardy 工具包与上游清单分开列出时，这些工具名随之移除 |
 
@@ -63,4 +64,5 @@ Beardy 代码放在 Beardy 维护的包和 `dsh-beardy` 组合包中。只有当
 - 卸载不再拒绝已在 `llm-pi-ai` 准入队列中等待的请求。
 - 新的 Beardy profile 需要一个列出其组合包的 `package.json`；`dsh --profile beardy` 不再自动创建它。
 - 只要启用技能管理或提醒，被裁剪技能的重新加载语句就位于系统提示词中，包括技能目录为空的 Session，而不再位于每条已发布的目录消息里。
+- 同一 Session 中工具、调用 id 与原因都相同的并发审批问题，在 Discord 为提示命名时可以互换；答复仍只结算该提示自身的请求，且网关现在需要 `ctx.sessionProjections`。
 - 两份副本保持同一算法：webhook 的内联开启流程与 `openUnattendedSession` 一致，training-export 的 `encodeSegment` 与 JSONL 编码器一致（后者由测试固定）。

@@ -322,6 +322,7 @@ describe('startListener', () => {
         table: (name: string) => name === 'conversations' ? routes : outbox,
         close: domainClosed,
       }) },
+      sessionProjections: { register: () => () => {} },
       sessionPersistence: { open: async (_id: string, _mode: string, options: { signal: AbortSignal }) => ({
         inheritedEventCount: 0,
         read: async () => {

@@ -3,10 +3,13 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { registerCronApprovalRoute } from '@deepseek-ai/dsh-cron'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
+import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import { DiscordInteractionId } from '../src/interactions.ts'
+import { approvalAsksProjection } from '../src/approval-asks.ts'
 import { GUILD_CHANNEL, USER, drain, harness, inbound } from './support.ts'
 
 function cronAgent(): Agent {
@@ -24,6 +27,8 @@ describe('cron approval through its configured Discord channel', () => {
   it('binds a one-use button to the logged request id and configured channel', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['component', 'text'], replyText: 'Conversation ready.' })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -62,6 +67,8 @@ describe('cron approval through its configured Discord channel', () => {
   it('fails closed without a Discord channel, for a Signal target, and on listener restart', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['reaction', 'text'] })
     const agent = cronAgent()
     const noChannel = registerCronApprovalRoute(agent)
@@ -83,6 +90,8 @@ describe('cron approval through its configured Discord channel', () => {
   it('refuses a cron request when only ambiguous text answers are configured', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['text'] })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -127,6 +136,8 @@ describe('cron approval through its configured Discord channel', () => {
     })
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['component'], useDefaultPrompt: true, useDefaultClearPrompt: true })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -156,6 +167,8 @@ describe('cron approval through its configured Discord channel', () => {
     vi.stubGlobal('fetch', fetch)
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['reaction'], useDefaultPrompt: true })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -182,6 +195,8 @@ describe('cron approval through its configured Discord channel', () => {
     })
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['component'], useDefaultPrompt: true, useDefaultClearPrompt: true })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -210,6 +225,8 @@ describe('cron approval through its configured Discord channel', () => {
   it('expires an unanswered cron request and ignores an unapproved responder', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['reaction'], manualWait: true })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -235,6 +252,8 @@ describe('cron approval through its configured Discord channel', () => {
   it('does not announce expiry after the run was approved', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
+    await ctx.plugin(SessionProjections)
+    ctx.sessionProjections.register(approvalAsksProjection)
     const h = harness({ eventContext: ctx, answerers: ['reaction'], manualWait: true })
     const agent = cronAgent()
     const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
@@ -251,5 +270,91 @@ describe('cron approval through its configured Discord channel', () => {
       await h.router.dispose()
       await ctx.fiber.dispose()
     }
+  })
+
+  describe('names concurrent prompts after their own logged questions', () => {
+    async function setup() {
+      const ctx = new Context()
+      await ctx.plugin(ApprovalService)
+      await ctx.plugin(SessionProjections)
+      ctx.sessionProjections.register(approvalAsksProjection)
+      const h = harness({ eventContext: ctx, answerers: ['component'] })
+      const askedIds = (agent: Agent) => agent.session.ownEvents()
+        .flatMap(event => event.type === 'approval/asked' ? [event.data.id as string] : [])
+      const promptId = (index: number) => h.prompts[index]?.components?.[0]?.components[0]?.custom_id.split(':')[2]
+      const click = (messageId: string, id: string) => h.router.component({ kind: 'component', id: DiscordInteractionId('1472404859679670461'),
+        applicationId: 'bot-1', channelId: GUILD_CHANNEL, guildId: GUILD_CHANNEL, userId: USER,
+        token: 'test', messageId, customId: `dsh:approval:${id}:yes`, values: [] })
+      return { ctx, h, askedIds, promptId, click }
+    }
+
+    it('answers only the request whose prompt was clicked when two runs ask at once', async () => {
+      const { ctx, h, askedIds, promptId, click } = await setup()
+      const first = cronAgent()
+      const second = cronAgent()
+      const releases = [registerCronApprovalRoute(first, GUILD_CHANNEL), registerCronApprovalRoute(second, GUILD_CHANNEL)]
+      try {
+        const firstPending = ctx.approval.request({ agent: first, toolName: 'memory' })
+        const secondPending = ctx.approval.request({ agent: second, toolName: 'memory' })
+        await drain()
+        expect([promptId(0), promptId(1)]).toEqual([askedIds(first)[0], askedIds(second)[0]])
+        await expect(firstPending).resolves.toBe('cancelled')
+        expect(await click('prompt-1', askedIds(first)[0] ?? '')).toContain('expired')
+        expect(await click('prompt-1', askedIds(second)[0] ?? '')).toBe('Allowed once.')
+        await expect(secondPending).resolves.toBe('allowed-once')
+      } finally {
+        for (const release of releases) release()
+        await h.router.dispose()
+        await ctx.fiber.dispose()
+      }
+    })
+
+    it.each([
+      ['distinct tool calls', [ToolCallId('call-a'), ToolCallId('call-b')]],
+      ['identical questions', [undefined, undefined]],
+    ] as const)('claims each logged question once for %s in one Session', async (_label, callIds) => {
+      const { ctx, h, askedIds, promptId, click } = await setup()
+      const agent = cronAgent()
+      const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
+      try {
+        const pendings = callIds.map(callId => ctx.approval.request({ agent, toolName: 'memory', ...callId === undefined ? {} : { callId } }))
+        await drain()
+        const ids = askedIds(agent)
+        expect([promptId(0), promptId(1)]).toEqual(ids)
+        expect(await click('prompt-1', ids[1] ?? '')).toBe('Allowed once.')
+        await expect(Promise.all(pendings)).resolves.toEqual(['cancelled', 'allowed-once'])
+        const decided = agent.session.ownEvents().flatMap(event => event.type === 'approval/decided' ? [event.data] : [])
+        expect(decided).toEqual([{ id: ids[0], outcome: 'cancelled' }, { id: ids[1], outcome: 'allowed-once' }])
+        expect(ctx.sessionProjections.stateOf(agent.session, 'discordApprovalAsks')).toEqual({ undecided: [] })
+      } finally {
+        release()
+        await h.router.dispose()
+        await ctx.fiber.dispose()
+      }
+    })
+
+    it('keeps the reason in the fold and refuses a question already claimed by a live prompt', async () => {
+      const { ctx, h, askedIds, promptId, click } = await setup()
+      const agent = cronAgent()
+      const release = registerCronApprovalRoute(agent, GUILD_CHANNEL)
+      try {
+        const pending = ctx.approval.request({ agent, toolName: 'memory', callId: ToolCallId('call-a'), reason: 'Write USER.md' })
+        await drain()
+        expect(ctx.sessionProjections.stateOf(agent.session, 'discordApprovalAsks')).toEqual({
+          undecided: [{ id: askedIds(agent)[0], toolName: 'memory', callId: 'call-a', reason: 'Write USER.md' }],
+        })
+        expect(promptId(0)).toBe(askedIds(agent)[0])
+        // A second dispatch with the same fields finds the only matching question already claimed.
+        await expect(ctx.waterfall(scopeTarget(agent, agent), 'approval/request',
+          { agent, toolName: 'memory', callId: ToolCallId('call-a'), reason: 'Write USER.md' },
+          () => Promise.resolve('unavailable' as const))).resolves.toBe('unavailable')
+        expect(await click('prompt-1', askedIds(agent)[0] ?? '')).toBe('Allowed once.')
+        await expect(pending).resolves.toBe('allowed-once')
+      } finally {
+        release()
+        await h.router.dispose()
+        await ctx.fiber.dispose()
+      }
+    })
   })
 })

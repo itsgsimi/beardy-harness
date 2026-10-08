@@ -81,6 +81,9 @@
       "path": "../../session/session-persistence"
     },
     {
+      "path": "../../session/session-projection"
+    },
+    {
       "path": "../../speech/speech-whisper"
     },
     {

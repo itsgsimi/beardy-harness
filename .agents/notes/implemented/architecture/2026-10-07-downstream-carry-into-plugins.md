@@ -24,6 +24,7 @@ These moves apply the rule:
 | `beardy` profile template | `boot/app-boot` `PROFILE_TEMPLATES` | The profile's own `package.json` names its three bundle layers |
 | `encodeSegment` subpath export | `session/session-persistence-jsonl` | A copy in `experimental/training-export`, tested against the JSONL encoder |
 | `TEXT_TOOL_OUTPUT` output declaration | `core/tools` | New [`dsh-text-tool-output`](../../../../packages/prompt/text-tool-output/README.md) in the `prompt/` group; `tool-fantasy` and `camera-watch` import it beside `defineTool` |
+| `activeApprovalRequestId` request-to-id map | `interaction/user-approval` | `discord-gateway` folds the logged `approval/asked`/`approval/decided` pair into a host-only `discordApprovalAsks` Session projection and claims the earliest undecided question matching the request's tool, call id, and reason |
 | `skill_manage`, the skill nudge, their six config fields, and pruned-skill reload guidance | `skill/tool-skill` | New [`dsh-tool-skill-manage`](../../../../packages/memory/tool-skill-manage/README.md) row beside `tool-skill`; the guidance moves from the catalog message to its own `tool:skill-manage` prompt section |
 
 The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same `@persistenceAttribution` declaration. Its digest is unchanged, so the persistence catalog records only the new source location and no persistence-change record applies.
@@ -43,7 +44,7 @@ The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same 
 | `skill-filesystem` mutation actor list | 2 lines | Configurable mutation tool names |
 | `tool-web/conversion` export | ~240 lines | An exported HTML-to-Markdown converter |
 | `--insecure-no-auth` in `bundle/web-app` (`webStartup` injection and `insecureNoAuth` on the connection row, `src/startup.ts`) and `client/connection` | ~190 lines | Kept by Goran's choice; the alternative is upstream's persisted browser-session cookie with a long lifetime |
-| Small fixes: `user-approval.activeApprovalRequestId`, `commands.listForScope`, repeat-dispose, gateway heartbeat and no-cache headers, session-controller page bound, web-fetch blocked hosts, attachment delete, time-context weekday | ~1.2K lines | One small upstream change each |
+| Small fixes: `commands.listForScope`, repeat-dispose, gateway heartbeat and no-cache headers, session-controller page bound, web-fetch blocked hosts, attachment delete, time-context weekday | ~1.2K lines | One small upstream change each |
 | Client: phone layout, Mermaid/Graphviz previews, picker placement, settings persistence off loopback | ~2.8K lines | Client UI changes upstream |
 | Test adaptations in upstream packages to the carries above (`FileSystem` mutation methods, `HostConnectionService` auth argument, layout operations), V3-to-V4 coverage of Beardy message sources, and the Beardy tool names in `core/tools` `gen-tool-catalog.spec.ts` | small | Removed with the carry each one adapts to; the tool names leave when `scripts/gen-tool-catalog.ts` lists Beardy tool packages apart from the upstream manifest |
 
@@ -63,4 +64,5 @@ The listed upstream packages now match `origin/master`, so later syncs merge the
 - An unload no longer rejects a request already waiting in the `llm-pi-ai` admission queue.
 - A new Beardy profile needs a `package.json` that names its bundles; `dsh --profile beardy` no longer creates one.
 - The pruned-skill reload sentence sits in the system prompt whenever skill management or the nudge is enabled, including Sessions whose skill catalog is empty, instead of inside each published catalog message.
+- Concurrent approval questions in one Session with the same tool, call id, and reason are interchangeable when Discord names its prompts; answers still settle only the prompt's own request, and the gateway now requires `ctx.sessionProjections`.
 - Two copies keep the same algorithm: webhook's inline open matches `openUnattendedSession`, and training-export's `encodeSegment` matches the JSONL encoder (a test pins the second).

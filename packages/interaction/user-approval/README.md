@@ -29,7 +29,7 @@ Compose this service when sensitive tool actions should pause for a human or mac
 
 ### Composing answerers
 
-Answerers are `approval/request` waterfall listeners: return an outcome to answer for an owned agent, or call `next()` to delegate. Agent-scoped listeners receive only that agent's requests, and a deployment composes one terminal answerer; sibling listener order is not policy priority. During dispatch, `activeApprovalRequestId(request)` returns the id already appended in `approval/asked`, so a control can bind its answer without changing the borrowed request object. Without a terminal answerer, requests resolve `unavailable` and fail closed; the service itself never prompts a human.
+Answerers are `approval/request` waterfall listeners: return an outcome to answer for an owned agent, or call `next()` to delegate. Agent-scoped listeners receive only that agent's requests, and a deployment composes one terminal answerer — sibling listener order is not a policy-priority mechanism. Without a terminal answerer, requests resolve `unavailable` and fail closed; the service itself never prompts a human.
 
 ### Setting the policy
 

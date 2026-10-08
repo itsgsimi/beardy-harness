@@ -1190,9 +1190,9 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-discord-gateway`
 
-- `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `workspaceRegistry`
+- `inject`: `agentDefaultModel` · `agentPresets` · `agents` · `commands` · `credentials` · `permissionPresets` · `sessionTitle` · `storageDomain` · `sessions` · `sessionPersistence` · `sessionProjections` · `workspaceRegistry`
 - `refs`: [`ConfiguredModelSelection`](../packages/session/unattended-session/src/index.ts)
-- `source`: [`packages/discord/discord-gateway/src/index.ts:102`](../packages/discord/discord-gateway/src/index.ts)
+- `source`: [`packages/discord/discord-gateway/src/index.ts:104`](../packages/discord/discord-gateway/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. Destinations, identity, and presets are never model input. */
@@ -5267,7 +5267,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-user-approval`
 
-- `source`: [`packages/interaction/user-approval/src/index.ts:146`](../packages/interaction/user-approval/src/index.ts)
+- `source`: [`packages/interaction/user-approval/src/index.ts:135`](../packages/interaction/user-approval/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. All optional — `static Config` supplies the defaults. */

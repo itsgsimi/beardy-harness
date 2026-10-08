@@ -99,7 +99,7 @@ kind: "package-reference"
 
 命令注册表拥有命令描述与处理器；`interactions.ts` 将它们映射到 Discord 原生目录与响应 API，`native.ts` 在交给路由器之前验证并确认调用。交互 token 只保存在内存中。网关命令在每个 agent 注入了 commands 的子上下文中注册，并随该 agent 一并移除。
 
-`gateway.ts` 负责协议解析与连接生命周期。`conversation.ts` 负责会话路由、待决请求与最终回复游标；`presentation.ts` 生成卡片与控件，不修改会话事件。`wake.ts` 恢复提醒计时器；`outbox.ts` 保留按频道排序的投递。存储域版本 3 校验富文本内容、embed 总量与组件限制，并原样发送旧字符串分条。其默认单文件布局要求存储单元本身标记为版本 3；接受旧记录字段并不意味着升级旧存储单元。单元测试替换传输；Loader 组合测试覆盖仅含附件的私信路由，[附件快照](../../../snapshots/session/discord-attachments/snapshot.yml)无需 Discord 凭据即可记录模型可见的元数据。
+`gateway.ts` 负责协议解析与连接生命周期。`conversation.ts` 负责会话路由、待决请求与最终回复游标；`presentation.ts` 生成卡片与控件，不修改会话事件。`approval-asks.ts` 把每个 Session 的 `approval/asked` 与 `approval/decided` 事件折叠为仅主机可见的 `discordApprovalAsks` 投影；审批提示把工具、调用 id 与原因都相同的最早未决问题认领为其已记录的请求 id，因此插件需要 `ctx.sessionProjections`。`wake.ts` 恢复提醒计时器；`outbox.ts` 保留按频道排序的投递。存储域版本 3 校验富文本内容、embed 总量与组件限制，并原样发送旧字符串分条。其默认单文件布局要求存储单元本身标记为版本 3；接受旧记录字段并不意味着升级旧存储单元。单元测试替换传输；Loader 组合测试覆盖仅含附件的私信路由，[附件快照](../../../snapshots/session/discord-attachments/snapshot.yml)无需 Discord 凭据即可记录模型可见的元数据。
 
 </details>
 

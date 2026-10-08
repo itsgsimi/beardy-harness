@@ -90,6 +90,7 @@ function fixtureDependencies(token: string | undefined, record: FixtureAgentReco
         register: () => () => {},
       } as never)
       ctx.provide('sessions' as never, { flush: async () => true } as never)
+      ctx.provide('sessionProjections' as never, { register: () => () => {}, stateOf: () => undefined } as never)
       ctx.provide('sessionPersistence' as never, { open: async (id: string) => ({
         inheritedEventCount: 0, read: async () => sessions.get(id) ?? [], close: async () => {},
       }) } as never)

@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 组合应答者
 
-应答者是 `approval/request` waterfall（瀑布式事件）监听器：返回一个结果即为所负责的 agent（智能体）作答，否则调用 `next()` 委托。限定到 agent 的监听器只接收该 agent 的请求；部署会组合一个最终应答者，同级监听器顺序不是策略优先级。派发期间，`activeApprovalRequestId(request)` 返回已写入 `approval/asked` 的 id，因此控件能绑定该答案而不更改借用的请求对象。没有最终应答者时，请求解析为 `unavailable` 并以拒绝方式关闭；服务自身绝不会提示人类。
+应答者是 `approval/request` waterfall（瀑布式事件）监听器：返回一个结果即为所负责的 agent（智能体）作答，否则调用 `next()` 委托。限定到 agent 的监听器只接收该 agent 的请求，且每项部署应组合一个最终应答者——同级监听器的顺序不是策略优先级机制。没有最终应答者时，请求解析为 `unavailable` 并以拒绝方式关闭；服务自身绝不会提示人类。
 
 ### 设置策略
 

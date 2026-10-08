@@ -23,6 +23,7 @@ import UserApproval from '@deepseek-ai/dsh-user-approval'
 import { createJobRunner, registerCronApprovalRoute } from '@deepseek-ai/dsh-cron'
 import * as ToolMemory from '@deepseek-ai/dsh-tool-memory'
 import { GUILD_CHANNEL, USER, drain, harness, inbound } from '../../../discord/discord-gateway/tests/support.ts'
+import { approvalAsksProjection } from '../../../discord/discord-gateway/src/approval-asks.ts'
 
 let root: string | undefined
 let context: Context | undefined
@@ -213,6 +214,8 @@ describe('tool-memory real Loader composition through cordis.yml', () => {
       return { agent: liveAgent, dispose: async () => {} }
     } } as never)
 
+    // The gateway plugin registers this fold at load; the router harness leaves it to the caller.
+    ctx.sessionProjections.register(approvalAsksProjection)
     const gateway = harness({ eventContext: ctx, answerers: ['reaction'] })
     const runner = createJobRunner({ ctx, signal: new AbortController().signal, turnTimeoutMs: 10_000,
       wait: () => new Promise<void>(() => {}) })
@@ -251,6 +254,8 @@ describe('tool-memory real Loader composition through cordis.yml', () => {
     removeWebAnswerer()
 
     const discord = agent()
+    // The gateway plugin registers this fold at load; the router harness leaves it to the caller.
+    ctx.sessionProjections.register(approvalAsksProjection)
     const gateway = harness({ eventContext: ctx, approvalAgent: discord, answerers: ['reaction', 'text'] })
     try {
       gateway.router.handle(inbound({ channelId: GUILD_CHANNEL, guildId: GUILD_CHANNEL }))

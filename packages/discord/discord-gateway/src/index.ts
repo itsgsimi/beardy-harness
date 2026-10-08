@@ -26,6 +26,7 @@ import type { ConversationLane, DiscordCommandActor, GatewaySettings, LaneToolFi
 import { discordCommands } from './commands.ts'
 import { buildDiscordCommandCatalog, synchronizeDiscordCommands } from './interactions.ts'
 import { createNativeInteractions } from './native.ts'
+import { approvalAsksProjection } from './approval-asks.ts'
 
 export * from './conversation.ts'
 export * from './commands.ts'
@@ -39,7 +40,7 @@ export type * from './types.ts'
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'discord-gateway'
 
-/** Services the listener creates Sessions through. */
+/** Services the listener creates Sessions through, plus the Session projections that hold logged approval questions. */
 export const inject = [
   'agentDefaultModel',
   'agentPresets',
@@ -51,6 +52,7 @@ export const inject = [
   'storageDomain',
   'sessions',
   'sessionPersistence',
+  'sessionProjections',
   'workspaceRegistry',
 ]
 
@@ -655,6 +657,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   const settings: GatewaySettings = {
     ...configuredSettings, ...resolved.modelSelection === undefined ? {} : { modelSelection: resolved.modelSelection },
   }
+  ctx.sessionProjections.register(approvalAsksProjection)
   const router = createConversationRouter({
     ctx,
     signal: controller.signal,
