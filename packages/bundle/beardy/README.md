@@ -31,7 +31,16 @@ The bundle mounts `dsh-health` with `probes: []`, so it makes no endpoint claim 
 
 ### Run the shipped Beardy profile
 
-The installation auto-initializes the `beardy` profile from the base, Web, and Beardy bundle layers:
+Create `$DSH_HOME/profiles/beardy/package.json` selecting the base, Web, and Beardy bundle layers, then run the profile:
+
+```json
+{
+  "name": "dsh-profile-beardy",
+  "private": true,
+  "dependencies": {},
+  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@deepseek-ai/dsh-beardy"] } }
+}
+```
 
 ```sh
 dsh --profile beardy --dump-default-config

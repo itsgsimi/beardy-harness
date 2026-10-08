@@ -31,7 +31,16 @@ Beardy 组合包在 `dsh-base` 与 `dsh-web-app` 之上添加持久化、具备�
 
 ### 运行随附的 Beardy profile
 
-安装会从 base、Web 与 Beardy 组合包层自动初始化 `beardy` profile：
+创建选择 base、Web 与 Beardy 组合包层的 `$DSH_HOME/profiles/beardy/package.json`，然后运行该 profile：
+
+```json
+{
+  "name": "dsh-profile-beardy",
+  "private": true,
+  "dependencies": {},
+  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@deepseek-ai/dsh-beardy"] } }
+}
+```
 
 ```sh
 dsh --profile beardy --dump-default-config

@@ -62,8 +62,14 @@ async function runScenario(fixture: string, scenarioDir: string): Promise<{
   const cwd = await mkdtemp(join(tmpdir(), 'dsh-discord-snapshot-'))
   try {
     await mkdir(join(cwd, '.git'))
+    // No shipped template names the Beardy profile; its manifest selects the three bundle layers.
+    const profileDir = join(cwd, '.dsh', 'profiles', 'beardy')
+    await mkdir(profileDir, { recursive: true })
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name: 'dsh-profile-beardy', private: true, dependencies: {},
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-beardy'] } },
+    }, null, 2) + '\n')
     if (scenarioDir === laneScenarioDir) {
-      await mkdir(join(cwd, '.dsh'))
       await writeFile(join(cwd, '.dsh', 'local-model-control.json'), JSON.stringify({ version: 1,
         unloaded: { ornith: { by: 'Goran', at: '2026-09-27T18:00:00.000Z' } } }) + '\n')
     }

@@ -1,7 +1,7 @@
 /** Native research through the shipped Beardy CLI, with local and opt-in remote providers. */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -216,6 +216,13 @@ function patch(phase: 'run' | 'reopen', options: LaunchOptions): unknown[] {
 async function launch(root: string, phase: 'run' | 'reopen', options: LaunchOptions): Promise<ResearchDriverEvidence> {
   const patchPath = join(root, `${phase}.patch.yml`)
   await writeFile(patchPath, `${JSON.stringify(patch(phase, options))}\n`)
+  // No shipped template names the Beardy profile; its manifest selects the three bundle layers.
+  const profileDir = join(root, 'home', 'profiles', 'beardy')
+  await mkdir(profileDir, { recursive: true })
+  await writeFile(join(profileDir, 'package.json'), `${JSON.stringify({
+    name: 'dsh-profile-beardy', private: true, dependencies: {},
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-beardy'] } },
+  }, null, 2)}\n`)
   const result = await execa(process.execPath,
     ['--import', tsxHook, bin, '--profile', 'beardy', '--patch', patchPath, '--no-open', '--port', '0'], {
       cwd: repoRoot,
