@@ -32,14 +32,14 @@ harness 使用 `packages/` 下的 npm 包，按能力分组。先在此找到所
 | [`api/`](api/README.zh.md) | Remote BFF 装配与 Typert RPC 网关 |
 | [`typert/`](typert/README.zh.md) | 类型图生成、产物加载与运行时注册表 |
 | [`goal/`](goal/README.zh.md) | 同会话 goal 的持久化与生命周期 |
-| [`fantasy/`](fantasy/README.zh.md) | Yahoo Fantasy 只读服务、提供方和模型工具 |
+| [`fantasy/`](fantasy/README.zh.md) | Yahoo Fantasy 服务、提供方和工具 |
 | [`camera/`](camera/README.zh.md) | Ring 摄像头事件与视觉通知 |
 | [`signal/`](signal/README.zh.md) | Signal 消息与通知 |
 | [`research/`](research/README.zh.md) | 以 Session 保存的研究运行与存储 |
 | [`schedule/`](schedule/README.zh.md) | Host 拥有的定时后续操作 |
 | [`health/`](health/README.zh.md) | 显式端点探测与 Host 状态 |
-| [`homelab/`](homelab/README.zh.md) | Beardy 提供的只读家庭网络观测 |
-| [`prompt/`](prompt/README.zh.md) | 单一用途 Agent 作用域的专用完整提示词 |
+| [`homelab/`](homelab/README.zh.md) | 只读家庭网络观测 |
+| [`prompt/`](prompt/README.zh.md) | 单一用途 Agent 提示词 |
 | [`feedback/`](feedback/README.zh.md) | 人类反馈的采集与命令 |
 | [`telemetry/`](telemetry/README.zh.md) | 共享 Cordis OTel 上报通道 |
 | [`identity/`](identity/README.zh.md) | 共享匿名身份 |

@@ -2730,7 +2730,7 @@ export type Config = Readonly<Record<string, never>>
 ## `@deepseek-ai/dsh-local-model-control`
 
 - `inject`: `commands` · `subprocess`
-- `source`: [`packages/health/local-model-control/src/index.ts:45`](../packages/health/local-model-control/src/index.ts)
+- `source`: [`packages/health/local-model-control/src/index.ts:47`](../packages/health/local-model-control/src/index.ts)
 
 ```ts config-catalog
 /** Controller configuration; no backend exists by default. */
@@ -4275,7 +4275,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:248`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:247`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -4709,7 +4709,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-memory`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/memory/tool-memory/src/index.ts:40`](../packages/memory/tool-memory/src/index.ts)
+- `source`: [`packages/memory/tool-memory/src/index.ts:46`](../packages/memory/tool-memory/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration; every tunable is a validated field changeable from cordis.yml. */
@@ -5701,6 +5701,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 | `@deepseek-ai/dsh-client-ui-slots` | — | [`packages/client/ui-slots/src/index.ts`](../packages/client/ui-slots/src/index.ts) |
 | `@deepseek-ai/dsh-client-web` | — | [`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts) |
 | `@deepseek-ai/dsh-cmdline` | — | [`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts) |
+| `@deepseek-ai/dsh-dedicated-prompt` | — | [`packages/prompt/dedicated-prompt/src/index.ts`](../packages/prompt/dedicated-prompt/src/index.ts) |
 | `@deepseek-ai/dsh-delivery-target` | — | [`packages/util/delivery-target/src/index.ts`](../packages/util/delivery-target/src/index.ts) |
 | `@deepseek-ai/dsh-deque` | — | [`packages/util/deque/src/index.ts`](../packages/util/deque/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-agent-team-profile` | — | [`packages/experimental/agent-team-profile/src/index.ts`](../packages/experimental/agent-team-profile/src/index.ts) |
