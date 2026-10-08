@@ -36,14 +36,14 @@
   en: 25d9c7d6c0899d23
   zh: ad8380d14810ff1c
 /deepseek-ai-dsh-attachment/understand-the-implementation/design-decisions:
-  en: af7deef72fd2fa93
-  zh: f217d52ce3971135
+  en: 69c29aaaaaf054b7
+  zh: 039b71e7d0e39735
 /deepseek-ai-dsh-attachment/understand-the-implementation/service-operations:
-  en: 4a35cdba790c3b8b
-  zh: 08d4a18bbad4b182
+  en: 37e4c962e5f1f8da
+  zh: 4fbdad470569186c
 /deepseek-ai-dsh-attachment/understand-the-implementation/source-map:
-  en: 4fb4c96184c38169
-  zh: 015b06e4bfff4fcd
+  en: e39df7198a417979
+  zh: e1c0c8b9675a5157
 /deepseek-ai-dsh-attachment/further-exploration:
   en: 0f179d9ab84a962a
   zh: 4a1d0722a3309f4a
@@ -54,14 +54,14 @@
   en: 2fcaf6d01d42da7c
   zh: 81e61690b955dd18
 /deepseek-ai-dsh-attachment/known-limitations-and-deferred-work:
-  en: d1ee04ac73471377
-  zh: 1abf40510951d5c2
+  en: 8bd7aee290def337
+  zh: 2ad1ac62cc44415a
 /deepseek-ai-dsh-attachment/known-limitations-and-deferred-work/dev-note:
   en: d56846da29ad869c
   zh: 41e655e01351fd1d
 /deepseek-ai-dsh-attachment/known-limitations-and-deferred-work/dev-note/future-reference-aware-garbage-collection:
-  en: 20c22bbf4263d41e
-  zh: f85699e18a0e5f43
+  en: 9c3c331bd031193e
+  zh: d70d6946da097eda
 /deepseek-ai-dsh-attachment/known-limitations-and-deferred-work/dev-note/future-audio-video-and-assistant-side-output:
   en: 85353325b14af5a8
   zh: c03fb041c2daee7e

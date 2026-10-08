@@ -28,7 +28,7 @@ Graphviz uses the pinned, unmodified `@viz-js/viz` 3.30.0 WebAssembly distributi
 
 **Render each streamed chunk.** Incomplete diagrams are frequently invalid, and repeated layout work competes with text streaming. Message settlement provides complete source.
 
-**Put rendering inside Chat or add a general preview registry.** A shared primitive with plain props satisfies reuse without another registry or feature-plugin dependency. This follows the [shared-control rule](../architecture/2026-09-05-shared-client-control-primitives.md).
+**Put rendering inside Chat or add a general preview registry.** A shared primitive with plain props satisfies reuse without another registry or feature-plugin dependency. This follows the [shared-control rule](../../../../packages/client/AGENTS.md).
 
 **Execute HTML scripts in a frame.** Static chat examples do not need script execution. An empty sandbox plus sanitization and CSP gives the preview fewer capabilities and avoids introducing a frame messaging protocol.
 

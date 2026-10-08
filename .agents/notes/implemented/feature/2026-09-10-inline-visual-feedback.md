@@ -16,7 +16,7 @@ The [Web deliverables plugin](../../../../packages/client/ui-deliverables/README
 
 Harness guidance explicitly connects charts to data explanation, screenshots to browser findings, GIFs to interaction, and diagrams or mockups to visual proposals. It asks for supporting prose, accurate labels for illustrative data, and a distinction between observed screenshots and proposals. The schema carries this guidance for non-Web consumers as well.
 
-The [source-file delivery decision](2026-09-08-present-workspace-source-files.md) and [filesystem-access decision](2026-09-09-present-filesystem-access.md) remain active: ordinary `present` still opens editable current sources without copying them. Immutable visual snapshots are a separate requested result, not an alternate editing destination.
+The [source-file delivery decision](2026-09-08-present-workspace-source-files.md) and [filesystem-access decision](../../archived/feature/2026-09-09-present-filesystem-access.md) remain active: ordinary `present` still opens editable current sources without copying them. Immutable visual snapshots are a separate requested result, not an alternate editing destination.
 
 ## Alternatives considered
 

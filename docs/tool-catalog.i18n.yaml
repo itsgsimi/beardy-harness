@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 75120ef94b3c2830
-  zh: c5db28dd6853e91a
+  en: 39354363a593e878
+  zh: 030244035258693e
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -78,8 +78,11 @@
   en: f656575e6df094f6
   zh: f656575e6df094f6
 /tool-schema-catalog/deepseek-ai-dsh-tool-present/present:
-  en: 24ef5efe4c0edf50
-  zh: a2914d345bd8eefa
+  en: 848cb246da816683
+  zh: f0b6a0310c4f767f
+/tool-schema-catalog/deepseek-ai-dsh-tool-present/present-visual:
+  en: 576667e6435d0fee
+  zh: 5307f625f6bcb2e7
 /tool-schema-catalog/deepseek-ai-dsh-tool-pwsh:
   en: b222fc05f3f8ee4a
   zh: b222fc05f3f8ee4a
@@ -201,8 +204,17 @@
   en: 927a5ac0974b7642
   zh: 927a5ac0974b7642
 /tool-schema-catalog/deepseek-ai-dsh-tool-skill/skill:
-  en: 9b159d5831855afb
-  zh: 275ee82af0e0f59a
+  en: 0d694f14570ab183
+  zh: 098a995f777464ce
+/tool-schema-catalog/deepseek-ai-dsh-tool-skill/skill-manage:
+  en: c6347c822b4c9815
+  zh: d0bf5f1887de51b4
+/tool-schema-catalog/deepseek-ai-dsh-tool-memory:
+  en: b94bf14065439df0
+  zh: b94bf14065439df0
+/tool-schema-catalog/deepseek-ai-dsh-tool-memory/memory:
+  en: 6c79d06cb805cadf
+  zh: 3b74fbf172e72432
 /tool-schema-catalog/deepseek-ai-dsh-tool-session-query:
   en: eac1dff4b6d9e195
   zh: eac1dff4b6d9e195
@@ -216,8 +228,8 @@
   en: 14b5ec05fa8c0932
   zh: 3c85d44c13cc42c5
 /tool-schema-catalog/deepseek-ai-dsh-tool-session-query/session-search:
-  en: 8263202c97568fc3
-  zh: 92067337294c7a00
+  en: 3dd27d609ea63765
+  zh: a04379d48fd4aff2
 /tool-schema-catalog/deepseek-ai-dsh-tool-session-query/session-trace:
   en: 22866623e207d94e
   zh: 59f4f8eadcdba85c
@@ -300,8 +312,20 @@
   en: 96bffc40b80df4b8
   zh: 96bffc40b80df4b8
 /tool-schema-catalog/deepseek-ai-dsh-tool-workspace-dependencies/load-workspace-dependencies:
-  en: 77b88764ff3464e9
-  zh: a9ca7eeb15ada747
+  en: ed97c9c1e97c86a0
+  zh: f762874cb7dd7549
+/tool-schema-catalog/deepseek-ai-dsh-tool-homelab:
+  en: 4f2a8ecfe0e2c815
+  zh: 4f2a8ecfe0e2c815
+/tool-schema-catalog/deepseek-ai-dsh-tool-homelab/homelab:
+  en: 4a91417090306b5e
+  zh: 6b0261d35125bec8
+/tool-schema-catalog/deepseek-ai-dsh-tool-weather:
+  en: 12b206b9d9637427
+  zh: 12b206b9d9637427
+/tool-schema-catalog/deepseek-ai-dsh-tool-weather/get-weather:
+  en: c9f9ee22e568bc70
+  zh: 8d6f2a48968bd93f
 /tool-schema-catalog/deepseek-ai-dsh-tool-web:
   en: 4b9918342d3aa931
   zh: 4b9918342d3aa931
@@ -309,5 +333,35 @@
   en: 8673f203aea9bdf2
   zh: 4e17783ffdf34c83
 /tool-schema-catalog/deepseek-ai-dsh-tool-web/web-search:
-  en: cc1ad38bf0006710
-  zh: 324eacb827a09e93
+  en: 6ece4ca7f5205764
+  zh: f4c66d10f36db2f6
+/tool-schema-catalog/deepseek-ai-dsh-tool-odysseus-research:
+  en: baae482dea4c5a39
+  zh: baae482dea4c5a39
+/tool-schema-catalog/deepseek-ai-dsh-tool-odysseus-research/odysseus-research:
+  en: 7fb57264f3a7e40b
+  zh: aa444472a9c7013c
+/tool-schema-catalog/deepseek-ai-dsh-camera-watch:
+  en: 7b86974a740e516a
+  zh: 7b86974a740e516a
+/tool-schema-catalog/deepseek-ai-dsh-camera-watch/camera:
+  en: b022a9111a903689
+  zh: 0c7f1bb834a8da4c
+/tool-schema-catalog/deepseek-ai-dsh-tool-fantasy:
+  en: b680d291c7b816e5
+  zh: b680d291c7b816e5
+/tool-schema-catalog/deepseek-ai-dsh-tool-fantasy/fantasy:
+  en: 3975709c66b5bbfa
+  zh: 8ff260be65c3f12d
+/tool-schema-catalog/deepseek-ai-dsh-tool-research:
+  en: 5eb8c03ac9ed384e
+  zh: 5eb8c03ac9ed384e
+/tool-schema-catalog/deepseek-ai-dsh-tool-research/deep-research:
+  en: 1e9895f6fc58e7da
+  zh: 0ea6411aa3e48e04
+/tool-schema-catalog/deepseek-ai-dsh-tool-discord:
+  en: f0918d2fb83f427d
+  zh: f0918d2fb83f427d
+/tool-schema-catalog/deepseek-ai-dsh-tool-discord/discord-send:
+  en: a8647a36ab480a39
+  zh: 1c7137d2dd2be88e

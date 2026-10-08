@@ -27,24 +27,24 @@ id: 2026-09-27-downstream-v4-attribution
 baseline: false
 changes:
   - root: "event:agent/inbox/spliced"
-    previous: "2026-09-16-session-format-v4"
-    after: "8993290365012d0f5cd5f71bb1a3f2cb1023f1e3c0121699758b51bf4b8606a9"
+    previous: "2026-09-21-user-question-reply"
+    after: "08348dba2b18a0f5f93340a147b63421fd4b9f1c8b5b839f047d8f74408d412e"
     decision: same-version
   - root: "event:deliverables/presented"
     previous: "2026-09-11-initial"
     after: "c63a3a594df4cfda0975b91dad916d6bb62f83058fb48a049a6c923495c5561c"
     decision: same-version
   - root: "event:developer/message"
-    previous: "2026-09-16-session-format-v4"
-    after: "5aa733f99294311254ec09718c78ffc52f560cba0c865399619879da597d8a25"
+    previous: "2026-09-21-user-question-reply"
+    after: "061fac9576f9394bfad5043d69ad58e419dd36313ba79f67298f889c61b86acf"
     decision: same-version
   - root: "event:session/title-llm-request"
-    previous: "2026-09-16-session-format-v4"
-    after: "4d98bd872dcf806a09702b00abe03c3038d9546931bc752b58402b8877fd7c2b"
+    previous: "2026-09-21-user-question-reply"
+    after: "10432669237d646344b3c11376cd99c3af38539879fe69e790c655d722a2455c"
     decision: same-version
   - root: "event:user/message"
-    previous: "2026-09-16-session-format-v4"
-    after: "379f8afe7399f9b1a1aa95c55812348b92e54b52665cdf1272efe543038beff6"
+    previous: "2026-09-21-user-question-reply"
+    after: "0781a212498552eb2b2e4f2e66769577096b0b7dca64ead23410009298c17613"
     decision: same-version
 ```
 

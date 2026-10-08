@@ -16,7 +16,7 @@ Status: implemented
 
 Harness 指引明确将图表用于数据说明、截图用于浏览器发现、GIF 用于交互，以及示意图或原型用于视觉提案。指引要求配套文字、准确标明示例数据，并区分实测截图和提案。工具 schema 也为非 Web 消费方提供这些指引。
 
-[源文件交付决策](2026-09-08-present-workspace-source-files.zh.md) 与[文件系统访问决策](2026-09-09-present-filesystem-access.zh.md) 继续有效：普通 `present` 仍打开可编辑的当前源文件，不复制内容。不可变视觉快照是用户要求的独立结果，不是另一个编辑目的地。
+[源文件交付决策](2026-09-08-present-workspace-source-files.zh.md) 与[文件系统访问决策](../../archived/feature/2026-09-09-present-filesystem-access.md) 继续有效：普通 `present` 仍打开可编辑的当前源文件，不复制内容。不可变视觉快照是用户要求的独立结果，不是另一个编辑目的地。
 
 ## Alternatives considered
 
