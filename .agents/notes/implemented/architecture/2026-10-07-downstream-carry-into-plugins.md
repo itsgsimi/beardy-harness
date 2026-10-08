@@ -26,6 +26,8 @@ These moves apply the rule:
 | `TEXT_TOOL_OUTPUT` output declaration | `core/tools` | New [`dsh-text-tool-output`](../../../../packages/prompt/text-tool-output/README.md) in the `prompt/` group; `tool-fantasy` and `camera-watch` import it beside `defineTool` |
 | `activeApprovalRequestId` request-to-id map | `interaction/user-approval` | `discord-gateway` folds the logged `approval/asked`/`approval/decided` pair into a host-only `discordApprovalAsks` Session projection and claims the earliest undecided question matching the request's tool, call id, and reason |
 | `skill_manage`, the skill nudge, their six config fields, and pruned-skill reload guidance | `skill/tool-skill` | New [`dsh-tool-skill-manage`](../../../../packages/memory/tool-skill-manage/README.md) row beside `tool-skill`; the guidance moves from the catalog message to its own `tool:skill-manage` prompt section |
+| `deep_research`/`odysseus_research` report row and research worker Settings tab | `client/ui-tool` tool view, `client/ui-settings-plugins` tab, and the `research.*` keys in `client/ui-conversation` | New [`dsh-client-ui-research`](../../../../packages/research/client-ui-research/README.md) `dsh.client` row in the Beardy bundle; keyed `tool.call.toolview` entries and a `settings.plugins.tab` entry, rendered with the public `DisclosureRow` primitive |
+| Inline `presented-visual` Chat node | `client/ui-deliverables` | New [`dsh-client-ui-visuals`](../../../../packages/visuals/client-ui-visuals/README.md) `dsh.client` row in the Beardy bundle; a `ctx.uiConversation.events` Definition and a keyed `conversation.chat.node` entry |
 
 The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same `@persistenceAttribution` declaration. Its digest is unchanged, so the persistence catalog records only the new source location and no persistence-change record applies.
 
@@ -37,8 +39,7 @@ The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same 
 | `llm-pi-ai` per-provider admission queue | ~550 lines | `maxConcurrentRequests` and `queueTimeoutMs` per provider |
 | `agent-instructions` configurable user-global candidates and per-Session freeze | ~490 lines | Configurable user-global files with a frozen list; persona and memory depend on it |
 | `sandbox-policy`/`fs-sandbox` approved one-use home writes; `fs.makeDirectory`/`removeFile` | ~440 lines | A per-call mutation allowance |
-| `tool-present` visuals, `ui-chat.processDisclosure`, `ui-deliverables` node | ~600 lines | Inline visual deliveries |
-| `ui-tool` research card and `ui-settings-plugins` research settings | ~445 lines | None needed; moves to a Beardy client package |
+| `tool-present` visuals and `ui-chat.processDisclosure` | ~440 lines | Inline visual deliveries |
 | `ui-conversation.appendDraft` for `ui-voice` dictation | ~60 lines | A composer append operation |
 | Research stage hiding (`rp-native-` prefix) and 7 names in `known-event-types.ts` | ~30 lines | A hidden-Session header flag and plugin-contributed known event types |
 | `skill-filesystem` mutation actor list | 2 lines | Configurable mutation tool names |
@@ -46,7 +47,7 @@ The `skill-nudge` message source moves to `dsh-tool-skill-manage` with the same 
 | `--insecure-no-auth` in `bundle/web-app` (`webStartup` injection and `insecureNoAuth` on the connection row, `src/startup.ts`) and `client/connection` | ~190 lines | Kept by Goran's choice; the alternative is upstream's persisted browser-session cookie with a long lifetime |
 | Small fixes: `commands.listForScope`, repeat-dispose, gateway heartbeat and no-cache headers, session-controller page bound, web-fetch blocked hosts, attachment delete, time-context weekday | ~1.2K lines | One small upstream change each |
 | Client: phone layout, Mermaid/Graphviz previews, picker placement, settings persistence off loopback | ~2.8K lines | Client UI changes upstream |
-| Test adaptations in upstream packages to the carries above (`FileSystem` mutation methods, `HostConnectionService` auth argument, layout operations), V3-to-V4 coverage of Beardy message sources, and the Beardy tool names in `core/tools` `gen-tool-catalog.spec.ts` | small | Removed with the carry each one adapts to; the tool names leave when `scripts/gen-tool-catalog.ts` lists Beardy tool packages apart from the upstream manifest |
+| Test adaptations in upstream packages to the carries above (`FileSystem` mutation methods, `HostConnectionService` auth argument, layout operations, the `formatSessionSearch` workspace argument in `ui-tool` `details-models.client.spec.ts`), V3-to-V4 coverage of Beardy message sources, and the Beardy tool names in `core/tools` `gen-tool-catalog.spec.ts` | small | Removed with the carry each one adapts to; the tool names leave when `scripts/gen-tool-catalog.ts` lists Beardy tool packages apart from the upstream manifest |
 
 ## Alternatives considered
 
@@ -66,3 +67,5 @@ The listed upstream packages now match `origin/master`, so later syncs merge the
 - The pruned-skill reload sentence sits in the system prompt whenever skill management or the nudge is enabled, including Sessions whose skill catalog is empty, instead of inside each published catalog message.
 - Concurrent approval questions in one Session with the same tool, call id, and reason are interchangeable when Discord names its prompts; answers still settle only the prompt's own request, and the gateway now requires `ctx.sessionProjections`.
 - Two copies keep the same algorithm: webhook's inline open matches `openUnattendedSession`, and training-export's `encodeSegment` matches the JSONL encoder (a test pins the second).
+- The research row lacks ui-tool's internal `ToolRow` formatting: an expanded call without a saved report shows its plain result text.
+- Each Beardy client package outside `packages/client/` adds one project reference to the root `tsconfig.client.json`.
