@@ -515,6 +515,16 @@ describe('Definition-owned Chat process groups', () => {
     expect(store.groupSource(groups[2]!.key).getSnapshot()?.members.map(member => member.key)).toEqual(['b'])
   })
 
+  it('keeps process-independent result rows outside step groups', () => {
+    const result: ChatConversationViewNode = { ...tool('result', 4), processDisclosure: 'independent' }
+    const { store } = harness([tool('a', 3), result, tool('b', 5)])
+    expect(store.entries.map(entry => entry.kind)).toEqual(['group', 'node', 'group'])
+    expect(store.entries[1]).toEqual({ kind: 'node', key: 'result' })
+    const groups = store.entries.filter(entry => entry.kind === 'group')
+    expect(groups.map(group => store.groupSource(group.key).getSnapshot()?.members.map(member => member.key)))
+      .toEqual([['a'], ['b']])
+  })
+
   it('updates live detail without replacing roots or members and closes on the first reply', () => {
     const h = harness([assistant('first thought')])
     const first = h.store.entries[0]!

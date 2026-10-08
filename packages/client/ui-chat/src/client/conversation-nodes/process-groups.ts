@@ -162,7 +162,7 @@ class TurnGroups {
       const node = readNode(input, key)
       // Both Definitions retain the same message id; only its question presentation renders.
       if (node.kind === 'turn-trigger' && replies.has(node.id)) continue
-      if (INDEPENDENT.has(node.kind)) {
+      if (INDEPENDENT.has(node.kind) || node.processDisclosure === 'independent') {
         flush(true)
         emit(key, { kind: 'node', key })
       } else if (node.kind === 'turn-process') {
