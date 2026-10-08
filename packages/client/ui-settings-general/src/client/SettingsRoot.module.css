@@ -247,10 +247,12 @@
    overlaps a chrome row's drag — including above every column, which an in-root
    overlay could not promise once a chrome row declares drag itself. */
 
-/* Phone widths: the dialog takes the whole screen and the nav rail becomes a
-   horizontally scrolling row of cells above the content, so the section keeps
-   the full column instead of the 154px a 188px rail would leave it. */
-@media (max-width: 767px) {
+/* Phones (narrow and touch-first): the dialog takes the whole screen and the
+   nav rail becomes a horizontally scrolling row of cells above the content, so
+   the section keeps the full column instead of the 154px a 188px rail would
+   leave it. A narrow desktop window keeps the inset panel and its caption
+   clearance. */
+@media (max-width: 767px) and (pointer: coarse) {
   .panel {
     flex-direction: column;
     width: 100%;
