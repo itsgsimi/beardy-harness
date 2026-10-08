@@ -3,8 +3,7 @@ import { useMemo, useState } from 'react'
 import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PresentedVisual } from '@deepseek-ai/dsh-tool-present/types'
-import { basename } from '../presented.ts'
-import { mockupDocument } from './visuals.ts'
+import { downloadName, mockupDocument } from './visuals.ts'
 import type { NS } from './locales.ts'
 import css from './Visuals.module.css'
 
@@ -36,7 +35,7 @@ export function Visuals({ node, t }: VisualsProps) {
       <VisualBody visual={file.visual} t={t} />
       <div className={css.actions}>
         <button type="button" onClick={() => { setExpanded(index) }}>{t('visual.expand')}</button>
-        <a href={`data:${file.visual.mediaType};base64,${file.visual.data}`} download={basename(file.path)}>{t('visual.download')}</a>
+        <a href={`data:${file.visual.mediaType};base64,${file.visual.data}`} download={downloadName(file.path)}>{t('visual.download')}</a>
         {file.visual.mediaType === 'text/html' && <span>{t('visual.isolated')}</span>}
       </div>
       <Modal open={expanded === index} onClose={() => { setExpanded(undefined) }} title={file.visual.title}

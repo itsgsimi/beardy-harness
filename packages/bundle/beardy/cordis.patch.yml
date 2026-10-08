@@ -96,6 +96,12 @@
     - id: ui-research
       name: '@deepseek-ai/dsh-client-ui-research'
 
+# The `dsh.client` visuals row renders present_visual snapshots inline at
+# their recorded position in the Web conversation.
+- insert:
+    - id: ui-visuals
+      name: '@deepseek-ai/dsh-client-ui-visuals'
+
 # The personal profile supplies the private token path, caller teams, and season.
 # Enable both rows together once the private import source or store is available.
 - insert:

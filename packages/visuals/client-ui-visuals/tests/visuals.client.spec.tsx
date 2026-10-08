@@ -9,7 +9,7 @@ import type { GlobalStandardProps, SessionStandardProps } from '@deepseek-ai/dsh
 import type { ConversationNodeContext, ConversationStartMatch } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { Visuals } from '../src/client/Visuals.tsx'
-import { mockupDocument, visualFile, visualsDefinition } from '../src/client/visuals.ts'
+import { downloadName, mockupDocument, visualFile, visualFiles, visualsDefinition } from '../src/client/visuals.ts'
 import { en } from '../src/client/locales.ts'
 
 type Props = Parameters<typeof Visuals>[0]
@@ -68,7 +68,11 @@ it('reports undecodable images without hiding the caption or download', () => {
   expect(screen.getByRole('link', { name: 'Download original' })).toBeTruthy()
 })
 
-it.each([null, {}, { path: 'x', visual: { title: 'x', mediaType: 'text/javascript', data: 'YQ==' } },
+it.each([null, [], {}, { path: ' ', visual: { title: 'x', mediaType: 'image/png', data: 'YQ==' } },
+  { path: 'x', description: 3, visual: { title: 'x', mediaType: 'image/png', data: 'YQ==' } },
+  { path: 'x', visual: [] }, { path: 'x', visual: { title: ' ', mediaType: 'image/png', data: 'YQ==' } },
+  { path: 'x', visual: { title: 'x', mediaType: 'text/javascript', data: 'YQ==' } },
+  { path: 'x', visual: { title: 'x', mediaType: 'image/png', data: 'YQ=' } },
   { path: 'x', visual: { title: 'x', mediaType: 'image/png', data: 'not base64' } }])(
   'declines malformed persisted visuals', (input) => { expect(visualFile(input)).toBeNull() },
 )
@@ -114,3 +118,11 @@ it('keeps immutable delivery nodes outside process folding with their recorded o
     location: match.location, visibility: 'visible', processDisclosure: 'independent', data: { files: [valid] },
   })
 })
+
+it.each([[null], [{ files: 'x' }], [{ files: [{ path: 'report.txt' }] }]])('collects no visuals from %j', (data) => {
+  expect(visualFiles(data)).toEqual([])
+})
+
+it.each([['out/chart.svg', 'chart.svg'], ['C:\\out\\mock.html', 'mock.html'], ['plain.png', 'plain.png']])(
+  'names the download for %s', (path, name) => { expect(downloadName(path)).toBe(name) },
+)

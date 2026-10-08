@@ -16,9 +16,7 @@ function fileNames(raw: string): string {
   let args: unknown
   try { args = JSON.parse(raw) }
   catch { return raw } // Truncated tool JSON remains visible until the call completes.
-  if (typeof args !== 'object' || args === null) return raw
-  if ('path' in args && typeof args.path === 'string') return args.path
-  if (!('files' in args) || !Array.isArray(args.files)) return raw
+  if (typeof args !== 'object' || args === null || !('files' in args) || !Array.isArray(args.files)) return raw
   return args.files.flatMap((file: unknown) =>
     typeof file === 'object' && file !== null && 'path' in file && typeof file.path === 'string'
       ? [file.path] : [],
@@ -41,14 +39,14 @@ function PreparingPresentRow({ t }: Extract<PresentRowProps, { phase: 'preparing
   </div>
 }
 
-function StartedPresentRow({ toolName, block, inspect, t }: Exclude<PresentRowProps, { phase: 'preparing' }>) {
+function StartedPresentRow({ block, inspect, t }: Exclude<PresentRowProps, { phase: 'preparing' }>) {
   const settled = 'kind' in block
   const state = !settled ? 'running' : block.error?.code === 'interrupted' ? 'stopped' : block.isError ? 'error' : 'ok'
   const args = (settled ? block.call?.argsRaw : block.argsRaw) ?? ''
   const output = settled ? block.content.map(item => item.type === 'text' ? item.text : JSON.stringify(item)).join('\n') : ''
   const details = output || (settled && block.error ? `${block.error.name}: ${block.error.code}` : '')
   const [expanded, setExpanded] = useState(false)
-  return <div data-tool={toolName} data-state={state}>
+  return <div data-tool="present" data-state={state}>
     <DisclosureRow title={t('row.title')}
       icon={<IconDeliverDocRegular size={14} />}
       open={expanded && details !== ''} expandable={details !== ''} expandOnRowClick keepContentWhenOpen

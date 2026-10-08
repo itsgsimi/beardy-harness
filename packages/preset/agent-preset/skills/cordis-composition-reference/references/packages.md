@@ -551,6 +551,12 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-typert-loader` | yes | Loader integration for generated Typert package contributions |
 
+## visuals
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-client-ui-visuals` | no | Inline Web Chat node for visual snapshots delivered by present_visual |
+
 ## web
 
 | Package | Config | Description |

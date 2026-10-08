@@ -32,14 +32,15 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`api/`](api/README.md) | Remote BFF assembly and Typert RPC gateway |
 | [`typert/`](typert/README.md) | Type graph generation, artifact loading, and runtime registry |
 | [`goal/`](goal/README.md) | Same-session goal persistence and lifecycle |
-| [`fantasy/`](fantasy/README.md) | Yahoo Fantasy service, provider, and tool |
-| [`camera/`](camera/README.md) | Ring camera events and vision notices |
+| [`fantasy/`](fantasy/README.md) | Yahoo Fantasy |
+| [`camera/`](camera/README.md) | Ring camera events and notices |
 | [`signal/`](signal/README.md) | Signal messages and notices |
 | [`research/`](research/README.md) | Session-backed research runs and storage |
 | [`schedule/`](schedule/README.md) | Host-owned scheduled follow-ups |
-| [`health/`](health/README.md) | Explicit endpoint probes and Host status |
+| [`health/`](health/README.md) | Endpoint probes and Host status |
 | [`homelab/`](homelab/README.md) | Read-only home-network observations |
 | [`prompt/`](prompt/README.md) | Beardy model-facing helpers |
+| [`visuals/`](visuals/README.md) | Visual deliveries |
 | [`feedback/`](feedback/README.md) | Human feedback capture and command |
 | [`telemetry/`](telemetry/README.md) | Shared Cordis OTel reporting channels |
 | [`identity/`](identity/README.md) | Shared anonymous identity |
