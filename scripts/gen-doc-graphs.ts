@@ -146,6 +146,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'The provider owns the projection source, stat-key translation, and player matching; scheduled reports score the lines under league scoring.',
   },
   {
+    key: 'fantasyNfl',
+    pkg: 'fantasy',
+    title: 'NFL schedules, betting lines, and usage',
+    mode: 'seam',
+    implementations: ['fantasy-nflverse'],
+    consumers: ['fantasy-reports'],
+    note: 'The provider owns the public data files, kickoff time zones, team abbreviations, and player matching; scheduled reports turn games into opponents, kickoffs, and implied totals and usage into recent-role facts.',
+  },
+  {
     key: 'research',
     pkg: 'research',
     title: 'Durable owner-scoped research runs',

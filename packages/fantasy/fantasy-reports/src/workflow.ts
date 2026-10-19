@@ -1,31 +1,39 @@
 /**
- * Weekly report pipeline inside one durable research run: code gathers Yahoo facts, projections, news,
- * the legal lineup, close calls, and the waiver shortlist; small model stages make fixed-choice judgments and
- * write short prose; code validates every answer, degrades bad ones to plain defaults, and renders.
+ * Weekly report pipeline inside one durable research run: code gathers Yahoo facts, projections over the
+ * horizon, the waiver pool and its values, recent form, NFL games, news, the legal lineup, close calls, and
+ * moves; small model stages make fixed-choice judgments and write short prose; code validates every answer,
+ * degrades bad ones to plain defaults, and renders.
  * @module @deepseek-ai/dsh-fantasy-reports/workflow
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ResearchWorkflow, ResearchWorkflowRun } from '@deepseek-ai/dsh-research'
 import type { ResearchWorkflowResult } from '@deepseek-ai/dsh-research/types'
-import type { FantasyLeagueSettings, FantasyPlayer, FantasyTeam, PlayerKey } from '@deepseek-ai/dsh-fantasy/types'
-import { scoreStats } from '@deepseek-ai/dsh-fantasy'
+import type { FantasyLeagueSettings, FantasyNflUsage, FantasyPlayer, FantasyTeam, PlayerKey } from '@deepseek-ai/dsh-fantasy/types'
 import {
   type Comparison, holdsJsonObject, type ModelCall, parseCalls, parseCheck, parseComparisons, parseSummary, parseWaivers, type WaiverPick,
 } from './answers.ts'
 import { type PlayerCall, reconcileCalls } from './calls.ts'
 import type { ReportMode, ResolvedConfig, ResolvedTeam } from './config.ts'
+import { type Deadlines, weekDeadlines } from './deadlines.ts'
 import {
-  type ClosePair, closePairs, type Excerpt, lineupCall, plainReason, points, positionNeeds, slotOf, type WaiverCandidate,
-  waiverQueries, waiverShortlist,
+  acquisition, basePositions, type ClosePair, closePairs, type Excerpt, freeAgentFallback, lineupCall, plainReason, points, type PoolEntry,
+  positionNeeds, slotOf, type WaiverCandidate, waiverShortlist,
 } from './facts.ts'
+import { type NflFacts, type PoolPlayer, Projections, readNfl, readPool, readRecentPoints, readStanding } from './gather.ts'
 import { type LineupAssignment, lineupChanges, optimizeLineup, startingSlots } from './lineup.ts'
-import { collectNews, type News } from './news.ts'
+import {
+  addValue, byeOutlook, dropCosts, type HorizonBase, horizonBase, type HorizonWeek, horizonWeeks, inIr, laterWeekView, rosterRoom,
+  tradeChip,
+} from './moves.ts'
+import { articleQueries, candidateQuery, collectNews, type News, type NewsSubject, rosterQueries } from './news.ts'
 import {
   callInstructions, checkInstructions, closeCallInstructions, DATA_MARKER, FANTASY_PROMPT_VERSION, FANTASY_STAGE_SYSTEM_PROMPT,
   summaryInstructions, waiverInstructions,
 } from './prompts.ts'
-import { renderReport, type SlotComparison } from './render.ts'
+import { type MovePick, renderReport, type SlotComparison } from './render.ts'
+import { changesSince, type ReportFacts } from './since.ts'
+import { type GameFacts, gameFor, recentForm, type RecentForm } from './signals.ts'
 
 /** Workflow name recorded in each report run. */
 export const FANTASY_WORKFLOW_NAME = 'fantasy-weekly-report'
@@ -41,6 +49,14 @@ export interface EarlierReport {
   readonly markdown: string
 }
 
+/**
+ * The latest earlier report of the same week, compared by Thursday and Sunday updates: its parsed facts, or
+ * why its evidence could not be read.
+ */
+export type PreviousReport =
+  | { readonly runId: string; readonly mode: ReportMode; readonly facts: ReportFacts }
+  | { readonly runId: string; readonly mode: ReportMode; readonly unreadable: string }
+
 /** Trusted facts the scheduled consumer resolved before starting the run. */
 export interface WeeklyReportInput {
   readonly team: ResolvedTeam
@@ -53,13 +69,15 @@ export interface WeeklyReportInput {
   readonly firedAt: number
   /** Earlier completed reports of the same team and season, newest first. */
   readonly history: readonly EarlierReport[]
+  /** For Thursday and Sunday updates, the latest earlier completed report of the same week, when one exists. */
+  readonly previous?: PreviousReport
 }
 
 /**
  * Build the research workflow for one team's weekly report.
- * @param ctx - consumer context with the fantasy, fantasy projection, and web services.
+ * @param ctx - consumer context with the fantasy, fantasy projection, and web services, and optionally NFL data.
  * @param config - validated report policy.
- * @param input - trusted team, league settings, week, mode, and history.
+ * @param input - trusted team, league settings, week, mode, history, and the earlier report of the week.
  * @returns a workflow that publishes unless the Yahoo facts fail or no model stage answers usably.
  */
 export function weeklyReportWorkflow(ctx: Context, config: ResolvedConfig, input: WeeklyReportInput): ResearchWorkflow {
@@ -118,22 +136,40 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
   return Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, index * size + size))
 }
 
-/** Yahoo facts of one player as every stage sees them; absent Yahoo fields are null. */
-function playerFacts(player: FantasyPlayer): Record<string, unknown> {
+/** Signals beside a player's Yahoo facts: recent points, form, usage, and his report-week game. */
+interface Signals {
+  readonly form: ReadonlyMap<PlayerKey, RecentForm>
+  readonly usage: ReadonlyMap<PlayerKey, readonly FantasyNflUsage[]>
+  readonly game: (player: FantasyPlayer) => GameFacts | undefined
+}
+
+/** Yahoo facts of one player as every stage sees them; absent fields are null. */
+function playerFacts(player: FantasyPlayer, signals: Signals): Record<string, unknown> {
+  const form = signals.form.get(player.key)
+  const game = signals.game(player)
   return {
     name: player.name, nflTeam: player.nflTeam ?? null,
     positions: player.positions.filter(position => !position.includes('/') && position !== 'IR'),
     status: player.status ?? null, injury: player.injuryNote ?? null, bye: player.byeWeek ?? null,
     projection: player.projectedPoints ?? null,
+    recentPoints: form?.points ?? [], recentAverage: form?.average ?? null, form: form?.flag ?? null,
+    usage: signals.usage.get(player.key) ?? [],
+    game: game === undefined ? null : { opponent: game.opponent, home: game.home, kickoff: new Date(game.kickoff).toISOString(),
+      impliedTotal: game.impliedTotal ?? null },
   }
 }
 
 /** Compact facts of one roster player as a stage sees them. */
 function sheet(id: string, player: FantasyPlayer, lineup: readonly LineupAssignment[], excerpts: readonly Excerpt[],
-  week: number): Record<string, unknown> {
+  week: number, signals: Signals): Record<string, unknown> {
   const slot = slotOf(lineup, id)
-  return { id, ...playerFacts(player), yahooSlot: player.selectedSlot ?? null, slotLocked: player.slotLocked === true,
+  return { id, ...playerFacts(player, signals), yahooSlot: player.selectedSlot ?? null, slotLocked: player.slotLocked === true,
     codeCall: lineupCall(player, slot, week), codeSlot: slot ?? 'BN', excerpts }
+}
+
+/** Completed weeks before the report week, oldest first. */
+function earlierWeeks(week: number, count: number): number[] {
+  return Array.from({ length: Math.min(count, week - 1) }, (_, index) => week - Math.min(count, week - 1) + index)
 }
 
 async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyReportInput,
@@ -149,7 +185,8 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     throw withheld(`the Yahoo roster has ${roster.players.length} players; reports cover 1 to ${config.maxPlayers}`)
   }
   const caveats: string[] = []
-  const projected = new Projections(ctx, run, settings, Number(input.season), week, caveats)
+  const season = Number(input.season)
+  const projected = new Projections(ctx, run, settings, season, week, caveats)
   const players = new Map((await projected.fill(roster.players, 'the roster')).map((player, index) => [`P${index + 1}`, player]))
   const slots = settings.rosterSlots
   const name = (id: string): string => (players.get(id) as FantasyPlayer).name
@@ -158,28 +195,52 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
   const opponent = matchupTeams?.find(entry => entry.key !== team.teamKey)
   const code = optimizeLineup(players, slots, week)
 
-  const needs = positionNeeds(players, code, slots, week)
-  const freeAgents = new Map<string, readonly FantasyPlayer[]>()
-  const yahooFreeAgents = new Map<string, readonly FantasyPlayer[]>()
-  if (config.waiverPositions > 0) {
-    for (const position of waiverQueries(needs, players)) {
-      try {
-        const available = await ctx.fantasy.players(team.leagueKey, { status: 'FA', position, sort: 'rank', start: 0,
-          count: Math.min(25, config.waiverCandidates * 3), week }, run.signal)
-        yahooFreeAgents.set(position, available)
-        freeAgents.set(position, await projected.fill(available, `free agents at ${position}`))
-      } catch (error) {
-        run.signal.throwIfAborted()
-        caveats.push(`Yahoo free agents at ${position} could not be read (${String(error)}).`)
-      }
-    }
+  const room = rosterRoom(players, slots)
+  const weeks = horizonWeeks(week, config.horizonWeeks, config.lastWeek)
+  const later = weeks.slice(1)
+  const active = [...players].filter(([id, player]) => !inIr(player) && !room.irMoves.includes(id))
+  const rosterWeeks: HorizonWeek[] = [{ week, players: new Map(active) }]
+  for (const at of later) {
+    const views = await projected.fill(active.map(([, player]) => laterWeekView(player, undefined)), `the roster in week ${at}`, at)
+    rosterWeeks.push({ week: at, players: new Map(active.map(([id], index) => [id, views[index] as FantasyPlayer])) })
   }
-  const shortlist = waiverShortlist(needs, freeAgents, players, code, week,
-    { positions: config.waiverPositions, candidates: config.waiverCandidates })
+  const byes = byeOutlook(rosterWeeks, slots)
+  const chip = tradeChip(rosterWeeks, slots)
+  const base = horizonBase(rosterWeeks, slots, room, players)
+  const costs = dropCosts(base)
+
+  const needs = positionNeeds(players, code, slots, week)
+  let standing: FantasyTeam | undefined
+  let read: PoolPlayer[] = []
+  let pool: PoolEntry[] = []
+  if (config.waiverPositions > 0) {
+    standing = await readStanding(ctx, run, team.leagueKey, team.teamKey, caveats)
+    read = await readPool(ctx, run, team.leagueKey, { positions: basePositions(slots),
+      pointWeeks: earlierWeeks(week, config.waiverPointWeeks).reverse(), count: config.waiverPoolSize }, caveats)
+    pool = await valuePool(read, projected, base, weeks)
+  }
+  const shortlist = waiverShortlist(pool, { positions: config.waiverPositions, candidates: config.waiverCandidates })
+  const formWeeks = earlierWeeks(week, config.formWeeks)
+  const watched = [...players.values(), ...shortlist.candidates.map(item => item.player)]
+  const recent = formWeeks.length === 0 ? new Map<PlayerKey, Map<number, number>>()
+    : await readRecentPoints(ctx, run, team.leagueKey, watched, formWeeks, caveats)
+  const form = new Map(watched.flatMap(player => recent === undefined ? []
+    : [[player.key, recentForm(player, recent.get(player.key) ?? new Map<number, number>(), config.formGapPoints)] as const]))
+  const nfl: NflFacts | undefined = await readNfl(ctx, run, season, week, { weeks: formWeeks, players: watched }, caveats)
+  const signals: Signals = { form, usage: nfl?.usage ?? new Map(), game: player => gameFor(nfl?.games ?? [], player.nflTeam) }
+  const deadlines: Deadlines | undefined = nfl === undefined ? undefined : weekDeadlines(nfl.games, settings)
   const comparison = await slotComparison(ctx, run, players, code, slots, week, opponent, projected, caveats)
 
-  const news = await collectNews(ctx, config, players, { season: input.season, week }, run)
-  const excerpts = (id: string): readonly Excerpt[] => news.excerpts.get(id) as readonly Excerpt[]
+  const subjects = new Map<string, NewsSubject>([
+    ...[...players].map(([id, player]) => [id, { player,
+      queries: rosterQueries(player, input.season, week).slice(0, config.searchesPerPlayer) }] as const),
+    ...[...shortlist.candidates].sort((a, b) => b.value.net - a.value.net).slice(0, config.candidateSearches)
+      .map(item => [item.id, { player: item.player, queries: [candidateQuery(item.player, input.season, week)] }] as const),
+  ])
+  const news = await collectNews(ctx, config, subjects, run, config.waiverArticleSearches === 0 || pool.length === 0 ? undefined
+    : { queries: articleQueries(input.season, week, config.waiverArticleSearches), pages: config.waiverArticlePages,
+      pool: pool.map(entry => entry.player) })
+  const excerpts = (id: string): readonly Excerpt[] => news.excerpts.get(id) ?? []
   const stages = new Stages(run, config.stageMaxTokens)
   const matchupFacts = { week, team: team.name, opponent: opponent?.name ?? null,
     projected: { team: ours?.projectedPoints ?? null, opponent: opponent?.projectedPoints ?? null } }
@@ -191,8 +252,8 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     for (let round = 0; round < 2 && pending.length > 0; round++) {
       const stage = `calls ${index + 1}${round === 0 ? '' : ' retry'}`
       const shown = new Map(pending.map(id => [id, new Set(excerpts(id).map(item => item.source))]))
-      const text = await stages.ask(stage, callInstructions(input.mode, pending),
-        { matchup: matchupFacts, players: pending.map(id => sheet(id, players.get(id) as FantasyPlayer, code, excerpts(id), week)) })
+      const text = await stages.ask(stage, callInstructions(input.mode, pending), { matchup: matchupFacts,
+        players: pending.map(id => sheet(id, players.get(id) as FantasyPlayer, code, excerpts(id), week, signals)) })
       if (text === undefined) {
         for (const id of pending) invalid.set(id, 'stage error')
         continue
@@ -220,9 +281,9 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     const text = await stages.ask('close calls', closeCallInstructions(pairs.map(pair => pair.id)), {
       matchup: matchupFacts,
       pairs: pairs.map(pair => ({ id: pair.id, slot: pair.slot, flagged: pair.why === 'status' ? 'uncertain starter' : 'close projections',
-        starter: { ...sheet(pair.starter, players.get(pair.starter) as FantasyPlayer, lineup, excerpts(pair.starter), week),
+        starter: { ...sheet(pair.starter, players.get(pair.starter) as FantasyPlayer, lineup, excerpts(pair.starter), week, signals),
           finalCall: (calls.get(pair.starter) as PlayerCall).call },
-        bench: { ...sheet(pair.bench, players.get(pair.bench) as FantasyPlayer, lineup, excerpts(pair.bench), week),
+        bench: { ...sheet(pair.bench, players.get(pair.bench) as FantasyPlayer, lineup, excerpts(pair.bench), week, signals),
           finalCall: (calls.get(pair.bench) as PlayerCall).call } })),
     })
     if (text !== undefined) {
@@ -244,33 +305,41 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     }
   }
 
-  const waivers: Array<{ candidate: WaiverCandidate; reason: string }> = []
+  const picks: MovePick[] = []
   if (shortlist.candidates.length > 0 && config.waiverPicks > 0) {
-    const text = await stages.ask('waivers', waiverInstructions(config.waiverPicks), {
-      positions: shortlist.positions.map(weak => ({ position: weak.position, reasons: weak.reasons, projectionGap: weak.gap ?? null })),
-      candidates: shortlist.candidates.map(({ id, position, player }) => ({ id, fills: position, ...playerFacts(player),
-        rank: player.rank ?? null, percentOwned: player.percentOwned ?? null })),
+    const text = await stages.ask('waivers', waiverInstructions(input.mode, config.waiverPicks), {
+      team: { waiverPriority: standing?.waiverPriority ?? null, faabBalance: standing?.faabBalance ?? null,
+        teams: settings.league.teamCount ?? null },
+      league: { waiverDays: settings.waiverDays ?? null, usesFaab: settings.usesFaab ?? null },
+      horizon: weeks, openRosterSpots: room.open, irMoves: room.irMoves.map(name),
+      needs: needs.filter(item => item.need > 0).map(item => ({ position: item.position, reasons: item.reasons })),
+      byes: byes.map(item => ({ week: item.week, onBye: item.bye.map(name), emptySlots: item.empty })),
+      dropCosts: [...costs].sort(([, a], [, b]) => a - b).map(([id, cost]) => ({ player: name(id), cost })),
+      candidates: shortlist.candidates.map(item => ({ id: item.id, fills: item.position, ...playerFacts(item.player, signals),
+        acquisition: acquisition(item.player), rank: item.player.rank ?? null, percentOwned: item.player.percentOwned ?? null,
+        percentOwnedDelta: item.player.percentOwnedDelta ?? null,
+        projections: item.weeks.map((view, at) => ({ week: weeks[at] as number, points: view.projectedPoints ?? null })),
+        netValue: item.value.net, drop: item.value.drop === undefined ? null : name(item.value.drop),
+        articleMentions: news.mentions.get(item.player.key) ?? 0, excerpts: excerpts(item.id) })),
     })
-    let picks: WaiverPick[] | undefined
+    let answer: WaiverPick[] | undefined
     if (text !== undefined) {
       try {
-        picks = parseWaivers(text, new Set(shortlist.candidates.map(item => item.id)), config.waiverPicks)
+        answer = parseWaivers(text, new Set(shortlist.candidates.map(item => item.id)), config.waiverPicks)
         stages.record('waivers', 1)
       } catch (error) {
         stages.record('waivers', 0, String(error))
       }
     }
-    if (picks === undefined) caveats.push('No waiver ideas: the waiver answer was unusable.')
-    for (const pick of picks ?? []) {
-      waivers.push({ candidate: shortlist.candidates.find(item => item.id === pick.id) as WaiverCandidate, reason: pick.reason })
-    }
+    if (answer === undefined) caveats.push('No waiver ideas: the waiver answer was unusable.')
+    picks.push(...pairMoves(answer ?? [], shortlist.candidates, pool, base, room.open, weeks, caveats))
   }
 
   if (config.checkReasons) {
     const checked = [...calls].filter(([, call]) => call.origin === 'model' && call.sources.length > 0)
     if (checked.length > 0) {
       const text = await stages.ask('reason check', checkInstructions(), { reasons: checked.map(([id, call]) => ({
-        id, ...playerFacts(players.get(id) as FantasyPlayer), call: call.call, reason: call.reason,
+        id, ...playerFacts(players.get(id) as FantasyPlayer, signals), call: call.call, reason: call.reason,
         excerpts: excerpts(id).filter(item => call.sources.includes(item.source)) })) })
       let flagged: Set<string> | undefined
       if (text !== undefined) {
@@ -290,6 +359,8 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     }
   }
 
+  const facts = currentFacts(roster.players, players, room.irMoves, picks)
+  const since = sinceLastReport(input, facts, caveats)
   const moved = lineupChanges(lineup, players, slots)
   const changes = { start: moved.start.map(name), bench: moved.bench.map(name) }
   let summary: string | undefined
@@ -299,7 +370,11 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     changes,
     calls: [...calls].map(([id, call]) => ({ player: name(id), call: call.call, reason: call.reason })),
     closeCalls: comparisons.map(item => ({ starter: name(item.pair.starter), bench: name(item.pair.bench), text: item.text })),
-    waivers: waivers.map(item => ({ player: item.candidate.player.name, reason: item.reason })),
+    waivers: picks.map(item => ({ player: item.candidate.player.name, acquisition: item.kind,
+      drop: item.drop === undefined ? null : name(item.drop), reason: item.reason })),
+    irMoves: room.irMoves.map(name),
+    byes: byes.map(item => ({ week: item.week, onBye: item.bye.map(name), emptySlots: item.empty })),
+    sinceLastReport: since ?? null,
     earlierReports: historyText(input.history, config.historyChars),
   })
   if (summaryText !== undefined) {
@@ -323,7 +398,15 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
     players, slots, ...(ours === undefined || opponent === undefined ? {} : { matchup: { ours, opponent } }),
     ...(comparison === undefined ? {} : { comparison }),
     summary: summary ?? codeSummary(team.name, opponent, ours, changes), lineup, calls,
-    comparisons: comparisons.map(({ pair, text, sources }) => ({ pair, text, sources })), waivers, caveats, evidence: news.evidence,
+    comparisons: comparisons.map(({ pair, text, sources }) => ({ pair, text, sources })),
+    moves: { enabled: config.waiverPositions > 0, irMoves: room.irMoves, picks, dropCosts: costs,
+      ...(standing?.waiverPriority === undefined ? {} : { waiverPriority: standing.waiverPriority }),
+      ...(standing?.faabBalance === undefined ? {} : { faabBalance: standing.faabBalance }),
+      ...(settings.league.teamCount === undefined ? {} : { teams: settings.league.teamCount }) },
+    byes, ...(chip === undefined ? {} : { chip }), weeks, form, game: signals.game,
+    ...(deadlines === undefined ? {} : { deadlines }),
+    ...(since === undefined ? {} : { since: { mode: (input.previous as PreviousReport).mode, lines: since } }),
+    caveats, evidence: news.evidence,
   }, bound)
   return {
     markdown,
@@ -331,52 +414,109 @@ async function runReport(ctx: Context, config: ResolvedConfig, input: WeeklyRepo
       workflow: FANTASY_WORKFLOW_NAME, promptVersion: FANTASY_PROMPT_VERSION,
       team: { id: team.id, name: team.name, teamKey: team.teamKey, leagueKey: team.leagueKey },
       season: input.season, week, mode: input.mode, firedAt: input.firedAt,
-      yahoo: { settings, roster, matchups, freeAgents: Object.fromEntries(yahooFreeAgents) },
+      yahoo: { settings, roster, matchups, standing: standing ?? null, pool: read },
       projectedPoints: Object.fromEntries(projected.filled),
+      horizonProjections: Object.fromEntries([...projected.later].map(([at, filled]) => [at, Object.fromEntries(filled)])),
       history: input.history.map(report => ({ runId: report.runId, week: report.week, mode: report.mode })),
+      previous: input.previous === undefined ? null : { runId: input.previous.runId, mode: input.previous.mode,
+        readable: 'facts' in input.previous },
       sources: news.evidence.map(source => ({ id: source.id, url: source.url, title: source.title, players: source.players })),
       codeLineup: code, lineup, calls: Object.fromEntries(calls), closeCalls: pairs, comparisons: comparisons.map(item => item.pair.id),
-      waiverShortlist: shortlist.candidates.map(item => ({ id: item.id, position: item.position, player: item.player.key })),
-      waivers: waivers.map(item => item.candidate.id), stages: stages.outcomes, caveats,
+      horizon: weeks, room, byes, tradeChip: chip ?? null, dropCosts: Object.fromEntries(costs),
+      poolValues: pool.map(entry => ({ player: entry.player.key, position: entry.position, ...entry.value })),
+      waiverShortlist: shortlist.candidates.map(item => ({ id: item.id, position: item.position, player: item.player.key,
+        acquisition: acquisition(item.player), net: item.value.net, drop: item.value.drop ?? null })),
+      waivers: picks.map(item => item.candidate.id),
+      moves: { ...facts.moves, names: facts.names }, articleMentions: Object.fromEntries(news.mentions), articlePages: news.articles,
+      recentForm: Object.fromEntries(form), nfl: nfl === undefined ? null : { games: nfl.games, usage: Object.fromEntries(nfl.usage) },
+      deadlines: deadlines ?? null, sinceLastReport: since ?? null,
+      stages: stages.outcomes, caveats,
     }),
     quality: 'verified_urls',
   }
 }
 
-/**
- * Projections from the projection provider, scored under league scoring, for players Yahoo left unprojected.
- * A failed projection read leaves its players as Yahoo returned them and adds a caveat.
- */
-class Projections {
-  /** Points filled from provider stat lines, by player key, for the run's evidence. */
-  readonly filled = new Map<PlayerKey, number>()
-
-  constructor(private readonly ctx: Context, private readonly run: ResearchWorkflowRun, private readonly settings: FantasyLeagueSettings,
-    private readonly season: number, private readonly week: number, private readonly caveats: string[]) {}
-
-  /**
-   * Project one player list in a single provider call.
-   * @param players - players as Yahoo returned them.
-   * @param label - what the list is, for the failure caveat.
-   * @returns the players, with `projectedPoints` set where Yahoo left it undefined and the provider matched them.
-   */
-  async fill(players: readonly FantasyPlayer[], label: string): Promise<FantasyPlayer[]> {
-    let lines: ReadonlyMap<PlayerKey, Readonly<Record<string, number>>>
-    try {
-      lines = await this.ctx.fantasyProjections.project(this.season, this.week, players, this.run.signal)
-    } catch (error) {
-      this.run.signal.throwIfAborted()
-      this.caveats.push(`Projections for ${label} could not be read (${String(error)}).`)
-      return [...players]
-    }
-    return players.map((player) => {
-      const line = lines.get(player.key)
-      if (player.projectedPoints !== undefined || line === undefined) return player
-      const projectedPoints = scoreStats(line, this.settings.scoring)
-      this.filled.set(player.key, projectedPoints)
-      return { ...player, projectedPoints }
-    })
+/** Project and value every pool player over the horizon, one projection call per horizon week. */
+async function valuePool(read: readonly PoolPlayer[], projected: Projections, base: HorizonBase,
+  weeks: readonly number[]): Promise<PoolEntry[]> {
+  if (read.length === 0) return []
+  const current = await projected.fill(read.map(item => item.player), 'the waiver pool')
+  const byWeek = [current]
+  for (const at of weeks.slice(1)) {
+    byWeek.push(await projected.fill(current.map(player => laterWeekView(player, undefined)), `the waiver pool in week ${at}`, at))
   }
+  return read.map((item, index) => {
+    const views = byWeek.map(list => list[index] as FantasyPlayer)
+    return { position: item.position, player: current[index] as FantasyPlayer, weeks: views, value: addValue(base, `X${index}`, views) }
+  })
+}
+
+/**
+ * Turn waiver picks into moves in pick order: an add uses an open roster spot while one is left, otherwise it
+ * drops the cheapest droppable player that no earlier pick drops; a pick with neither, or whose only drops cost
+ * more than he adds, is left out with a caveat. A claim also names its free-agent fallback.
+ */
+function pairMoves(answer: readonly WaiverPick[], candidates: readonly WaiverCandidate[], pool: readonly PoolEntry[], base: HorizonBase,
+  open: number, weeks: readonly number[], caveats: string[]): MovePick[] {
+  const moves: MovePick[] = []
+  const used = new Set<string>()
+  const taken = new Set<string>(answer.map(pick => (candidates.find(item => item.id === pick.id) as WaiverCandidate).player.key))
+  let left = open
+  for (const pick of answer) {
+    const candidate = candidates.find(item => item.id === pick.id) as WaiverCandidate
+    let drop: string | undefined
+    let net = candidate.value.net
+    if (left > 0) {
+      left--
+    } else {
+      const paired = addValue({ ...base, full: true, droppable: base.droppable.filter(id => !used.has(id)) }, pick.id, candidate.weeks)
+      if (paired.drop === undefined || paired.net <= 0) {
+        caveats.push(`The waiver pick ${candidate.player.name} is left out: no open roster spot or worthwhile drop is left after the earlier picks.`)
+        continue
+      }
+      drop = paired.drop
+      net = paired.net
+      used.add(drop)
+    }
+    const kind = acquisition(candidate.player)
+    const fallback = kind === 'claim' ? freeAgentFallback(pool, candidate, taken) : undefined
+    if (fallback !== undefined) taken.add(fallback.player.key)
+    moves.push({ candidate, reason: pick.reason, kind, net, weeks: weeks.length,
+      ...(drop === undefined ? {} : { drop }), ...(fallback === undefined ? {} : { fallback }) })
+  }
+  return moves
+}
+
+/** This report's roster and suggested moves in the form an earlier report's evidence records them. */
+function currentFacts(roster: readonly FantasyPlayer[], players: ReadonlyMap<string, FantasyPlayer>, irMoves: readonly string[],
+  picks: readonly MovePick[]): ReportFacts {
+  const ir = irMoves.map(id => players.get(id) as FantasyPlayer)
+  const added = picks.map(pick => pick.candidate.player)
+  return {
+    roster: roster.map(player => ({ key: player.key, name: player.name,
+      ...(player.status === undefined ? {} : { status: player.status }) })),
+    moves: { ir: ir.map(player => player.key), claims: picks.filter(pick => pick.kind === 'claim').map(pick => pick.candidate.player.key),
+      adds: picks.filter(pick => pick.kind === 'free agent').map(pick => pick.candidate.player.key) },
+    names: Object.fromEntries([...ir, ...added].map(player => [player.key, player.name])),
+  }
+}
+
+/**
+ * Changes since the latest earlier report of the week, for Thursday and Sunday updates. A missing or
+ * unreadable earlier report adds a caveat and leaves the section out.
+ */
+function sinceLastReport(input: WeeklyReportInput, current: ReportFacts, caveats: string[]): string[] | undefined {
+  if (input.mode !== 'thursday' && input.mode !== 'sunday') return undefined
+  const previous = input.previous
+  if (previous === undefined) {
+    caveats.push(`No earlier report of week ${input.week} completed, so changes since the last report are not listed.`)
+    return undefined
+  }
+  if ('unreadable' in previous) {
+    caveats.push(`The earlier ${previous.mode} report's evidence could not be read (${previous.unreadable}), so changes since it are not listed.`)
+    return undefined
+  }
+  return changesSince(previous.facts, current)
 }
 
 /** Slot-by-slot projections of the report lineup and the opponent's Yahoo starters, when a roster player is projected. */

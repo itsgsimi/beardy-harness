@@ -1090,9 +1090,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'roster and player scores.',
       },
       {
-        signature: 'abstract players(league: LeagueKeyType, query: { search?: string status?: \'FA\' | \'W\' position?: string sort?: \'points\' | \'rank\' | \'percent_owned\' start: number count: number week?: number }, signal?: AbortSignal): Promise<readonly FantasyPlayer[]>',
+        signature: 'abstract players(league: LeagueKeyType, query: { search?: string status?: \'FA\' | \'W\' | \'A\' playerKeys?: readonly PlayerKeyType[] position?: string sort?: \'points\' | \'rank\' | \'percent_owned\' start: number count: number week?: number }, signal?: AbortSignal): Promise<readonly FantasyPlayer[]>',
         description: 'Search or filter one page of league players.',
-        parameters: [{ name: 'league', description: 'league identity.' }, { name: 'query', description: 'search or availability filters.' }, { name: 'signal', description: 'caller cancellation.' }],
+        parameters: [{ name: 'league', description: 'league identity.' }, { name: 'query', description: 'search or availability filters: `status` `FA` is immediate adds, `W` waiver claims, and `A` both; `playerKeys` (at most 25) selects exact players and excludes every other filter and sort.' }, { name: 'signal', description: 'caller cancellation.' }],
         returns: 'one provider page.',
       },
       {
@@ -1118,6 +1118,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read NFL game week dates for the configured season.',
         parameters: [{ name: 'signal', description: 'caller cancellation.' }],
         returns: 'game calendar.',
+      },
+    ],
+  },
+  {
+    key: 'fantasyNfl',
+    summary: 'NFL schedules, betting lines, and completed-game usage from a source other than the league provider.',
+    description: 'NFL schedules, betting lines, and completed-game usage from a source other than the league provider. Team abbreviations are uppercase and match `FantasyPlayer.nflTeam` compared case-insensitively.',
+    methods: [
+      {
+        signature: 'abstract games(season: number, week: number, signal?: AbortSignal): Promise<readonly FantasyNflGame[]>',
+        description: 'Read one regular-season week\'s games.',
+        parameters: [{ name: 'season', description: 'NFL season year.' }, { name: 'week', description: 'NFL regular-season week.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'the week\'s games; teams on bye are absent.',
+      },
+      {
+        signature: 'abstract usage( season: number, weeks: readonly number[], players: readonly FantasyPlayer[], signal?: AbortSignal, ): Promise<ReadonlyMap<PlayerKeyType, readonly FantasyNflUsage[]>>',
+        description: 'Read completed-game usage for league players.',
+        parameters: [{ name: 'season', description: 'NFL season year.' }, { name: 'weeks', description: 'completed regular-season weeks to read.' }, { name: 'players', description: 'league players; the provider matches them by name, NFL team, and position.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'usage rows by player key in week order; unmatched players and games not played are absent.',
       },
     ],
   },
@@ -5581,15 +5600,23 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'FantasyLeagueSettings',
-    declaration: 'export interface FantasyLeagueSettings {\n    readonly league: FantasyLeague;\n    readonly draftType?: string | undefined;\n    readonly waiverType?: string | undefined;\n    readonly waiverRule?: string | undefined;\n    readonly tradeEndDate?: string | undefined;\n    readonly playoffStartWeek?: number | undefined;\n    readonly rosterSlots: readonly FantasyRosterSlot[];\n    readonly scoring: readonly FantasyScoringStat[];\n}',
+    declaration: 'export interface FantasyLeagueSettings {\n    readonly league: FantasyLeague;\n    readonly draftType?: string | undefined;\n    readonly waiverType?: string | undefined;\n    readonly waiverRule?: string | undefined;\n    readonly tradeEndDate?: string | undefined;\n    readonly playoffStartWeek?: number | undefined;\n    readonly waiverDays?: number | undefined;\n    readonly usesFaab?: boolean | undefined;\n    readonly rosterSlots: readonly FantasyRosterSlot[];\n    readonly scoring: readonly FantasyScoringStat[];\n}',
   },
   {
     name: 'FantasyMatchup',
     declaration: 'export interface FantasyMatchup {\n    readonly week: number;\n    readonly status?: string | undefined;\n    readonly teams: readonly FantasyTeam[];\n}',
   },
   {
+    name: 'FantasyNflGame',
+    declaration: 'export interface FantasyNflGame {\n    readonly week: number;\n    readonly kickoff: string;\n    readonly home: string;\n    readonly away: string;\n    readonly homeSpread?: number | undefined;\n    readonly total?: number | undefined;\n    readonly roof?: string | undefined;\n}',
+  },
+  {
+    name: 'FantasyNflUsage',
+    declaration: 'export interface FantasyNflUsage {\n    readonly week: number;\n    readonly team: string;\n    readonly opponent?: string | undefined;\n    readonly targets?: number | undefined;\n    readonly targetShare?: number | undefined;\n    readonly receptions?: number | undefined;\n    readonly carries?: number | undefined;\n    readonly snapShare?: number | undefined;\n}',
+  },
+  {
     name: 'FantasyPlayer',
-    declaration: 'export interface FantasyPlayer {\n    readonly key: PlayerKey;\n    readonly name: string;\n    readonly nflTeam?: string | undefined;\n    readonly positions: readonly string[];\n    readonly selectedSlot?: string | undefined;\n    readonly slotLocked?: boolean | undefined;\n    readonly status?: string | undefined;\n    readonly injuryNote?: string | undefined;\n    readonly byeWeek?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly percentOwned?: number | undefined;\n    readonly rank?: number | undefined;\n    readonly ownershipType?: string | undefined;\n    readonly stats?: Readonly<Record<string, number>> | undefined;\n}',
+    declaration: 'export interface FantasyPlayer {\n    readonly key: PlayerKey;\n    readonly name: string;\n    readonly nflTeam?: string | undefined;\n    readonly positions: readonly string[];\n    readonly selectedSlot?: string | undefined;\n    readonly slotLocked?: boolean | undefined;\n    readonly status?: string | undefined;\n    readonly injuryNote?: string | undefined;\n    readonly byeWeek?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly percentOwned?: number | undefined;\n    readonly percentOwnedDelta?: number | undefined;\n    readonly rank?: number | undefined;\n    readonly ownershipType?: string | undefined;\n    readonly stats?: Readonly<Record<string, number>> | undefined;\n}',
   },
   {
     name: 'FantasyRoster',
@@ -5605,7 +5632,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'FantasyTeam',
-    declaration: 'export interface FantasyTeam {\n    readonly key: TeamKey;\n    readonly name: string;\n    readonly rank?: number | undefined;\n    readonly wins?: number | undefined;\n    readonly losses?: number | undefined;\n    readonly ties?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly winProbability?: number | undefined;\n}',
+    declaration: 'export interface FantasyTeam {\n    readonly key: TeamKey;\n    readonly name: string;\n    readonly rank?: number | undefined;\n    readonly wins?: number | undefined;\n    readonly losses?: number | undefined;\n    readonly ties?: number | undefined;\n    readonly points?: number | undefined;\n    readonly projectedPoints?: number | undefined;\n    readonly winProbability?: number | undefined;\n    readonly waiverPriority?: number | undefined;\n    readonly faabBalance?: number | undefined;\n    readonly moves?: number | undefined;\n}',
   },
   {
     name: 'FantasyTransaction',

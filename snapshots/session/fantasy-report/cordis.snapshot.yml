@@ -22,6 +22,9 @@
     - id: fantasy-report-projections-fixture
       name: './projections-fixture.mjs'
 
+    - id: fantasy-report-nfl-fixture
+      name: './nfl-fixture.mjs'
+
     - id: fantasy-report-research-fixture
       name: './research-fixture.mjs'
       config:

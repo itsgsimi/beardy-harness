@@ -1742,6 +1742,32 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-training-export -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-nflverse -->
+<a id="deepseek-aidsh-fantasy-nflverse"></a>
+
+## `@deepseek-ai/dsh-fantasy-nflverse`
+
+- `source`: [`packages/fantasy/fantasy-nflverse/src/index.ts:12`](../packages/fantasy/fantasy-nflverse/src/index.ts)
+
+```ts config-catalog
+/** Provider deployment values. */
+export interface Config {
+  /** HTTPS URL of the all-seasons schedule CSV. */
+  readonly scheduleUrl?: string
+  /** HTTPS URL of one season's weekly player stats CSV; `{season}` is replaced by the season year. */
+  readonly statsUrlTemplate?: string
+  /** HTTPS URL of one season's snap counts CSV; `{season}` is replaced by the season year. */
+  readonly snapsUrlTemplate?: string
+  /** Milliseconds one file is reused after its request starts; `0` requests every time. */
+  readonly cacheTtlMs?: number
+  /** Deadline in milliseconds for each request, including reading its body. */
+  readonly requestTimeoutMs?: number
+  /** Largest response body in bytes; a larger body fails its request. */
+  readonly maxResponseBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-fantasy-nflverse -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-fantasy-projections-sleeper -->
 <a id="deepseek-aidsh-fantasy-projections-sleeper"></a>
 
@@ -1772,7 +1798,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-fantasy-reports`
 
 - `inject`: `agents` · `commands` · `fantasy` · `fantasyProjections` · `research` · `sessionPersistence` · `web`
-- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:49`](../packages/fantasy/fantasy-reports/src/config.ts)
+- `source`: [`packages/fantasy/fantasy-reports/src/config.ts:54`](../packages/fantasy/fantasy-reports/src/config.ts)
 
 ```ts config-catalog
 /** Deployment values. Teams, channels, and schedules have no defaults. */
@@ -1831,10 +1857,29 @@ export interface Config {
   readonly closeCallMargin?: number
   /** Close calls compared by the close-call stage; 0 skips the stage. */
   readonly maxCloseCalls?: number
-  /** Weakest roster positions searched for free agents; 0 skips the waiver shortlist and its stage. */
+  /**
+   * Base positions shortlisted for the waiver stage, ranked by their best candidate's horizon net value; 0 skips
+   * the waiver pool reads, the add and drop moves, and the waiver stage.
+   */
   readonly waiverPositions?: number
-  /** Free agents shortlisted per weak position. */
+  /** Available players shortlisted per chosen position, ranked by horizon net value. */
   readonly waiverCandidates?: number
+  /** Players requested in one Yahoo waiver-pool list. */
+  readonly waiverPoolSize?: number
+  /** Earlier weeks whose top scorers join each position's waiver pool beside the season rank list. */
+  readonly waiverPointWeeks?: number
+  /** Weeks, starting with the report week, over which roster outlooks and candidate value are averaged. */
+  readonly horizonWeeks?: number
+  /** Completed weeks of actual league points shown as recent form; 0 reads none. */
+  readonly formWeeks?: number
+  /** Whole points by which a recent average must exceed or trail the projection to flag hot or cold form. */
+  readonly formGapPoints?: number
+  /** Shortlisted candidates, best net value first, that get one news search each. */
+  readonly candidateSearches?: number
+  /** Waiver-article search queries per report; 0 skips the article sweep. */
+  readonly waiverArticleSearches?: number
+  /** Waiver-article pages admitted per report. */
+  readonly waiverArticlePages?: number
   /** Most waiver picks the waiver stage may return. */
   readonly waiverPicks?: number
   /** Whether a final stage checks each model reason against its cited excerpts. */
@@ -1868,7 +1913,7 @@ export interface TeamConfig {
    * `signal:group:<base64 id>`, or `signal:number:<E.164>`.
    */
   readonly channelId: string
-  /** Cron expressions for the three weekly reports, in the configured timezone. */
+  /** Cron expressions for the weekly reports, in the configured timezone. */
   readonly schedule: ReportScheduleConfig
   /**
    * Agent presets that may request this team's report on demand; each must also be in the top-level
@@ -1877,8 +1922,13 @@ export interface TeamConfig {
   readonly commandPresets?: string[]
 }
 
-/** One team's three weekly start times. */
+/** One team's weekly start times; the waiver report runs only when its schedule is set. */
 export interface ReportScheduleConfig {
+  /**
+   * Waiver report before claims clear, such as `0 7 * * 2` for Tuesday at 7:00 AM; absent, the team has no
+   * waiver timer and no waiver catch-up slot.
+   */
+  readonly waivers?: string
   /** Midweek full report, such as `0 14 * * 3` for Wednesday at 2:00 PM. */
   readonly full: string
   /** Thursday update focused on practice reports and early kickoffs. */

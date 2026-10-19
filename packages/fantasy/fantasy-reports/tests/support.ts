@@ -9,9 +9,10 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
-import { FantasyProjectionService, FantasyService, PlayerKey } from '@deepseek-ai/dsh-fantasy'
+import { FantasyNflService, FantasyProjectionService, FantasyService, PlayerKey } from '@deepseek-ai/dsh-fantasy'
 import type {
-  FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyPlayer, FantasyRoster, LeagueKey, PlayerKey as PlayerId, TeamKey,
+  FantasyGameWeek, FantasyLeagueSettings, FantasyMatchup, FantasyNflGame, FantasyNflUsage, FantasyPlayer, FantasyRoster, FantasyTeam,
+  LeagueKey, PlayerKey as PlayerId, TeamKey,
 } from '@deepseek-ai/dsh-fantasy/types'
 import { parseGameWeeks, parseLeagueSettings, parseMatchups, parsePlayers, parseRoster } from '@deepseek-ai/dsh-fantasy-yahoo'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -79,10 +80,20 @@ export interface FantasyData {
   matchups: readonly FantasyMatchup[]
   weeks: readonly FantasyGameWeek[]
   failure?: Error
-  /** Free agents returned per requested position; a missing position returns none. */
+  /** Available players of a position's season rank list; a missing position returns none. */
   freeAgents?: Readonly<Record<string, readonly FantasyPlayer[]>>
-  /** Error thrown by free-agent reads. */
+  /** Available players of a position's points list for any earlier week; a missing position returns none. */
+  scorers?: Readonly<Record<string, readonly FantasyPlayer[]>>
+  /** Error thrown by available-player list reads. */
   freeAgentFailure?: Error
+  /** Standings; absent, the reported team alone with waiver priority 4. */
+  standings?: readonly FantasyTeam[]
+  /** Error thrown by standings reads. */
+  standingsFailure?: Error
+  /** Actual points by player name and week answered by exact-player reads. */
+  recentPoints?: Readonly<Record<string, Readonly<Record<number, number>>>>
+  /** Error thrown by exact-player reads. */
+  recentFailure?: Error
   /** Roster returned for any other team; reading one throws when absent. */
   opponent?: FantasyRoster
 }
@@ -91,8 +102,10 @@ export interface FantasyData {
 export class FixtureFantasy extends FantasyService {
   /** Data returned by the next reads. */
   data: FantasyData = { settings: yahoo.settings, roster: yahoo.roster, matchups: yahoo.matchups, weeks: yahoo.weeks }
-  /** Positions of every free-agent read, in order. */
+  /** Positions of every available-player list read, in order. */
   readonly freeAgentReads: string[] = []
+  /** Week and player count of every exact-player read, in order. */
+  readonly keyReads: Array<{ week: number; count: number }> = []
 
   teamFor(): TeamKey { throw new Error('reports never resolve a caller team') }
   async leagues(): Promise<never> { throw new Error('unused') }
@@ -101,7 +114,10 @@ export class FixtureFantasy extends FantasyService {
     if (key !== this.data.settings.league.key) throw new Error('unknown league')
     return this.data.settings
   }
-  async standings(): Promise<never> { throw new Error('unused') }
+  async standings(): Promise<readonly FantasyTeam[]> {
+    if (this.data.standingsFailure !== undefined) throw this.data.standingsFailure
+    return this.data.standings ?? [{ ...this.data.roster.team, waiverPriority: 4 }]
+  }
   async scoreboard(): Promise<never> { throw new Error('unused') }
   async matchups(): Promise<readonly FantasyMatchup[]> { return this.data.matchups }
   /** The opponent's roster for the matchup opponent's key; the reported roster for any other key. */
@@ -111,15 +127,52 @@ export class FixtureFantasy extends FantasyService {
     if (this.data.opponent === undefined) throw new Error('opponent roster unavailable')
     return this.data.opponent
   }
-  async players(_league: LeagueKey, query: { position?: string }): Promise<readonly FantasyPlayer[]> {
+  async players(_league: LeagueKey,
+    query: { position?: string; sort?: string; week?: number; playerKeys?: readonly PlayerId[] }): Promise<readonly FantasyPlayer[]> {
+    if (query.playerKeys !== undefined) {
+      this.keyReads.push({ week: query.week as number, count: query.playerKeys.length })
+      if (this.data.recentFailure !== undefined) throw this.data.recentFailure
+      const known = [...this.data.roster.players, ...Object.values(this.data.freeAgents ?? {}).flat(),
+        ...Object.values(this.data.scorers ?? {}).flat()]
+      return query.playerKeys.map((key): FantasyPlayer => {
+        const { points: _points, ...player } = known.find(item => item.key === key) as FantasyPlayer
+        const points = this.data.recentPoints?.[player.name]?.[query.week as number]
+        return points === undefined ? player : { ...player, points }
+      })
+    }
     this.freeAgentReads.push(query.position as string)
     if (this.data.freeAgentFailure !== undefined) throw this.data.freeAgentFailure
-    return this.data.freeAgents?.[query.position as string] ?? []
+    const lists = query.sort === 'points' ? this.data.scorers : this.data.freeAgents
+    return lists?.[query.position as string] ?? []
   }
   async player(): Promise<never> { throw new Error('unused') }
   async transactions(): Promise<never> { throw new Error('unused') }
   async draft(): Promise<never> { throw new Error('unused') }
   async gameWeeks(): Promise<readonly FantasyGameWeek[]> { return this.data.weeks }
+}
+
+/** NFL data provider answering from fixed games and usage rows. */
+export class FixtureNfl extends FantasyNflService {
+  /** Games by week. */
+  schedule: Readonly<Record<number, readonly FantasyNflGame[]>> = {}
+  /** Usage rows by player name. */
+  usageRows: Readonly<Record<string, readonly FantasyNflUsage[]>> = {}
+  /** Error thrown by every read. */
+  failure?: Error
+  /** Weeks of every usage read, in order. */
+  readonly usageReads: number[][] = []
+
+  async games(_season: number, week: number): Promise<readonly FantasyNflGame[]> {
+    if (this.failure !== undefined) throw this.failure
+    return this.schedule[week] ?? []
+  }
+
+  async usage(_season: number, weeks: readonly number[],
+    players: readonly FantasyPlayer[]): Promise<ReadonlyMap<PlayerId, readonly FantasyNflUsage[]>> {
+    this.usageReads.push([...weeks])
+    return new Map(players.flatMap(player => this.usageRows[player.name] === undefined ? []
+      : [[player.key, this.usageRows[player.name] as readonly FantasyNflUsage[]] as const]))
+  }
 }
 
 /** Projection provider answering from stat lines keyed by player name; no line is the default. */
@@ -243,6 +296,8 @@ export interface Harness {
   readonly adapter: MockAdapter
   readonly fantasy: FixtureFantasy
   readonly projections: FixtureProjections
+  /** The fixture NFL data provider, when mounted. */
+  readonly nfl: FixtureNfl | undefined
   readonly research: LocalResearchService
   dispose(): Promise<void>
 }
@@ -257,6 +312,8 @@ export async function harness(replies: readonly Reply[], options: {
   search?: (query: string, signal?: AbortSignal) => Promise<WebSearchResult>
   fetch?: (url: string) => Promise<WebFetchResult>
   research?: Partial<ResearchConfig>
+  /** Mount the fixture NFL data provider. */
+  nfl?: boolean
 } = {}): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), 'fantasy-reports-'))
   const ctx = new Context()
@@ -278,9 +335,11 @@ export async function harness(replies: readonly Reply[], options: {
     : { provider: 'mock', model: 'test-model', ownerScope: 'profile', ownerNamespace: 'beardy', ...options.research })
   await ctx.plugin(FixtureFantasy)
   await ctx.plugin(FixtureProjections)
+  if (options.nfl === true) await ctx.plugin(FixtureNfl)
   const fantasy = ctx.fantasy as FixtureFantasy
   return {
     ctx, root, adapter, fantasy, projections: ctx.fantasyProjections as FixtureProjections, research: ctx.research as LocalResearchService,
+    nfl: options.nfl === true ? ctx.fantasyNfl as FixtureNfl : undefined,
     async dispose() {
       try {
         await ctx.fiber.dispose()

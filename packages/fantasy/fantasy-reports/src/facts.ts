@@ -1,11 +1,12 @@
 /**
- * Code-owned report facts: default calls and reasons, close-call pairs, weak positions, and the waiver
+ * Code-owned report facts: default calls and reasons, close-call pairs, position needs, and the waiver
  * shortlist. Everything here is deterministic over Yahoo data and the code lineup.
  * @module @deepseek-ai/dsh-fantasy-reports/facts
  */
 
 import type { FantasyPlayer, FantasyRosterSlot } from '@deepseek-ai/dsh-fantasy/types'
 import { eligibleFor, isFlex, type LineupAssignment, startingSlots, startsNow, uncertain, unavailableReason } from './lineup.ts'
+import type { AddValue } from './moves.ts'
 
 /** A per-player call: START and FLEX start in a position or flex slot, SIT benches, HOLD benches and keeps. */
 export type CallChoice = 'START' | 'SIT' | 'FLEX' | 'HOLD'
@@ -182,73 +183,62 @@ export function positionNeeds(players: ReadonlyMap<string, FantasyPlayer>, lineu
   })
 }
 
-/** A free agent code shortlisted for the waiver stage. */
-export interface WaiverCandidate {
+/** An available player read for a base position and valued over the horizon. */
+export interface PoolEntry {
+  /** His base position: his first Yahoo base position, or the list that returned him. */
+  readonly position: string
+  /** The player as the report week sees him, with his report-week projection. */
+  readonly player: FantasyPlayer
+  /** The player as each horizon week sees him, in horizon order. */
+  readonly weeks: readonly FantasyPlayer[]
+  readonly value: AddValue
+}
+
+/** An available player code shortlisted for the waiver stage. */
+export interface WaiverCandidate extends PoolEntry {
   /** Stage id, such as `W1`. */
   readonly id: string
-  /** Weak position the candidate fills. */
-  readonly position: string
-  readonly player: FantasyPlayer
-}
-
-/** A weak position chosen for the shortlist. */
-export interface WeakPosition extends PositionNeed {
-  /** Best free-agent projection minus the worst starter projection at the position, when both exist and it is positive. */
-  readonly gap?: number
 }
 
 /**
- * Positions whose free agents must be read: those with a need, or every base position when any roster
- * player has a projection, since a projection gap can then show weakness.
- * @param needs - scored base positions.
- * @param players - roster players by short id.
- * @returns positions to request, in Yahoo order.
+ * How a team acquires an available player.
+ * @param player - available player with Yahoo ownership.
+ * @returns `claim` when Yahoo lists him on waivers, otherwise `free agent`, an immediate add.
  */
-export function waiverQueries(needs: readonly PositionNeed[], players: ReadonlyMap<string, FantasyPlayer>): string[] {
-  const projected = [...players.values()].some(player => player.projectedPoints !== undefined)
-  return needs.filter(item => item.need > 0 || projected).map(item => item.position)
+export function acquisition(player: FantasyPlayer): 'claim' | 'free agent' {
+  return player.ownershipType === 'waivers' ? 'claim' : 'free agent'
+}
+
+/** Best first: net value, then gain without a drop, then Yahoo rank, then percent owned. */
+function byValue(a: PoolEntry, b: PoolEntry): number {
+  return b.value.net - a.value.net || b.value.gain - a.value.gain || (a.player.rank ?? -UNPROJECTED) - (b.player.rank ?? -UNPROJECTED)
+    || (b.player.percentOwned ?? -1) - (a.player.percentOwned ?? -1)
 }
 
 /**
- * Choose the weakest positions and their best available free agents. A position qualifies by need or a
- * positive projection gap and ranks by need, then gap. Candidates must be eligible for the position and
- * able to play this week, and rank by projection, then Yahoo rank, then percent owned.
- * @param needs - scored base positions.
- * @param freeAgents - free agents read per position.
- * @param players - roster players by short id.
- * @param lineup - code starting assignments.
- * @param week - report week.
- * @param bounds - weak positions kept and candidates per position.
- * @returns weak positions and candidates with stage ids `W1`, `W2`, and so on.
+ * Shortlist available players whose add raises the best-lineup projection over the horizon. Positions rank
+ * by their best candidate's net value; each kept position keeps its best candidates by net value.
+ * @param pool - valued available players.
+ * @param bounds - positions kept and candidates per position.
+ * @returns kept positions, best first, and candidates with stage ids `W1`, `W2`, and so on in that order.
  */
-export function waiverShortlist(needs: readonly PositionNeed[], freeAgents: ReadonlyMap<string, readonly FantasyPlayer[]>,
-  players: ReadonlyMap<string, FantasyPlayer>, lineup: readonly LineupAssignment[], week: number,
-  bounds: { readonly positions: number; readonly candidates: number }): { positions: WeakPosition[]; candidates: WaiverCandidate[] } {
-  const scored = needs.flatMap((item, order): Array<WeakPosition & { readonly order: number }> => {
-    const pool = (freeAgents.get(item.position) ?? []).filter(player => eligibleFor(player, item.position)
-      && unavailableReason(player, week) === undefined)
-    const starters = lineup.flatMap(entry => entry.slot === item.position && entry.player !== undefined
-      ? [players.get(entry.player)?.projectedPoints] : [])
-    const worst = starters.some(value => value === undefined) || starters.length === 0
-      ? undefined : Math.min(...starters as number[])
-    const best = pool.reduce<number | undefined>((top, player) => player.projectedPoints === undefined ? top
-      : Math.max(top ?? Number.NEGATIVE_INFINITY, player.projectedPoints), undefined)
-    const gap = worst === undefined || best === undefined || best <= worst ? undefined : Math.round((best - worst) * 10) / 10
-    if (pool.length === 0 || (item.need === 0 && gap === undefined)) return []
-    return [{ ...item, ...(gap === undefined ? {} : { gap }), order }]
-  }).sort((a, b) => b.need - a.need || (b.gap ?? 0) - (a.gap ?? 0) || a.order - b.order).slice(0, bounds.positions)
-  const rank = (a: FantasyPlayer, b: FantasyPlayer): number =>
-    (b.projectedPoints ?? UNPROJECTED) - (a.projectedPoints ?? UNPROJECTED) || (a.rank ?? -UNPROJECTED) - (b.rank ?? -UNPROJECTED)
-    || (b.percentOwned ?? -1) - (a.percentOwned ?? -1)
-  const seen = new Set<string>()
-  const candidates: WaiverCandidate[] = []
-  for (const weak of scored) {
-    const pool = (freeAgents.get(weak.position) as readonly FantasyPlayer[]).filter(player => eligibleFor(player, weak.position)
-      && unavailableReason(player, week) === undefined && !seen.has(player.key))
-    for (const player of [...pool].sort(rank).slice(0, bounds.candidates)) {
-      seen.add(player.key)
-      candidates.push({ id: `W${candidates.length + 1}`, position: weak.position, player })
-    }
-  }
-  return { positions: scored.map(({ order: _order, ...weak }) => weak), candidates }
+export function waiverShortlist(pool: readonly PoolEntry[],
+  bounds: { readonly positions: number; readonly candidates: number }): { positions: string[]; candidates: WaiverCandidate[] } {
+  const ranked = pool.filter(entry => entry.value.net > 0).sort(byValue)
+  const positions = [...new Set(ranked.map(entry => entry.position))].slice(0, bounds.positions)
+  const candidates = positions.flatMap(position => ranked.filter(entry => entry.position === position).slice(0, bounds.candidates))
+    .map((entry, index) => ({ id: `W${index + 1}`, ...entry }))
+  return { positions, candidates }
+}
+
+/**
+ * The free agent to add if a waiver claim fails: the best immediate add at the claim's position.
+ * @param pool - valued available players.
+ * @param claim - the claimed candidate.
+ * @param taken - player keys already suggested.
+ * @returns the fallback, or undefined when no free agent at the position adds value.
+ */
+export function freeAgentFallback(pool: readonly PoolEntry[], claim: PoolEntry, taken: ReadonlySet<string>): PoolEntry | undefined {
+  return pool.filter(entry => entry.position === claim.position && entry.value.net > 0 && acquisition(entry.player) === 'free agent'
+    && !taken.has(entry.player.key)).sort(byValue)[0]
 }

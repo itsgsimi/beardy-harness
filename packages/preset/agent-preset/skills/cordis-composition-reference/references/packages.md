@@ -234,6 +234,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 
 | Package | Config | Description |
 |---|---|---|
+| `@deepseek-ai/dsh-fantasy-nflverse` | yes | nflverse NFL schedule, betting line, and player usage provider for Fantasy reports |
 | `@deepseek-ai/dsh-fantasy-projections-sleeper` | yes | Sleeper weekly stat-line projection provider for Fantasy reports |
 | `@deepseek-ai/dsh-fantasy-reports` | yes | Scheduled weekly Yahoo fantasy reports from code-checked facts, small model stages, and Discord delivery |
 | `@deepseek-ai/dsh-fantasy-yahoo` | yes | Yahoo Fantasy v2 provider and private OAuth store |

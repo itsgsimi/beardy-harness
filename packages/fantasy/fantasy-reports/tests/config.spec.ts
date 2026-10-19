@@ -26,6 +26,15 @@ function nextLocal(expression: string): string {
 }
 
 describe('report configuration', () => {
+  it('arms a waiver timer only for a team whose waiver schedule is set', () => {
+    const config = resolveConfig({ ...household, teams: [{ ...household.teams[0]!,
+      schedule: { ...household.teams[0]!.schedule, waivers: '0 7 * * 2' } }, household.teams[1]!] })
+    expect(reportSchedules(config).map(row => `${row.team.id} ${row.mode}`)).toEqual(['googies waivers', 'googies full', 'googies thursday',
+      'googies sunday', 'lights full', 'lights thursday', 'lights sunday'])
+    expect(nextLocal('0 7 * * 2')).toBe('Tue 7:00 AM')
+    expect(parseReportTag('[fantasy-report:googies:2026:7:waivers:scheduled:1]')).toMatchObject({ mode: 'waivers' })
+  })
+
   it('maps each team to its own channel and three staggered Phoenix starts', () => {
     const config = resolveConfig(household)
     const rows = reportSchedules(config)
@@ -52,8 +61,9 @@ describe('report configuration', () => {
     expect(config).toMatchObject({ firstWeek: 1, lastWeek: 17, minimumStartGapMs: 5_400_000, catchUpWindowMs: 43_200_000,
       sundayCatchUpWindowMs: 7_200_000, searchesPerPlayer: 2,
       pagesPerPlayer: 2, excerptsPerPlayer: 2, excerptChars: 300, playersPerStage: 5, stageMaxTokens: 4_000, closeCallMargin: 2,
-      maxCloseCalls: 3, waiverPositions: 2, waiverCandidates: 4, waiverPicks: 2, checkReasons: true, runTimeoutMs: 14_400_000,
-      maxDeliveryChars: 19_000 })
+      maxCloseCalls: 3, waiverPositions: 3, waiverCandidates: 3, waiverPicks: 2, waiverPoolSize: 25, waiverPointWeeks: 2, horizonWeeks: 3,
+      formWeeks: 3, formGapPoints: 4, candidateSearches: 6, waiverArticleSearches: 2, waiverArticlePages: 4, checkReasons: true,
+      runTimeoutMs: 14_400_000, maxDeliveryChars: 19_000 })
     expect(resolveConfig({ ...household, checkReasons: false, waiverPositions: 0 }))
       .toMatchObject({ checkReasons: false, waiverPositions: 0 })
     expect(config.excludedHosts).toEqual(DEFAULT_EXCLUDED_HOSTS)
@@ -90,6 +100,10 @@ describe('report configuration', () => {
       [{ teams: [{ ...team, teamKey: '470.l.809970' }] }, /invalid fantasy team key/],
       [{ teams: [team, { ...team, id: 'copy' }] }, /duplicate team key/],
       [{ teams: [{ ...team, schedule: { ...team.schedule, sunday: '99 * * * *' } }] }, /./],
+      [{ teams: [{ ...team, schedule: { ...team.schedule, waivers: '99 * * * *' } }] }, /./],
+      [{ horizonWeeks: 7 }, /horizonWeeks must be an integer from 1 through 6/],
+      [{ waiverPoolSize: 26 }, /waiverPoolSize must be an integer from 5 through 25/],
+      [{ waiverArticlePages: 0 }, /waiverArticlePages must be an integer from 1 through 10/],
       [{ commandPresets: ['Beardy'] }, /fantasy-reports: commandPresets must be distinct preset ids/],
       [{ commandPresets: ['beardy', 'beardy'] }, /commandPresets must be distinct preset ids/],
       [{ commandPresets: ['beardy'], teams: [{ ...team, commandPresets: ['beardy-mamabear'] }] },
@@ -135,6 +149,9 @@ describe('restart catch-up slots', () => {
     expect(slots(phoenix(24, 11, 30))).toEqual([['googies', 'thursday', '2026-09-24T18:00:00.000Z']])
     expect(slots(phoenix(24, 11, 30), { catchUpWindowMs: 1_200_000 })).toEqual([])
     expect(slots(phoenix(23, 20), { catchUpWindowMs: 0 })).toEqual([])
+    const waivers = { ...household.teams[0]!, schedule: { ...household.teams[0]!.schedule, waivers: '0 7 * * 2' } }
+    expect(slots(phoenix(22, 9), { teams: [waivers] })).toEqual([['googies', 'waivers', '2026-09-22T14:00:00.000Z']])
+    expect(slots(phoenix(22, 9))).toEqual([])
   })
 
   it('stops catching up a Sunday slot at its own cutoff, even inside the general window', () => {

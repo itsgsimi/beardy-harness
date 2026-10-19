@@ -4,7 +4,10 @@
  * @module @deepseek-ai/dsh-fantasy-projections-sleeper/sleeper
  */
 
+import { normalizePlayerName as normalizeName } from '@deepseek-ai/dsh-fantasy'
 import type { FantasyPlayer } from '@deepseek-ai/dsh-fantasy/types'
+
+export { normalizeName }
 
 /** One validated Sleeper projection row. */
 export interface SleeperRow {
@@ -101,20 +104,6 @@ export function translate(row: SleeperRow): Record<string, number> {
     line[(ALLOWED_TIERS.find(([, , below]) => allowed < below) as readonly [string, string, number])[0]] = 1
   }
   return line
-}
-
-/** Name suffix tokens dropped before matching. */
-const SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v'])
-
-/**
- * Normalize a player name for matching: ASCII letters only, lowercase, periods and apostrophes removed,
- * generational suffixes dropped, other separators collapsed to single spaces.
- * @param name - display name.
- * @returns normalized words joined by spaces.
- */
-export function normalizeName(name: string): string {
-  return name.normalize('NFKD').replace(/[^\x20-\x7e]/gu, '').toLowerCase().replace(/[.'`]/gu, '')
-    .split(/[^a-z]+/u).filter(word => word !== '' && !SUFFIXES.has(word)).join(' ')
 }
 
 function push<T>(map: Map<string, T[]>, key: string, value: T): void {

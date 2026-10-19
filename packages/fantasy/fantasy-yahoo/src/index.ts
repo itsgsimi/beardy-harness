@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { FantasyService, TeamKey } from '@deepseek-ai/dsh-fantasy'
+import { FantasyService, TeamKey, normalizePlayerName } from '@deepseek-ai/dsh-fantasy'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { FantasyPlayer, LeagueKey as LeagueId, PlayerKey as PlayerId, TeamKey as TeamId } from '@deepseek-ai/dsh-fantasy/types'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
@@ -106,6 +106,25 @@ function resolveConfig(config: Config): ResolvedConfig {
 
 function pathPart(value: string): string { return encodeURIComponent(value) }
 
+/** Exact-player ceiling the Fantasy definition sets for one `playerKeys` read, matching Yahoo's 25-player page. */
+const MAX_PLAYER_KEYS = 25
+
+const APOSTROPHE = /['‘’`]/u
+
+/**
+ * Yahoo answers HTTP 500 for an apostrophe in `search=` and matches nothing once it is removed, so a name with an
+ * apostrophe searches its apostrophe-free words (or the apostrophe-stripped name when every word has one) and keeps
+ * only results whose normalized full name contains the normalized query.
+ */
+function searchTerms(search: string): { text: string; match?: string } {
+  if (!APOSTROPHE.test(search)) return { text: search }
+  const words = search.split(/\s+/u).filter(word => word !== '' && !APOSTROPHE.test(word))
+  return {
+    text: words.length > 0 ? words.join(' ') : search.replace(new RegExp(APOSTROPHE.source, 'gu'), ''),
+    match: normalizePlayerName(search),
+  }
+}
+
 /** Yahoo provider; only GET requests reach the Fantasy REST API. */
 export class YahooFantasyService extends FantasyService {
   static inject = ['commands']
@@ -204,16 +223,30 @@ export class YahooFantasyService extends FantasyService {
   }
   async players(league: LeagueId, query: {
     search?: string
-    status?: 'FA' | 'W'
+    status?: 'FA' | 'W' | 'A'
+    playerKeys?: readonly PlayerId[]
     position?: string
     sort?: 'points' | 'rank' | 'percent_owned'
     start: number
     count: number
     week?: number
   }, signal?: AbortSignal): Promise<readonly FantasyPlayer[]> {
+    const suffix = `/stats${query.week === undefined ? '' : `;type=week;week=${query.week}`}`
+    if (query.playerKeys !== undefined) {
+      if (query.search !== undefined || query.status !== undefined || query.position !== undefined || query.sort !== undefined) {
+        throw new Error('fantasy-yahoo: playerKeys excludes search, status, position, and sort')
+      }
+      if (query.playerKeys.length > MAX_PLAYER_KEYS) {
+        throw new Error(`fantasy-yahoo: playerKeys accepts at most ${MAX_PLAYER_KEYS} players`)
+      }
+      if (query.playerKeys.length === 0) return []
+      return parsePlayers(await this.get(`/league/${pathPart(league)}/players;player_keys=${
+        query.playerKeys.map(pathPart).join(',')};out=percent_owned,ownership${suffix}`, signal))
+    }
+    const search = query.search === undefined ? undefined : searchTerms(query.search)
     const serverSort = query.sort === 'percent_owned' ? undefined : query.sort
     const filters = [
-      ...(query.search === undefined ? [] : [`search=${encodeURIComponent(query.search)}`]),
+      ...(search === undefined ? [] : [`search=${encodeURIComponent(search.text)}`]),
       ...(query.status === undefined ? [] : [`status=${query.status}`]),
       ...(query.position === undefined ? [] : [`position=${encodeURIComponent(query.position)}`]),
       ...(serverSort === undefined ? [] : [`sort=${{ points: 'PTS', rank: 'AR' }[serverSort]}`]),
@@ -221,9 +254,10 @@ export class YahooFantasyService extends FantasyService {
         : ['sort_type=week', `sort_week=${query.week}`]),
       `start=${query.start}`, `count=${query.count}`,
     ]
-    const suffix = `/stats${query.week === undefined ? '' : `;type=week;week=${query.week}`}`
     const raw = await this.get(`/league/${pathPart(league)}/players;${filters.join(';')};out=percent_owned,ownership${suffix}`, signal)
-    const players = parsePlayers(raw)
+    const parsed = parsePlayers(raw)
+    const match = search?.match
+    const players = match === undefined ? parsed : parsed.filter(player => normalizePlayerName(player.name).includes(match))
     return query.sort === 'percent_owned'
       ? players.sort((a, b) => (b.percentOwned ?? -1) - (a.percentOwned ?? -1) || a.name.localeCompare(b.name))
       : players

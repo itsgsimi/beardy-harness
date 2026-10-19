@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { FantasyPlayer } from '@deepseek-ai/dsh-fantasy/types'
 import { PlayerKey } from '@deepseek-ai/dsh-fantasy'
 import { admitsPlayer, cleanSource, fetchable, isDefense, nameWords, playerExcerpt, playerPassages } from '../src/sources.ts'
+import { articleQueries, candidateQuery } from '../src/news.ts'
+import { synthetic } from './support.ts'
 
 function player(name: string, positions = ['RB']): FantasyPlayer {
   return { key: PlayerKey('470.p.1'), name, positions }
@@ -75,5 +77,16 @@ describe('model-visible passages', () => {
     expect(fetchable('https://notreddit.com/', ['reddit.com'])).toBe(true)
     expect(fetchable('http://news.example/a', [])).toBe(false)
     expect(fetchable('not a url', [])).toBe(false)
+  })
+})
+
+describe('news queries', () => {
+  it('names a defense by team in its candidate query and offers up to four waiver-article queries', () => {
+    expect(candidateQuery(synthetic('Steelers', ['DEF'], { nflTeam: 'Pit' }), '2026', 7))
+      .toBe('Steelers defense Pit 2026 week 7 fantasy waiver pickup role injury')
+    expect(candidateQuery(synthetic('Omar Cooper Jr.', ['WR']), '2026', 7)).toBe('"Omar Cooper Jr." 2026 week 7 fantasy waiver pickup role injury')
+    expect(articleQueries('2026', 7, 4)).toEqual(['fantasy football week 7 waiver wire pickups 2026',
+      'week 7 waiver wire adds 2026 fantasy football rankings', '2026 fantasy football week 7 streaming kickers defenses',
+      'fantasy football week 7 injuries waiver replacements 2026'])
   })
 })

@@ -38,6 +38,8 @@ Mount the provider with a private JSON `tokenFile` below `$DSH_HOME`. If the sto
 
 `/fantasy auth` returns the Yahoo read-only authorization URL. A second `/fantasy auth <callback URL or code>` exchanges the code and replaces the DSH store. The command records no callback input in the Session log. `/fantasy status` reports token age, last refresh, API reachability, league count, and configured team keys without credential material.
 
+Player reads map `status` `A` to Yahoo `status=A`, which returns free agents and waiver players together, each with its ownership type. `playerKeys` reads up to 25 exact players in one `player_keys` request, with `week` selecting that week's points; combining it with `search`, `status`, `position`, or `sort`, or passing more than 25 keys, fails before any request. Standings, scoreboards, matchups, and rosters carry each team's waiver priority, move count, and FAAB balance when Yahoo reports one; league settings carry `waiverDays` from `waiver_time` and `usesFaab` from `uses_faab`.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -46,7 +48,7 @@ Mount the provider with a private JSON `tokenFile` below `$DSH_HOME`. If the sto
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-Yahoo JSON uses `fantasy_content`, numbered collections, and arrays of partial entity objects. The parser merges the entity fragments and projects only decision fields. The provider uses GET for Fantasy API reads; the fixed OAuth token endpoint receives authorization-code and refresh exchanges. It re-reads the store inside an exclusive sibling lock, writes a 0600 temporary file, and renames it over the store. The response cache holds derived API responses and has a TTL and entry cap. No invariant companion is published because the token file is the sole authority; the cache is derived and bounded.
+Yahoo JSON uses `fantasy_content`, numbered collections, and arrays of partial entity objects. The parser merges the entity fragments and projects only decision fields. The provider uses GET for Fantasy API reads; the fixed OAuth token endpoint receives authorization-code and refresh exchanges. It re-reads the store inside an exclusive sibling lock, writes a 0600 temporary file, and renames it over the store. The response cache holds derived API responses keyed by request path and has a TTL and entry cap. Yahoo answers HTTP 500 for an apostrophe in `search=` and matches nothing once the apostrophe is removed, so a search containing one sends its apostrophe-free words, or the apostrophe-stripped name when every word has one, and keeps only players whose `normalizePlayerName` full name contains the normalized query. No invariant companion is published because the token file is the sole authority; the cache is derived and bounded.
 
 </details>
 
@@ -83,6 +85,7 @@ The provider does not alter model request caching. Its Yahoo response cache is s
 
 - The imported Python cache is a bootstrap source, not a shared refresh store.
 - Yahoo fields absent from a response, including some player projections and news, remain absent from the normalized view.
+- An apostrophe search filters the fetched page locally, so `start` and `count` page through the broader word search and a page can hold fewer players than `count`.
 - Live Yahoo behavior requires a read-only smoke by the account owner; fixture tests do not contact Yahoo.
 
 <a id="dev-note"></a>

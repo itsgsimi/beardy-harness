@@ -2,7 +2,7 @@
 
 English | [中文](fantasy.zh.md)
 
-The [Fantasy definition](../../packages/fantasy/fantasy/README.md) declares read views and branded Yahoo keys. The [Yahoo provider](../../packages/fantasy/fantasy-yahoo/README.md) supplies the private OAuth store and REST reads. The [Sleeper projection provider](../../packages/fantasy/fantasy-projections-sleeper/README.md) supplies weekly projected stat lines in Yahoo stat ids, because Yahoo's API returns no per-player projections. The [model tool](../../packages/fantasy/tool-fantasy/README.md) exposes bounded results to a caller Session. The [report plugin](../../packages/fantasy/fantasy-reports/README.md) sends scheduled weekly reports.
+The [Fantasy definition](../../packages/fantasy/fantasy/README.md) declares read views and branded Yahoo keys. The [Yahoo provider](../../packages/fantasy/fantasy-yahoo/README.md) supplies the private OAuth store and REST reads. The [Sleeper projection provider](../../packages/fantasy/fantasy-projections-sleeper/README.md) supplies weekly projected stat lines in Yahoo stat ids, because Yahoo's API returns no per-player projections. The [nflverse provider](../../packages/fantasy/fantasy-nflverse/README.md) supplies NFL schedules, betting lines, and completed-game usage through `ctx.fantasyNfl`. The [model tool](../../packages/fantasy/tool-fantasy/README.md) exposes bounded results to a caller Session. The [report plugin](../../packages/fantasy/fantasy-reports/README.md) sends scheduled weekly reports.
 
 ## Authority and token ownership
 
@@ -18,7 +18,7 @@ The `fantasy` tool has only GET-backed actions: leagues, league, standings, scor
 
 ## Weekly reports
 
-The report plugin reads configured teams by explicit team key, not by caller preset, so one composition can report on both Goran's and Mamabear's teams. Each report is a research workflow run that splits deterministic work from judgment. Code reads the Yahoo roster, slots, matchup, statuses, and free agents, fills player projections Yahoo lacks by scoring projected stat lines under league scoring, admits web pages only when they name the player they were fetched for, chooses a legal projection-maximizing lineup under the league's starting slots, slot locks, bye weeks, and unavailable statuses, flags close calls, shortlists free agents at weak positions, and renders the report. Small logged model stages make fixed-choice per-player calls, compare the flagged close calls, pick among the shortlisted free agents, check reasons against their excerpts, and write a summary; code validates each answer item, retries an invalid player once, and degrades anything still invalid to a code default listed in the report's caveats. A report is withheld only when no model stage answers usably, and Yahoo failures send a failure notice. When the plugin starts, it catches up each team's latest slot once if that slot is inside its window and its research history has no completed report, and it hands a completed report to delivery again under its original fire time. Shadow mode sends every report only to one configured channel with a label naming its team. A human in a preset listed in `commandPresets` can run `/fantasy-report <team> [full|thursday|sunday]` to start a team's report for the current week at once; it shares the scheduled queue, posts where scheduled reports go, and is never blocked by an earlier run of the same week and mode. Every fire outcome other than a published or redelivered report is logged as a warning.
+The report plugin reads configured teams by explicit team key, not by caller preset, so one composition can report on both Goran's and Mamabear's teams. Each report is a research workflow run that splits deterministic work from judgment. Code reads the Yahoo roster, slots, matchup, statuses, waiver standing, available players, and recent points, fills player projections Yahoo lacks by scoring projected stat lines under league scoring for the report week and the following horizon weeks, reads games, betting lines, and usage from `ctx.fantasyNfl` when one is mounted, admits web pages only when they name the player they were fetched for, chooses a legal projection-maximizing lineup under the league's starting slots, slot locks, bye weeks, and unavailable statuses, flags close calls, moves IR-eligible players into empty IR slots, values each available player by the average gain of the best lineup over the horizon with his cheapest drop, lists byes and a trade chip, and renders a report that opens with a checklist of moves and their deadlines. Small logged model stages make fixed-choice per-player calls, compare the flagged close calls, pick among the shortlisted waiver claims and free agents, check reasons against their excerpts, and write a summary; code validates each answer item, retries an invalid player once, and degrades anything still invalid to a code default listed in the report's caveats. A report is withheld only when no model stage answers usably, and Yahoo failures send a failure notice. When the plugin starts, it catches up each team's latest slot once if that slot is inside its window and its research history has no completed report, and it hands a completed report to delivery again under its original fire time. Shadow mode sends every report only to one configured channel with a label naming its team. A human in a preset listed in `commandPresets` can run `/fantasy-report <team> [waivers|full|thursday|sunday]` to start a team's report for the current week at once; it shares the scheduled queue, posts where scheduled reports go, and is never blocked by an earlier run of the same week and mode. Every fire outcome other than a published or redelivered report is logged as a warning. An optional `waivers` schedule adds a report before claims clear, and Thursday and Sunday updates list what changed since the latest earlier report of the same week.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -87,11 +87,12 @@ abstract team(key: TeamKeyType, week: number, signal?: AbortSignal): Promise<Fan
 
 /** Search or filter one page of league players.
  * @param league - league identity.
- * @param query - search or availability filters.
+ * @param query - search or availability filters: `status` `FA` is immediate adds, `W` waiver claims, and
+ * `A` both; `playerKeys` (at most 25) selects exact players and excludes every other filter and sort.
  * @param signal - caller cancellation.
  * @returns one provider page.
  */
-abstract players(league: LeagueKeyType, query: { search?: string status?: 'FA' | 'W' position?: string sort?: 'points' | 'rank' | 'percent_owned' start: number count: number week?: number }, signal?: AbortSignal): Promise<readonly FantasyPlayer[]>
+abstract players(league: LeagueKeyType, query: { search?: string status?: 'FA' | 'W' | 'A' playerKeys?: readonly PlayerKeyType[] position?: string sort?: 'points' | 'rank' | 'percent_owned' start: number count: number week?: number }, signal?: AbortSignal): Promise<readonly FantasyPlayer[]>
 
 /** Read a player's statistics and ownership in a league.
  * @param league - league identity.
@@ -126,6 +127,33 @@ abstract gameWeeks(signal?: AbortSignal): Promise<readonly FantasyGameWeek[]>
 ```
 
 Types: [Session](session.md)
+
+Source: [`packages/fantasy/fantasy/src/index.ts`](../../packages/fantasy/fantasy/src/index.ts)
+
+<a id="ctxfantasynfl--fantasynflservice-abstract-seam"></a>
+
+### `ctx.fantasyNfl` — `FantasyNflService` (abstract seam)
+
+NFL schedules, betting lines, and completed-game usage from a source other than the league provider. Team abbreviations are uppercase and match `FantasyPlayer.nflTeam` compared case-insensitively.
+
+```ts cordis-catalog
+/** Read one regular-season week's games.
+ * @param season - NFL season year.
+ * @param week - NFL regular-season week.
+ * @param signal - caller cancellation.
+ * @returns the week's games; teams on bye are absent.
+ */
+abstract games(season: number, week: number, signal?: AbortSignal): Promise<readonly FantasyNflGame[]>
+
+/** Read completed-game usage for league players.
+ * @param season - NFL season year.
+ * @param weeks - completed regular-season weeks to read.
+ * @param players - league players; the provider matches them by name, NFL team, and position.
+ * @param signal - caller cancellation.
+ * @returns usage rows by player key in week order; unmatched players and games not played are absent.
+ */
+abstract usage( season: number, weeks: readonly number[], players: readonly FantasyPlayer[], signal?: AbortSignal, ): Promise<ReadonlyMap<PlayerKeyType, readonly FantasyNflUsage[]>>
+```
 
 Source: [`packages/fantasy/fantasy/src/index.ts`](../../packages/fantasy/fantasy/src/index.ts)
 

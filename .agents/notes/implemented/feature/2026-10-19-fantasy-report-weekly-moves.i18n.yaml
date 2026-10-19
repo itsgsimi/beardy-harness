@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-19-fantasy-report-weekly-moves.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-19-fantasy-report-weekly-moves.md
+/agent-note-fantasy-report-weekly-moves:
+  en: d42614cffe37e575
+  zh: 9231fbf2f6f64abc
+/agent-note-fantasy-report-weekly-moves/problem:
+  en: e470c3a3ac257d61
+  zh: 33c23c1de4d954ac
+/agent-note-fantasy-report-weekly-moves/decision:
+  en: f37c4059ff5bae3b
+  zh: f3fb4baf43e2642b
+/agent-note-fantasy-report-weekly-moves/alternatives-considered:
+  en: 3e3d2bf42b08f20d
+  zh: e8ab6fd272d283f9
+/agent-note-fantasy-report-weekly-moves/consequences:
+  en: 5cd17753e9b3b7df
+  zh: c3dd284c7ea05155

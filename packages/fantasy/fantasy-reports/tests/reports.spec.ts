@@ -6,7 +6,7 @@ import { cronerScheduler, type CronRunFinished, type Scheduler, type ScheduledJo
 import type { ResearchRunView } from '@deepseek-ai/dsh-research/types'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { resolveConfig, type Config } from '../src/config.ts'
+import { resolveConfig, type Config, type ReportMode } from '../src/config.ts'
 import { apply, handOff, inject, mountReports, nextFire, REPORT_COMMAND, runScheduledReport, type ReportFireOptions } from '../src/index.ts'
 import {
   HANG, WEDNESDAY_WEEK_3, harness, lockedRoster, promptOf, replies, stageModel, stageOf, yahoo, type Harness, type Reply,
@@ -61,7 +61,7 @@ async function setup(replies: readonly Reply[], research: Parameters<typeof harn
   return { h, delivered }
 }
 
-function fire(h: Harness, overrides: Partial<Config>, at: number, team = 0, mode: 'full' | 'thursday' | 'sunday' = 'full',
+function fire(h: Harness, overrides: Partial<Config>, at: number, team = 0, mode: ReportMode = 'full',
   options: Partial<ReportFireOptions> = {}) {
   const config = resolveConfig(Object.assign({}, household, overrides))
   return runScheduledReport(h.ctx, config, config.teams[team]!, mode, at, { signal: new AbortController().signal, ...options })
@@ -76,11 +76,17 @@ describe('scheduled weekly reports', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
       firedAt: WEDNESDAY_WEEK_3, outcome: 'answered', reportOutcome: true, deliverChannelId: '1472404859679670455' })])
     expect(delivered[0]!.text).toMatch(/^# The Googies · 2026 week 3 full report\n/u)
     expect(await fire(h, {}, WEDNESDAY_WEEK_3 + 60_000)).toEqual({ kind: 'skipped', reason: '[fantasy-report:googies:2026:3:full] already has a run' })
+    expect(delivered[0]!.text).not.toContain('## Since')
+    h.fantasy.data = { ...h.fantasy.data, roster: { ...yahoo.roster, players: yahoo.roster.players.map(player => player.name === 'Zay Flowers'
+      ? { ...player, status: 'O' } : player) } }
     const thursday = await fire(h, {}, THURSDAY_WEEK_3, 0, 'thursday')
     expect(thursday.kind).toBe('published')
     expect(summaries(h)[1]).toContain('--- Earlier week 3 full report ---\\n# The Googies · 2026 week 3 full report')
+    expect(summaries(h)[1]).toContain('"sinceLastReport":["Zay Flowers: Yahoo status Q → O"]')
+    expect(delivered[1]!.text).toContain('## Since the full report\n- Zay Flowers: Yahoo status Q → O\n')
     const sunday = await fire(h, { historyReports: 1 }, SUNDAY_WEEK_3, 0, 'sunday')
     expect(sunday.kind).toBe('published')
+    expect(delivered[2]!.text).toContain('## Since the Thursday update\n- No Yahoo status, roster, or move changes.\n')
     const history = summaries(h)[2]!
     expect(history).toContain('--- Earlier week 3 thursday report ---')
     expect(history).not.toContain('--- Earlier week 3 full report ---')
@@ -129,12 +135,51 @@ describe('scheduled weekly reports', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(text).toContain('- Code kept the lineup call for Jordan Addison: the model call was rejected because no legal lineup swap honors it.')
   })
 
+  it('names an earlier report of the week whose evidence holds no roster or has no attachment store to read it', async () => {
+    const { h, delivered } = await setup(replies())
+    expect((await fire(h, {}, WEDNESDAY_WEEK_3)).kind).toBe('published')
+    const report = h.research.report.bind(h.research)
+    vi.spyOn(h.research, 'report').mockImplementation(async (id, owner) => {
+      const real = await report(id, owner)
+      return { ...real, evidenceRef: real.reportRef }
+    })
+    expect((await fire(h, {}, THURSDAY_WEEK_3, 0, 'thursday')).kind).toBe('published')
+    expect(delivered[1]!.text).toContain('- The earlier full report\'s evidence could not be read (the file holds no report roster), '
+      + 'so changes since it are not listed.')
+    const get = h.ctx.reflect.get.bind(h.ctx.reflect)
+    // Property reads of `ctx.attachments` pass `strict: false`; only the report's optional lookup omits it.
+    vi.spyOn(h.ctx.reflect, 'get').mockImplementation((name: string, strict?: boolean) =>
+      name === 'attachments' && strict === undefined ? undefined : get(name, strict) as unknown)
+    expect((await fire(h, {}, SUNDAY_WEEK_3, 0, 'sunday')).kind).toBe('published')
+    expect(delivered[2]!.text).toContain('- The earlier thursday report\'s evidence could not be read (no attachment store is mounted), '
+      + 'so changes since it are not listed.')
+  })
+
+  it('runs a waiver report on demand without a waiver timer and lists no changes section outside updates', async () => {
+    const { h, delivered } = await setup(replies())
+    expect((await fire(h, {}, WEDNESDAY_WEEK_3 - 86_400_000, 0, 'waivers', { manual: true })).kind).toBe('published')
+    expect(delivered[0]!.text).toMatch(/^# The Googies · 2026 week 3 waiver report\n/u)
+    expect(promptOf(h.adapter.requests[0]!)).toContain('This is the waiver report before claims clear')
+    expect(delivered[0]!.text).not.toContain('## Since')
+    expect(delivered[0]!.text).not.toContain('No earlier report')
+  })
+
+  it('notes a Thursday update that has no earlier report of its week', async () => {
+    const { h, delivered } = await setup(replies())
+    expect((await fire(h, {}, THURSDAY_WEEK_3, 0, 'thursday')).kind).toBe('published')
+    expect(delivered[0]!.text).toContain('- No earlier report of week 3 completed, so changes since the last report are not listed.')
+  })
+
   it('leaves an unreadable earlier report out of the history instead of failing the new report', async () => {
-    const { h } = await setup(replies())
+    const { h, delivered } = await setup(replies())
     expect((await fire(h, {}, WEDNESDAY_WEEK_3)).kind).toBe('published')
     const warn = vi.spyOn(h.ctx.logger, 'warn')
     vi.spyOn(h.research, 'report').mockRejectedValueOnce(new Error('research report unavailable'))
+      .mockRejectedValueOnce(new Error('research report unavailable'))
     expect((await fire(h, {}, THURSDAY_WEEK_3, 0, 'thursday')).kind).toBe('published')
+    expect(delivered.at(-1)!.text).toContain('- The earlier full report\'s evidence could not be read (Error: research report unavailable), '
+      + 'so changes since it are not listed.')
+    expect(delivered.at(-1)!.text).not.toContain('## Since')
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(
       /^fantasy-reports: earlier report rp-native-[0-9a-f-]+ is unreadable and stays out of the history: /u) as string)
     expect(warn.mock.calls.flat().join('\n')).toContain('stays out of the history: Error: research report unavailable')
@@ -509,7 +554,7 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     expect(delivered[1]).toMatchObject({ deliverChannelId: '1472404859679670455', text: expect.stringMatching(/^# The Googies/u) as string })
     expect(await run(mama, '/fantasy-report lights')).toEqual({ kind: 'error',
       text: 'Unknown team "lights". Teams you can request: googies.' })
-    const usage = { kind: 'error', text: 'Usage: /fantasy-report <googies|lights> [full|thursday|sunday]' }
+    const usage = { kind: 'error', text: 'Usage: /fantasy-report <googies|lights> [waivers|full|thursday|sunday]' }
     expect(await run(beardy, '/fantasy-report')).toEqual(usage)
     expect(await run(beardy, '/fantasy-report lights weekly')).toEqual(usage)
     expect(await run(beardy, '/fantasy-report lights full now')).toEqual(usage)
@@ -535,6 +580,8 @@ describe('report timers', { timeout: RUN_CASE_TIMEOUT_MS }, () => {
     await run('/fantasy-report lights sunday')
     expect(await run('/fantasy-report lights thursday')).toBe(
       'Queued the thursday report for Lights Kamara Action behind 2 earlier reports; it will post to the shadow channel when done.')
+    expect(await run('/fantasy-report lights waivers')).toBe(
+      'Queued the waivers report for Lights Kamara Action behind 3 earlier reports; it will post to the shadow channel when done.')
   })
 
   it('registers no command while commandPresets is empty', async () => {

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `ctx.fantasy` 读取联盟、计分规则、排名、对阵、阵容、球员、交易、选秀结果和比赛周。提供方负责数据；定义在键进入请求路径前验证联盟、球队和球员键。使用 `ctx.fantasyProjections` 为联盟球员预测每周数据行，使用 `scoreStats` 按联盟计分规则为数据行计分。
+使用 `ctx.fantasy` 读取联盟、计分规则、排名、对阵、阵容、球员、交易、选秀结果和比赛周。提供方负责数据；定义在键进入请求路径前验证联盟、球队和球员键。使用 `ctx.fantasyProjections` 为联盟球员预测每周数据行，使用 `scoreStats` 按联盟计分规则为数据行计分。使用 `ctx.fantasyNfl` 读取 NFL 比赛、博彩盘口和已完成比赛的使用数据，使用 `normalizePlayerName` 跨数据源匹配球员姓名。
 
 ## 目录
 
@@ -27,7 +27,11 @@ kind: "package-reference"
 
 使用方调用服务之前需装载 [fantasy-yahoo](../fantasy-yahoo/README.zh.md) 等提供方。活跃调用方 Session 通过 `teamFor` 选取配置的球队；模型参数不能选择调用方身份。
 
+`players(league, query)` 读取一页。`status` 为 `FA` 时选择可立即签入的球员，`W` 选择需要认领的球员，`A` 两者都选；每名球员的 `ownershipType` 为 `team`、`waivers` 或 `freeagents`。`playerKeys` 读取至多 25 名指定球员，并排除 `search`、`status`、`position` 和 `sort`；`week` 仍选择统计周。`percentOwnedDelta` 是持有率的变化。`FantasyTeam` 带有 `waiverPriority`（1 最先认领）、有预算联盟中的 `faabBalance`，以及赛季签入与裁出次数 `moves`。`FantasyLeagueSettings` 带有 `waiverDays` 和 `usesFaab`。联盟当前允许球员进入 IR 位置时，`positions` 包含 `IR`。
+
 使用方调用 `ctx.fantasyProjections.project(season, week, players)` 之前需装载 [fantasy-projections-sleeper](../fantasy-projections-sleeper/README.zh.md) 等预测提供方。它返回以球员键为键的预测数据行，统计项 id 与 `FantasyScoringStat.id` 和 `FantasyPlayer.stats` 相同；无法匹配的球员不在结果中。`scoreStats(line, scoring)` 对带分值的计分项求统计值与分值之积的和，并四舍五入到百分位。
+
+使用方调用 `ctx.fantasyNfl` 之前需装载 `@deepseek-ai/dsh-fantasy-nflverse` 等 NFL 数据提供方。`games(season, week)` 返回该周的 `FantasyNflGame` 行，包含 UTC 开球时间、主客队，以及已公布的主队让分、总分和场馆顶棚；轮空球队不在结果中。`usage(season, weeks, players)` 按球员键返回按周排序的 `FantasyNflUsage` 行，包含目标数、目标占比、接球数、持球数和进攻 snap 占比；无法匹配的球员和未进行的比赛不在结果中。球队缩写为大写，与 `FantasyPlayer.nflTeam` 不区分大小写比较。`normalizePlayerName(name)` 将重音字母折叠为 ASCII、转为小写、删除句点和撇号、去掉 `Jr`、`Sr` 以及 `II` 到 `V`，并用单个空格连接其余单词。
 
 -----
 
@@ -72,7 +76,7 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- 所有读取都需要提供方，所有预测都需要预测提供方。
+- 所有读取都需要提供方，所有预测都需要预测提供方，所有 NFL 数据读取都需要 NFL 数据提供方。
 
 <a id="dev-note"></a>
 ### 开发备注

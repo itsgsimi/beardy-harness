@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  basePositions, closePairs, lineupCall, plainReason, points, positionNeeds, slotOf, waiverQueries, waiverShortlist,
+  acquisition, basePositions, closePairs, freeAgentFallback, lineupCall, plainReason, points, type PoolEntry, positionNeeds, slotOf,
+  waiverShortlist,
 } from '../src/facts.ts'
 import { optimizeLineup } from '../src/lineup.ts'
 import { rosterIds, synthetic, yahoo } from './support.ts'
@@ -67,7 +68,6 @@ describe('weak positions and the waiver shortlist', () => {
     expect(basePositions(slots)).toEqual(['QB', 'RB', 'WR', 'TE', 'K', 'DEF'])
     const needs = positionNeeds(fixture, code, slots, 3)
     expect(needs.filter(item => item.need > 0)).toEqual([{ position: 'WR', need: 1, reasons: ['Zay Flowers is Q'] }])
-    expect(waiverQueries(needs, fixture)).toEqual(['WR'])
     const players = new Map([
       ['P1', synthetic('Out Passer', ['QB'], { status: 'O', selectedSlot: 'QB' })],
       ['P2', synthetic('Wide', ['WR'], { selectedSlot: 'WR', projectedPoints: 4 })],
@@ -79,41 +79,26 @@ describe('weak positions and the waiver shortlist', () => {
       { position: 'QB', need: 3, reasons: ['empty QB slots: 1', 'Yahoo starter Out Passer is Yahoo status O'] },
       { position: 'WR', need: 0, reasons: [] },
     ])
-    expect(waiverQueries(scored, players)).toEqual(['QB', 'WR'])
   })
 
-  it('ranks needy and projection-gap positions, then eligible available free agents by projection, rank, and ownership', () => {
-    const players = new Map([
-      ['P1', synthetic('Passer', ['QB'], { projectedPoints: 15, selectedSlot: 'QB', status: 'Q' })],
-      ['P2', synthetic('Wide', ['WR'], { projectedPoints: 6, selectedSlot: 'WR' })],
-      ['P3', synthetic('Flex', ['RB'], { projectedPoints: 9, selectedSlot: 'W/R/T' })],
-    ])
-    const lineup = optimizeLineup(players, league, 3)
-    const needs = positionNeeds(players, lineup, league, 3)
-    const free = new Map([
-      ['QB', [synthetic('Spare Passer', ['QB'], { percentOwned: 30 }), synthetic('Hurt Passer', ['QB'], { status: 'O' }),
-        synthetic('Ranked Passer', ['QB'], { rank: 40 }), synthetic('Owned Passer', ['QB'], { percentOwned: 60 })]],
-      ['WR', [synthetic('Better Wide', ['WR'], { projectedPoints: 8.04 }), synthetic('Back Listed', ['RB'], { projectedPoints: 20 }),
-        synthetic('Spare Passer', ['QB', 'WR'], { percentOwned: 30 })]],
-    ])
-    const shortlist = waiverShortlist(needs, free, players, lineup, 3, { positions: 2, candidates: 3 })
-    expect(shortlist.positions).toEqual([
-      { position: 'QB', need: 1, reasons: ['Passer is Q'] },
-      { position: 'WR', need: 0, reasons: [], gap: 2 },
-    ])
-    expect(shortlist.candidates.map(item => `${item.id} ${item.position} ${item.player.name}`))
-      .toEqual(['W1 QB Ranked Passer', 'W2 QB Owned Passer', 'W3 QB Spare Passer', 'W4 WR Better Wide'])
-    const healthy = new Map([...players].map(([id, item]) => [id, { ...item, status: undefined }]))
-    const none = waiverShortlist(positionNeeds(healthy, lineup, league, 3), new Map([['QB', free.get('QB')!]]), healthy, lineup, 3,
-      { positions: 2, candidates: 2 })
-    expect(none).toEqual({ positions: [], candidates: [] })
-    const unprojected = new Map([...players].map(([id, item]) => [id, id === 'P2' ? { ...item, projectedPoints: undefined } : item]))
-    expect(waiverShortlist(positionNeeds(unprojected, lineup, league, 3), free, unprojected, lineup, 3, { positions: 2, candidates: 1 })
-      .positions.map(item => item.position)).toEqual(['QB'])
-    const tied = [{ position: 'QB', need: 1, reasons: ['a'] }, { position: 'WR', need: 1, reasons: ['b'] }]
-    const plain = new Map([['QB', [synthetic('Plain Passer', ['QB']), synthetic('Other Passer', ['QB'])]],
-      ['WR', [synthetic('Plain Wide', ['WR'], { projectedPoints: 1 })]]])
-    expect(waiverShortlist(tied, plain, players, lineup, 3, { positions: 2, candidates: 2 }).candidates.map(item => item.player.name))
-      .toEqual(['Plain Passer', 'Other Passer', 'Plain Wide'])
+  it('shortlists positive net values by position, best first, and names a free-agent fallback for a claim', () => {
+    const entry = (name: string, position: string, net: number, extra: Partial<PoolEntry['player']> = {}, gain = net): PoolEntry => {
+      const player = synthetic(name, [position], extra)
+      return { position, player, weeks: [player], value: { gain, net, perWeek: [net] } }
+    }
+    const pool = [
+      entry('Claim Wide', 'WR', 3, { ownershipType: 'waivers' }), entry('Free Wide', 'WR', 2, { ownershipType: 'freeagents' }),
+      entry('Owned Wide', 'WR', 2, { percentOwned: 40 }), entry('Owned Two', 'WR', 2, { percentOwned: 10 }), entry('Ranked Wide', 'WR', 2, { rank: 5 }), entry('Gainer Wide', 'WR', 2, {}, 3),
+      entry('Kicker', 'K', 1), entry('Back', 'RB', 4, { ownershipType: 'freeagents' }), entry('Useless', 'TE', 0),
+    ]
+    const shortlist = waiverShortlist(pool, { positions: 2, candidates: 3 })
+    expect(shortlist.positions).toEqual(['RB', 'WR'])
+    expect(shortlist.candidates.map(item => `${item.id} ${item.player.name}`))
+      .toEqual(['W1 Back', 'W2 Claim Wide', 'W3 Gainer Wide', 'W4 Ranked Wide'])
+    expect(acquisition(pool[0]!.player)).toBe('claim')
+    expect(acquisition(pool[1]!.player)).toBe('free agent')
+    expect(freeAgentFallback(pool, pool[0]!, new Set())?.player.name).toBe('Gainer Wide')
+    expect(freeAgentFallback(pool, pool[0]!, new Set(pool.slice(1, 6).map(item => item.player.key)))).toBeUndefined()
+    expect(waiverShortlist([], { positions: 2, candidates: 3 })).toEqual({ positions: [], candidates: [] })
   })
 })

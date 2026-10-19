@@ -53,6 +53,16 @@ export function uncertain(player: FantasyPlayer): boolean {
 }
 
 /**
+ * Whether a starting slot accepts a base position, directly or as a flex member.
+ * @param slot - uppercase slot name.
+ * @param position - uppercase base position.
+ * @returns true when the slot is the position or a flex slot that accepts it.
+ */
+export function slotAccepts(slot: string, position: string): boolean {
+  return slot === position || (FLEX_MEMBERS[slot]?.includes(position) ?? false)
+}
+
+/**
  * Whether a player may fill a slot under Yahoo eligibility.
  * @param player - roster player with Yahoo eligible positions.
  * @param slot - uppercase slot name.

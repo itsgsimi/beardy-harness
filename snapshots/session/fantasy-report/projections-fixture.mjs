@@ -1,4 +1,8 @@
-/** Fixed Sleeper week 3 projection rows for both matchup rosters, behind the real projection provider. */
+/**
+ * Fixed Sleeper projection rows for both matchup rosters and the waiver pool, behind the real projection provider.
+ * Weeks 4 and 5 repeat week 3 except that Olamide Zaccheaus projects as a starting receiver, so his add gains value
+ * only after the report week.
+ */
 export const name = 'fantasy-report-projections-fixture'
 export const inject = ['loader']
 
@@ -30,19 +34,27 @@ const ROWS = [
   ['Kendall', 'Moss', 'WR', 'NO', { rec: 3, rec_yd: 36, rec_td: 0.2 }],
   ['Mateo', 'Alvarez', 'K', 'PHI', { fgm_20_29: 0.5, fgm_30_39: 0.5, fgm_40_49: 0.4, fgm_50p: 0.1, fgmiss_40_49: 0.2, xpm: 2.8 }],
   ['Seattle', 'Seahawks', 'DEF', 'SEA', { sack: 2.4, int: 0.7, fum_rec: 0.5, def_td: 0.15, safe: 0.04, blk_kick: 0.04, pts_allow: 23.5 }],
+  ['Marcus', 'Webb', 'WR', 'TEN', { rec: 5, rec_yd: 60, rec_td: 0.35, rec_tgt: 7 }],
 ]
 
-const BODY = JSON.stringify(ROWS.map(([first, last, position, team, stats]) => ({
-  team, player: { first_name: first, last_name: last, position, team, fantasy_positions: [position] }, stats,
-})))
+/** Olamide Zaccheaus's row from week 4 on. */
+const LATER_ZACCHEAUS = { rec: 6.5, rec_yd: 80, rec_td: 0.6, rec_tgt: 9 }
+
+function body(week) {
+  return JSON.stringify(ROWS.map(([first, last, position, team, stats]) => ({
+    team, player: { first_name: first, last_name: last, position, team, fantasy_positions: [position] },
+    stats: week > 3 && last === 'Zaccheaus' ? LATER_ZACCHEAUS : stats,
+  })))
+}
 
 export async function apply(ctx) {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input))
     if (url.origin !== 'https://api.sleeper.com') return originalFetch(input, init)
-    if (url.pathname !== '/projections/nfl/2026/3' || init?.method !== 'GET') throw new Error(`unexpected Sleeper fixture request ${url.pathname}`)
-    return new Response(BODY, { status: 200 })
+    const week = /^\/projections\/nfl\/2026\/([3-5])$/u.exec(url.pathname)?.[1]
+    if (week === undefined || init?.method !== 'GET') throw new Error(`unexpected Sleeper fixture request ${url.pathname}`)
+    return new Response(body(Number(week)), { status: 200 })
   }
   ctx.effect(() => () => { globalThis.fetch = originalFetch }, 'Sleeper fixture transport')
   await ctx.loader.create({ name: '@deepseek-ai/dsh-fantasy-projections-sleeper', config: {} })
