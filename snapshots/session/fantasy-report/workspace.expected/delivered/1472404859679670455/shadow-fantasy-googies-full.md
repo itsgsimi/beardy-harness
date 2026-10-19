@@ -3,6 +3,13 @@
 # The Googies · 2026 week 3 full report
 **Wed, Sep 23, 2:00 PM MST · Yahoo roster and slots, weekly projections**
 
+## Checklist
+1. Move Jayden Daniels to IR — now, so his roster spot opens
+2. Move Nico Collins to IR — now, so his roster spot opens
+3. Claim Olamide Zaccheaus — submit now, before Yahoo processes claims; dropped players stay on waivers for 2 days; if the claim fails, add Marcus Webb instead
+4. Recheck Zay Flowers (Q) on the Wednesday and Friday practice reports — before the **Thursday game** (Thu, Sep 24, 5:15 PM MST)
+5. Set the final lineup before the first Sunday kickoff (Sun, Sep 27, 10:00 AM MST)
+
 **Matchup:** The Googies 116.1 vs Team 5 94.6 projected · Yahoo win probability 59%
 By slot (yours vs theirs): QB 17.3–16.9 · RB 30.4–24.7 · WR 20.1–20.0 · TE 8.5–6.7 · W/R/T 11.8–9.2 · K 8.1–7.7 · DEF 8.3–5.9
 
@@ -10,17 +17,31 @@ By slot (yours vs theirs): QB 17.3–16.9 · RB 30.4–24.7 · WR 20.1–20.0 ·
 The Googies are projected 116.1 to 94.6 against Team 5 and keep their current Yahoo lineup. The main question is Zay Flowers, who was limited Wednesday with a hamstring injury; Jordan Addison starts instead if Flowers is limited again by Friday. Jayden Daniels and Nico Collins are out and stay on the bench. Olamide Zaccheaus is the waiver option if receiver depth runs short.
 
 ## Lineup
-- **QB** Trevor Lawrence · Jax · proj 17.3
-- **RB** Jahmyr Gibbs · Det · proj 17.6
-- **RB** Omarion Hampton · LAC · proj 12.8
-- **WR** Parker Washington · Jax · proj 10.3
-- **WR** Zay Flowers · Bal · proj 9.8 · Yahoo Q (Hamstring)
-- **TE** Tyler Warren · Ind · proj 8.5
-- **W/R/T** Breece Hall · NYJ · proj 11.8
-- **K** Cairo Santos · Chi · proj 8.1
-- **DEF** Steelers · Pit · proj 8.3
+- **QB** Trevor Lawrence · Jax · proj 17.3 · @ HOU Sun, Sep 27, 10:00 AM MST · implied 21.5
+- **RB** Jahmyr Gibbs · Det · proj 17.6 · @ BAL Thu, Sep 24, 5:15 PM MST · implied 24.5 · recent 18.2, 21.4 (avg 19.8)
+- **RB** Omarion Hampton · LAC · proj 12.8 · @ SEA Sun, Sep 27, 1:05 PM MST · implied 23.3
+- **WR** Parker Washington · Jax · proj 10.3 · @ HOU Sun, Sep 27, 10:00 AM MST · implied 21.5 · recent 20.5, 16.1 (avg 18.3, hot)
+- **WR** Zay Flowers · Bal · proj 9.8 · Yahoo Q (Hamstring) · vs DET Thu, Sep 24, 5:15 PM MST · implied 27.0
+- **TE** Tyler Warren · Ind · proj 8.5 · @ TEN Sun, Sep 27, 10:00 AM MST · implied 19.0 · recent 3.1, 2.4 (avg 2.8, cold)
+- **W/R/T** Breece Hall · NYJ · proj 11.8 · vs DEN Sun, Sep 27, 10:00 AM MST · implied 18.5
+- **K** Cairo Santos · Chi · proj 8.1 · @ PIT Sun, Sep 27, 10:00 AM MST · implied 19.0
+- **DEF** Steelers · Pit · proj 8.3 · vs CHI Sun, Sep 27, 10:00 AM MST · implied 21.5
 
 Bench: Jordan Addison, Jayden Daniels (O), J.K. Dobbins, Nico Collins (O), Bhayshul Tuten, Isaiah Likely
+
+## Moves
+Waiver priority 6 of 10 · waiver period 2 days
+- **Move Jayden Daniels to IR**: Yahoo lists him IR-eligible and an IR slot is empty.
+- **Move Nico Collins to IR**: Yahoo lists him IR-eligible and an IR slot is empty.
+- **Claim Olamide Zaccheaus** · WR · Atl · +3.3 pts/wk over 3 wk · open roster spot · 9% owned · vs MIN Sun, Sep 27, 10:00 AM MST · implied 22.5 · recent 11.2, 13.8 (avg 12.5, hot) — Healthy receiver depth if Flowers cannot play; Addison is the only healthy bench receiver. If the claim fails, add Marcus Webb (free agent, +0.8 pts/wk).
+
+## Bye outlook
+- Week 3: no byes; every starting slot can be filled
+- Week 4: on bye Steelers; nobody can fill DEF
+- Week 5: no byes; every starting slot can be filled
+
+## Trade chip
+**Bhayshul Tuten** (RB) — 5 healthy players at RB for 3 starting slots and a bye cover; averages 4.6 projected over weeks 3, 4, 5.
 
 ## Player calls
 **Trevor Lawrence — START** · QB · Jax · bye 7
@@ -65,15 +86,12 @@ Played 60 percent of snaps in week 2, but Warren starts at tight end. [13](<http
 **Cairo Santos — START** · K · Chi · bye 10
 Practiced fully and has made every field goal this season. [14](<https://news.example/week-3/14>)
 
-**Steelers — START** · DEF · Pit · bye 9
+**Steelers — START** · DEF · Pit · bye 4
 Nine sacks through two weeks and a turnover-prone opponent in week 3. [15](<https://news.example/week-3/15>)
 
 ## Close calls
 **Zay Flowers or Jordan Addison** (WR)
 Flowers keeps the WR spot if he practices fully by Friday; he was limited Wednesday with a hamstring injury and is questionable. Addison practiced fully and replaces him if Flowers is limited again or ruled out. [5](<https://news.example/week-3/5>) [8](<https://news.example/week-3/8>)
-
-## Waiver ideas
-- **Olamide Zaccheaus** · WR · Atl — Healthy receiver depth if Flowers cannot play; Addison is the only healthy bench receiver.
 
 ## Caveats
 - Recommendations only: check final injury reports and Yahoo lineup locks before changing your lineup.

@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/fantasy/fantasy-nflverse/README.md
+/:
+  en: 1c1a67516d76914c
+  zh: 816c8260960a5841
+/deepseek-ai-dsh-fantasy-nflverse:
+  en: 7f979f87ac1504a4
+  zh: 806be37ca3ac07dd
+/deepseek-ai-dsh-fantasy-nflverse/summary:
+  en: 58939f763c1ffed9
+  zh: 5ce83cd4b599b43d
+/deepseek-ai-dsh-fantasy-nflverse/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 3eaa889f39470150
+/deepseek-ai-dsh-fantasy-nflverse/use-this-package:
+  en: 6f75be12e341ca6f
+  zh: ed2132336f6784bb
+/deepseek-ai-dsh-fantasy-nflverse/understand-the-implementation:
+  en: 473aa44c324bfb20
+  zh: b6ba80c9dbfea8e8
+/deepseek-ai-dsh-fantasy-nflverse/further-exploration:
+  en: 03450570ff438eca
+  zh: 7a89722268eda6ba
+/deepseek-ai-dsh-fantasy-nflverse/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-fantasy-nflverse/model-experience/nflverse-nfl-data-provider:
+  en: 8f32a0716183d081
+  zh: da90d92db035d3e0
+/deepseek-ai-dsh-fantasy-nflverse/model-experience/nflverse-nfl-data-provider/what-the-model-sees:
+  en: f85ffa58b57b74bc
+  zh: d991c40d92b82cfb
+/deepseek-ai-dsh-fantasy-nflverse/model-experience/nflverse-nfl-data-provider/token-effect:
+  en: 0165030645a1f3f1
+  zh: aa8edf623979074b
+/deepseek-ai-dsh-fantasy-nflverse/model-experience/nflverse-nfl-data-provider/kv-cache-effect:
+  en: 2962b0709df20b1b
+  zh: ea565aef88c27201
+/deepseek-ai-dsh-fantasy-nflverse/known-limitations-and-deferred-work:
+  en: fd037697751d30aa
+  zh: 5cd34ecc9e47d549
+/deepseek-ai-dsh-fantasy-nflverse/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 6c5f9788c6536776

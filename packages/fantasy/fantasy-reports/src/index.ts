@@ -19,16 +19,21 @@ import type {} from '@deepseek-ai/dsh-fantasy'
 import type {} from '@deepseek-ai/dsh-research'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import { REPORT_MODES, resolveConfig, type Config, type ReportMode, type ResolvedConfig, type ResolvedTeam } from './config.ts'
-import { weeklyReportWorkflow, type EarlierReport } from './workflow.ts'
+import { parseReportFacts } from './since.ts'
+import { weeklyReportWorkflow, type EarlierReport, type PreviousReport } from './workflow.ts'
 
 export { Config, DEFAULT_EXCLUDED_HOSTS, REPORT_MODES, resolveConfig } from './config.ts'
 export type { ReportMode, ReportScheduleConfig, ResolvedConfig, ResolvedTeam, TeamConfig } from './config.ts'
 export { FANTASY_WORKFLOW_NAME, weeklyReportWorkflow } from './workflow.ts'
-export type { EarlierReport, WeeklyReportInput } from './workflow.ts'
+export type { EarlierReport, PreviousReport, WeeklyReportInput } from './workflow.ts'
 
 /** Cordis plugin identity. */
 export const name = 'fantasy-reports'
-/** Services a report reads or writes, and the registry of the on-demand command. */
+/**
+ * Services a report reads or writes, and the registry of the on-demand command. The NFL data service
+ * (`fantasyNfl`) and the attachment store that holds earlier evidence are optional: a report reads them when
+ * mounted and names their absence in its caveats.
+ */
 export const inject = ['agents', 'commands', 'fantasy', 'fantasyProjections', 'research', 'sessionPersistence', 'web']
 
 /** Human command that runs one team's report now. */
@@ -43,14 +48,15 @@ export interface ReportSchedule {
 }
 
 /**
- * Expand configured teams into one timer per report mode.
+ * Expand configured teams into one timer per scheduled report mode; a team without a waiver schedule has no waiver timer.
  * @param config - resolved report policy.
  * @returns timers in team and mode order.
  */
 export function reportSchedules(config: ResolvedConfig): ReportSchedule[] {
-  return config.teams.flatMap(team => REPORT_MODES.map(mode => ({
-    team, mode, expression: team.schedule[mode], timezone: config.timezone,
-  })))
+  return config.teams.flatMap(team => REPORT_MODES.flatMap((mode) => {
+    const expression = team.schedule[mode]
+    return expression === undefined ? [] : [{ team, mode, expression, timezone: config.timezone }]
+  }))
 }
 
 /**
@@ -90,7 +96,7 @@ export function formatReportTag(tag: ReportTag): string {
 }
 
 /** Slot fields, then the optional trigger and fire time of the full tag form. */
-const REPORT_TAG = new RegExp(String.raw`\[fantasy-report:([a-z][a-z0-9-]*):([0-9]{4}):([0-9]{1,2}):(full|thursday|sunday)`
+const REPORT_TAG = new RegExp(String.raw`\[fantasy-report:([a-z][a-z0-9-]*):([0-9]{4}):([0-9]{1,2}):(waivers|full|thursday|sunday)`
   + String.raw`(?::(scheduled|catch-up|manual):([0-9]+))?\]`, 'u')
 
 /**
@@ -135,7 +141,8 @@ export function catchUpWindow(config: ResolvedConfig, mode: ReportMode): number 
 
 /**
  * Pick each team's latest slot at or before an instant when that slot is still inside its catch-up
- * window. Earlier slots of the week are superseded by the latest one and are never caught up.
+ * window. Earlier slots of the week are superseded by the latest one and are never caught up; a mode
+ * without a schedule has no slot.
  * @param config - resolved report policy.
  * @param now - plugin start time in epoch milliseconds.
  * @returns at most one slot per team, in team order.
@@ -143,7 +150,8 @@ export function catchUpWindow(config: ResolvedConfig, mode: ReportMode): number 
 export function catchUpSlots(config: ResolvedConfig, now: number): CatchUpSlot[] {
   return config.teams.flatMap((team) => {
     const slots = REPORT_MODES.flatMap((mode) => {
-      const slotAt = latestMatchAt(team.schedule[mode], config.timezone, now)
+      const expression = team.schedule[mode]
+      const slotAt = expression === undefined ? undefined : latestMatchAt(expression, config.timezone, now)
       return slotAt === undefined ? [] : [{ team, mode, slotAt }]
     })
     const latest = slots.reduce<CatchUpSlot | undefined>((best, slot) => best === undefined || slot.slotAt > best.slotAt ? slot : best,
@@ -217,6 +225,33 @@ async function earlierReports(ctx: Context, config: ResolvedConfig, owner: Resea
     earlier.push({ runId: run.id, week: tag.week, mode: tag.mode, markdown: report.markdown })
   }
   return earlier
+}
+
+/** The attachment reads a report needs to open an earlier report's evidence file. */
+interface EvidenceReader {
+  readFileStream(ref: ResearchReport['evidenceRef'], signal?: AbortSignal): AsyncIterable<Uint8Array>
+}
+
+/**
+ * The latest earlier completed report of the same week, which Thursday and Sunday updates compare against,
+ * with its evidence parsed; an unreadable evidence file is reported as such rather than failing the report.
+ */
+async function previousReport(ctx: Context, owner: ResearchOwner, runs: readonly ResearchRunView[],
+  week: number): Promise<PreviousReport | undefined> {
+  const run = runs.find(item => item.phase === 'completed' && (parseReportTag(item.query) as ReportTag).week === week)
+  if (run === undefined) return undefined
+  const { mode } = parseReportTag(run.query) as ReportTag
+  const attachments = ctx.get('attachments') as EvidenceReader | undefined
+  if (attachments === undefined) return { runId: run.id, mode, unreadable: 'no attachment store is mounted' }
+  try {
+    const report = await ctx.research.report(run.id, owner)
+    const chunks: Uint8Array[] = []
+    for await (const chunk of attachments.readFileStream(report.evidenceRef)) chunks.push(chunk)
+    const facts = parseReportFacts(Buffer.concat(chunks).toString('utf8'))
+    return facts === undefined ? { runId: run.id, mode, unreadable: 'the file holds no report roster' } : { runId: run.id, mode, facts }
+  } catch (error) {
+    return { runId: run.id, mode, unreadable: String(error) }
+  }
 }
 
 /** Resolve after the run reaches a terminal phase; abort rejects. */
@@ -312,6 +347,7 @@ async function startReport(ctx: Context, config: ResolvedConfig, team: ResolvedT
     const decision = options.catchUp === undefined ? undefined : catchUpDecision(slot, slotRuns, owner)
     if (decision !== undefined) return decision
     const history = await earlierReports(ctx, config, owner, runs)
+    const previous = mode === 'thursday' || mode === 'sunday' ? await previousReport(ctx, owner, runs, week) : undefined
     await options.beforeStart?.()
     if (options.catchUp !== undefined && !options.catchUp.open()) {
       return { kind: 'skipped', reason: `the catch-up window of ${slot} closed before its start` }
@@ -319,7 +355,8 @@ async function startReport(ctx: Context, config: ResolvedConfig, team: ResolvedT
     const run = await ctx.research.start({
       caller: caller.agent.session, owner, requestKey: tag,
       query: `${team.name} weekly fantasy report, ${season} week ${week} (${mode}) ${tag}`,
-      workflow: weeklyReportWorkflow(ctx, config, { team, settings, season, week, mode, firedAt, history }),
+      workflow: weeklyReportWorkflow(ctx, config, { team, settings, season, week, mode, firedAt, history,
+        ...(previous === undefined ? {} : { previous }) }),
     })
     return { kind: 'started', run, owner }
   } finally {
@@ -423,7 +460,7 @@ export interface ReportRequest {
 }
 
 /**
- * Parse `/fantasy-report <team> [full|thursday|sunday]` for a caller preset.
+ * Parse `/fantasy-report <team> [waivers|full|thursday|sunday]` for a caller preset; the waiver report needs no schedule.
  * @param config - resolved report policy.
  * @param preset - trusted Agent preset recorded on the caller Session.
  * @param rawInput - text after the command name.
@@ -448,7 +485,7 @@ export function parseReportRequest(config: ResolvedConfig, preset: string | unde
 }
 
 /**
- * Arm one timer per team and mode, queue each team's restart catch-up, register the on-demand command
+ * Arm one timer per team and scheduled mode, queue each team's restart catch-up, register the on-demand command
  * when `commandPresets` names a preset, run every fire and request one at a time with the configured
  * spacing between scheduled and catch-up research starts, and drain the queue on disposal. A requested
  * report shares the queue, so it never overlaps another report, but neither waits for nor resets the
@@ -471,8 +508,8 @@ export function mountReports(ctx: Context, supplied: Config, scheduler: Schedule
       if (wait > 0) await delay(wait, undefined, { signal: stopping.signal })
       lastStart = Date.now()
     }
-    const enqueue = (label: string, job: ScheduledJob, fire: (options: ReportFireOptions) => Promise<ReportOutcome>): void => {
-      const next = job.nextRunAt()
+    const enqueue = (label: string, job: ScheduledJob | undefined, fire: (options: ReportFireOptions) => Promise<ReportOutcome>): void => {
+      const next = job?.nextRunAt()
       queued++
       chain = chain.then(async () => {
         let outcome: ReportOutcome
@@ -500,7 +537,7 @@ export function mountReports(ctx: Context, supplied: Config, scheduler: Schedule
     for (const slot of catchUpSlots(config, clock())) {
       const label = `${slot.team.id} ${slot.mode}`
       const window = catchUpWindow(config, slot.mode)
-      enqueue(`${label} catch-up`, jobs.get(label) as ScheduledJob, options => runScheduledReport(ctx, config, slot.team, slot.mode,
+      enqueue(`${label} catch-up`, jobs.get(label), options => runScheduledReport(ctx, config, slot.team, slot.mode,
         clock(), { ...options, catchUp: { slotAt: slot.slotAt, open: () => clock() - slot.slotAt < window } }))
     }
     const unregister = config.commandPresets.length === 0 ? undefined : ctx.commands.register({
@@ -512,7 +549,7 @@ export function mountReports(ctx: Context, supplied: Config, scheduler: Schedule
         if ('kind' in request) return request
         const { team, mode } = request
         const ahead = queued
-        enqueue(`${team.id} ${mode} manual`, jobs.get(`${team.id} ${mode}`) as ScheduledJob, options => runScheduledReport(ctx, config,
+        enqueue(`${team.id} ${mode} manual`, jobs.get(`${team.id} ${mode}`), options => runScheduledReport(ctx, config,
           team, mode, clock(), { ...options, beforeStart: async () => {}, manual: true }))
         const where = config.shadowChannelId === undefined ? 'the team\'s report channel' : 'the shadow channel'
         return { kind: 'success', text: ahead === 0

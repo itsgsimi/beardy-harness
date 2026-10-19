@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/fantasy.md
 /fantasy-reads:
-  en: 34f35eff9a2b8c44
-  zh: 11ff2e59c9c25071
+  en: 998f9d8677682424
+  zh: d7d0ee079bbb595b
 /fantasy-reads/authority-and-token-ownership:
   en: bfd75d054fd26d81
   zh: 88df520d9bfb37f7
@@ -12,5 +12,5 @@
   en: f0eb9a6afee8b383
   zh: ce19353639c5a498
 /fantasy-reads/weekly-reports:
-  en: 6d678cd506ab0ca4
-  zh: 056984224004c7a7
+  en: 50281d9bb447742c
+  zh: ae5a2596a9a67f20

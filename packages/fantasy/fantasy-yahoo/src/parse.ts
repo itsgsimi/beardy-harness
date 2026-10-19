@@ -148,6 +148,8 @@ export function parseLeagueSettings(raw: unknown): FantasyLeagueSettings {
     ...(string(settings['waiver_rule']) === undefined ? {} : { waiverRule: string(settings['waiver_rule']) }),
     ...(string(settings['trade_end_date']) === undefined ? {} : { tradeEndDate: string(settings['trade_end_date']) }),
     ...(number(settings['playoff_start_week']) === undefined ? {} : { playoffStartWeek: number(settings['playoff_start_week']) }),
+    ...(number(settings['waiver_time']) === undefined ? {} : { waiverDays: number(settings['waiver_time']) }),
+    ...(binary(settings['uses_faab']) === undefined ? {} : { usesFaab: binary(settings['uses_faab']) }),
     rosterSlots: slots, scoring,
   }
 }
@@ -167,6 +169,9 @@ function teamFrom(value: unknown): FantasyTeam {
     ...(number(object(row['team_projected_points'])?.['total']) === undefined
       ? {} : { projectedPoints: number(object(row['team_projected_points'])?.['total']) }),
     ...(number(row['win_probability']) === undefined ? {} : { winProbability: number(row['win_probability']) }),
+    ...(number(row['waiver_priority']) === undefined ? {} : { waiverPriority: number(row['waiver_priority']) }),
+    ...(number(row['faab_balance']) === undefined ? {} : { faabBalance: number(row['faab_balance']) }),
+    ...(number(row['number_of_moves']) === undefined ? {} : { moves: number(row['number_of_moves']) }),
   }
 }
 
@@ -227,6 +232,7 @@ function playerFrom(value: unknown): FantasyPlayer {
     ...(number(object(row['player_projected_points'])?.['total']) === undefined
       ? {} : { projectedPoints: number(object(row['player_projected_points'])?.['total']) }),
     ...(number(owned['value']) === undefined ? {} : { percentOwned: number(owned['value']) }),
+    ...(number(owned['delta']) === undefined ? {} : { percentOwnedDelta: number(owned['delta']) }),
     ...(number(row['rank']) === undefined ? {} : { rank: number(row['rank']) }),
     ...(string(object(row['ownership'])?.['ownership_type']) === undefined
       ? {} : { ownershipType: string(object(row['ownership'])?.['ownership_type']) }),

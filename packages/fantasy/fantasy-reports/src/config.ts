@@ -8,10 +8,10 @@ import { assertSchedule } from '@deepseek-ai/dsh-cron'
 import { assertDeliveryTarget } from '@deepseek-ai/dsh-delivery-target'
 
 /** Report timing; each mode has its own schedule and stage emphasis. */
-export type ReportMode = 'full' | 'thursday' | 'sunday'
+export type ReportMode = 'waivers' | 'full' | 'thursday' | 'sunday'
 
-/** Every report mode in schedule order. */
-export const REPORT_MODES: readonly ReportMode[] = ['full', 'thursday', 'sunday']
+/** Every report mode in the order of a Yahoo game week, which runs Tuesday through Monday. */
+export const REPORT_MODES: readonly ReportMode[] = ['waivers', 'full', 'thursday', 'sunday']
 
 /** One Yahoo team, its Discord destination, and its three weekly start times. */
 export interface TeamConfig {
@@ -26,7 +26,7 @@ export interface TeamConfig {
    * `signal:group:<base64 id>`, or `signal:number:<E.164>`.
    */
   readonly channelId: string
-  /** Cron expressions for the three weekly reports, in the configured timezone. */
+  /** Cron expressions for the weekly reports, in the configured timezone. */
   readonly schedule: ReportScheduleConfig
   /**
    * Agent presets that may request this team's report on demand; each must also be in the top-level
@@ -35,8 +35,13 @@ export interface TeamConfig {
   readonly commandPresets?: string[]
 }
 
-/** One team's three weekly start times. */
+/** One team's weekly start times; the waiver report runs only when its schedule is set. */
 export interface ReportScheduleConfig {
+  /**
+   * Waiver report before claims clear, such as `0 7 * * 2` for Tuesday at 7:00 AM; absent, the team has no
+   * waiver timer and no waiver catch-up slot.
+   */
+  readonly waivers?: string
   /** Midweek full report, such as `0 14 * * 3` for Wednesday at 2:00 PM. */
   readonly full: string
   /** Thursday update focused on practice reports and early kickoffs. */
@@ -101,10 +106,29 @@ export interface Config {
   readonly closeCallMargin?: number
   /** Close calls compared by the close-call stage; 0 skips the stage. */
   readonly maxCloseCalls?: number
-  /** Weakest roster positions searched for free agents; 0 skips the waiver shortlist and its stage. */
+  /**
+   * Base positions shortlisted for the waiver stage, ranked by their best candidate's horizon net value; 0 skips
+   * the waiver pool reads, the add and drop moves, and the waiver stage.
+   */
   readonly waiverPositions?: number
-  /** Free agents shortlisted per weak position. */
+  /** Available players shortlisted per chosen position, ranked by horizon net value. */
   readonly waiverCandidates?: number
+  /** Players requested in one Yahoo waiver-pool list. */
+  readonly waiverPoolSize?: number
+  /** Earlier weeks whose top scorers join each position's waiver pool beside the season rank list. */
+  readonly waiverPointWeeks?: number
+  /** Weeks, starting with the report week, over which roster outlooks and candidate value are averaged. */
+  readonly horizonWeeks?: number
+  /** Completed weeks of actual league points shown as recent form; 0 reads none. */
+  readonly formWeeks?: number
+  /** Whole points by which a recent average must exceed or trail the projection to flag hot or cold form. */
+  readonly formGapPoints?: number
+  /** Shortlisted candidates, best net value first, that get one news search each. */
+  readonly candidateSearches?: number
+  /** Waiver-article search queries per report; 0 skips the article sweep. */
+  readonly waiverArticleSearches?: number
+  /** Waiver-article pages admitted per report. */
+  readonly waiverArticlePages?: number
   /** Most waiver picks the waiver stage may return. */
   readonly waiverPicks?: number
   /** Whether a final stage checks each model reason against its cited excerpts. */
@@ -156,7 +180,9 @@ const BOUNDS = {
   excerptsPerPlayer: [2, 1, 3], excerptChars: [300, 80, 1_000], playersPerStage: [5, 1, 15],
   stageMaxTokens: [4_000, 256, 64_000],
   closeCallMargin: [2, 0, 20], maxCloseCalls: [3, 0, 6],
-  waiverPositions: [2, 0, 6], waiverCandidates: [4, 1, 10], waiverPicks: [2, 0, 5],
+  waiverPositions: [3, 0, 6], waiverCandidates: [3, 1, 10], waiverPicks: [2, 0, 5],
+  waiverPoolSize: [25, 5, 25], waiverPointWeeks: [2, 0, 3], horizonWeeks: [3, 1, 6], formWeeks: [3, 0, 6], formGapPoints: [4, 1, 20],
+  candidateSearches: [6, 0, 20], waiverArticleSearches: [2, 0, 4], waiverArticlePages: [4, 1, 10],
   historyReports: [2, 0, 6], historyChars: [6_000, 0, 40_000],
   stageTimeoutMs: [1_200_000, 1_000, 86_400_000], runTimeoutMs: [14_400_000, 1_000, 86_400_000],
   maxDeliveryChars: [19_000, 1_000, 20_000],
@@ -175,7 +201,7 @@ export const Config: z<Config> = z.object({
     teamKey: z.string().required(),
     channelId: z.string().required(),
     schedule: z.object({
-      full: z.string().required(), thursday: z.string().required(), sunday: z.string().required(),
+      waivers: z.string(), full: z.string().required(), thursday: z.string().required(), sunday: z.string().required(),
     }).required(),
     commandPresets: z.array(z.string()),
   })).required(),
@@ -236,7 +262,10 @@ export function resolveConfig(config: Config): ResolvedConfig {
     const teamKey = TeamKey(team.teamKey)
     if (keys.has(teamKey)) throw new Error(`fantasy-reports: duplicate team key ${teamKey}`)
     keys.add(teamKey)
-    for (const mode of REPORT_MODES) assertSchedule(team.schedule[mode], config.timezone)
+    for (const mode of REPORT_MODES) {
+      const expression = team.schedule[mode]
+      if (expression !== undefined) assertSchedule(expression, config.timezone)
+    }
     const teamPresets = team.commandPresets === undefined || team.commandPresets.length === 0 ? commandPresets
       : presetList(team.commandPresets, `team ${team.id} commandPresets`)
     if (teamPresets.some(preset => !commandPresets.includes(preset))) {

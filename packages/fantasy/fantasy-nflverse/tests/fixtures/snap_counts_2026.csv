@@ -1,0 +1,8 @@
+game_id,pfr_game_id,season,game_type,week,player,pfr_player_id,position,team,opponent,offense_snaps,offense_pct,defense_snaps,defense_pct,st_snaps,st_pct
+2026_04_ARI_NYG,202610040nyg,2026,REG,4,Marvin Harrison Jr.,HarrMa09,WR,ARI,NYG,43,0.65,0,0,0,0
+2026_04_LA_PHI,202610040phi,2026,REG,4,Puka Nacua,NacuPu00,WR,LA,PHI,76,0.9,0,0,0,0
+2026_04_LA_PHI,202610040phi,2026,REG,4,Kyren Williams,WillKy02,RB,LA,PHI,70,0.83,0,0,0,0
+2026_05_BUF_LA,202610120ram,2026,REG,5,Puka Nacua,NacuPu00,WR,LA,BUF,70,0.85,0,0,0,0
+2026_05_BUF_LA,202610120ram,2026,REG,5,Kyren Williams,WillKy02,RB,LA,BUF,60,0.73,0,0,0,0
+2026_05_CLE_NYJ,202610110nyj,2026,REG,5,Justin Jefferson,JeffJu01,LB,CLE,NYJ,0,0,0,0,22,0.73
+2026_05_MIN_NO,202610110nor,2026,REG,5,Justin Jefferson,JeffJu00,WR,MIN,NO,63,0.89,0,0,0,0

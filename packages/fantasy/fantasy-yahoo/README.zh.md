@@ -38,6 +38,8 @@ kind: "package-reference"
 
 `/fantasy auth` 返回 Yahoo 只读授权 URL。随后使用 `/fantasy auth <回调 URL 或代码>` 交换代码并替换 DSH 存储。命令不会将回调输入记入 Session 日志。`/fantasy status` 报告 token 年龄、最近刷新时间、API 可达性、联盟数量和配置的球队键，不包含凭据。
 
+球员读取将 `status` `A` 映射为 Yahoo `status=A`，它同时返回自由球员和认领球员，并带有各自的持有类型。`playerKeys` 以一次 `player_keys` 请求读取至多 25 名指定球员，`week` 选择该周得分；与 `search`、`status`、`position` 或 `sort` 组合，或传入超过 25 个键，会在发出请求前失败。排名、记分板、对阵和阵容带有每支球队的认领优先级、操作次数，以及 Yahoo 报告时的 FAAB 余额；联盟设置带有来自 `waiver_time` 的 `waiverDays` 和来自 `uses_faab` 的 `usesFaab`。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -46,7 +48,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-Yahoo JSON 使用 `fantasy_content`、数字键集合和由局部实体对象组成的数组。解析器合并实体片段，只投影决策所需字段。提供方对 Fantasy API 只发 GET；固定的 OAuth token 端点接收授权代码和刷新请求。提供方在独占的同级锁内重新读取存储，以 0600 临时文件写入，再重命名覆盖存储。响应缓存由 TTL 和条目上限约束。token 文件是唯一权威来源，缓存可派生且有界，因此不发布不变量组件。
+Yahoo JSON 使用 `fantasy_content`、数字键集合和由局部实体对象组成的数组。解析器合并实体片段，只投影决策所需字段。提供方对 Fantasy API 只发 GET；固定的 OAuth token 端点接收授权代码和刷新请求。提供方在独占的同级锁内重新读取存储，以 0600 临时文件写入，再重命名覆盖存储。响应缓存以请求路径为键，由 TTL 和条目上限约束。Yahoo 对 `search=` 中的撇号返回 HTTP 500，删除撇号后又匹配不到任何球员，因此含撇号的搜索发送不含撇号的单词，所有单词都含撇号时发送删除撇号后的姓名，并只保留 `normalizePlayerName` 处理后的全名包含规范化查询的球员。token 文件是唯一权威来源，缓存可派生且有界，因此不发布不变量组件。
 
 </details>
 
@@ -83,6 +85,7 @@ Yahoo JSON 使用 `fantasy_content`、数字键集合和由局部实体对象组
 
 - 导入的 Python 缓存仅用于引导，不是共享刷新存储。
 - Yahoo 响应中缺少的字段，包括部分球员预测和新闻，不会出现在规范化视图中。
+- 撇号搜索在本地过滤取回的页面，因此 `start` 和 `count` 对更宽的单词搜索分页，一页的球员可能少于 `count`。
 - 账户所有者须进行 Yahoo 只读现场验证；夹具测试不联系 Yahoo。
 
 <a id="dev-note"></a>

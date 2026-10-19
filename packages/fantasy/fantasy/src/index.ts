@@ -4,7 +4,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {
-  FantasyDraftPick, FantasyGameWeek, FantasyLeague, FantasyLeagueSettings, FantasyMatchup,
+  FantasyDraftPick, FantasyGameWeek, FantasyLeague, FantasyLeagueSettings, FantasyMatchup, FantasyNflGame, FantasyNflUsage,
   FantasyPlayer, FantasyRoster, FantasyScoringStat, FantasyTeam, FantasyTransaction, LeagueKey as LeagueKeyType,
   PlayerKey as PlayerKeyType, TeamKey as TeamKeyType,
 } from './types.ts'
@@ -42,6 +42,7 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     fantasy: FantasyService
     fantasyProjections: FantasyProjectionService
+    fantasyNfl: FantasyNflService
   }
 }
 
@@ -98,13 +99,15 @@ export abstract class FantasyService extends Service {
   abstract team(key: TeamKeyType, week: number, signal?: AbortSignal): Promise<FantasyRoster>
   /** Search or filter one page of league players.
    * @param league - league identity.
-   * @param query - search or availability filters.
+   * @param query - search or availability filters: `status` `FA` is immediate adds, `W` waiver claims, and
+   * `A` both; `playerKeys` (at most 25) selects exact players and excludes every other filter and sort.
    * @param signal - caller cancellation.
    * @returns one provider page.
    */
   abstract players(league: LeagueKeyType, query: {
     search?: string
-    status?: 'FA' | 'W'
+    status?: 'FA' | 'W' | 'A'
+    playerKeys?: readonly PlayerKeyType[]
     position?: string
     sort?: 'points' | 'rank' | 'percent_owned'
     start: number
@@ -161,6 +164,50 @@ export abstract class FantasyProjectionService extends Service {
   abstract project(
     season: number, week: number, players: readonly FantasyPlayer[], signal?: AbortSignal,
   ): Promise<ReadonlyMap<PlayerKeyType, Readonly<Record<string, number>>>>
+}
+
+/**
+ * NFL schedules, betting lines, and completed-game usage from a source other than the league provider.
+ * Team abbreviations are uppercase and match `FantasyPlayer.nflTeam` compared case-insensitively.
+ */
+export abstract class FantasyNflService extends Service {
+  constructor(ctx: Context) {
+    if (new.target === FantasyNflService) throw new Error('load a fantasy NFL data provider, not the abstract definition')
+    super(ctx, 'fantasyNfl')
+  }
+
+  /** Read one regular-season week's games.
+   * @param season - NFL season year.
+   * @param week - NFL regular-season week.
+   * @param signal - caller cancellation.
+   * @returns the week's games; teams on bye are absent.
+   */
+  abstract games(season: number, week: number, signal?: AbortSignal): Promise<readonly FantasyNflGame[]>
+
+  /** Read completed-game usage for league players.
+   * @param season - NFL season year.
+   * @param weeks - completed regular-season weeks to read.
+   * @param players - league players; the provider matches them by name, NFL team, and position.
+   * @param signal - caller cancellation.
+   * @returns usage rows by player key in week order; unmatched players and games not played are absent.
+   */
+  abstract usage(
+    season: number, weeks: readonly number[], players: readonly FantasyPlayer[], signal?: AbortSignal,
+  ): Promise<ReadonlyMap<PlayerKeyType, readonly FantasyNflUsage[]>>
+}
+
+/** Name suffix tokens dropped before matching. */
+const NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v'])
+
+/**
+ * Normalize a player name for cross-source matching: ASCII letters only, lowercase, periods and apostrophes
+ * removed, generational suffixes dropped, other separators collapsed to single spaces.
+ * @param name - display name.
+ * @returns normalized words joined by spaces.
+ */
+export function normalizePlayerName(name: string): string {
+  return name.normalize('NFKD').replace(/[^\x20-\x7e]/gu, '').toLowerCase().replace(/[.'`]/gu, '')
+    .split(/[^a-z]+/u).filter(word => word !== '' && !NAME_SUFFIXES.has(word)).join(' ')
 }
 
 /**

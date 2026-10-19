@@ -123,6 +123,12 @@
       name: '@deepseek-ai/dsh-fantasy-projections-sleeper'
       disabled: true
 
+    # nflverse schedules, betting lines, and usage need no private values either; enable this row
+    # with the report row for kickoffs, implied totals, and target and snap shares.
+    - id: fantasy-nflverse
+      name: '@deepseek-ai/dsh-fantasy-nflverse'
+      disabled: true
+
     - id: fantasy-weekly-reports
       name: '@deepseek-ai/dsh-fantasy-reports'
       disabled: true

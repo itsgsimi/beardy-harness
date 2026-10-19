@@ -23,7 +23,7 @@ it('accepts sparse and numbered league settings while rejecting missing identiti
     stat_categories: { stats: { 0: { stat: { stat_id: '5', name: 'Yards' } },
       1: { stat: { stat_id: 8, display_name: 'Score', abbr: 'SC' } }, 2: { ignored: true } } },
     draft_type: 'live', waiver_type: 'FAB', waiver_rule: 'game', trade_end_date: '2026-11-01',
-    playoff_start_week: '15',
+    playoff_start_week: '15', waiver_time: '2', uses_faab: '1',
   }
   const value = parseLeagueSettings(wrapped({ league: [league, { settings }] }))
   expect(value.rosterSlots).toEqual([
@@ -35,9 +35,11 @@ it('accepts sparse and numbered league settings while rejecting missing identiti
     { id: '8', name: 'Score', abbreviation: 'SC' },
   ])
   expect(value).toMatchObject({ draftType: 'live', waiverType: 'FAB', waiverRule: 'game',
-    tradeEndDate: '2026-11-01', playoffStartWeek: 15 })
-  expect(parseLeagueSettings(wrapped({ league: [league], settings: {} })))
-    .toMatchObject({ league: { key: '470.l.809970' }, rosterSlots: [], scoring: [] })
+    tradeEndDate: '2026-11-01', playoffStartWeek: 15, waiverDays: 2, usesFaab: true })
+  const sparse = parseLeagueSettings(wrapped({ league: [league], settings: { uses_faab: 'yes', waiver_time: '' } }))
+  expect(sparse).toMatchObject({ league: { key: '470.l.809970' }, rosterSlots: [], scoring: [] })
+  expect(sparse).not.toHaveProperty('usesFaab')
+  expect(sparse).not.toHaveProperty('waiverDays')
 })
 
 it('parses partial matchups and players and rejects absent weeks', () => {
@@ -48,6 +50,9 @@ it('parses partial matchups and players and rejects absent weeks', () => {
       1: { team: [[{ team_key: '470.l.809970.t.2', name: 'Two' }]] } } }] }))
   expect(matchups[0]).toMatchObject({ week: 3, status: 'live' })
   expect(parseMatchups(wrapped({ matchup: [{ week: 4 }] }))).toEqual([{ week: 4, teams: [] }])
+  const faab = parseMatchups(wrapped({ matchup: [{ week: 5, teams: { 0: { team: [[{ team_key: '470.l.809970.t.3',
+    name: 'Three' }, { waiver_priority: '4' }, { faab_balance: '87' }, { number_of_moves: 3 }]] } } }] }))
+  expect(faab[0]?.teams[0]).toMatchObject({ waiverPriority: 4, faabBalance: 87, moves: 3 })
   const minimal = parsePlayers(wrapped({ players: { 0: { player }, 1: { player: [{}] } } }))
   expect(minimal[0]).toMatchObject({ key: '470.p.1', positions: ['RB', 'WR'] })
   expect(parsePlayers(wrapped({ player: [[{ player_key: '470.p.3', name: { full: 'Player Three' } }]] }))[0]?.positions)
@@ -58,11 +63,11 @@ it('parses partial matchups and players and rejects absent weeks', () => {
       status: 'Q', injury_note: 'ankle', bye_weeks: { week: '8' }, rank: '4',
       ownership: { ownership_type: 'freeagents' } },
     { player_points: { total: '11.5' }, player_projected_points: { total: '14.5' },
-      percent_owned: [{ value: '42' }], player_stats: { stats: { 0: { stat: { stat_id: '5', value: '20' } },
+      percent_owned: [{ value: '42' }, { delta: '-3' }], player_stats: { stats: { 0: { stat: { stat_id: '5', value: '20' } },
         1: { stat: { stat_id: '6' } }, 2: { stat: { value: '7' } } } } },
   ]] }))
   expect(rich[0]).toMatchObject({ positions: ['QB'], selectedSlot: 'QB', status: 'Q', injuryNote: 'ankle',
-    byeWeek: 8, points: 11.5, projectedPoints: 14.5, percentOwned: 42, rank: 4,
+    byeWeek: 8, points: 11.5, projectedPoints: 14.5, percentOwned: 42, percentOwnedDelta: -3, rank: 4,
     ownershipType: 'freeagents', stats: { 5: 20 } })
   expect(() => parseRoster(wrapped({ roster: { week: '3' } }))).toThrow('no team')
 })

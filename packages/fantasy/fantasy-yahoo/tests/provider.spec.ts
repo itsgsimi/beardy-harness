@@ -295,3 +295,59 @@ it('accepts a pasted code while rejecting missing state, missing code, and unkno
     .toBe('success')
   expect(JSON.stringify(h.agent.session.snapshotEvents())).not.toContain('private-code')
 })
+
+it('reads free agents and waiver players together under status A', async () => {
+  const h = await setup()
+  await h.ctx.fantasy.players(LeagueKey('470.l.809970'), { status: 'A', sort: 'points', start: 0, count: 25, week: 7 })
+  expect(h.requested.some(path => path.endsWith('/players;status=A;sort=PTS;sort_type=week;sort_week=7;start=0;count=25'
+    + ';out=percent_owned,ownership/stats;type=week;week=7'))).toBe(true)
+})
+
+it('reads exact players in one request and rejects oversized or filtered key lists', async () => {
+  let gets = 0
+  const h = await setup({ fetcher: (input, init, fallback) => {
+    if (init?.method === 'GET') gets++
+    return fallback(input, init)
+  } })
+  const league = LeagueKey('470.l.809970')
+  const keys = [PlayerKey('470.p.1'), PlayerKey('470.p.2')]
+  expect(await h.ctx.fantasy.players(league, { playerKeys: keys, start: 0, count: 2, week: 6 })).toHaveLength(1)
+  expect(h.requested.some(path => path.endsWith('/players;player_keys=470.p.1,470.p.2;out=percent_owned,ownership'
+    + '/stats;type=week;week=6'))).toBe(true)
+  await h.ctx.fantasy.players(league, { playerKeys: keys, start: 0, count: 2 })
+  expect(h.requested.some(path => path.endsWith('/players;player_keys=470.p.1,470.p.2;out=percent_owned,ownership/stats')))
+    .toBe(true)
+  const before = gets
+  expect(await h.ctx.fantasy.players(league, { playerKeys: [], start: 0, count: 0 })).toEqual([])
+  const many = Array.from({ length: 26 }, (_, index) => PlayerKey(`470.p.${index + 1}`))
+  await expect(h.ctx.fantasy.players(league, { playerKeys: many, start: 0, count: 26 })).rejects.toThrow('at most 25')
+  for (const filter of [{ search: 'x' }, { status: 'A' as const }, { position: 'RB' }, { sort: 'rank' as const }]) {
+    await expect(h.ctx.fantasy.players(league, { playerKeys: keys, start: 0, count: 2, ...filter }))
+      .rejects.toThrow('playerKeys excludes')
+  }
+  expect(gets).toBe(before)
+  expect(await h.ctx.fantasy.players(league, { playerKeys: Array.from({ length: 25 }, (_, index) =>
+    PlayerKey(`470.p.${index + 1}`)), start: 0, count: 25 })).toHaveLength(1)
+})
+
+it('searches apostrophe names by their other words and keeps only matching full names', async () => {
+  const names = ["Wan'Dale Robinson", 'Brian Robinson Jr.', "Ja'Marr Chase", "D'Andre Swift"]
+  const players = Object.fromEntries(names.map((name, index) => [index, {
+    player: [[{ player_key: `470.p.${index + 1}` }, { name: { full: name } }]],
+  }]))
+  const searched: string[] = []
+  const h = await setup({ fetcher: (input, init, fallback) => {
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+    if (!url.pathname.includes('/players;')) return fallback(input, init)
+    searched.push(decodeURIComponent(url.pathname.split('search=')[1]?.split(';')[0] ?? ''))
+    return Promise.resolve(new Response(JSON.stringify({ fantasy_content: { league: [{}, { players }] } })))
+  } })
+  const league = LeagueKey('470.l.809970')
+  const found = async (search: string) => (await h.ctx.fantasy.players(league, { search, start: 0, count: 25 }))
+    .map(player => player.name)
+  expect(await found("Wan'Dale Robinson")).toEqual(["Wan'Dale Robinson"])
+  expect(await found('Wan’Dale')).toEqual(["Wan'Dale Robinson"])
+  expect(await found("Ja'Marr")).toEqual(["Ja'Marr Chase"])
+  expect(await found('Robinson')).toEqual(names)
+  expect(searched).toEqual(['Robinson', 'WanDale', 'JaMarr'])
+})
